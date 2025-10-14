@@ -92,12 +92,30 @@ async function loadTools() {
                 <span>${tool.author}</span>
             </div>
             <div class="tool-actions">
-                <button class="btn btn-primary" onclick="launchTool('${tool.id}')">Launch</button>
-                <button class="btn btn-secondary" onclick="toolSettings('${tool.id}')">Settings</button>
-                <button class="btn btn-danger" onclick="uninstallTool('${tool.id}')">Uninstall</button>
+                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                <button class="btn btn-secondary" data-action="settings" data-tool-id="${tool.id}">Settings</button>
+                <button class="btn btn-danger" data-action="uninstall" data-tool-id="${tool.id}">Uninstall</button>
             </div>
         </div>
     `).join('');
+    
+    // Add event listeners to all tool action buttons
+    toolsGrid.querySelectorAll('.tool-actions button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const target = e.target as HTMLButtonElement;
+            const action = target.getAttribute('data-action');
+            const toolId = target.getAttribute('data-tool-id');
+            if (!toolId) return;
+            
+            if (action === 'launch') {
+                launchTool(toolId);
+            } else if (action === 'settings') {
+                toolSettings(toolId);
+            } else if (action === 'uninstall') {
+                uninstallTool(toolId);
+            }
+        });
+    });
 }
 
 // Tool library with predefined tools
@@ -153,9 +171,21 @@ function loadToolLibrary() {
                     <span class="tool-library-author">Author: ${tool.author}</span>
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="installToolFromLibrary('${tool.id}', '${tool.name}')">Install</button>
+            <button class="btn btn-primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</button>
         </div>
     `).join('');
+    
+    // Add event listeners to install buttons
+    libraryList.querySelectorAll('[data-action="install-tool"]').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const target = e.target as HTMLButtonElement;
+            const packageName = target.getAttribute('data-package');
+            const toolName = target.getAttribute('data-name');
+            if (packageName && toolName) {
+                installToolFromLibrary(packageName, toolName);
+            }
+        });
+    });
 }
 
 async function installToolFromLibrary(packageName: string, toolName: string) {
@@ -194,9 +224,6 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
         });
     }
 }
-
-// Expose function to window object for inline onclick handlers
-(window as any).installToolFromLibrary = installToolFromLibrary;
 
 // Legacy function kept for compatibility - now opens tool library
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -247,11 +274,6 @@ function toolSettings(toolId: string) {
     // Tool settings implementation would go here
 }
 
-// Expose functions to window object for inline onclick handlers
-(window as any).uninstallTool = uninstallTool;
-(window as any).launchTool = launchTool;
-(window as any).toolSettings = toolSettings;
-
 // Connections Management
 async function loadConnections() {
     console.log('loadConnections() called');
@@ -277,7 +299,7 @@ async function loadConnections() {
         }
 
         connectionsList.innerHTML = connections.map((conn: any) => `
-            <div class="connection-card ${conn.isActive ? 'active-connection' : ''}">
+            <div class="connection-card ${conn.isActive ? 'active-connection' : ''}" data-connection-id="${conn.id}">
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
@@ -285,16 +307,33 @@ async function loadConnections() {
                     </div>
                     <div class="connection-actions">
                         ${conn.isActive 
-                            ? '<button class="btn btn-secondary" onclick="disconnectConnection()">Disconnect</button>'
-                            : '<button class="btn btn-primary" onclick="connectToConnection(\'' + conn.id + '\')">Connect</button>'
+                            ? '<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>'
+                            : '<button class="btn btn-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
                         }
-                        <button class="btn btn-danger" onclick="deleteConnection('${conn.id}')">Delete</button>
+                        <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                     </div>
                 </div>
                 <div class="connection-url">${conn.url}</div>
                 <div class="connection-meta">Created: ${new Date(conn.createdAt).toLocaleDateString()}</div>
             </div>
         `).join('');
+        
+        // Add event listeners to all connection action buttons
+        connectionsList.querySelectorAll('.connection-actions button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const target = e.target as HTMLButtonElement;
+                const action = target.getAttribute('data-action');
+                const connectionId = target.getAttribute('data-connection-id');
+                
+                if (action === 'connect' && connectionId) {
+                    connectToConnection(connectionId);
+                } else if (action === 'disconnect') {
+                    disconnectConnection();
+                } else if (action === 'delete' && connectionId) {
+                    deleteConnection(connectionId);
+                }
+            });
+        });
 
         // Update footer
         const activeConn = connections.find((c: any) => c.isActive);
@@ -358,10 +397,6 @@ async function disconnectConnection() {
         });
     }
 }
-
-// Expose functions to window object for inline onclick handlers
-(window as any).connectToConnection = connectToConnection;
-(window as any).disconnectConnection = disconnectConnection;
 
 async function addConnection() {
     const nameInput = document.getElementById('connection-name') as HTMLInputElement;
@@ -462,9 +497,6 @@ async function deleteConnection(id: string) {
         });
     }
 }
-
-// Expose function to window object for inline onclick handlers
-(window as any).deleteConnection = deleteConnection;
 
 // Settings Management
 async function loadSettings() {
