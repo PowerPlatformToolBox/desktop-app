@@ -250,45 +250,60 @@ function toolSettings(toolId: string) {
 
 // Connections Management
 async function loadConnections() {
+    console.log('loadConnections() called');
     const connectionsList = document.getElementById('connections-list');
-    if (!connectionsList) return;
-
-    const connections = await window.toolboxAPI.getConnections();
-
-    if (connections.length === 0) {
-        connectionsList.innerHTML = `
-            <div class="empty-state">
-                <p>No connections configured yet.</p>
-                <p class="empty-state-hint">Add a connection to your Dataverse environment.</p>
-            </div>
-        `;
-        updateFooterConnectionStatus(null);
+    if (!connectionsList) {
+        console.error('connections-list element not found');
         return;
     }
 
-    connectionsList.innerHTML = connections.map((conn: any) => `
-        <div class="connection-card ${conn.isActive ? 'active-connection' : ''}">
-            <div class="connection-header">
-                <div>
-                    <div class="connection-name">${conn.name}</div>
-                    <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
-                </div>
-                <div class="connection-actions">
-                    ${conn.isActive 
-                        ? '<button class="btn btn-secondary" onclick="disconnectConnection()">Disconnect</button>'
-                        : '<button class="btn btn-primary" onclick="connectToConnection(\'' + conn.id + '\')">Connect</button>'
-                    }
-                    <button class="btn btn-danger" onclick="deleteConnection('${conn.id}')">Delete</button>
-                </div>
-            </div>
-            <div class="connection-url">${conn.url}</div>
-            <div class="connection-meta">Created: ${new Date(conn.createdAt).toLocaleDateString()}</div>
-        </div>
-    `).join('');
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+        console.log('Loaded connections:', connections);
 
-    // Update footer
-    const activeConn = connections.find((c: any) => c.isActive);
-    updateFooterConnectionStatus(activeConn || null);
+        if (connections.length === 0) {
+            connectionsList.innerHTML = `
+                <div class="empty-state">
+                    <p>No connections configured yet.</p>
+                    <p class="empty-state-hint">Add a connection to your Dataverse environment.</p>
+                </div>
+            `;
+            updateFooterConnectionStatus(null);
+            return;
+        }
+
+        connectionsList.innerHTML = connections.map((conn: any) => `
+            <div class="connection-card ${conn.isActive ? 'active-connection' : ''}">
+                <div class="connection-header">
+                    <div>
+                        <div class="connection-name">${conn.name}</div>
+                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                    </div>
+                    <div class="connection-actions">
+                        ${conn.isActive 
+                            ? '<button class="btn btn-secondary" onclick="disconnectConnection()">Disconnect</button>'
+                            : '<button class="btn btn-primary" onclick="connectToConnection(\'' + conn.id + '\')">Connect</button>'
+                        }
+                        <button class="btn btn-danger" onclick="deleteConnection('${conn.id}')">Delete</button>
+                    </div>
+                </div>
+                <div class="connection-url">${conn.url}</div>
+                <div class="connection-meta">Created: ${new Date(conn.createdAt).toLocaleDateString()}</div>
+            </div>
+        `).join('');
+
+        // Update footer
+        const activeConn = connections.find((c: any) => c.isActive);
+        updateFooterConnectionStatus(activeConn || null);
+    } catch (error) {
+        console.error('Error loading connections:', error);
+        connectionsList.innerHTML = `
+            <div class="empty-state">
+                <p>Error loading connections</p>
+                <p class="empty-state-hint">${(error as Error).message}</p>
+            </div>
+        `;
+    }
 }
 
 function updateFooterConnectionStatus(connection: any | null) {
@@ -681,9 +696,23 @@ async function init() {
     // Load initial data
     await loadTools();
 
-    // Listen for toolbox events
+    // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
         console.log('ToolBox Event:', payload);
+        
+        // Reload connections when connection events occur
+        if (payload.event === 'connection:created' || 
+            payload.event === 'connection:updated' || 
+            payload.event === 'connection:deleted') {
+            console.log('Connection event detected, reloading connections...');
+            loadConnections().catch(err => console.error('Failed to reload connections:', err));
+        }
+        
+        // Reload tools when tool events occur
+        if (payload.event === 'tool:loaded' || payload.event === 'tool:unloaded') {
+            console.log('Tool event detected, reloading tools...');
+            loadTools().catch(err => console.error('Failed to reload tools:', err));
+        }
     });
 }
 
