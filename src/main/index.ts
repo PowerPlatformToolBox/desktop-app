@@ -36,11 +36,23 @@ class ToolBoxApp {
       this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
     });
 
-    // Listen to API events and forward to renderer
-    this.api.on(ToolBoxEvent.NOTIFICATION_SHOWN, (payload) => {
-      if (this.mainWindow) {
-        this.mainWindow.webContents.send('toolbox-event', payload);
-      }
+    // Forward ALL ToolBox events to renderer process
+    const eventTypes = [
+      ToolBoxEvent.TOOL_LOADED,
+      ToolBoxEvent.TOOL_UNLOADED,
+      ToolBoxEvent.CONNECTION_CREATED,
+      ToolBoxEvent.CONNECTION_UPDATED,
+      ToolBoxEvent.CONNECTION_DELETED,
+      ToolBoxEvent.SETTINGS_UPDATED,
+      ToolBoxEvent.NOTIFICATION_SHOWN
+    ];
+
+    eventTypes.forEach(eventType => {
+      this.api.on(eventType, (payload) => {
+        if (this.mainWindow) {
+          this.mainWindow.webContents.send('toolbox-event', payload);
+        }
+      });
     });
 
     // Listen to auto-update events
