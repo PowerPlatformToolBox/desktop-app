@@ -158,8 +158,8 @@ function loadToolLibrary() {
     `).join('');
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function installToolFromLibrary(packageName: string, toolName: string) {
+    console.log('installToolFromLibrary called:', packageName, toolName);
     if (!packageName) {
         await window.toolboxAPI.showNotification({
             title: 'Invalid Package',
@@ -195,14 +195,15 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
     }
 }
 
+// Expose function to window object for inline onclick handlers
+(window as any).installToolFromLibrary = installToolFromLibrary;
+
 // Legacy function kept for compatibility - now opens tool library
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function installTool() {
     loadToolLibrary();
 }
 
-// These functions are called from HTML onclick handlers
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function uninstallTool(toolId: string) {
     if (!confirm('Are you sure you want to uninstall this tool?')) {
         return;
@@ -228,7 +229,6 @@ async function uninstallTool(toolId: string) {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function launchTool(toolId: string) {
     window.toolboxAPI.showNotification({
         title: 'Tool Launch',
@@ -238,7 +238,6 @@ function launchTool(toolId: string) {
     // Tool launch implementation would go here
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function toolSettings(toolId: string) {
     window.toolboxAPI.showNotification({
         title: 'Tool Settings',
@@ -247,6 +246,11 @@ function toolSettings(toolId: string) {
     });
     // Tool settings implementation would go here
 }
+
+// Expose functions to window object for inline onclick handlers
+(window as any).uninstallTool = uninstallTool;
+(window as any).launchTool = launchTool;
+(window as any).toolSettings = toolSettings;
 
 // Connections Management
 async function loadConnections() {
@@ -319,7 +323,6 @@ function updateFooterConnectionStatus(connection: any | null) {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function connectToConnection(id: string) {
     try {
         await window.toolboxAPI.setActiveConnection(id);
@@ -338,7 +341,6 @@ async function connectToConnection(id: string) {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function disconnectConnection() {
     try {
         await window.toolboxAPI.disconnectConnection();
@@ -356,6 +358,10 @@ async function disconnectConnection() {
         });
     }
 }
+
+// Expose functions to window object for inline onclick handlers
+(window as any).connectToConnection = connectToConnection;
+(window as any).disconnectConnection = disconnectConnection;
 
 async function addConnection() {
     const nameInput = document.getElementById('connection-name') as HTMLInputElement;
@@ -430,13 +436,14 @@ async function addConnection() {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function deleteConnection(id: string) {
+    console.log('deleteConnection called with id:', id);
     if (!confirm('Are you sure you want to delete this connection?')) {
         return;
     }
 
     try {
+        console.log('Calling window.toolboxAPI.deleteConnection');
         await window.toolboxAPI.deleteConnection(id);
 
         await window.toolboxAPI.showNotification({
@@ -447,6 +454,7 @@ async function deleteConnection(id: string) {
 
         await loadConnections();
     } catch (error) {
+        console.error('Error deleting connection:', error);
         await window.toolboxAPI.showNotification({
             title: 'Failed to Delete Connection',
             body: (error as Error).message,
@@ -454,6 +462,9 @@ async function deleteConnection(id: string) {
         });
     }
 }
+
+// Expose function to window object for inline onclick handlers
+(window as any).deleteConnection = deleteConnection;
 
 // Settings Management
 async function loadSettings() {
