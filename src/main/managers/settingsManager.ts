@@ -17,6 +17,7 @@ export class SettingsManager {
         autoUpdate: true,
         lastUsedTools: [],
         connections: [],
+        installedTools: [],
       },
     });
 
@@ -150,5 +151,32 @@ export class SettingsManager {
    */
   deleteToolSettings(toolId: string): void {
     this.toolSettingsStore.delete(toolId);
+  }
+
+  /**
+   * Add an installed tool to the list
+   */
+  addInstalledTool(packageName: string): void {
+    const installedTools = this.store.get('installedTools') || [];
+    if (!installedTools.includes(packageName)) {
+      installedTools.push(packageName);
+      this.store.set('installedTools', installedTools);
+    }
+  }
+
+  /**
+   * Remove an installed tool from the list
+   */
+  removeInstalledTool(packageName: string): void {
+    const installedTools = this.store.get('installedTools') || [];
+    const filtered = installedTools.filter(t => t !== packageName);
+    this.store.set('installedTools', filtered);
+  }
+
+  /**
+   * Get all installed tools
+   */
+  getInstalledTools(): string[] {
+    return this.store.get('installedTools') || [];
   }
 }

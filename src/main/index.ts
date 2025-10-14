@@ -155,12 +155,15 @@ class ToolBoxApp {
 
     ipcMain.handle('install-tool', async (_, packageName) => {
       await this.toolManager.installTool(packageName);
-      return await this.toolManager.loadTool(packageName);
+      const tool = await this.toolManager.loadTool(packageName);
+      this.settingsManager.addInstalledTool(packageName);
+      return tool;
     });
 
     ipcMain.handle('uninstall-tool', async (_, packageName, toolId) => {
       this.toolManager.unloadTool(toolId);
       await this.toolManager.uninstallTool(packageName);
+      this.settingsManager.removeInstalledTool(packageName);
     });
 
     // Tool settings handlers
@@ -388,6 +391,12 @@ class ToolBoxApp {
   async initialize(): Promise<void> {
     await app.whenReady();
     this.createWindow();
+
+    // Load all installed tools
+    const installedTools = this.settingsManager.getInstalledTools();
+    if (installedTools.length > 0) {
+      await this.toolManager.loadInstalledTools(installedTools);
+    }
 
     // Check if auto-update is enabled
     const autoUpdate = this.settingsManager.getSetting('autoUpdate');

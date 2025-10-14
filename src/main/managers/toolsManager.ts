@@ -92,6 +92,19 @@ export class ToolManager extends EventEmitter {
   }
 
   /**
+   * Load all installed tools from a list of package names
+   */
+  async loadInstalledTools(packageNames: string[]): Promise<void> {
+    for (const packageName of packageNames) {
+      try {
+        await this.loadTool(packageName);
+      } catch (error) {
+        console.error(`Failed to load installed tool ${packageName}:`, error);
+      }
+    }
+  }
+
+  /**
    * Install a tool via npm
    */
   async installTool(packageName: string): Promise<void> {
