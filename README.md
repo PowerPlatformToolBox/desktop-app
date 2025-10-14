@@ -12,6 +12,7 @@ A modern desktop application built with Electron and TypeScript that serves as a
 - **🎨 Modern Interface**: Clean, modern UI that showcases tools and their details
 - **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 - **🔔 Notifications**: Built-in notification system to keep users informed
+- **🔄 Auto-Updates**: Automatic application updates with user control
 
 ## Architecture
 
@@ -21,6 +22,7 @@ The application is structured into several key components:
 - **index.ts**: Main Electron application entry point
 - **settings-manager.ts**: Manages user and tool settings using electron-store
 - **tool-manager.ts**: Handles tool installation, loading, and management via npm
+- **auto-update-manager.ts**: Manages automatic application updates using electron-updater
 - **preload.ts**: Secure bridge between main and renderer processes
 
 ### API Layer (`src/api/`)
@@ -125,6 +127,27 @@ Create connections to Dataverse environments:
    - Environment URL
    - Client ID (optional)
    - Tenant ID (optional)
+
+## Auto-Updates
+
+The application supports automatic updates to keep your ToolBox up to date:
+
+### Enabling Auto-Updates
+1. Navigate to "Settings" tab
+2. Check the "Auto Update" checkbox
+3. The application will automatically check for updates every 6 hours
+
+### Manual Update Check
+1. Navigate to "Settings" tab
+2. Click "Check for Updates" button
+3. If an update is available, you'll be prompted to download it
+4. Once downloaded, restart the application to install the update
+
+### Update Process
+- Updates are downloaded in the background
+- You control when to install updates
+- Updates are published via GitHub releases
+- The application checks for updates on startup (if auto-update is enabled)
 
 ## Event System
 

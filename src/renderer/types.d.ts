@@ -23,6 +23,17 @@ export interface ToolboxAPI {
     getEventHistory: (limit?: number) => Promise<any[]>;
     onToolboxEvent: (callback: (event: any, payload: any) => void) => void;
     removeToolboxEventListener: (callback: (event: any, payload: any) => void) => void;
+    // Auto-update
+    checkForUpdates: () => Promise<void>;
+    downloadUpdate: () => Promise<void>;
+    quitAndInstall: () => Promise<void>;
+    getAppVersion: () => Promise<string>;
+    onUpdateChecking: (callback: () => void) => void;
+    onUpdateAvailable: (callback: (info: any) => void) => void;
+    onUpdateNotAvailable: (callback: () => void) => void;
+    onUpdateDownloadProgress: (callback: (progress: any) => void) => void;
+    onUpdateDownloaded: (callback: (info: any) => void) => void;
+    onUpdateError: (callback: (error: string) => void) => void;
 }
 
 declare global {

@@ -39,4 +39,28 @@ contextBridge.exposeInMainWorld('toolboxAPI', {
   removeToolboxEventListener: (callback: (event: unknown, payload: unknown) => void) => {
     ipcRenderer.removeListener('toolbox-event', callback);
   },
+
+  // Auto-update
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateChecking: (callback: () => void) => {
+    ipcRenderer.on('update-checking', callback);
+  },
+  onUpdateAvailable: (callback: (info: unknown) => void) => {
+    ipcRenderer.on('update-available', (_, info) => callback(info));
+  },
+  onUpdateNotAvailable: (callback: () => void) => {
+    ipcRenderer.on('update-not-available', callback);
+  },
+  onUpdateDownloadProgress: (callback: (progress: unknown) => void) => {
+    ipcRenderer.on('update-download-progress', (_, progress) => callback(progress));
+  },
+  onUpdateDownloaded: (callback: (info: unknown) => void) => {
+    ipcRenderer.on('update-downloaded', (_, info) => callback(info));
+  },
+  onUpdateError: (callback: (error: string) => void) => {
+    ipcRenderer.on('update-error', (_, error) => callback(error));
+  },
 });

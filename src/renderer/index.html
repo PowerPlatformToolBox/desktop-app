@@ -77,6 +77,21 @@
                     <div class="setting-group">
                         <label class="setting-label" for="auto-update-check">Auto Update</label>
                         <input type="checkbox" id="auto-update-check" class="setting-checkbox">
+                        <span class="setting-hint">Automatically check for updates every 6 hours</span>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">Application Updates</label>
+                        <div class="update-controls">
+                            <button class="btn btn-primary" id="check-updates-btn">Check for Updates</button>
+                            <div id="update-status" class="update-status"></div>
+                            <div id="update-progress" class="update-progress" style="display: none;">
+                                <div class="progress-bar">
+                                    <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                                </div>
+                                <span id="progress-text" class="progress-text">0%</span>
+                            </div>
+                        </div>
+                        <div class="app-version">Version: <span id="app-version">Loading...</span></div>
                     </div>
                 </div>
             </div>

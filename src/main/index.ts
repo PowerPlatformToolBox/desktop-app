@@ -3,6 +3,7 @@ import * as path from 'path';
 import { SettingsManager } from './settings-manager';
 import { ToolManager } from './tool-manager';
 import { ToolBoxAPI } from '../api/toolbox-api';
+import { AutoUpdateManager } from './auto-update-manager';
 import { ToolBoxEvent } from '../types';
 
 class ToolBoxApp {
@@ -10,11 +11,13 @@ class ToolBoxApp {
   private settingsManager: SettingsManager;
   private toolManager: ToolManager;
   private api: ToolBoxAPI;
+  private autoUpdateManager: AutoUpdateManager;
 
   constructor() {
     this.settingsManager = new SettingsManager();
     this.toolManager = new ToolManager(path.join(app.getPath('userData'), 'tools'));
     this.api = new ToolBoxAPI();
+    this.autoUpdateManager = new AutoUpdateManager();
 
     this.setupEventListeners();
     this.setupIpcHandlers();
@@ -38,6 +41,31 @@ class ToolBoxApp {
       if (this.mainWindow) {
         this.mainWindow.webContents.send('toolbox-event', payload);
       }
+    });
+
+    // Listen to auto-update events
+    this.autoUpdateManager.on('update-available', (info) => {
+      this.api.showNotification({
+        title: 'Update Available',
+        body: `Version ${info.version} is available for download.`,
+        type: 'info',
+      });
+    });
+
+    this.autoUpdateManager.on('update-downloaded', (info) => {
+      this.api.showNotification({
+        title: 'Update Ready',
+        body: `Version ${info.version} has been downloaded and will be installed on restart.`,
+        type: 'success',
+      });
+    });
+
+    this.autoUpdateManager.on('update-error', (error) => {
+      this.api.showNotification({
+        title: 'Update Error',
+        body: `Failed to check for updates: ${error.message}`,
+        type: 'error',
+      });
     });
   }
 
@@ -128,6 +156,23 @@ class ToolBoxApp {
     ipcMain.handle('get-event-history', (_, limit) => {
       return this.api.getEventHistory(limit);
     });
+
+    // Auto-update handlers
+    ipcMain.handle('check-for-updates', async () => {
+      await this.autoUpdateManager.checkForUpdates();
+    });
+
+    ipcMain.handle('download-update', async () => {
+      await this.autoUpdateManager.downloadUpdate();
+    });
+
+    ipcMain.handle('quit-and-install', () => {
+      this.autoUpdateManager.quitAndInstall();
+    });
+
+    ipcMain.handle('get-app-version', () => {
+      return this.autoUpdateManager.getCurrentVersion();
+    });
   }
 
   /**
@@ -145,6 +190,9 @@ class ToolBoxApp {
       title: 'PowerPlatform ToolBox',
       icon: path.join(__dirname, '../../assets/icon.png'),
     });
+
+    // Set the main window for auto-updater
+    this.autoUpdateManager.setMainWindow(this.mainWindow);
 
     // Load the index.html
     this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -166,6 +214,13 @@ class ToolBoxApp {
     await app.whenReady();
     this.createWindow();
 
+    // Check if auto-update is enabled
+    const autoUpdate = this.settingsManager.getSetting('autoUpdate');
+    if (autoUpdate) {
+      // Enable automatic update checks every 6 hours
+      this.autoUpdateManager.enableAutoUpdateChecks(6);
+    }
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         this.createWindow();
@@ -176,6 +231,11 @@ class ToolBoxApp {
       if (process.platform !== 'darwin') {
         app.quit();
       }
+    });
+
+    app.on('before-quit', () => {
+      // Clean up update checks
+      this.autoUpdateManager.disableAutoUpdateChecks();
     });
   }
 }

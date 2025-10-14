@@ -281,6 +281,13 @@ async function loadSettings() {
 
     if (themeSelect) themeSelect.value = settings.theme;
     if (autoUpdateCheck) autoUpdateCheck.checked = settings.autoUpdate;
+
+    // Load app version
+    const version = await window.toolboxAPI.getAppVersion();
+    const versionElement = document.getElementById('app-version');
+    if (versionElement) {
+        versionElement.textContent = version;
+    }
 }
 
 async function saveSettings() {
@@ -298,6 +305,90 @@ async function saveSettings() {
         title: 'Settings Saved',
         body: 'Your settings have been saved.',
         type: 'success'
+    });
+}
+
+// Auto-Update Management
+function showUpdateStatus(message: string, type: 'info' | 'success' | 'error') {
+    const statusElement = document.getElementById('update-status');
+    if (statusElement) {
+        statusElement.textContent = message;
+        statusElement.className = `update-status ${type}`;
+    }
+}
+
+function hideUpdateStatus() {
+    const statusElement = document.getElementById('update-status');
+    if (statusElement) {
+        statusElement.style.display = 'none';
+    }
+}
+
+function showUpdateProgress() {
+    const progressElement = document.getElementById('update-progress');
+    if (progressElement) {
+        progressElement.style.display = 'block';
+    }
+}
+
+function hideUpdateProgress() {
+    const progressElement = document.getElementById('update-progress');
+    if (progressElement) {
+        progressElement.style.display = 'none';
+    }
+}
+
+function updateProgress(percent: number) {
+    const fillElement = document.getElementById('progress-bar-fill');
+    const textElement = document.getElementById('progress-text');
+    if (fillElement) {
+        fillElement.style.width = `${percent}%`;
+    }
+    if (textElement) {
+        textElement.textContent = `${percent}%`;
+    }
+}
+
+async function checkForUpdates() {
+    hideUpdateStatus();
+    hideUpdateProgress();
+    showUpdateStatus('Checking for updates...', 'info');
+    
+    try {
+        await window.toolboxAPI.checkForUpdates();
+    } catch (error) {
+        showUpdateStatus(`Error: ${(error as Error).message}`, 'error');
+    }
+}
+
+// Set up auto-update event listeners
+function setupAutoUpdateListeners() {
+    window.toolboxAPI.onUpdateChecking(() => {
+        showUpdateStatus('Checking for updates...', 'info');
+    });
+
+    window.toolboxAPI.onUpdateAvailable((info: any) => {
+        showUpdateStatus(`Update available: Version ${info.version}`, 'success');
+    });
+
+    window.toolboxAPI.onUpdateNotAvailable(() => {
+        showUpdateStatus('You are running the latest version', 'success');
+    });
+
+    window.toolboxAPI.onUpdateDownloadProgress((progress: any) => {
+        showUpdateProgress();
+        updateProgress(progress.percent);
+        showUpdateStatus(`Downloading update: ${progress.percent}%`, 'info');
+    });
+
+    window.toolboxAPI.onUpdateDownloaded((info: any) => {
+        hideUpdateProgress();
+        showUpdateStatus(`Update downloaded: Version ${info.version}. Restart to install.`, 'success');
+    });
+
+    window.toolboxAPI.onUpdateError((error: string) => {
+        hideUpdateProgress();
+        showUpdateStatus(`Update error: ${error}`, 'error');
     });
 }
 
@@ -384,6 +475,15 @@ async function init() {
     if (autoUpdateCheck) {
         autoUpdateCheck.addEventListener('change', saveSettings);
     }
+
+    // Auto-update button handler
+    const checkUpdatesBtn = document.getElementById('check-updates-btn');
+    if (checkUpdatesBtn) {
+        checkUpdatesBtn.addEventListener('click', checkForUpdates);
+    }
+
+    // Set up auto-update listeners
+    setupAutoUpdateListeners();
 
     // Load initial data
     await loadTools();
