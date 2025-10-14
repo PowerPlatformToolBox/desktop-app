@@ -11,6 +11,9 @@ export interface ToolboxAPI {
     updateConnection: (id: string, updates: any) => Promise<void>;
     deleteConnection: (id: string) => Promise<void>;
     getConnections: () => Promise<any[]>;
+    setActiveConnection: (id: string) => Promise<void>;
+    getActiveConnection: () => Promise<any | null>;
+    disconnectConnection: () => Promise<void>;
     getAllTools: () => Promise<any[]>;
     getTool: (toolId: string) => Promise<any>;
     loadTool: (packageName: string) => Promise<any>;
@@ -20,6 +23,8 @@ export interface ToolboxAPI {
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
     showNotification: (options: any) => Promise<void>;
+    copyToClipboard: (text: string) => Promise<void>;
+    saveFile: (defaultPath: string, content: any) => Promise<string | null>;
     getEventHistory: (limit?: number) => Promise<any[]>;
     onToolboxEvent: (callback: (event: any, payload: any) => void) => void;
     removeToolboxEventListener: (callback: (event: any, payload: any) => void) => void;

@@ -61,6 +61,12 @@ export class SettingsManager {
    */
   addConnection(connection: DataverseConnection): void {
     const connections = this.store.get('connections');
+    // If this is the first connection or marked as active, make it active
+    if (connections.length === 0 || connection.isActive) {
+      // Deactivate all other connections
+      connections.forEach(c => c.isActive = false);
+      connection.isActive = true;
+    }
     connections.push(connection);
     this.store.set('connections', connections);
   }
@@ -91,6 +97,37 @@ export class SettingsManager {
    */
   getConnections(): DataverseConnection[] {
     return this.store.get('connections');
+  }
+
+  /**
+   * Set active connection (only one can be active at a time)
+   */
+  setActiveConnection(id: string): void {
+    const connections = this.store.get('connections');
+    connections.forEach(c => {
+      c.isActive = c.id === id;
+      if (c.isActive) {
+        c.lastUsedAt = new Date().toISOString();
+      }
+    });
+    this.store.set('connections', connections);
+  }
+
+  /**
+   * Get the currently active connection
+   */
+  getActiveConnection(): DataverseConnection | null {
+    const connections = this.store.get('connections');
+    return connections.find(c => c.isActive) || null;
+  }
+
+  /**
+   * Disconnect (deactivate) the current connection
+   */
+  disconnectActiveConnection(): void {
+    const connections = this.store.get('connections');
+    connections.forEach(c => c.isActive = false);
+    this.store.set('connections', connections);
   }
 
   /**

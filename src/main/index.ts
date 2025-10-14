@@ -111,6 +111,19 @@ class ToolBoxApp {
       return this.settingsManager.getConnections();
     });
 
+    ipcMain.handle('set-active-connection', (_, id) => {
+      this.settingsManager.setActiveConnection(id);
+      this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+    });
+
+    ipcMain.handle('get-active-connection', () => {
+      return this.settingsManager.getActiveConnection();
+    });
+
+    ipcMain.handle('disconnect-connection', () => {
+      this.settingsManager.disconnectActiveConnection();
+    });
+
     // Tool handlers
     ipcMain.handle('get-all-tools', () => {
       return this.toolManager.getAllTools();
@@ -150,6 +163,16 @@ class ToolBoxApp {
     // Notification handler
     ipcMain.handle('show-notification', (_, options) => {
       this.api.showNotification(options);
+    });
+
+    // Clipboard handler
+    ipcMain.handle('copy-to-clipboard', (_, text) => {
+      this.api.copyToClipboard(text);
+    });
+
+    // Save file handler
+    ipcMain.handle('save-file', async (_, defaultPath, content) => {
+      return await this.api.saveFile(defaultPath, content);
     });
 
     // Event history handler

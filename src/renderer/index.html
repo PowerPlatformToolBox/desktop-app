@@ -64,6 +64,7 @@
             <div id="settings-view" class="view">
                 <header class="view-header">
                     <h2>Settings</h2>
+                    <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
                 </header>
                 <div class="settings-container">
                     <div class="setting-group">
@@ -98,20 +99,30 @@
         </main>
     </div>
 
+    <!-- Footer with connection status -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <span id="connection-status" class="connection-status">No active connection</span>
+        </div>
+    </footer>
+
     <!-- Install Tool Modal -->
     <div id="install-tool-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3>Install Tool</h3>
+                <h3>Tool Library</h3>
                 <button class="modal-close" id="close-install-modal">&times;</button>
             </div>
             <div class="modal-body">
-                <label for="tool-package-name">NPM Package Name:</label>
-                <input type="text" id="tool-package-name" placeholder="@powerplatform/my-tool" class="modal-input">
+                <div class="tool-library-search">
+                    <input type="text" id="tool-search" placeholder="Search tools..." class="modal-input">
+                </div>
+                <div id="tool-library-list" class="tool-library-list">
+                    <!-- Tools will be loaded here -->
+                </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancel-install-btn">Cancel</button>
-                <button class="btn btn-primary" id="confirm-install-btn">Install</button>
+                <button class="btn btn-secondary" id="cancel-install-btn">Close</button>
             </div>
         </div>
     </div>
@@ -129,6 +140,14 @@
                 
                 <label for="connection-url">Environment URL:</label>
                 <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" class="modal-input">
+                
+                <label for="connection-environment">Environment:</label>
+                <select id="connection-environment" class="modal-input">
+                    <option value="Dev">Dev</option>
+                    <option value="Test">Test</option>
+                    <option value="UAT">UAT</option>
+                    <option value="Production">Production</option>
+                </select>
                 
                 <label for="connection-client-id">Client ID (Optional):</label>
                 <input type="text" id="connection-client-id" placeholder="client-id" class="modal-input">

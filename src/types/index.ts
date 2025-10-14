@@ -41,10 +41,12 @@ export interface DataverseConnection {
   id: string;
   name: string;
   url: string;
+  environment: 'Dev' | 'Test' | 'UAT' | 'Production';
   clientId?: string;
   tenantId?: string;
   createdAt: string;
   lastUsedAt?: string;
+  isActive?: boolean;
 }
 
 /**

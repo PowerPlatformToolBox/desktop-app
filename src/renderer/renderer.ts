@@ -37,7 +37,7 @@ async function loadTools() {
         toolsGrid.innerHTML = `
             <div class="empty-state">
                 <p>No tools installed yet.</p>
-                <p class="empty-state-hint">Install tools via npm to get started.</p>
+                <p class="empty-state-hint">Install tools from the tool library to get started.</p>
             </div>
         `;
         return;
@@ -65,14 +65,67 @@ async function loadTools() {
     `).join('');
 }
 
-async function installTool() {
-    const packageNameInput = document.getElementById('tool-package-name') as HTMLInputElement;
-    const packageName = packageNameInput.value.trim();
+// Tool library with predefined tools
+const toolLibrary = [
+    {
+        id: '@powerplatform/entity-editor',
+        name: 'Entity Editor',
+        description: 'Edit Dataverse entities and records',
+        author: 'PowerPlatform ToolBox',
+        category: 'Data Management'
+    },
+    {
+        id: '@powerplatform/solution-manager',
+        name: 'Solution Manager',
+        description: 'Manage and deploy solutions',
+        author: 'PowerPlatform ToolBox',
+        category: 'Solutions'
+    },
+    {
+        id: '@powerplatform/plugin-tracer',
+        name: 'Plugin Trace Viewer',
+        description: 'View and analyze plugin traces',
+        author: 'PowerPlatform ToolBox',
+        category: 'Development'
+    },
+    {
+        id: '@powerplatform/bulk-data-tools',
+        name: 'Bulk Data Tools',
+        description: 'Import and export data in bulk',
+        author: 'PowerPlatform ToolBox',
+        category: 'Data Management'
+    },
+    {
+        id: '@powerplatform/security-analyzer',
+        name: 'Security Analyzer',
+        description: 'Analyze security roles and permissions',
+        author: 'PowerPlatform ToolBox',
+        category: 'Security'
+    }
+];
 
+function loadToolLibrary() {
+    const libraryList = document.getElementById('tool-library-list');
+    if (!libraryList) return;
+
+    libraryList.innerHTML = toolLibrary.map(tool => `
+        <div class="tool-library-item">
+            <div class="tool-library-info">
+                <div class="tool-library-name">${tool.name}</div>
+                <div class="tool-library-desc">${tool.description}</div>
+                <div class="tool-library-desc">Category: ${tool.category}</div>
+            </div>
+            <button class="btn btn-primary" onclick="installToolFromLibrary('${tool.id}', '${tool.name}')">Install</button>
+        </div>
+    `).join('');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function installToolFromLibrary(packageName: string, toolName: string) {
     if (!packageName) {
         await window.toolboxAPI.showNotification({
-            title: 'Invalid Package Name',
-            body: 'Please enter a valid npm package name.',
+            title: 'Invalid Package',
+            body: 'Please select a valid tool to install.',
             type: 'error'
         });
         return;
@@ -81,7 +134,7 @@ async function installTool() {
     try {
         await window.toolboxAPI.showNotification({
             title: 'Installing Tool',
-            body: `Installing ${packageName}...`,
+            body: `Installing ${toolName}...`,
             type: 'info'
         });
 
@@ -89,20 +142,24 @@ async function installTool() {
 
         await window.toolboxAPI.showNotification({
             title: 'Tool Installed',
-            body: `${packageName} has been installed successfully.`,
+            body: `${toolName} has been installed successfully.`,
             type: 'success'
         });
 
-        packageNameInput.value = '';
         closeModal('install-tool-modal');
         await loadTools();
     } catch (error) {
         await window.toolboxAPI.showNotification({
             title: 'Installation Failed',
-            body: `Failed to install ${packageName}: ${(error as Error).message}`,
+            body: `Failed to install ${toolName}: ${(error as Error).message}`,
             type: 'error'
         });
     }
+}
+
+async function installTool() {
+    // Legacy function - now opens tool library
+    loadToolLibrary();
 }
 
 // These functions are called from HTML onclick handlers
@@ -166,15 +223,22 @@ async function loadConnections() {
                 <p class="empty-state-hint">Add a connection to your Dataverse environment.</p>
             </div>
         `;
+        updateFooterConnectionStatus(null);
         return;
     }
 
-    connectionsList.innerHTML = connections.map(conn => `
-        <div class="connection-card">
+    connectionsList.innerHTML = connections.map((conn: any) => `
+        <div class="connection-card ${conn.isActive ? 'active-connection' : ''}">
             <div class="connection-header">
-                <div class="connection-name">${conn.name}</div>
+                <div>
+                    <div class="connection-name">${conn.name}</div>
+                    <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                </div>
                 <div class="connection-actions">
-                    <button class="btn btn-primary" onclick="testConnection('${conn.id}')">Test</button>
+                    ${conn.isActive 
+                        ? '<button class="btn btn-secondary" onclick="disconnectConnection()">Disconnect</button>'
+                        : '<button class="btn btn-primary" onclick="connectToConnection(\'' + conn.id + '\')">Connect</button>'
+                    }
                     <button class="btn btn-danger" onclick="deleteConnection('${conn.id}')">Delete</button>
                 </div>
             </div>
@@ -182,16 +246,73 @@ async function loadConnections() {
             <div class="connection-meta">Created: ${new Date(conn.createdAt).toLocaleDateString()}</div>
         </div>
     `).join('');
+
+    // Update footer
+    const activeConn = connections.find((c: any) => c.isActive);
+    updateFooterConnectionStatus(activeConn || null);
+}
+
+function updateFooterConnectionStatus(connection: any | null) {
+    const statusElement = document.getElementById('connection-status');
+    if (!statusElement) return;
+
+    if (connection) {
+        statusElement.textContent = `Connected to: ${connection.name} (${connection.environment})`;
+        statusElement.className = 'connection-status connected';
+    } else {
+        statusElement.textContent = 'No active connection';
+        statusElement.className = 'connection-status';
+    }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function connectToConnection(id: string) {
+    try {
+        await window.toolboxAPI.setActiveConnection(id);
+        await window.toolboxAPI.showNotification({
+            title: 'Connected',
+            body: 'Successfully connected to Dataverse environment.',
+            type: 'success'
+        });
+        await loadConnections();
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: 'Connection Failed',
+            body: (error as Error).message,
+            type: 'error'
+        });
+    }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function disconnectConnection() {
+    try {
+        await window.toolboxAPI.disconnectConnection();
+        await window.toolboxAPI.showNotification({
+            title: 'Disconnected',
+            body: 'Disconnected from Dataverse environment.',
+            type: 'info'
+        });
+        await loadConnections();
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: 'Disconnect Failed',
+            body: (error as Error).message,
+            type: 'error'
+        });
+    }
 }
 
 async function addConnection() {
     const nameInput = document.getElementById('connection-name') as HTMLInputElement;
     const urlInput = document.getElementById('connection-url') as HTMLInputElement;
+    const environmentSelect = document.getElementById('connection-environment') as HTMLSelectElement;
     const clientIdInput = document.getElementById('connection-client-id') as HTMLInputElement;
     const tenantIdInput = document.getElementById('connection-tenant-id') as HTMLInputElement;
 
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
+    const environment = environmentSelect.value as 'Dev' | 'Test' | 'UAT' | 'Production';
     const clientId = clientIdInput.value.trim();
     const tenantId = tenantIdInput.value.trim();
 
@@ -208,9 +329,11 @@ async function addConnection() {
         id: Date.now().toString(),
         name,
         url,
+        environment,
         clientId: clientId || undefined,
         tenantId: tenantId || undefined,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        isActive: false
     };
 
     try {
@@ -224,6 +347,7 @@ async function addConnection() {
 
         nameInput.value = '';
         urlInput.value = '';
+        environmentSelect.value = 'Dev';
         clientIdInput.value = '';
         tenantIdInput.value = '';
         closeModal('add-connection-modal');
@@ -262,16 +386,6 @@ async function deleteConnection(id: string) {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function testConnection(id: string) {
-    window.toolboxAPI.showNotification({
-        title: 'Testing Connection',
-        body: `Testing connection ${id}...`,
-        type: 'info'
-    });
-    // Connection test implementation would go here
-}
-
 // Settings Management
 async function loadSettings() {
     const settings = await window.toolboxAPI.getUserSettings();
@@ -288,6 +402,26 @@ async function loadSettings() {
     if (versionElement) {
         versionElement.textContent = version;
     }
+
+    // Apply current theme
+    applyTheme(settings.theme);
+}
+
+function applyTheme(theme: string) {
+    const body = document.body;
+    
+    if (theme === 'system') {
+        // Check system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        body.classList.toggle('dark-theme', prefersDark);
+        body.classList.toggle('light-theme', !prefersDark);
+    } else if (theme === 'dark') {
+        body.classList.add('dark-theme');
+        body.classList.remove('light-theme');
+    } else {
+        body.classList.add('light-theme');
+        body.classList.remove('dark-theme');
+    }
 }
 
 async function saveSettings() {
@@ -300,6 +434,9 @@ async function saveSettings() {
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
+
+    // Apply theme immediately
+    applyTheme(settings.theme);
 
     await window.toolboxAPI.showNotification({
         title: 'Settings Saved',
@@ -426,7 +563,10 @@ async function init() {
     // Install tool modal
     const installToolBtn = document.getElementById('install-tool-btn');
     if (installToolBtn) {
-        installToolBtn.addEventListener('click', () => openModal('install-tool-modal'));
+        installToolBtn.addEventListener('click', () => {
+            openModal('install-tool-modal');
+            loadToolLibrary();
+        });
     }
 
     const closeInstallModal = document.getElementById('close-install-modal');
@@ -437,11 +577,6 @@ async function init() {
     const cancelInstallBtn = document.getElementById('cancel-install-btn');
     if (cancelInstallBtn) {
         cancelInstallBtn.addEventListener('click', () => closeModal('install-tool-modal'));
-    }
-
-    const confirmInstallBtn = document.getElementById('confirm-install-btn');
-    if (confirmInstallBtn) {
-        confirmInstallBtn.addEventListener('click', installTool);
     }
 
     // Add connection modal
@@ -465,15 +600,10 @@ async function init() {
         confirmConnectionBtn.addEventListener('click', addConnection);
     }
 
-    // Settings change handlers
-    const themeSelect = document.getElementById('theme-select');
-    if (themeSelect) {
-        themeSelect.addEventListener('change', saveSettings);
-    }
-
-    const autoUpdateCheck = document.getElementById('auto-update-check');
-    if (autoUpdateCheck) {
-        autoUpdateCheck.addEventListener('change', saveSettings);
+    // Settings save button
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveSettings);
     }
 
     // Auto-update button handler

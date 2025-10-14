@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('toolboxAPI', {
   updateConnection: (id: string, updates: unknown) => ipcRenderer.invoke('update-connection', id, updates),
   deleteConnection: (id: string) => ipcRenderer.invoke('delete-connection', id),
   getConnections: () => ipcRenderer.invoke('get-connections'),
+  setActiveConnection: (id: string) => ipcRenderer.invoke('set-active-connection', id),
+  getActiveConnection: () => ipcRenderer.invoke('get-active-connection'),
+  disconnectConnection: () => ipcRenderer.invoke('disconnect-connection'),
 
   // Tools
   getAllTools: () => ipcRenderer.invoke('get-all-tools'),
@@ -30,6 +33,12 @@ contextBridge.exposeInMainWorld('toolboxAPI', {
 
   // Notifications
   showNotification: (options: unknown) => ipcRenderer.invoke('show-notification', options),
+
+  // Clipboard
+  copyToClipboard: (text: string) => ipcRenderer.invoke('copy-to-clipboard', text),
+
+  // File operations
+  saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke('save-file', defaultPath, content),
 
   // Events
   getEventHistory: (limit?: number) => ipcRenderer.invoke('get-event-history', limit),
