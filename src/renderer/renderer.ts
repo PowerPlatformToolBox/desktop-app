@@ -293,14 +293,19 @@ async function launchTool(toolId: string) {
             // For mock tools, we'll create a simple welcome page
             const toolHtml = `
                 <!DOCTYPE html>
-                <html>
+                <html style="height: 100%;">
                 <head>
                     <style>
+                        html, body { 
+                            height: 100%;
+                            margin: 0;
+                            padding: 0;
+                        }
                         body { 
                             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                             padding: 40px; 
                             background: #f5f5f5;
-                            margin: 0;
+                            box-sizing: border-box;
                         }
                         .tool-container {
                             max-width: 800px;
