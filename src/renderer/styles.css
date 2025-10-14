@@ -681,3 +681,63 @@ body {
     padding: 20px;
     border-top: 1px solid var(--border-color);
 }
+
+/* Tool Panel */
+.tool-panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-color);
+}
+
+.tool-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tool-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.tool-panel-icon {
+    font-size: 24px;
+}
+
+.tool-panel-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.tool-panel-content webview {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #8a8886;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: var(--border-color);
+    color: var(--text-color);
+}
+

@@ -357,6 +357,7 @@ class ToolBoxApp {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
+        webviewTag: true, // Enable webview tag
       },
       title: 'PowerPlatform ToolBox',
       icon: path.join(__dirname, '../../assets/icon.png'),

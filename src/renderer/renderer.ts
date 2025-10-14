@@ -270,13 +270,104 @@ async function launchTool(toolId: string) {
             return;
         }
         
-        // In a real implementation, this would open the tool in a new window or panel
-        // For now, we'll show a notification
-        window.toolboxAPI.showNotification({
-            title: 'Tool Launched',
-            body: `${tool.name} has been launched successfully`,
-            type: 'success'
-        });
+        // Hide all views
+        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+        
+        // Show tool panel
+        const toolPanel = document.getElementById('tool-panel');
+        const toolPanelName = document.getElementById('tool-panel-name');
+        const toolWebview = document.getElementById('tool-webview') as any;
+        
+        if (toolPanel && toolPanelName && toolWebview) {
+            toolPanel.style.display = 'flex';
+            toolPanelName.textContent = tool.name;
+            
+            // Set webview src - in real implementation, this would load the tool's UI
+            // For mock tools, we'll create a simple welcome page
+            const toolHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { 
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                            padding: 40px; 
+                            background: #f5f5f5;
+                            margin: 0;
+                        }
+                        .tool-container {
+                            max-width: 800px;
+                            margin: 0 auto;
+                            background: white;
+                            padding: 30px;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        h1 { 
+                            color: #0078d4; 
+                            margin-top: 0;
+                        }
+                        .info { 
+                            background: #e7f3ff; 
+                            padding: 15px; 
+                            border-radius: 4px; 
+                            margin: 20px 0;
+                            border-left: 4px solid #0078d4;
+                        }
+                        .metadata {
+                            display: grid;
+                            grid-template-columns: 150px 1fr;
+                            gap: 10px;
+                            margin: 20px 0;
+                        }
+                        .metadata-label {
+                            font-weight: 600;
+                            color: #605e5c;
+                        }
+                        .metadata-value {
+                            color: #323130;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="tool-container">
+                        <h1>${tool.icon || '🔧'} ${tool.name}</h1>
+                        <p>${tool.description || 'No description available'}</p>
+                        
+                        <div class="info">
+                            <strong>ℹ️ Tool Information</strong><br>
+                            This is a ${tool.id.includes('mock') ? 'mock' : 'real'} tool running in the PowerPlatform ToolBox.
+                        </div>
+                        
+                        <div class="metadata">
+                            <div class="metadata-label">Version:</div>
+                            <div class="metadata-value">${tool.version || 'N/A'}</div>
+                            
+                            <div class="metadata-label">Author:</div>
+                            <div class="metadata-value">${tool.author || 'Unknown'}</div>
+                            
+                            <div class="metadata-label">Tool ID:</div>
+                            <div class="metadata-value">${tool.id}</div>
+                        </div>
+                        
+                        <p style="margin-top: 30px; color: #605e5c; font-size: 14px;">
+                            In a production environment, this panel would load the tool's actual UI from its package.
+                            The tool would have access to the ToolBox API for connections, settings, and other features.
+                        </p>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            // Use data URI to load content into webview
+            toolWebview.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(toolHtml);
+            
+            window.toolboxAPI.showNotification({
+                title: 'Tool Launched',
+                body: `${tool.name} opened in panel`,
+                type: 'success'
+            });
+        }
         
         console.log('Tool launched successfully:', tool.name);
     } catch (error) {
@@ -748,6 +839,19 @@ async function init() {
             }
         });
     });
+
+    // Tool panel close button
+    const closeToolPanel = document.getElementById('close-tool-panel');
+    if (closeToolPanel) {
+        closeToolPanel.addEventListener('click', () => {
+            const toolPanel = document.getElementById('tool-panel');
+            if (toolPanel) {
+                toolPanel.style.display = 'none';
+            }
+            // Show tools view again
+            switchView('tools');
+        });
+    }
 
     // Install tool modal
     const installToolBtn = document.getElementById('install-tool-btn');
