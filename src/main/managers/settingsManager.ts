@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { DataverseConnection, ToolSettings, UserSettings } from '../types';
+import { DataverseConnection, ToolSettings, UserSettings } from '../../types';
 
 /**
  * Manages user settings using electron-store

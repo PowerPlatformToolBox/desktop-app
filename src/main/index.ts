@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import * as path from 'path';
-import { SettingsManager } from './settings-manager';
-import { ToolManager } from './tool-manager';
-import { ToolBoxAPI } from '../api/toolbox-api';
-import { AutoUpdateManager } from './auto-update-manager';
+import { ToolBoxAPI } from '../api/toolboxAPI';
 import { ToolBoxEvent } from '../types';
+import { AutoUpdateManager } from './managers/autoUpdateManager';
+import { SettingsManager } from './managers/settingsManager';
+import { ToolManager } from './managers/toolsManager';
 
 class ToolBoxApp {
   private mainWindow: BrowserWindow | null = null;

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import * as path from 'path';
 import * as fs from 'fs';
-import { Tool } from '../types';
+import * as path from 'path';
+import { Tool } from '../../types';
 
 /**
  * Manages tool plugins loaded from npm packages
@@ -73,7 +73,8 @@ export class ToolManager extends EventEmitter {
    * Get a loaded tool
    */
   getTool(toolId: string): Tool | undefined {
-    return this.tools.get(toolId);
+    const tool = this.tools.get(toolId);
+    return tool;
   }
 
   /**
