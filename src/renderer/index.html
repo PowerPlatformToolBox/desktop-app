@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+    <title>PowerPlatform ToolBox</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">PowerPlatform<br>ToolBox</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="tools">
+                    <span class="nav-icon">🔧</span>
+                    <span class="nav-label">Tools</span>
+                </button>
+                <button class="nav-item" data-view="connections">
+                    <span class="nav-icon">🔗</span>
+                    <span class="nav-label">Connections</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Tools View -->
+            <div id="tools-view" class="view active">
+                <header class="view-header">
+                    <h2>Tools</h2>
+                    <button class="btn btn-primary" id="install-tool-btn">+ Install Tool</button>
+                </header>
+                <div class="tools-grid" id="tools-grid">
+                    <div class="empty-state">
+                        <p>No tools installed yet.</p>
+                        <p class="empty-state-hint">Install tools via npm to get started.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connections View -->
+            <div id="connections-view" class="view">
+                <header class="view-header">
+                    <h2>Dataverse Connections</h2>
+                    <button class="btn btn-primary" id="add-connection-btn">+ Add Connection</button>
+                </header>
+                <div class="connections-list" id="connections-list">
+                    <div class="empty-state">
+                        <p>No connections configured yet.</p>
+                        <p class="empty-state-hint">Add a connection to your Dataverse environment.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view">
+                <header class="view-header">
+                    <h2>Settings</h2>
+                </header>
+                <div class="settings-container">
+                    <div class="setting-group">
+                        <label class="setting-label" for="theme-select">Theme</label>
+                        <select id="theme-select" class="setting-input">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label" for="auto-update-check">Auto Update</label>
+                        <input type="checkbox" id="auto-update-check" class="setting-checkbox">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Install Tool Modal -->
+    <div id="install-tool-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Install Tool</h3>
+                <button class="modal-close" id="close-install-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="tool-package-name">NPM Package Name:</label>
+                <input type="text" id="tool-package-name" placeholder="@powerplatform/my-tool" class="modal-input">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-install-btn">Cancel</button>
+                <button class="btn btn-primary" id="confirm-install-btn">Install</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Connection Modal -->
+    <div id="add-connection-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Dataverse Connection</h3>
+                <button class="modal-close" id="close-connection-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="connection-name">Connection Name:</label>
+                <input type="text" id="connection-name" placeholder="Production" class="modal-input">
+                
+                <label for="connection-url">Environment URL:</label>
+                <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" class="modal-input">
+                
+                <label for="connection-client-id">Client ID (Optional):</label>
+                <input type="text" id="connection-client-id" placeholder="client-id" class="modal-input">
+                
+                <label for="connection-tenant-id">Tenant ID (Optional):</label>
+                <input type="text" id="connection-tenant-id" placeholder="tenant-id" class="modal-input">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-connection-btn">Cancel</button>
+                <button class="btn btn-primary" id="confirm-connection-btn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

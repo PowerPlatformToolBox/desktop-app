@@ -1,0 +1,386 @@
+:root {
+    --primary-color: #0078d4;
+    --primary-hover: #106ebe;
+    --secondary-color: #f3f2f1;
+    --text-color: #323130;
+    --bg-color: #ffffff;
+    --sidebar-bg: #f3f2f1;
+    --border-color: #edebe9;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 240px;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 24px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.app-title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--primary-color);
+}
+
+.sidebar-nav {
+    padding: 20px 10px;
+}
+
+.nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.nav-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.nav-item.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.nav-icon {
+    font-size: 20px;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+}
+
+.view {
+    display: none;
+}
+
+.view.active {
+    display: block;
+}
+
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.view-header h2 {
+    font-size: 28px;
+    font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+}
+
+.btn-secondary:hover {
+    background-color: #e1dfdd;
+}
+
+.btn-danger {
+    background-color: #d13438;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #a4262c;
+}
+
+/* Tools Grid */
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.tool-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: all 0.2s;
+}
+
+.tool-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+}
+
+.tool-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.tool-icon {
+    font-size: 32px;
+}
+
+.tool-name {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.tool-description {
+    color: #605e5c;
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.tool-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #8a8886;
+    margin-bottom: 12px;
+}
+
+.tool-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.tool-actions .btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+/* Connections List */
+.connections-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.connection-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+}
+
+.connection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.connection-name {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.connection-url {
+    color: #605e5c;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.connection-meta {
+    font-size: 12px;
+    color: #8a8886;
+}
+
+.connection-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.connection-actions .btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+/* Settings */
+.settings-container {
+    max-width: 600px;
+}
+
+.setting-group {
+    margin-bottom: 24px;
+}
+
+.setting-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.setting-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.setting-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #8a8886;
+}
+
+.empty-state p {
+    margin-bottom: 8px;
+}
+
+.empty-state-hint {
+    font-size: 14px;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #8a8886;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: var(--text-color);
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-body label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    margin-top: 16px;
+}
+
+.modal-body label:first-child {
+    margin-top: 0;
+}
+
+.modal-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+}
