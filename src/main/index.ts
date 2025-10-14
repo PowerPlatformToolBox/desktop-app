@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import * as path from 'path';
 import { SettingsManager } from './settings-manager';
 import { ToolManager } from './tool-manager';
@@ -211,6 +211,142 @@ class ToolBoxApp {
   }
 
   /**
+   * Create application menu
+   */
+  private createMenu(): void {
+    const isMac = process.platform === 'darwin';
+
+    const template: any[] = [
+      // App menu (macOS only)
+      ...(isMac ? [{
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' }
+        ]
+      }] : []),
+
+      // File menu
+      {
+        label: 'File',
+        submenu: [
+          isMac ? { role: 'close' } : { role: 'quit' }
+        ]
+      },
+
+      // Edit menu
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          ...(isMac ? [
+            { role: 'pasteAndMatchStyle' },
+            { role: 'delete' },
+            { role: 'selectAll' },
+            { type: 'separator' },
+            {
+              label: 'Speech',
+              submenu: [
+                { role: 'startSpeaking' },
+                { role: 'stopSpeaking' }
+              ]
+            }
+          ] : [
+            { role: 'delete' },
+            { type: 'separator' },
+            { role: 'selectAll' }
+          ])
+        ]
+      },
+
+      // View menu
+      {
+        label: 'View',
+        submenu: [
+          { role: 'reload' },
+          { role: 'forceReload' },
+          { 
+            label: 'Toggle Developer Tools',
+            accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+            click: () => {
+              if (this.mainWindow) {
+                this.mainWindow.webContents.toggleDevTools();
+              }
+            }
+          },
+          { type: 'separator' },
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
+          { type: 'separator' },
+          { role: 'togglefullscreen' }
+        ]
+      },
+
+      // Window menu
+      {
+        label: 'Window',
+        submenu: [
+          { role: 'minimize' },
+          { role: 'zoom' },
+          ...(isMac ? [
+            { type: 'separator' },
+            { role: 'front' },
+            { type: 'separator' },
+            { role: 'window' }
+          ] : [
+            { role: 'close' }
+          ])
+        ]
+      },
+
+      // Help menu
+      {
+        role: 'help',
+        submenu: [
+          {
+            label: 'Learn More',
+            click: async () => {
+              await shell.openExternal('https://github.com/PowerPlatform-ToolBox/desktop-app');
+            }
+          },
+          {
+            label: 'Documentation',
+            click: async () => {
+              await shell.openExternal('https://github.com/PowerPlatform-ToolBox/desktop-app#readme');
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Toggle Developer Tools',
+            accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+            click: () => {
+              if (this.mainWindow) {
+                this.mainWindow.webContents.toggleDevTools();
+              }
+            }
+          }
+        ]
+      }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  }
+
+  /**
    * Create the main application window
    */
   private createWindow(): void {
@@ -228,6 +364,9 @@ class ToolBoxApp {
 
     // Set the main window for auto-updater
     this.autoUpdateManager.setMainWindow(this.mainWindow);
+
+    // Create the application menu
+    this.createMenu();
 
     // Load the index.html
     this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
