@@ -1,3 +1,5 @@
+import { Category } from "./enums";
+
 // Tools Management
 export const mockTools = [
     {
@@ -32,38 +34,38 @@ export const mockTools = [
 // Tool library with predefined tools
 export const toolLibrary = [
     {
-        id: "@powerplatform/entity-editor",
-        name: "Entity Editor",
-        description: "Edit Dataverse entities and records",
-        author: "PowerPlatform ToolBox",
-        category: "Data Management",
+        id: "dvdt-erd-generator",
+        name: "ERD Generator",
+        description: "Generate Entity Relationship Diagrams for Dataverse",
+        author: "Power Maverick",
+        category: Category.DataManagement,
     },
     {
         id: "@powerplatform/solution-manager",
         name: "Solution Manager",
         description: "Manage and deploy solutions",
         author: "PowerPlatform ToolBox",
-        category: "Solutions",
+        category: Category.Solutions,
     },
     {
         id: "@powerplatform/plugin-tracer",
         name: "Plugin Trace Viewer",
         description: "View and analyze plugin traces",
         author: "PowerPlatform ToolBox",
-        category: "Development",
+        category: Category.Development,
     },
     {
         id: "@powerplatform/bulk-data-tools",
         name: "Bulk Data Tools",
         description: "Import and export data in bulk",
         author: "PowerPlatform ToolBox",
-        category: "Data Management",
+        category: Category.DataManagement,
     },
     {
         id: "@powerplatform/security-analyzer",
         name: "Security Analyzer",
         description: "Analyze security roles and permissions",
         author: "PowerPlatform ToolBox",
-        category: "Security",
+        category: Category.Security,
     },
 ];

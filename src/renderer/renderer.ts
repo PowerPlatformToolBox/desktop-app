@@ -1,10 +1,6 @@
-/* eslint-disable @typescript-eslint/triple-slash-reference */
-/// <reference path="./types.d.ts" />
-
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="types.d.ts" />
 import { mockTools, toolLibrary } from "./utils/constants";
-
-/* eslint-enable @typescript-eslint/triple-slash-reference */
-
 // Navigation
 function switchView(viewName: string) {
     const views = document.querySelectorAll(".view");
