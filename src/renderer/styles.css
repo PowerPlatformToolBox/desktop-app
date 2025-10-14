@@ -58,6 +58,53 @@ body {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    transition: width 0.3s ease, transform 0.3s ease;
+    position: relative;
+}
+
+.sidebar.collapsed {
+    width: 60px;
+}
+
+.sidebar.collapsed .app-title,
+.sidebar.collapsed .nav-label {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+    padding: 16px 8px;
+}
+
+.sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 12px;
+}
+
+.sidebar-toggle {
+    position: absolute;
+    top: 12px;
+    right: -12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    font-size: 12px;
+    transition: transform 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-toggle .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.sidebar-toggle:hover {
+    background: var(--primary-hover);
 }
 
 .sidebar-header {
@@ -557,6 +604,19 @@ body {
 .tool-library-desc {
     font-size: 12px;
     color: #605e5c;
+    margin-bottom: 4px;
+}
+
+.tool-library-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.tool-library-category,
+.tool-library-author {
+    font-size: 11px;
+    color: #8a8886;
 }
 
 .tool-library-item .btn {

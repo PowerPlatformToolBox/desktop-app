@@ -27,11 +27,46 @@ function switchView(viewName: string) {
 }
 
 // Tools Management
+const mockTools = [
+    {
+        id: 'mock-entity-editor',
+        name: 'Entity Editor (Mock)',
+        description: 'Edit Dataverse entities and records - Test Tool',
+        version: '1.0.0',
+        author: 'PowerPlatform ToolBox',
+        icon: '📝',
+        main: 'index.js'
+    },
+    {
+        id: 'mock-solution-manager',
+        name: 'Solution Manager (Mock)',
+        description: 'Manage and deploy solutions - Test Tool',
+        version: '1.2.3',
+        author: 'PowerPlatform ToolBox',
+        icon: '📦',
+        main: 'index.js'
+    },
+    {
+        id: 'mock-plugin-tracer',
+        name: 'Plugin Trace Viewer (Mock)',
+        description: 'View and analyze plugin traces - Test Tool',
+        version: '2.0.1',
+        author: 'PowerPlatform ToolBox',
+        icon: '🔍',
+        main: 'index.js'
+    }
+];
+
 async function loadTools() {
     const toolsGrid = document.getElementById('tools-grid');
     if (!toolsGrid) return;
 
-    const tools = await window.toolboxAPI.getAllTools();
+    let tools = await window.toolboxAPI.getAllTools();
+    
+    // Add mock tools for testing if no tools are installed
+    if (tools.length === 0) {
+        tools = mockTools;
+    }
 
     if (tools.length === 0) {
         toolsGrid.innerHTML = `
@@ -113,7 +148,10 @@ function loadToolLibrary() {
             <div class="tool-library-info">
                 <div class="tool-library-name">${tool.name}</div>
                 <div class="tool-library-desc">${tool.description}</div>
-                <div class="tool-library-desc">Category: ${tool.category}</div>
+                <div class="tool-library-meta">
+                    <span class="tool-library-category">Category: ${tool.category}</span>
+                    <span class="tool-library-author">Author: ${tool.author}</span>
+                </div>
             </div>
             <button class="btn btn-primary" onclick="installToolFromLibrary('${tool.id}', '${tool.name}')">Install</button>
         </div>
@@ -157,8 +195,9 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
     }
 }
 
+// Legacy function kept for compatibility - now opens tool library
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function installTool() {
-    // Legacy function - now opens tool library
     loadToolLibrary();
 }
 
@@ -546,6 +585,15 @@ function closeModal(modalId: string) {
 
 // Initialize the application
 async function init() {
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
     // Set up navigation
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
