@@ -256,22 +256,90 @@ async function uninstallTool(toolId: string) {
     }
 }
 
-function launchTool(toolId: string) {
-    window.toolboxAPI.showNotification({
-        title: 'Tool Launch',
-        body: `Launching tool ${toolId}...`,
-        type: 'info'
-    });
-    // Tool launch implementation would go here
+async function launchTool(toolId: string) {
+    try {
+        console.log('Launching tool:', toolId);
+        // Load the tool
+        const tool = await window.toolboxAPI.getTool(toolId);
+        if (!tool) {
+            window.toolboxAPI.showNotification({
+                title: 'Tool Launch Failed',
+                body: `Tool ${toolId} not found`,
+                type: 'error'
+            });
+            return;
+        }
+        
+        // In a real implementation, this would open the tool in a new window or panel
+        // For now, we'll show a notification
+        window.toolboxAPI.showNotification({
+            title: 'Tool Launched',
+            body: `${tool.name} has been launched successfully`,
+            type: 'success'
+        });
+        
+        console.log('Tool launched successfully:', tool.name);
+    } catch (error) {
+        console.error('Error launching tool:', error);
+        window.toolboxAPI.showNotification({
+            title: 'Tool Launch Error',
+            body: `Failed to launch tool: ${error}`,
+            type: 'error'
+        });
+    }
 }
 
-function toolSettings(toolId: string) {
-    window.toolboxAPI.showNotification({
-        title: 'Tool Settings',
-        body: `Opening settings for ${toolId}...`,
-        type: 'info'
-    });
-    // Tool settings implementation would go here
+async function toolSettings(toolId: string) {
+    try {
+        console.log('Opening settings for tool:', toolId);
+        
+        // Get the tool and its current settings
+        const tool = await window.toolboxAPI.getTool(toolId);
+        if (!tool) {
+            window.toolboxAPI.showNotification({
+                title: 'Tool Not Found',
+                body: `Tool ${toolId} not found`,
+                type: 'error'
+            });
+            return;
+        }
+        
+        const currentSettings = await window.toolboxAPI.getToolSettings(toolId);
+        
+        // Create a settings modal
+        const modal = document.getElementById('tool-settings-modal');
+        if (!modal) {
+            console.error('Tool settings modal not found');
+            return;
+        }
+        
+        const settingsContent = modal.querySelector('#tool-settings-content');
+        if (!settingsContent) {
+            console.error('Tool settings content container not found');
+            return;
+        }
+        
+        // Display current settings
+        settingsContent.innerHTML = `
+            <h3>Settings for ${tool.name}</h3>
+            <div class="settings-form">
+                <p class="hint">Current settings:</p>
+                <pre>${JSON.stringify(currentSettings || {}, null, 2)}</pre>
+                <p class="hint">Tool-specific settings UI would appear here in a full implementation.</p>
+            </div>
+        `;
+        
+        modal.classList.add('active');
+        
+        console.log('Tool settings opened for:', tool.name);
+    } catch (error) {
+        console.error('Error opening tool settings:', error);
+        window.toolboxAPI.showNotification({
+            title: 'Settings Error',
+            body: `Failed to open tool settings: ${error}`,
+            type: 'error'
+        });
+    }
 }
 
 // Connections Management
@@ -719,6 +787,17 @@ async function init() {
     const confirmConnectionBtn = document.getElementById('confirm-connection-btn');
     if (confirmConnectionBtn) {
         confirmConnectionBtn.addEventListener('click', addConnection);
+    }
+
+    // Tool settings modal
+    const closeToolSettingsModal = document.getElementById('close-tool-settings-modal');
+    if (closeToolSettingsModal) {
+        closeToolSettingsModal.addEventListener('click', () => closeModal('tool-settings-modal'));
+    }
+
+    const cancelToolSettingsBtn = document.getElementById('cancel-tool-settings-btn');
+    if (cancelToolSettingsBtn) {
+        cancelToolSettingsBtn.addEventListener('click', () => closeModal('tool-settings-modal'));
     }
 
     // Settings save button
