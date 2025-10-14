@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { UserSettings, DataverseConnection, ToolSettings } from '../types';
+import { DataverseConnection, ToolSettings, UserSettings } from '../types';
 
 /**
  * Manages user settings using electron-store
@@ -96,7 +96,8 @@ export class SettingsManager {
    * Get all connections
    */
   getConnections(): DataverseConnection[] {
-    return this.store.get('connections');
+    const connections = this.store.get('connections');
+    return connections;
   }
 
   /**
