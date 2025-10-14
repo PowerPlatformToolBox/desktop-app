@@ -349,11 +349,22 @@ async function addConnection() {
     const clientIdInput = document.getElementById('connection-client-id') as HTMLInputElement;
     const tenantIdInput = document.getElementById('connection-tenant-id') as HTMLInputElement;
 
+    // Check if all elements exist
+    if (!nameInput || !urlInput || !environmentSelect) {
+        console.error('Connection form elements not found');
+        await window.toolboxAPI.showNotification({
+            title: 'Error',
+            body: 'Connection form not properly initialized.',
+            type: 'error'
+        });
+        return;
+    }
+
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
     const environment = environmentSelect.value as 'Dev' | 'Test' | 'UAT' | 'Production';
-    const clientId = clientIdInput.value.trim();
-    const tenantId = tenantIdInput.value.trim();
+    const clientId = clientIdInput?.value.trim() || '';
+    const tenantId = tenantIdInput?.value.trim() || '';
 
     if (!name || !url) {
         await window.toolboxAPI.showNotification({
@@ -376,6 +387,7 @@ async function addConnection() {
     };
 
     try {
+        console.log('Adding connection:', connection);
         await window.toolboxAPI.addConnection(connection);
 
         await window.toolboxAPI.showNotification({
@@ -384,14 +396,17 @@ async function addConnection() {
             type: 'success'
         });
 
+        // Clear form
         nameInput.value = '';
         urlInput.value = '';
         environmentSelect.value = 'Dev';
-        clientIdInput.value = '';
-        tenantIdInput.value = '';
+        if (clientIdInput) clientIdInput.value = '';
+        if (tenantIdInput) tenantIdInput.value = '';
+        
         closeModal('add-connection-modal');
         await loadConnections();
     } catch (error) {
+        console.error('Error adding connection:', error);
         await window.toolboxAPI.showNotification({
             title: 'Failed to Add Connection',
             body: (error as Error).message,
