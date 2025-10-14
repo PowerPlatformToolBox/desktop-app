@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+    <title>PowerPlatform ToolBox</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
+                <span class="toggle-icon">◀</span>
+            </button>
+            <div class="sidebar-header">
+                <h1 class="app-title">PowerPlatform<br>ToolBox</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="tools">
+                    <span class="nav-icon">🔧</span>
+                    <span class="nav-label">Tools</span>
+                </button>
+                <button class="nav-item" data-view="connections">
+                    <span class="nav-icon">🔗</span>
+                    <span class="nav-label">Connections</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Tool Panel (for launched tools) -->
+            <div id="tool-panel" class="tool-panel" style="display: none;">
+                <div class="tool-panel-header">
+                    <div class="tool-panel-title">
+                        <span class="tool-panel-icon">🔧</span>
+                        <span id="tool-panel-name">Tool Name</span>
+                    </div>
+                    <button class="btn-icon" id="close-tool-panel" title="Close tool">✕</button>
+                </div>
+                <div class="tool-panel-content">
+                    <webview id="tool-webview" style="width: 100%; height: 100%;"></webview>
+                </div>
+            </div>
+
+            <!-- Tools View -->
+            <div id="tools-view" class="view active">
+                <header class="view-header">
+                    <h2>Tools</h2>
+                    <button class="btn btn-primary" id="install-tool-btn">+ Install Tool</button>
+                </header>
+                <div class="tools-grid" id="tools-grid">
+                    <div class="empty-state">
+                        <p>No tools installed yet.</p>
+                        <p class="empty-state-hint">Install tools via npm to get started.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connections View -->
+            <div id="connections-view" class="view">
+                <header class="view-header">
+                    <h2>Dataverse Connections</h2>
+                    <button class="btn btn-primary" id="add-connection-btn">+ Add Connection</button>
+                </header>
+                <div class="connections-list" id="connections-list">
+                    <div class="empty-state">
+                        <p>No connections configured yet.</p>
+                        <p class="empty-state-hint">Add a connection to your Dataverse environment.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view">
+                <header class="view-header">
+                    <h2>Settings</h2>
+                    <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
+                </header>
+                <div class="settings-container">
+                    <div class="setting-group">
+                        <label class="setting-label" for="theme-select">Theme</label>
+                        <select id="theme-select" class="setting-input">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label" for="auto-update-check">Auto Update</label>
+                        <input type="checkbox" id="auto-update-check" class="setting-checkbox">
+                        <span class="setting-hint">Automatically check for updates every 6 hours</span>
+                    </div>
+                    <div class="setting-group">
+                        <label class="setting-label">Application Updates</label>
+                        <div class="update-controls">
+                            <button class="btn btn-primary" id="check-updates-btn">Check for Updates</button>
+                            <div id="update-status" class="update-status"></div>
+                            <div id="update-progress" class="update-progress" style="display: none;">
+                                <div class="progress-bar">
+                                    <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                                </div>
+                                <span id="progress-text" class="progress-text">0%</span>
+                            </div>
+                        </div>
+                        <div class="app-version">Version: <span id="app-version">Loading...</span></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Footer with connection status -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <span id="connection-status" class="connection-status">No active connection</span>
+        </div>
+    </footer>
+
+    <!-- Install Tool Modal -->
+    <div id="install-tool-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Tool Library</h3>
+                <button class="modal-close" id="close-install-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tool-library-search">
+                    <input type="text" id="tool-search" placeholder="Search tools..." class="modal-input">
+                </div>
+                <div id="tool-library-list" class="tool-library-list">
+                    <!-- Tools will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-install-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Connection Modal -->
+    <div id="add-connection-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Dataverse Connection</h3>
+                <button class="modal-close" id="close-connection-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="connection-name">Connection Name:</label>
+                <input type="text" id="connection-name" placeholder="Production" class="modal-input">
+                
+                <label for="connection-url">Environment URL:</label>
+                <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" class="modal-input">
+                
+                <label for="connection-environment">Environment:</label>
+                <select id="connection-environment" class="modal-input">
+                    <option value="Dev">Dev</option>
+                    <option value="Test">Test</option>
+                    <option value="UAT">UAT</option>
+                    <option value="Production">Production</option>
+                </select>
+                
+                <label for="connection-client-id">Client ID (Optional):</label>
+                <input type="text" id="connection-client-id" placeholder="client-id" class="modal-input">
+                
+                <label for="connection-tenant-id">Tenant ID (Optional):</label>
+                <input type="text" id="connection-tenant-id" placeholder="tenant-id" class="modal-input">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-connection-btn">Cancel</button>
+                <button class="btn btn-primary" id="confirm-connection-btn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tool Settings Modal -->
+    <div id="tool-settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Tool Settings</h3>
+                <button class="modal-close" id="close-tool-settings-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="tool-settings-content">
+                    <!-- Tool settings will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-tool-settings-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="renderer.js"></script>
+</body>
+</html>
