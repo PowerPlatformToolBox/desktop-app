@@ -156,15 +156,37 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Get webview HTML for a tool
+     * Get webview HTML for a tool with inlined resources
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */
     getToolWebviewHtml(packageName: string): string | undefined {
         const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
-        const distHtmlPath = path.join(toolPath, "dist", "index.html");
+        const distPath = path.join(toolPath, "dist");
+        const distHtmlPath = path.join(distPath, "index.html");
 
         if (fs.existsSync(distHtmlPath)) {
-            const html = fs.readFileSync(distHtmlPath, "utf-8");
+            let html = fs.readFileSync(distHtmlPath, "utf-8");
+            
+            // Inline CSS files
+            html = html.replace(/<link\s+[^>]*href=["']([^"']+\.css)["'][^>]*>/gi, (match, cssFile) => {
+                const cssPath = path.join(distPath, cssFile);
+                if (fs.existsSync(cssPath)) {
+                    const cssContent = fs.readFileSync(cssPath, "utf-8");
+                    return `<style>${cssContent}</style>`;
+                }
+                return match;
+            });
+            
+            // Inline JavaScript files
+            html = html.replace(/<script\s+[^>]*src=["']([^"']+\.js)["'][^>]*><\/script>/gi, (match, jsFile) => {
+                const jsPath = path.join(distPath, jsFile);
+                if (fs.existsSync(jsPath)) {
+                    const jsContent = fs.readFileSync(jsPath, "utf-8");
+                    return `<script>${jsContent}</script>`;
+                }
+                return match;
+            });
+            
             return html;
         }
         return undefined;
