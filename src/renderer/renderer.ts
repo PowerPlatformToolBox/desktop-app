@@ -1377,7 +1377,36 @@ function closeModal(modalId: string) {
 }
 
 // Activity Bar and Sidebar Management
+let currentSidebarId: string | null = "tools";
+
 function switchSidebar(sidebarId: string) {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+
+    // If clicking the same sidebar, toggle collapse
+    if (currentSidebarId === sidebarId) {
+        sidebar.classList.toggle("collapsed");
+        if (sidebar.classList.contains("collapsed")) {
+            // Sidebar is now collapsed
+            document.querySelectorAll(".activity-item").forEach(item => {
+                item.classList.remove("active");
+            });
+            currentSidebarId = null;
+        } else {
+            // Sidebar is now expanded
+            const activeActivity = document.querySelector(`[data-sidebar="${sidebarId}"]`);
+            if (activeActivity) {
+                activeActivity.classList.add("active");
+            }
+            currentSidebarId = sidebarId;
+        }
+        return;
+    }
+
+    // Switching to a different sidebar
+    sidebar.classList.remove("collapsed");
+    currentSidebarId = sidebarId;
+
     // Update activity items
     document.querySelectorAll(".activity-item").forEach(item => {
         item.classList.remove("active");
@@ -1419,43 +1448,71 @@ async function loadSidebarTools() {
         tools = mockTools;
     }
 
-    if (tools.length === 0) {
+    // Setup search
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement;
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            renderSidebarTools(tools, searchInput.value);
+        });
+    }
+
+    renderSidebarTools(tools, "");
+}
+
+function renderSidebarTools(tools: any[], searchTerm: string) {
+    const toolsList = document.getElementById("sidebar-tools-list");
+    if (!toolsList) return;
+
+    const filteredTools = tools.filter(tool => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return tool.name.toLowerCase().includes(term) ||
+               tool.description.toLowerCase().includes(term);
+    });
+
+    if (filteredTools.length === 0) {
         toolsList.innerHTML = `
             <div class="empty-state">
-                <p>No tools installed yet.</p>
-                <p class="empty-state-hint">Check the marketplace to install tools.</p>
+                <p>No tools found.</p>
             </div>
         `;
         return;
     }
 
-    toolsList.innerHTML = tools.map((tool) => `
-        <div class="tool-list-item">
-            <div class="tool-list-item-header">
-                <span class="tool-list-item-icon">${tool.icon || "🔧"}</span>
-                <div class="tool-list-item-name">${tool.name}</div>
+    toolsList.innerHTML = filteredTools.map((tool) => `
+        <div class="tool-item-vscode" data-tool-id="${tool.id}">
+            <div class="tool-item-header-vscode">
+                <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
+                <div class="tool-item-name-vscode">${tool.name}</div>
             </div>
-            <div class="tool-list-item-description">${tool.description}</div>
-            <div class="tool-list-item-actions">
+            <div class="tool-item-description-vscode">${tool.description}</div>
+            <div class="tool-item-actions-vscode">
                 <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
-                <button class="btn btn-secondary" data-action="settings" data-tool-id="${tool.id}">Settings</button>
             </div>
         </div>
     `).join("");
 
     // Add event listeners
-    toolsList.querySelectorAll(".tool-list-item-actions button").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
+        item.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === "BUTTON") return; // Button click will handle
+            
+            const toolId = item.getAttribute("data-tool-id");
+            if (toolId) {
+                launchTool(toolId);
+            }
+        });
+    });
+
+    toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
         button.addEventListener("click", (e) => {
+            e.stopPropagation();
             const target = e.target as HTMLButtonElement;
-            const action = target.getAttribute("data-action");
             const toolId = target.getAttribute("data-tool-id");
             if (!toolId) return;
 
-            if (action === "launch") {
-                launchTool(toolId);
-            } else if (action === "settings") {
-                toolSettings(toolId);
-            }
+            launchTool(toolId);
         });
     });
 }

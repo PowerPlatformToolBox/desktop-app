@@ -110,7 +110,6 @@ body.light-theme .activity-bar {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
@@ -132,13 +131,13 @@ body.light-theme .activity-bar {
 }
 
 .activity-icon {
-    font-size: 24px;
+    /* SVG icons don't need font-size, size controlled by width/height */
 }
 
-.activity-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+/* Sidebar collapsed state */
+.sidebar.collapsed {
+    width: 0;
+    overflow: hidden;
 }
 
 /* Sidebar */
@@ -1154,3 +1153,291 @@ body.light-theme .activity-bar {
     color: var(--text-color);
 }
 
+
+/* VSCode-style sidebar search */
+.sidebar-search {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* VSCode-style tools list */
+.tools-list-vscode {
+    display: flex;
+    flex-direction: column;
+}
+
+.tool-item-vscode {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tool-item-vscode:hover {
+    background: rgba(0, 120, 212, 0.1);
+}
+
+.tool-item-header-vscode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.tool-item-icon-vscode {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.tool-item-name-vscode {
+    font-weight: 500;
+    font-size: 13px;
+    flex: 1;
+}
+
+.tool-item-description-vscode {
+    font-size: 12px;
+    color: #8a8886;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tool-item-actions-vscode {
+    display: flex;
+    gap: 8px;
+}
+
+.tool-item-actions-vscode .btn {
+    padding: 2px 8px;
+    font-size: 11px;
+}
+
+/* VSCode-style marketplace list */
+.marketplace-tools-list-vscode {
+    display: flex;
+    flex-direction: column;
+}
+
+.marketplace-item-vscode {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.marketplace-item-vscode:hover {
+    background: rgba(0, 120, 212, 0.05);
+}
+
+.marketplace-item-header-vscode {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.marketplace-item-info-vscode {
+    flex: 1;
+}
+
+.marketplace-item-name-vscode {
+    font-weight: 500;
+    font-size: 13px;
+    margin-bottom: 2px;
+}
+
+.marketplace-item-author-vscode {
+    font-size: 11px;
+    color: #8a8886;
+}
+
+.marketplace-item-description-vscode {
+    font-size: 12px;
+    color: #605e5c;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.marketplace-item-footer-vscode {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #8a8886;
+}
+
+.marketplace-item-category-vscode {
+    background: rgba(0, 120, 212, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+.marketplace-item-actions-vscode .btn {
+    padding: 3px 10px;
+    font-size: 11px;
+}
+
+/* Connection list item with environment pill */
+.connection-item-vscode {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.connection-item-vscode:hover {
+    background: rgba(0, 120, 212, 0.05);
+}
+
+.connection-item-vscode.active {
+    background: rgba(0, 120, 212, 0.1);
+    border-left: 2px solid var(--primary-color);
+}
+
+.connection-item-header-vscode {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.connection-item-name-vscode {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.connection-env-pill {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.connection-env-pill.env-production {
+    background: #d13438;
+    color: white;
+}
+
+.connection-env-pill.env-sandbox {
+    background: #ffa500;
+    color: white;
+}
+
+.connection-env-pill.env-development {
+    background: #107c10;
+    color: white;
+}
+
+.connection-item-url-vscode {
+    font-size: 11px;
+    color: #8a8886;
+    margin-bottom: 6px;
+}
+
+.connection-item-actions-vscode {
+    display: flex;
+    gap: 6px;
+}
+
+.connection-item-actions-vscode .btn {
+    padding: 2px 8px;
+    font-size: 11px;
+}
+
+/* Tool panel footer */
+.tool-panel-footer {
+    height: 24px;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.footer-connection-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-label {
+    font-weight: 500;
+}
+
+.footer-value {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.footer-link-btn {
+    background: none;
+    border: none;
+    color: white;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0;
+}
+
+.footer-link-btn:hover {
+    opacity: 0.8;
+}
+
+/* Connection select modal */
+.connection-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.connection-select-item {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.connection-select-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(0, 120, 212, 0.05);
+}
+
+.connection-select-item-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.connection-select-item-url {
+    font-size: 12px;
+    color: #605e5c;
+}
+
+/* Settings checkbox group */
+.setting-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.setting-checkbox-group .setting-hint {
+    margin: 0;
+}
+
+/* Updated sidebar title style */
+.sidebar-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8a8886;
+    margin: 0;
+    letter-spacing: 0.5px;
+}
