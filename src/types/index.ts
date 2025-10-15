@@ -14,6 +14,69 @@ export interface Tool {
   icon?: string;
   settings?: ToolSettings;
   main: string; // Entry point for the tool
+  contributes?: ToolContributions; // Contribution points from package.json
+  activationEvents?: string[]; // Events that activate the tool
+}
+
+/**
+ * Tool contribution points (declared in package.json)
+ */
+export interface ToolContributions {
+  commands?: CommandContribution[];
+  menus?: MenuContribution[];
+  views?: ViewContribution[];
+  configuration?: ConfigurationContribution[];
+}
+
+/**
+ * Command contribution
+ */
+export interface CommandContribution {
+  command: string;
+  title: string;
+  category?: string;
+  icon?: string;
+}
+
+/**
+ * Menu contribution
+ */
+export interface MenuContribution {
+  commandPalette?: MenuItemContribution[];
+  toolsMenu?: MenuItemContribution[];
+}
+
+/**
+ * Menu item contribution
+ */
+export interface MenuItemContribution {
+  command: string;
+  when?: string; // Condition for showing the menu item
+  group?: string;
+}
+
+/**
+ * View contribution (panels, sidebars)
+ */
+export interface ViewContribution {
+  id: string;
+  name: string;
+  icon?: string;
+  type: 'panel' | 'sidebar' | 'webview';
+}
+
+/**
+ * Configuration contribution
+ */
+export interface ConfigurationContribution {
+  title: string;
+  properties: {
+    [key: string]: {
+      type: string;
+      default?: unknown;
+      description?: string;
+    };
+  };
 }
 
 /**
@@ -81,3 +144,70 @@ export interface ToolBoxEventPayload {
   data: unknown;
   timestamp: string;
 }
+
+/**
+ * Tool Host IPC Protocol
+ */
+
+/**
+ * Message types for Tool Host communication
+ */
+export enum ToolHostMessageType {
+  // Requests from Tool Host to Main
+  REQUEST = 'request',
+  RESPONSE = 'response',
+  EVENT = 'event',
+  ERROR = 'error',
+  
+  // Tool lifecycle
+  ACTIVATE = 'activate',
+  DEACTIVATE = 'deactivate',
+  
+  // API calls
+  API_CALL = 'api:call',
+}
+
+/**
+ * Tool Host IPC message structure
+ */
+export interface ToolHostMessage {
+  type: ToolHostMessageType;
+  id: string; // Unique message ID for request/response correlation
+  toolId: string; // ID of the tool sending/receiving the message
+  method?: string; // API method being called
+  args?: unknown[]; // Arguments for the method
+  result?: unknown; // Result of the method call
+  error?: string; // Error message if any
+  timestamp: number;
+}
+
+/**
+ * Tool Host context provided to each tool
+ */
+export interface ToolHostContext {
+  toolId: string;
+  extensionPath: string;
+  globalState: ToolStateStorage;
+  workspaceState: ToolStateStorage;
+  subscriptions: { dispose(): void }[];
+}
+
+/**
+ * Tool state storage interface
+ */
+export interface ToolStateStorage {
+  get<T>(key: string): T | undefined;
+  get<T>(key: string, defaultValue: T): T;
+  update(key: string, value: unknown): Promise<void>;
+  keys(): readonly string[];
+}
+
+/**
+ * Tool activation function signature
+ */
+export type ToolActivationFunction = (context: ToolHostContext) => void | Promise<void>;
+
+/**
+ * Tool deactivation function signature
+ */
+export type ToolDeactivationFunction = () => void | Promise<void>;

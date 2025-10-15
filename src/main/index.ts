@@ -15,8 +15,8 @@ class ToolBoxApp {
 
     constructor() {
         this.settingsManager = new SettingsManager();
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.api = new ToolBoxAPI();
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), this.api);
         this.autoUpdateManager = new AutoUpdateManager();
 
         this.setupEventListeners();
@@ -149,8 +149,16 @@ class ToolBoxApp {
             return await this.toolManager.loadTool(packageName);
         });
 
-        ipcMain.handle("unload-tool", (_, toolId) => {
-            this.toolManager.unloadTool(toolId);
+        ipcMain.handle("unload-tool", async (_, toolId) => {
+            await this.toolManager.unloadTool(toolId);
+        });
+
+        ipcMain.handle("activate-tool", async (_, toolId) => {
+            await this.toolManager.activateTool(toolId);
+        });
+
+        ipcMain.handle("execute-command", async (_, toolId, command, ...args) => {
+            return await this.toolManager.executeCommand(toolId, command, ...args);
         });
 
         ipcMain.handle("install-tool", async (_, packageName) => {
@@ -161,7 +169,7 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
-            this.toolManager.unloadTool(toolId);
+            await this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
         });
@@ -410,6 +418,8 @@ class ToolBoxApp {
         app.on("before-quit", () => {
             // Clean up update checks
             this.autoUpdateManager.disableAutoUpdateChecks();
+            // Clean up tool hosts
+            this.toolManager.dispose();
         });
     }
 }

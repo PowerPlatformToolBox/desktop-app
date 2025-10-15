@@ -1,0 +1,70 @@
+{
+  "name": "@powerplatform/example-tool",
+  "version": "1.0.0",
+  "displayName": "Example PowerPlatform Tool",
+  "description": "An example tool demonstrating the PowerPlatform ToolBox architecture",
+  "main": "index.js",
+  "author": "PowerPlatform ToolBox",
+  "keywords": ["powerplatform", "dataverse", "toolbox", "example"],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "example.sayHello",
+        "title": "Say Hello",
+        "category": "Example"
+      },
+      {
+        "command": "example.showNotification",
+        "title": "Show Example Notification",
+        "category": "Example"
+      },
+      {
+        "command": "example.exportData",
+        "title": "Export Example Data",
+        "category": "Example"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "example.sayHello"
+        },
+        {
+          "command": "example.showNotification"
+        }
+      ],
+      "toolsMenu": [
+        {
+          "command": "example.exportData",
+          "group": "export"
+        }
+      ]
+    },
+    "configuration": [
+      {
+        "title": "Example Tool Settings",
+        "properties": {
+          "example.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable or disable the example tool"
+          },
+          "example.message": {
+            "type": "string",
+            "default": "Hello from Example Tool!",
+            "description": "Default message to display"
+          }
+        }
+      }
+    ]
+  },
+  "activationEvents": [
+    "onCommand:example.sayHello",
+    "onCommand:example.showNotification",
+    "onCommand:example.exportData",
+    "*"
+  ]
+}

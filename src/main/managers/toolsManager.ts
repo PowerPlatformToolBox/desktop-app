@@ -1,19 +1,32 @@
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
-import { Tool } from "../../types";
+import { Tool, ToolContributions } from "../../types";
+import { ToolHostManager } from "../toolHost/toolHostManager";
+import { ToolBoxAPI } from "../../api/toolboxAPI";
 
 /**
  * Manages tool plugins loaded from npm packages
+ * Now integrated with Tool Host for secure, isolated execution
  */
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
+    private toolHostManager: ToolHostManager;
 
-    constructor(toolsDirectory: string) {
+    constructor(toolsDirectory: string, api: ToolBoxAPI) {
         super();
         this.toolsDirectory = toolsDirectory;
+        this.toolHostManager = new ToolHostManager(api);
         this.ensureToolsDirectory();
+
+        // Forward tool host events
+        this.toolHostManager.on("tool:loaded", (tool) => this.emit("tool:loaded", tool));
+        this.toolHostManager.on("tool:unloaded", (tool) => this.emit("tool:unloaded", tool));
+        this.toolHostManager.on("tool:activated", (tool) => this.emit("tool:activated", tool));
+        this.toolHostManager.on("tool:deactivated", (tool) => this.emit("tool:deactivated", tool));
+        this.toolHostManager.on("tool:error", ({ tool, error }) => this.emit("tool:error", { tool, error }));
+        this.toolHostManager.on("tool:event", ({ tool, event }) => this.emit("tool:event", { tool, event }));
     }
 
     /**
@@ -27,6 +40,7 @@ export class ToolManager extends EventEmitter {
 
     /**
      * Load a tool from an npm package
+     * Now loads the tool into an isolated Tool Host process
      */
     async loadTool(packageName: string): Promise<Tool> {
         try {
@@ -39,6 +53,9 @@ export class ToolManager extends EventEmitter {
 
             const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
+            // Parse contribution points from package.json
+            const contributes = this.parseContributions(packageJson.contributes);
+
             const tool: Tool = {
                 id: packageJson.name,
                 name: packageJson.displayName || packageJson.name,
@@ -47,10 +64,14 @@ export class ToolManager extends EventEmitter {
                 author: packageJson.author || "Unknown",
                 icon: packageJson.icon,
                 main: path.join(toolPath, packageJson.main || "index.js"),
+                contributes,
+                activationEvents: packageJson.activationEvents || [],
             };
 
             this.tools.set(tool.id, tool);
-            this.emit("tool:loaded", tool);
+
+            // Load the tool into Tool Host for isolated execution
+            await this.toolHostManager.loadTool(tool);
 
             return tool;
         } catch (error) {
@@ -59,14 +80,45 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Parse contribution points from package.json
+     */
+    private parseContributions(contributes: unknown): ToolContributions | undefined {
+        if (!contributes || typeof contributes !== 'object') {
+            return undefined;
+        }
+
+        return contributes as ToolContributions;
+    }
+
+    /**
      * Unload a tool
      */
-    unloadTool(toolId: string): void {
+    async unloadTool(toolId: string): Promise<void> {
         const tool = this.tools.get(toolId);
         if (tool) {
+            await this.toolHostManager.unloadTool(toolId);
             this.tools.delete(toolId);
-            this.emit("tool:unloaded", tool);
         }
+    }
+
+    /**
+     * Activate a tool (trigger its activation function)
+     */
+    async activateTool(toolId: string): Promise<void> {
+        if (!this.tools.has(toolId)) {
+            throw new Error(`Tool ${toolId} not found`);
+        }
+        await this.toolHostManager.activateTool(toolId);
+    }
+
+    /**
+     * Execute a command contributed by a tool
+     */
+    async executeCommand(toolId: string, command: string, ...args: unknown[]): Promise<unknown> {
+        if (!this.tools.has(toolId)) {
+            throw new Error(`Tool ${toolId} not found`);
+        }
+        return this.toolHostManager.executeCommand(toolId, command, ...args);
     }
 
     /**
@@ -102,6 +154,13 @@ export class ToolManager extends EventEmitter {
                 console.error(`Failed to load installed tool ${packageName}:`, error);
             }
         }
+    }
+
+    /**
+     * Dispose and cleanup all tool hosts
+     */
+    async dispose(): Promise<void> {
+        await this.toolHostManager.dispose();
     }
 
     /**
