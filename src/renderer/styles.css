@@ -777,6 +777,40 @@ body {
     color: var(--text-color);
 }
 
+.tool-tab-pin {
+    background: none;
+    border: none;
+    color: #8a8886;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.tool-tab:hover .tool-tab-pin {
+    opacity: 1;
+}
+
+.tool-tab-pin:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.tool-tab.pinned .tool-tab-pin {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.tool-tab.pinned .tool-tab-close {
+    display: none;
+}
+
+.tool-tab.dragging {
+    opacity: 0.5;
+}
+
 .tool-panel-content {
     flex: 1;
     position: relative;

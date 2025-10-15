@@ -7,6 +7,7 @@ interface OpenTool {
     tool: any;
     webviewContainer: HTMLElement;
     webview: any;
+    isPinned: boolean;
 }
 
 const openTools = new Map<string, OpenTool>();
@@ -409,7 +410,8 @@ async function launchTool(toolId: string) {
             id: toolId,
             tool: tool,
             webviewContainer: webviewContainer,
-            webview: toolWebview
+            webview: toolWebview,
+            isPinned: false
         });
 
         // Create and add tab
@@ -417,6 +419,9 @@ async function launchTool(toolId: string) {
 
         // Switch to the new tab
         switchToTool(toolId);
+
+        // Save session after launching
+        saveSession();
 
         window.toolboxAPI.showNotification({
             title: "Tool Launched",
@@ -443,6 +448,7 @@ function createTab(toolId: string, tool: any) {
     tab.className = "tool-tab";
     tab.id = `tool-tab-${toolId}`;
     tab.setAttribute("data-tool-id", toolId);
+    tab.setAttribute("draggable", "true");
 
     const icon = document.createElement("span");
     icon.className = "tool-tab-icon";
@@ -452,6 +458,16 @@ function createTab(toolId: string, tool: any) {
     name.className = "tool-tab-name";
     name.textContent = tool.name;
     name.title = tool.name;
+
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "tool-tab-pin";
+    pinBtn.textContent = "📌";
+    pinBtn.title = "Pin tab";
+    
+    pinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        togglePinTab(toolId);
+    });
 
     const closeBtn = document.createElement("button");
     closeBtn.className = "tool-tab-close";
@@ -467,8 +483,15 @@ function createTab(toolId: string, tool: any) {
         switchToTool(toolId);
     });
 
+    // Drag and drop events
+    tab.addEventListener("dragstart", (e) => handleDragStart(e, tab));
+    tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
+    tab.addEventListener("drop", (e) => handleDrop(e));
+    tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
+
     tab.appendChild(icon);
     tab.appendChild(name);
+    tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
 }
@@ -502,6 +525,16 @@ function closeTool(toolId: string) {
     const openTool = openTools.get(toolId);
     if (!openTool) return;
 
+    // Check if tab is pinned
+    if (openTool.isPinned) {
+        window.toolboxAPI.showNotification({
+            title: "Cannot Close Pinned Tab",
+            body: "Unpin the tab before closing it",
+            type: "warning",
+        });
+        return;
+    }
+
     // Remove tab
     const tab = document.getElementById(`tool-tab-${toolId}`);
     if (tab) {
@@ -513,6 +546,9 @@ function closeTool(toolId: string) {
 
     // Remove from open tools
     openTools.delete(toolId);
+
+    // Save session after closing
+    saveSession();
 
     // If this was the active tool, switch to another tool or close the panel
     if (activeToolId === toolId) {
@@ -538,6 +574,146 @@ function closeAllTools() {
     const toolIds = Array.from(openTools.keys());
     toolIds.forEach(toolId => {
         closeTool(toolId);
+    });
+}
+
+// Toggle pin state for a tab
+function togglePinTab(toolId: string) {
+    const openTool = openTools.get(toolId);
+    if (!openTool) return;
+
+    openTool.isPinned = !openTool.isPinned;
+    
+    const tab = document.getElementById(`tool-tab-${toolId}`);
+    if (tab) {
+        if (openTool.isPinned) {
+            tab.classList.add("pinned");
+        } else {
+            tab.classList.remove("pinned");
+        }
+    }
+
+    saveSession();
+}
+
+// Drag and drop handlers for tab reordering
+let draggedTab: HTMLElement | null = null;
+
+function handleDragStart(e: DragEvent, tab: HTMLElement) {
+    draggedTab = tab;
+    tab.classList.add("dragging");
+    if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/html", tab.innerHTML);
+    }
+}
+
+function handleDragOver(e: DragEvent, tab: HTMLElement) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "move";
+    }
+
+    if (draggedTab && tab !== draggedTab) {
+        const toolTabs = document.getElementById("tool-tabs");
+        if (!toolTabs) return;
+
+        const tabs = Array.from(toolTabs.children);
+        const draggedIndex = tabs.indexOf(draggedTab);
+        const targetIndex = tabs.indexOf(tab);
+
+        if (draggedIndex < targetIndex) {
+            toolTabs.insertBefore(draggedTab, tab.nextSibling);
+        } else {
+            toolTabs.insertBefore(draggedTab, tab);
+        }
+    }
+
+    return false;
+}
+
+function handleDrop(e: DragEvent) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    return false;
+}
+
+function handleDragEnd(e: DragEvent, tab: HTMLElement) {
+    tab.classList.remove("dragging");
+    document.querySelectorAll(".tool-tab").forEach(t => {
+        t.classList.remove("over");
+    });
+}
+
+// Session management - save and restore
+function saveSession() {
+    const session = {
+        openTools: Array.from(openTools.entries()).map(([id, tool]) => ({
+            id,
+            isPinned: tool.isPinned,
+        })),
+        activeToolId,
+    };
+    localStorage.setItem("toolbox-session", JSON.stringify(session));
+}
+
+async function restoreSession() {
+    const sessionData = localStorage.getItem("toolbox-session");
+    if (!sessionData) return;
+
+    try {
+        const session = JSON.parse(sessionData);
+        if (session.openTools && Array.isArray(session.openTools)) {
+            for (const toolInfo of session.openTools) {
+                await launchTool(toolInfo.id);
+                if (toolInfo.isPinned) {
+                    togglePinTab(toolInfo.id);
+                }
+            }
+            if (session.activeToolId && openTools.has(session.activeToolId)) {
+                switchToTool(session.activeToolId);
+            }
+        }
+    } catch (error) {
+        console.error("Failed to restore session:", error);
+    }
+}
+
+// Keyboard shortcuts
+function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", (e) => {
+        // Ctrl+Tab - Switch to next tab
+        if (e.ctrlKey && e.key === "Tab") {
+            e.preventDefault();
+            const toolIds = Array.from(openTools.keys());
+            if (toolIds.length === 0) return;
+
+            const currentIndex = activeToolId ? toolIds.indexOf(activeToolId) : -1;
+            const nextIndex = (currentIndex + 1) % toolIds.length;
+            switchToTool(toolIds[nextIndex]);
+        }
+
+        // Ctrl+W - Close current tab
+        if (e.ctrlKey && e.key === "w") {
+            e.preventDefault();
+            if (activeToolId) {
+                closeTool(activeToolId);
+            }
+        }
+
+        // Ctrl+Shift+Tab - Switch to previous tab
+        if (e.ctrlKey && e.shiftKey && e.key === "Tab") {
+            e.preventDefault();
+            const toolIds = Array.from(openTools.keys());
+            if (toolIds.length === 0) return;
+
+            const currentIndex = activeToolId ? toolIds.indexOf(activeToolId) : -1;
+            const prevIndex = currentIndex <= 0 ? toolIds.length - 1 : currentIndex - 1;
+            switchToTool(toolIds[prevIndex]);
+        }
     });
 }
 
@@ -1080,8 +1256,14 @@ async function init() {
     // Set up auto-update listeners
     setupAutoUpdateListeners();
 
+    // Set up keyboard shortcuts
+    setupKeyboardShortcuts();
+
     // Load initial data
     await loadTools();
+
+    // Restore previous session
+    await restoreSession();
 
     // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
