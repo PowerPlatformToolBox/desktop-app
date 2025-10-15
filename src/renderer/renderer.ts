@@ -57,11 +57,11 @@ const toolLibrary = [
         category: "Data Management",
     },
     {
-        id: "@powerplatform/solution-manager",
-        name: "Solution Manager",
-        description: "Manage and deploy solutions",
+        id: "pptb-example-tool-test",
+        name: "PowerPlatform Example Tool",
+        description: "An example tool for PowerPlatform",
         author: "PowerPlatform ToolBox",
-        category: "Solutions",
+        category: "Development",
     },
     {
         id: "@powerplatform/plugin-tracer",

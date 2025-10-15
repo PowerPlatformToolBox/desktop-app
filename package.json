@@ -7,7 +7,7 @@
     "start": "electron .",
     "dev": "npm run build && electron .",
     "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
-    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/",
+    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/ && cp -r src/renderer/icons dist/renderer/",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "package": "npm run build && electron-builder"

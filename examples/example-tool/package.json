@@ -1,6 +1,6 @@
 {
-  "name": "@powerplatform/example-tool",
-  "version": "1.0.0",
+  "name": "pptb-example-tool-test",
+  "version": "0.0.3",
   "displayName": "PowerPlatform Example Tool",
   "description": "Example tool demonstrating HTML-first architecture with TypeScript",
   "author": "PowerPlatform ToolBox",
