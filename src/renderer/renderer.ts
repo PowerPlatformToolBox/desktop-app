@@ -936,6 +936,10 @@ async function init() {
     // Set up auto-update listeners
     setupAutoUpdateListeners();
 
+    // Load and apply theme settings on startup
+    const settings = await window.toolboxAPI.getUserSettings();
+    applyTheme(settings.theme);
+
     // Load initial data
     await loadTools();
 
