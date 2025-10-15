@@ -20,6 +20,7 @@ export interface ToolboxAPI {
     unloadTool: (toolId: string) => Promise<void>;
     installTool: (packageName: string) => Promise<any>;
     uninstallTool: (packageName: string, toolId: string) => Promise<void>;
+    getToolWebviewHtml: (packageName: string) => Promise<string | null>;
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
     showNotification: (options: any) => Promise<void>;

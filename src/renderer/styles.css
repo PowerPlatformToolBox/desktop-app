@@ -40,7 +40,7 @@ body.dark-theme .modal-input {
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     color: var(--text-color);
     background-color: var(--bg-color);
     overflow: hidden;
@@ -60,6 +60,7 @@ body {
     flex-direction: column;
     position: relative;
     z-index: 100;
+    height: 96%;
 }
 
 body.dark-theme .activity-bar {
@@ -99,7 +100,7 @@ body.light-theme .activity-bar {
 }
 
 .activity-bar-footer {
-    padding: 8px 0;
+    /* padding: 8px 0; */
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -736,12 +737,12 @@ body.light-theme .activity-bar {
 }
 
 .connection-status.connected::before {
-    content: '●';
+    content: "●";
     color: #107c10;
 }
 
 .connection-status::before {
-    content: '○';
+    content: "○";
     color: #8a8886;
 }
 
@@ -855,7 +856,6 @@ body.light-theme .activity-bar {
     padding: 6px 16px;
     font-size: 13px;
 }
-
 
 .modal-header {
     display: flex;
@@ -1152,7 +1152,6 @@ body.light-theme .activity-bar {
     background: var(--border-color);
     color: var(--text-color);
 }
-
 
 /* VSCode-style sidebar search */
 .sidebar-search {

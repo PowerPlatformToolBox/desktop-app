@@ -126,13 +126,13 @@ function updateSplitViewButtonVisibility() {
 async function updateFooterConnection() {
     const footerConnectionName = document.getElementById("footer-connection-name");
     const footerChangeBtn = document.getElementById("footer-change-connection-btn");
-    
+
     if (!footerConnectionName) return;
 
     try {
         const connections = await window.toolboxAPI.getConnections();
         const activeConn = connections.find((conn: any) => conn.isActive);
-        
+
         if (activeConn) {
             footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
             if (footerChangeBtn) {
@@ -320,13 +320,13 @@ async function uninstallTool(toolId: string) {
 async function launchTool(toolId: string) {
     try {
         console.log("Launching tool:", toolId);
-        
+
         // If tool is already open, just switch to its tab
         if (openTools.has(toolId)) {
             switchToTool(toolId);
             return;
         }
-        
+
         // Load the tool
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
@@ -337,6 +337,8 @@ async function launchTool(toolId: string) {
             });
             return;
         }
+
+        const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
 
         // Hide all views
         document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
@@ -354,96 +356,88 @@ async function launchTool(toolId: string) {
         const webviewContainer = document.createElement("div");
         webviewContainer.className = "tool-webview-container";
         webviewContainer.id = `tool-webview-${toolId}`;
-        
+
         const toolWebview = document.createElement("webview") as any;
         toolWebview.style.width = "100%";
         toolWebview.style.height = "100%";
-        
+
         // Set webview src - in real implementation, this would load the tool's UI
         // For mock tools, we'll create a simple welcome page
         const toolHtml = `
             <!DOCTYPE html>
             <html>
             <head>
-                <style>
-                    html, body { 
-                        height: 100%;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    body { 
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                        padding: 40px; 
-                        background: #f5f5f5;
-                        box-sizing: border-box;
-                    }
-                    .tool-container {
-                        max-width: 800px;
-                        margin: 0 auto;
-                        background: white;
-                        padding: 30px;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    }
-                    h1 { 
-                        color: #0078d4; 
-                        margin-top: 0;
-                    }
-                    .info { 
-                        background: #e7f3ff; 
-                        padding: 15px; 
-                        border-radius: 4px; 
-                        margin: 20px 0;
-                        border-left: 4px solid #0078d4;
-                    }
-                    .metadata {
-                        display: grid;
-                        grid-template-columns: 150px 1fr;
-                        gap: 10px;
-                        margin: 20px 0;
-                    }
-                    .metadata-label {
-                        font-weight: 600;
-                        color: #605e5c;
-                    }
-                    .metadata-value {
-                        color: #323130;
-                    }
-                </style>
+            <style>
+                html, body { 
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                }
+                body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                padding: 40px; 
+                background: #f5f5f5;
+                box-sizing: border-box;
+                }
+                .tool-container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                h1 { 
+                color: #d83b01; 
+                margin-top: 0;
+                }
+                .error {
+                background: #fde7e9;
+                padding: 15px;
+                border-radius: 4px;
+                margin: 20px 0;
+                border-left: 4px solid #d83b01;
+                color: #a4262c;
+                }
+                .metadata {
+                display: grid;
+                grid-template-columns: 150px 1fr;
+                gap: 10px;
+                margin: 20px 0;
+                }
+                .metadata-label {
+                font-weight: 600;
+                color: #605e5c;
+                }
+                .metadata-value {
+                color: #323130;
+                }
+            </style>
             </head>
             <body>
-                <div class="tool-container">
-                    <h1>${tool.icon || "🔧"} ${tool.name}</h1>
-                    <p>${tool.description || "No description available"}</p>
-                    
-                    <div class="info">
-                        <strong>ℹ️ Tool Information</strong><br>
-                        This is a ${tool.id.includes("mock") ? "mock" : "real"} tool running in the PowerPlatform ToolBox.
-                    </div>
-                    
-                    <div class="metadata">
-                        <div class="metadata-label">Version:</div>
-                        <div class="metadata-value">${tool.version || "N/A"}</div>
-                        
-                        <div class="metadata-label">Author:</div>
-                        <div class="metadata-value">${tool.author || "Unknown"}</div>
-                        
-                        <div class="metadata-label">Tool ID:</div>
-                        <div class="metadata-value">${tool.id}</div>
-                    </div>
-                    
-                    <p style="margin-top: 30px; color: #605e5c; font-size: 14px;">
-                        In a production environment, this panel would load the tool's actual UI from its package.
-                        The tool would have access to the ToolBox API for connections, settings, and other features.
-                    </p>
+            <div class="tool-container">
+                <h1>⚠️ Error Loading Tool</h1>
+                <div class="error">
+                <strong>Unable to load the contents of this tool.</strong><br>
+                Please reach out to the tool author for support.<br>
+                <span style="font-size: 13px;">Author: ${tool.author || "Unknown"}</span>
                 </div>
+                <div class="metadata">
+                <div class="metadata-label">Tool Name:</div>
+                <div class="metadata-value">${tool.name}</div>
+                <div class="metadata-label">Tool ID:</div>
+                <div class="metadata-value">${tool.id}</div>
+                <div class="metadata-label">Version:</div>
+                <div class="metadata-value">${tool.version || "N/A"}</div>
+                </div>
+            </div>
             </body>
             </html>
         `;
 
         // Use data URI to load content into webview
-        toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(toolHtml);
-        
+        toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(webviewHtml || toolHtml);
+
         webviewContainer.appendChild(toolWebview);
         toolPanelContent.appendChild(webviewContainer);
 
@@ -454,7 +448,7 @@ async function launchTool(toolId: string) {
             webviewContainer: webviewContainer,
             webview: toolWebview,
             isPinned: false,
-            connectionId: null
+            connectionId: null,
         });
 
         // Create and add tab
@@ -519,7 +513,7 @@ function createTab(toolId: string, tool: any) {
     pinBtn.className = "tool-tab-pin";
     pinBtn.textContent = "📌";
     pinBtn.title = "Pin tab";
-    
+
     pinBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         togglePinTab(toolId);
@@ -529,7 +523,7 @@ function createTab(toolId: string, tool: any) {
     closeBtn.className = "tool-tab-close";
     closeBtn.textContent = "×";
     closeBtn.title = "Close";
-    
+
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         closeTool(toolId);
@@ -572,7 +566,7 @@ function switchToTool(toolId: string) {
         activeToolId = toolId;
 
         // Update tab active states
-        document.querySelectorAll(".tool-tab").forEach(tab => {
+        document.querySelectorAll(".tool-tab").forEach((tab) => {
             tab.classList.remove("active");
         });
         const activeTab = document.getElementById(`tool-tab-${toolId}`);
@@ -581,7 +575,7 @@ function switchToTool(toolId: string) {
         }
 
         // Update webview container visibility
-        document.querySelectorAll(".tool-webview-container").forEach(container => {
+        document.querySelectorAll(".tool-webview-container").forEach((container) => {
             container.classList.remove("active");
         });
         const activeContainer = document.getElementById(`tool-webview-${toolId}`);
@@ -648,7 +642,7 @@ function closeTool(toolId: string) {
 function closeAllTools() {
     // Close all tools
     const toolIds = Array.from(openTools.keys());
-    toolIds.forEach(toolId => {
+    toolIds.forEach((toolId) => {
         closeTool(toolId);
     });
 }
@@ -659,7 +653,7 @@ function togglePinTab(toolId: string) {
     if (!openTool) return;
 
     openTool.isPinned = !openTool.isPinned;
-    
+
     const tab = document.getElementById(`tool-tab-${toolId}`);
     if (tab) {
         if (openTool.isPinned) {
@@ -719,7 +713,7 @@ function handleDrop(e: DragEvent) {
 
 function handleDragEnd(e: DragEvent, tab: HTMLElement) {
     tab.classList.remove("dragging");
-    document.querySelectorAll(".tool-tab").forEach(t => {
+    document.querySelectorAll(".tool-tab").forEach((t) => {
         t.classList.remove("over");
     });
 }
@@ -807,7 +801,7 @@ async function updateConnectionSelector() {
 
     try {
         const connections = await window.toolboxAPI.getConnections();
-        
+
         // Clear and repopulate
         selector.innerHTML = '<option value="">No Connection</option>';
         connections.forEach((conn: any) => {
@@ -836,7 +830,7 @@ function setToolConnection(toolId: string, connectionId: string | null) {
     if (!tool) return;
 
     tool.connectionId = connectionId;
-    
+
     // Update connection badge on tab
     const badge = document.getElementById(`tab-connection-${toolId}`);
     if (badge) {
@@ -859,17 +853,17 @@ function setToolConnection(toolId: string, connectionId: string | null) {
 function toggleSplitView() {
     isSplitView = !isSplitView;
     const wrapper = document.getElementById("tool-panel-content-wrapper");
-    
+
     if (!wrapper) return;
 
     if (isSplitView) {
         wrapper.classList.add("split-view");
-        
+
         // If there are at least 2 tools, show the second tool in secondary panel
         const toolIds = Array.from(openTools.keys());
         if (toolIds.length >= 2) {
             // Set secondary to first non-active tool
-            const secondaryId = toolIds.find(id => id !== activeToolId) || toolIds[0];
+            const secondaryId = toolIds.find((id) => id !== activeToolId) || toolIds[0];
             setSecondaryTool(secondaryId);
         }
 
@@ -881,7 +875,7 @@ function toggleSplitView() {
     } else {
         wrapper.classList.remove("split-view");
         secondaryToolId = null;
-        
+
         // Move all tools back to primary panel
         const primaryPanel = document.getElementById("tool-panel-content");
         if (primaryPanel) {
@@ -898,7 +892,7 @@ function toggleSplitView() {
 
 function setSecondaryTool(toolId: string) {
     if (!openTools.has(toolId)) return;
-    
+
     secondaryToolId = toolId;
     updateSplitViewDisplay();
 }
@@ -908,7 +902,7 @@ function updateSplitViewDisplay() {
 
     const primaryPanel = document.getElementById("tool-panel-content");
     const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-    
+
     if (!primaryPanel || !secondaryPanel) return;
 
     // Move tools to appropriate panels
@@ -929,10 +923,10 @@ function updateSplitViewDisplay() {
     });
 
     // Update tab indicators
-    document.querySelectorAll(".tool-tab").forEach(tab => {
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
         const toolId = tab.getAttribute("data-tool-id");
         tab.classList.remove("active", "secondary-active");
-        
+
         if (toolId === activeToolId) {
             tab.classList.add("active");
         } else if (toolId === secondaryToolId) {
@@ -945,7 +939,7 @@ function setupResizeHandle() {
     const handle = document.getElementById("resize-handle");
     const wrapper = document.getElementById("tool-panel-content-wrapper");
     const primaryPanel = document.getElementById("tool-panel-content");
-    
+
     if (!handle || !wrapper || !primaryPanel) return;
 
     let isResizing = false;
@@ -1439,7 +1433,7 @@ function switchSidebar(sidebarId: string) {
         sidebar.classList.toggle("collapsed");
         if (sidebar.classList.contains("collapsed")) {
             // Sidebar is now collapsed
-            document.querySelectorAll(".activity-item").forEach(item => {
+            document.querySelectorAll(".activity-item").forEach((item) => {
                 item.classList.remove("active");
             });
             currentSidebarId = null;
@@ -1459,7 +1453,7 @@ function switchSidebar(sidebarId: string) {
     currentSidebarId = sidebarId;
 
     // Update activity items
-    document.querySelectorAll(".activity-item").forEach(item => {
+    document.querySelectorAll(".activity-item").forEach((item) => {
         item.classList.remove("active");
     });
     const activeActivity = document.querySelector(`[data-sidebar="${sidebarId}"]`);
@@ -1468,7 +1462,7 @@ function switchSidebar(sidebarId: string) {
     }
 
     // Update sidebar content
-    document.querySelectorAll(".sidebar-content").forEach(content => {
+    document.querySelectorAll(".sidebar-content").forEach((content) => {
         content.classList.remove("active");
     });
     const activeSidebar = document.getElementById(`sidebar-${sidebarId}`);
@@ -1514,11 +1508,10 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
 
-    const filteredTools = tools.filter(tool => {
+    const filteredTools = tools.filter((tool) => {
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
-        return tool.name.toLowerCase().includes(term) ||
-               tool.description.toLowerCase().includes(term);
+        return tool.name.toLowerCase().includes(term) || tool.description.toLowerCase().includes(term);
     });
 
     if (filteredTools.length === 0) {
@@ -1530,7 +1523,9 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         return;
     }
 
-    toolsList.innerHTML = filteredTools.map((tool) => `
+    toolsList.innerHTML = filteredTools
+        .map(
+            (tool) => `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
                 <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
@@ -1541,14 +1536,16 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
             </div>
         </div>
-    `).join("");
+    `,
+        )
+        .join("");
 
     // Add event listeners
     toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             if (target.tagName === "BUTTON") return; // Button click will handle
-            
+
             const toolId = item.getAttribute("data-tool-id");
             if (toolId) {
                 launchTool(toolId);
@@ -1574,7 +1571,7 @@ async function loadSidebarConnections() {
 
     try {
         const connections = await window.toolboxAPI.getConnections();
-        
+
         if (connections.length === 0) {
             connectionsList.innerHTML = `
                 <div class="empty-state">
@@ -1585,7 +1582,9 @@ async function loadSidebarConnections() {
             return;
         }
 
-        connectionsList.innerHTML = connections.map((conn: any) => `
+        connectionsList.innerHTML = connections
+            .map(
+                (conn: any) => `
             <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
                 <div class="connection-item-header-vscode">
                     <div class="connection-item-name-vscode">${conn.name}</div>
@@ -1593,14 +1592,17 @@ async function loadSidebarConnections() {
                 </div>
                 <div class="connection-item-url-vscode">${conn.url}</div>
                 <div class="connection-item-actions-vscode">
-                    ${!conn.isActive 
-                        ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                        : `<button class="btn btn-secondary" disabled>Connected</button>`
+                    ${
+                        !conn.isActive
+                            ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                            : `<button class="btn btn-secondary" disabled>Connected</button>`
                     }
                     <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                 </div>
             </div>
-        `).join("");
+        `,
+            )
+            .join("");
 
         // Add event listeners
         connectionsList.querySelectorAll("button").forEach((button) => {
@@ -1636,14 +1638,14 @@ function loadMarketplace() {
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
 
-    const filteredTools = toolLibrary.filter(tool => {
+    const filteredTools = toolLibrary.filter((tool) => {
         if (!searchTerm) return true;
-        return tool.name.toLowerCase().includes(searchTerm) ||
-               tool.description.toLowerCase().includes(searchTerm) ||
-               tool.category.toLowerCase().includes(searchTerm);
+        return tool.name.toLowerCase().includes(searchTerm) || tool.description.toLowerCase().includes(searchTerm) || tool.category.toLowerCase().includes(searchTerm);
     });
 
-    marketplaceList.innerHTML = filteredTools.map((tool) => `
+    marketplaceList.innerHTML = filteredTools
+        .map(
+            (tool) => `
         <div class="marketplace-item-vscode">
             <div class="marketplace-item-header-vscode">
                 <div class="marketplace-item-info-vscode">
@@ -1659,7 +1661,9 @@ function loadMarketplace() {
                 </div>
             </div>
         </div>
-    `).join("");
+    `,
+        )
+        .join("");
 
     // Add event listeners
     marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
@@ -1672,13 +1676,13 @@ function loadMarketplace() {
             if (action === "install") {
                 target.disabled = true;
                 target.textContent = "Installing...";
-                
+
                 try {
                     await window.toolboxAPI.installTool(toolId);
                     target.textContent = "Installed";
                     target.classList.remove("btn-primary");
                     target.classList.add("btn-secondary");
-                    
+
                     window.toolboxAPI.showNotification({
                         title: "Tool Installed",
                         body: `Tool has been installed successfully`,
@@ -1711,7 +1715,7 @@ function loadMarketplace() {
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
-    
+
     if (themeSelect && autoUpdateCheck) {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
@@ -1722,7 +1726,7 @@ async function loadSidebarSettings() {
 async function saveSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
-    
+
     if (!themeSelect || !autoUpdateCheck) return;
 
     const settings = {
