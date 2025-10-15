@@ -1,0 +1,93 @@
+{
+  "name": "@powerplatform/example-tool-typescript",
+  "version": "1.0.0",
+  "displayName": "Example PowerPlatform Tool (TypeScript)",
+  "description": "An example tool demonstrating the PowerPlatform ToolBox architecture using TypeScript",
+  "main": "dist/index.js",
+  "author": "PowerPlatform ToolBox",
+  "keywords": ["powerplatform", "dataverse", "toolbox", "example", "typescript"],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "exampleTs.sayHello",
+        "title": "Say Hello (TypeScript)",
+        "category": "Example TS"
+      },
+      {
+        "command": "exampleTs.showNotification",
+        "title": "Show Example Notification (TypeScript)",
+        "category": "Example TS"
+      },
+      {
+        "command": "exampleTs.exportData",
+        "title": "Export Example Data (TypeScript)",
+        "category": "Example TS"
+      },
+      {
+        "command": "exampleTs.fetchDataverseData",
+        "title": "Fetch Dataverse Data",
+        "category": "Example TS"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "exampleTs.sayHello"
+        },
+        {
+          "command": "exampleTs.showNotification"
+        },
+        {
+          "command": "exampleTs.fetchDataverseData"
+        }
+      ],
+      "toolsMenu": [
+        {
+          "command": "exampleTs.exportData",
+          "group": "export"
+        }
+      ]
+    },
+    "configuration": [
+      {
+        "title": "Example TypeScript Tool Settings",
+        "properties": {
+          "exampleTs.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable or disable the example TypeScript tool"
+          },
+          "exampleTs.message": {
+            "type": "string",
+            "default": "Hello from TypeScript Tool!",
+            "description": "Default message to display"
+          },
+          "exampleTs.apiTimeout": {
+            "type": "number",
+            "default": 5000,
+            "description": "API timeout in milliseconds"
+          }
+        }
+      }
+    ]
+  },
+  "activationEvents": [
+    "onCommand:exampleTs.sayHello",
+    "onCommand:exampleTs.showNotification",
+    "onCommand:exampleTs.exportData",
+    "onCommand:exampleTs.fetchDataverseData",
+    "*"
+  ],
+  "devDependencies": {
+    "@types/node": "^16.0.0",
+    "typescript": "^5.0.0"
+  }
+}
