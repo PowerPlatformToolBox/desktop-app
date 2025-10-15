@@ -293,7 +293,7 @@ async function launchTool(toolId: string) {
             // For mock tools, we'll create a simple welcome page
             const toolHtml = `
                 <!DOCTYPE html>
-                <html style="height: 100%;">
+                <html>
                 <head>
                     <style>
                         html, body { 
