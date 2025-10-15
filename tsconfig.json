@@ -16,6 +16,6 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/main/**/*", "src/api/**/*", "src/types/**/*"],
+  "include": ["src/main/**/*", "src/api/**/*", "src/types/**/*", "src/toolHost/**/*"],
   "exclude": ["node_modules", "dist", "build", "src/renderer"]
 }
