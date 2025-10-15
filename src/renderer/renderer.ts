@@ -110,6 +110,45 @@ function switchView(viewName: string) {
     }
 }
 
+// Update split view button visibility based on number of open tabs
+function updateSplitViewButtonVisibility() {
+    const splitViewBtn = document.getElementById("split-view-btn");
+    if (splitViewBtn) {
+        if (openTools.size >= 2) {
+            splitViewBtn.style.display = "block";
+        } else {
+            splitViewBtn.style.display = "none";
+        }
+    }
+}
+
+// Update footer connection information
+async function updateFooterConnection() {
+    const footerConnectionName = document.getElementById("footer-connection-name");
+    const footerChangeBtn = document.getElementById("footer-change-connection-btn");
+    
+    if (!footerConnectionName) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+        const activeConn = connections.find((conn: any) => conn.isActive);
+        
+        if (activeConn) {
+            footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
+            if (footerChangeBtn) {
+                footerChangeBtn.style.display = "inline";
+            }
+        } else {
+            footerConnectionName.textContent = "Not Connected";
+            if (footerChangeBtn) {
+                footerChangeBtn.style.display = "none";
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update footer connection:", error);
+    }
+}
+
 async function loadTools() {
     const toolsGrid = document.getElementById("tools-grid");
     if (!toolsGrid) return;
@@ -424,6 +463,12 @@ async function launchTool(toolId: string) {
         // Switch to the new tab
         switchToTool(toolId);
 
+        // Update split view button visibility
+        updateSplitViewButtonVisibility();
+
+        // Update footer connection
+        updateFooterConnection();
+
         // Save session after launching
         saveSession();
 
@@ -545,8 +590,8 @@ function switchToTool(toolId: string) {
         }
     }
 
-    // Update connection selector
-    updateConnectionSelector();
+    // Update footer connection (no longer updating connection selector)
+    updateFooterConnection();
 }
 
 function closeTool(toolId: string) {
@@ -574,6 +619,9 @@ function closeTool(toolId: string) {
 
     // Remove from open tools
     openTools.delete(toolId);
+
+    // Update split view button visibility
+    updateSplitViewButtonVisibility();
 
     // Save session after closing
     saveSession();
@@ -750,6 +798,9 @@ function setupKeyboardShortcuts() {
 }
 
 // Connection management for tabs
+// Legacy function - no longer used since connection selector was removed from header
+// Keeping for backwards compatibility in case needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function updateConnectionSelector() {
     const selector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
     if (!selector) return;
@@ -1535,10 +1586,13 @@ async function loadSidebarConnections() {
         }
 
         connectionsList.innerHTML = connections.map((conn: any) => `
-            <div class="connection-list-item ${conn.isActive ? "active" : ""}">
-                <div class="connection-list-item-name">${conn.name}</div>
-                <div class="connection-list-item-url">${conn.url}</div>
-                <div class="connection-list-item-actions">
+            <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
+                <div class="connection-item-header-vscode">
+                    <div class="connection-item-name-vscode">${conn.name}</div>
+                    <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                </div>
+                <div class="connection-item-url-vscode">${conn.url}</div>
+                <div class="connection-item-actions-vscode">
                     ${!conn.isActive 
                         ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
                         : `<button class="btn btn-secondary" disabled>Connected</button>`
@@ -1559,10 +1613,12 @@ async function loadSidebarConnections() {
                 if (action === "connect") {
                     await window.toolboxAPI.setActiveConnection(connectionId);
                     loadSidebarConnections();
+                    updateFooterConnection();
                 } else if (action === "delete") {
                     if (confirm("Are you sure you want to delete this connection?")) {
                         await window.toolboxAPI.deleteConnection(connectionId);
                         loadSidebarConnections();
+                        updateFooterConnection();
                     }
                 }
             });
@@ -1588,25 +1644,25 @@ function loadMarketplace() {
     });
 
     marketplaceList.innerHTML = filteredTools.map((tool) => `
-        <div class="marketplace-tool-item">
-            <div class="marketplace-tool-header">
-                <div class="marketplace-tool-info">
-                    <div class="marketplace-tool-name">${tool.name}</div>
-                    <div class="marketplace-tool-author">by ${tool.author}</div>
+        <div class="marketplace-item-vscode">
+            <div class="marketplace-item-header-vscode">
+                <div class="marketplace-item-info-vscode">
+                    <div class="marketplace-item-name-vscode">${tool.name}</div>
+                    <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
             </div>
-            <div class="marketplace-tool-description">${tool.description}</div>
-            <div class="marketplace-tool-meta">
-                <span>Category: ${tool.category}</span>
-            </div>
-            <div class="marketplace-tool-actions">
-                <button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>
+            <div class="marketplace-item-description-vscode">${tool.description}</div>
+            <div class="marketplace-item-footer-vscode">
+                <span class="marketplace-item-category-vscode">${tool.category}</span>
+                <div class="marketplace-item-actions-vscode">
+                    <button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>
+                </div>
             </div>
         </div>
     `).join("");
 
     // Add event listeners
-    marketplaceList.querySelectorAll(".marketplace-tool-actions button").forEach((button) => {
+    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             const target = e.target as HTMLButtonElement;
             const action = target.getAttribute("data-action");
@@ -1708,16 +1764,8 @@ async function init() {
         });
     }
 
-    // Connection selector for active tool
-    const connectionSelector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
-    if (connectionSelector) {
-        connectionSelector.addEventListener("change", () => {
-            if (activeToolId) {
-                const connectionId = connectionSelector.value || null;
-                setToolConnection(activeToolId, connectionId);
-            }
-        });
-    }
+    // Remove connection selector logic (no longer using it in header)
+    // Connection will be selected when tool is launched
 
     // Split view button
     const splitViewBtn = document.getElementById("split-view-btn");
@@ -1735,6 +1783,14 @@ async function init() {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openModal("add-connection-modal");
+        });
+    }
+
+    // Footer change connection button
+    const footerChangeConnectionBtn = document.getElementById("footer-change-connection-btn");
+    if (footerChangeConnectionBtn) {
+        footerChangeConnectionBtn.addEventListener("click", () => {
+            openModal("connection-select-modal");
         });
     }
 
@@ -1824,6 +1880,9 @@ async function init() {
     // Load initial data
     await loadTools();
 
+    // Update footer connection info
+    await updateFooterConnection();
+
     // Restore previous session
     await restoreSession();
 
@@ -1836,6 +1895,7 @@ async function init() {
             console.log("Connection event detected, reloading connections...");
             loadConnections().catch((err) => console.error("Failed to reload connections:", err));
             loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
+            updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
         }
 
         // Reload tools when tool events occur
