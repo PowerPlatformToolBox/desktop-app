@@ -45,11 +45,18 @@
                         <select id="tab-connection-selector" class="connection-selector" title="Select connection for active tool">
                             <option value="">No Connection</option>
                         </select>
+                        <button class="btn-icon" id="split-view-btn" title="Toggle split view">⚏</button>
                         <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
                     </div>
                 </div>
-                <div class="tool-panel-content" id="tool-panel-content">
-                    <!-- Tool webviews will be dynamically added here -->
+                <div class="tool-panel-content-wrapper" id="tool-panel-content-wrapper">
+                    <div class="tool-panel-content" id="tool-panel-content">
+                        <!-- Tool webviews will be dynamically added here -->
+                    </div>
+                    <div class="resize-handle" id="resize-handle" style="display: none;"></div>
+                    <div class="tool-panel-content secondary" id="tool-panel-content-secondary" style="display: none;">
+                        <!-- Secondary panel for split view -->
+                    </div>
                 </div>
             </div>
 

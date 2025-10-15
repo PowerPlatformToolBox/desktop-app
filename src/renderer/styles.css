@@ -767,6 +767,11 @@ body {
     border-bottom: 2px solid var(--primary-color);
 }
 
+.tool-tab.secondary-active {
+    background: var(--bg-color);
+    border-bottom: 2px solid #8a8886;
+}
+
 .tool-tab-icon {
     font-size: 16px;
 }
@@ -844,6 +849,40 @@ body {
     flex: 1;
     position: relative;
     overflow: hidden;
+}
+
+.tool-panel-content-wrapper {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+}
+
+.tool-panel-content-wrapper.split-view .tool-panel-content {
+    flex: 0 0 50%;
+}
+
+.tool-panel-content-wrapper.split-view .tool-panel-content.secondary {
+    flex: 0 0 50%;
+    display: block !important;
+    border-left: 1px solid var(--border-color);
+}
+
+.tool-panel-content-wrapper.split-view .resize-handle {
+    display: block !important;
+}
+
+.resize-handle {
+    width: 5px;
+    background: var(--border-color);
+    cursor: col-resize;
+    position: relative;
+    z-index: 10;
+    transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+    background: var(--primary-color);
 }
 
 .tool-webview-container {

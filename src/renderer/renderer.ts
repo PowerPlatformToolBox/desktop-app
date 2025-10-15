@@ -13,6 +13,8 @@ interface OpenTool {
 
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null;
+let secondaryToolId: string | null = null;
+let isSplitView = false;
 
 // Tools Management - Testing Only
 const mockTools = [
@@ -509,25 +511,38 @@ function createTab(toolId: string, tool: any) {
 function switchToTool(toolId: string) {
     if (!openTools.has(toolId)) return;
 
-    // Update active tool ID
-    activeToolId = toolId;
+    if (isSplitView) {
+        // In split view, determine if this should be primary or secondary
+        // If it's the secondary tool, keep it there, otherwise make it primary
+        if (toolId === secondaryToolId) {
+            // Just highlight it, don't move
+            updateSplitViewDisplay();
+        } else {
+            // Set as primary
+            activeToolId = toolId;
+            updateSplitViewDisplay();
+        }
+    } else {
+        // Normal single view mode
+        activeToolId = toolId;
 
-    // Update tab active states
-    document.querySelectorAll(".tool-tab").forEach(tab => {
-        tab.classList.remove("active");
-    });
-    const activeTab = document.getElementById(`tool-tab-${toolId}`);
-    if (activeTab) {
-        activeTab.classList.add("active");
-    }
+        // Update tab active states
+        document.querySelectorAll(".tool-tab").forEach(tab => {
+            tab.classList.remove("active");
+        });
+        const activeTab = document.getElementById(`tool-tab-${toolId}`);
+        if (activeTab) {
+            activeTab.classList.add("active");
+        }
 
-    // Update webview container visibility
-    document.querySelectorAll(".tool-webview-container").forEach(container => {
-        container.classList.remove("active");
-    });
-    const activeContainer = document.getElementById(`tool-webview-${toolId}`);
-    if (activeContainer) {
-        activeContainer.classList.add("active");
+        // Update webview container visibility
+        document.querySelectorAll(".tool-webview-container").forEach(container => {
+            container.classList.remove("active");
+        });
+        const activeContainer = document.getElementById(`tool-webview-${toolId}`);
+        if (activeContainer) {
+            activeContainer.classList.add("active");
+        }
     }
 
     // Update connection selector
@@ -787,6 +802,136 @@ function setToolConnection(toolId: string, connectionId: string | null) {
 
     // Notify tool of connection change (in a real implementation, this would message the webview)
     console.log(`Tool ${toolId} connection set to:`, connectionId);
+}
+
+// Split view management
+function toggleSplitView() {
+    isSplitView = !isSplitView;
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    
+    if (!wrapper) return;
+
+    if (isSplitView) {
+        wrapper.classList.add("split-view");
+        
+        // If there are at least 2 tools, show the second tool in secondary panel
+        const toolIds = Array.from(openTools.keys());
+        if (toolIds.length >= 2) {
+            // Set secondary to first non-active tool
+            const secondaryId = toolIds.find(id => id !== activeToolId) || toolIds[0];
+            setSecondaryTool(secondaryId);
+        }
+
+        window.toolboxAPI.showNotification({
+            title: "Split View Enabled",
+            body: "Click on tabs to switch between primary and secondary panel",
+            type: "success",
+        });
+    } else {
+        wrapper.classList.remove("split-view");
+        secondaryToolId = null;
+        
+        // Move all tools back to primary panel
+        const primaryPanel = document.getElementById("tool-panel-content");
+        if (primaryPanel) {
+            openTools.forEach((tool) => {
+                if (tool.webviewContainer.parentElement !== primaryPanel) {
+                    primaryPanel.appendChild(tool.webviewContainer);
+                }
+            });
+        }
+    }
+
+    updateSplitViewDisplay();
+}
+
+function setSecondaryTool(toolId: string) {
+    if (!openTools.has(toolId)) return;
+    
+    secondaryToolId = toolId;
+    updateSplitViewDisplay();
+}
+
+function updateSplitViewDisplay() {
+    if (!isSplitView) return;
+
+    const primaryPanel = document.getElementById("tool-panel-content");
+    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+    
+    if (!primaryPanel || !secondaryPanel) return;
+
+    // Move tools to appropriate panels
+    openTools.forEach((tool, toolId) => {
+        if (toolId === activeToolId) {
+            if (tool.webviewContainer.parentElement !== primaryPanel) {
+                primaryPanel.appendChild(tool.webviewContainer);
+            }
+            tool.webviewContainer.classList.add("active");
+        } else if (toolId === secondaryToolId) {
+            if (tool.webviewContainer.parentElement !== secondaryPanel) {
+                secondaryPanel.appendChild(tool.webviewContainer);
+            }
+            tool.webviewContainer.classList.add("active");
+        } else {
+            tool.webviewContainer.classList.remove("active");
+        }
+    });
+
+    // Update tab indicators
+    document.querySelectorAll(".tool-tab").forEach(tab => {
+        const toolId = tab.getAttribute("data-tool-id");
+        tab.classList.remove("active", "secondary-active");
+        
+        if (toolId === activeToolId) {
+            tab.classList.add("active");
+        } else if (toolId === secondaryToolId) {
+            tab.classList.add("secondary-active");
+        }
+    });
+}
+
+function setupResizeHandle() {
+    const handle = document.getElementById("resize-handle");
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    const primaryPanel = document.getElementById("tool-panel-content");
+    
+    if (!handle || !wrapper || !primaryPanel) return;
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    handle.addEventListener("mousedown", (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = primaryPanel.offsetWidth;
+        document.body.style.cursor = "col-resize";
+        e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+
+        const diff = e.clientX - startX;
+        const newWidth = startWidth + diff;
+        const wrapperWidth = wrapper.offsetWidth;
+        const percentage = (newWidth / wrapperWidth) * 100;
+
+        if (percentage >= 20 && percentage <= 80) {
+            primaryPanel.style.flex = `0 0 ${percentage}%`;
+            const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+            if (secondaryPanel) {
+                secondaryPanel.style.flex = `0 0 ${100 - percentage}%`;
+            }
+        }
+    });
+
+    document.addEventListener("mouseup", () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = "";
+        }
+    });
 }
 
 async function toolSettings(toolId: string) {
@@ -1272,6 +1417,17 @@ async function init() {
             }
         });
     }
+
+    // Split view button
+    const splitViewBtn = document.getElementById("split-view-btn");
+    if (splitViewBtn) {
+        splitViewBtn.addEventListener("click", () => {
+            toggleSplitView();
+        });
+    }
+
+    // Set up resize handle
+    setupResizeHandle();
 
     // Install tool modal
     const installToolBtn = document.getElementById("install-tool-btn");
