@@ -14,69 +14,6 @@ export interface Tool {
   icon?: string;
   settings?: ToolSettings;
   main: string; // Entry point for the tool
-  contributes?: ToolContributions; // Contribution points from package.json
-  activationEvents?: string[]; // Events that activate the tool
-}
-
-/**
- * Tool contribution points (declared in package.json)
- */
-export interface ToolContributions {
-  commands?: CommandContribution[];
-  menus?: MenuContribution[];
-  views?: ViewContribution[];
-  configuration?: ConfigurationContribution[];
-}
-
-/**
- * Command contribution
- */
-export interface CommandContribution {
-  command: string;
-  title: string;
-  category?: string;
-  icon?: string;
-}
-
-/**
- * Menu contribution
- */
-export interface MenuContribution {
-  commandPalette?: MenuItemContribution[];
-  toolsMenu?: MenuItemContribution[];
-}
-
-/**
- * Menu item contribution
- */
-export interface MenuItemContribution {
-  command: string;
-  when?: string; // Condition for showing the menu item
-  group?: string;
-}
-
-/**
- * View contribution (panels, sidebars)
- */
-export interface ViewContribution {
-  id: string;
-  name: string;
-  icon?: string;
-  type: 'panel' | 'sidebar' | 'webview';
-}
-
-/**
- * Configuration contribution
- */
-export interface ConfigurationContribution {
-  title: string;
-  properties: {
-    [key: string]: {
-      type: string;
-      default?: unknown;
-      description?: string;
-    };
-  };
 }
 
 /**

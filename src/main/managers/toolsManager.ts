@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
-import { Tool, ToolContributions } from "../../types";
+import { Tool } from "../../types";
 import { ToolHostManager } from "../toolHost/toolHostManager";
 import { ToolBoxAPI } from "../../api/toolboxAPI";
 
@@ -53,9 +53,6 @@ export class ToolManager extends EventEmitter {
 
             const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
-            // Parse contribution points from package.json
-            const contributes = this.parseContributions(packageJson.contributes);
-
             const tool: Tool = {
                 id: packageJson.name,
                 name: packageJson.displayName || packageJson.name,
@@ -64,8 +61,6 @@ export class ToolManager extends EventEmitter {
                 author: packageJson.author || "Unknown",
                 icon: packageJson.icon,
                 main: path.join(toolPath, packageJson.main || "index.js"),
-                contributes,
-                activationEvents: packageJson.activationEvents || [],
             };
 
             this.tools.set(tool.id, tool);
@@ -77,17 +72,6 @@ export class ToolManager extends EventEmitter {
         } catch (error) {
             throw new Error(`Failed to load tool ${packageName}: ${(error as Error).message}`);
         }
-    }
-
-    /**
-     * Parse contribution points from package.json
-     */
-    private parseContributions(contributes: unknown): ToolContributions | undefined {
-        if (!contributes || typeof contributes !== 'object') {
-            return undefined;
-        }
-
-        return contributes as ToolContributions;
     }
 
     /**
