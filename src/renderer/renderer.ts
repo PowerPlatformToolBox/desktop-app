@@ -1,6 +1,21 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="types.d.ts" />
 
+// Tab management for multiple tools
+interface OpenTool {
+    id: string;
+    tool: any;
+    webviewContainer: HTMLElement;
+    webview: any;
+    isPinned: boolean;
+    connectionId: string | null;
+}
+
+const openTools = new Map<string, OpenTool>();
+let activeToolId: string | null = null;
+let secondaryToolId: string | null = null;
+let isSplitView = false;
+
 // Tools Management - Testing Only
 const mockTools = [
     {
@@ -92,6 +107,45 @@ function switchView(viewName: string) {
     const targetNav = document.querySelector(`[data-view="${viewName}"]`);
     if (targetNav) {
         targetNav.classList.add("active");
+    }
+}
+
+// Update split view button visibility based on number of open tabs
+function updateSplitViewButtonVisibility() {
+    const splitViewBtn = document.getElementById("split-view-btn");
+    if (splitViewBtn) {
+        if (openTools.size >= 2) {
+            splitViewBtn.style.display = "block";
+        } else {
+            splitViewBtn.style.display = "none";
+        }
+    }
+}
+
+// Update footer connection information
+async function updateFooterConnection() {
+    const footerConnectionName = document.getElementById("footer-connection-name");
+    const footerChangeBtn = document.getElementById("footer-change-connection-btn");
+
+    if (!footerConnectionName) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+        const activeConn = connections.find((conn: any) => conn.isActive);
+
+        if (activeConn) {
+            footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
+            if (footerChangeBtn) {
+                footerChangeBtn.style.display = "inline";
+            }
+        } else {
+            footerConnectionName.textContent = "Not Connected";
+            if (footerChangeBtn) {
+                footerChangeBtn.style.display = "none";
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update footer connection:", error);
     }
 }
 
@@ -266,6 +320,13 @@ async function uninstallTool(toolId: string) {
 async function launchTool(toolId: string) {
     try {
         console.log("Launching tool:", toolId);
+
+        // If tool is already open, just switch to its tab
+        if (openTools.has(toolId)) {
+            switchToTool(toolId);
+            return;
+        }
+
         // Load the tool
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
@@ -277,109 +338,139 @@ async function launchTool(toolId: string) {
             return;
         }
 
+        const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+
         // Hide all views
         document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
 
         // Show tool panel
         const toolPanel = document.getElementById("tool-panel");
-        const toolPanelName = document.getElementById("tool-panel-name");
-        const toolWebview = document.getElementById("tool-webview") as any;
-
-        if (toolPanel && toolPanelName && toolWebview) {
+        if (toolPanel) {
             toolPanel.style.display = "flex";
-            toolPanelName.textContent = tool.name;
-
-            // Set webview src - in real implementation, this would load the tool's UI
-            // For mock tools, we'll create a simple welcome page
-            const toolHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        html, body { 
-                            height: 100%;
-                            margin: 0;
-                            padding: 0;
-                        }
-                        body { 
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                            padding: 40px; 
-                            background: #f5f5f5;
-                            box-sizing: border-box;
-                        }
-                        .tool-container {
-                            max-width: 800px;
-                            margin: 0 auto;
-                            background: white;
-                            padding: 30px;
-                            border-radius: 8px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }
-                        h1 { 
-                            color: #0078d4; 
-                            margin-top: 0;
-                        }
-                        .info { 
-                            background: #e7f3ff; 
-                            padding: 15px; 
-                            border-radius: 4px; 
-                            margin: 20px 0;
-                            border-left: 4px solid #0078d4;
-                        }
-                        .metadata {
-                            display: grid;
-                            grid-template-columns: 150px 1fr;
-                            gap: 10px;
-                            margin: 20px 0;
-                        }
-                        .metadata-label {
-                            font-weight: 600;
-                            color: #605e5c;
-                        }
-                        .metadata-value {
-                            color: #323130;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="tool-container">
-                        <h1>${tool.icon || "🔧"} ${tool.name}</h1>
-                        <p>${tool.description || "No description available"}</p>
-                        
-                        <div class="info">
-                            <strong>ℹ️ Tool Information</strong><br>
-                            This is a ${tool.id.includes("mock") ? "mock" : "real"} tool running in the PowerPlatform ToolBox.
-                        </div>
-                        
-                        <div class="metadata">
-                            <div class="metadata-label">Version:</div>
-                            <div class="metadata-value">${tool.version || "N/A"}</div>
-                            
-                            <div class="metadata-label">Author:</div>
-                            <div class="metadata-value">${tool.author || "Unknown"}</div>
-                            
-                            <div class="metadata-label">Tool ID:</div>
-                            <div class="metadata-value">${tool.id}</div>
-                        </div>
-                        
-                        <p style="margin-top: 30px; color: #605e5c; font-size: 14px;">
-                            In a production environment, this panel would load the tool's actual UI from its package.
-                            The tool would have access to the ToolBox API for connections, settings, and other features.
-                        </p>
-                    </div>
-                </body>
-                </html>
-            `;
-
-            // Use data URI to load content into webview
-            toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(toolHtml);
-
-            window.toolboxAPI.showNotification({
-                title: "Tool Launched",
-                body: `${tool.name} opened in panel`,
-                type: "success",
-            });
         }
+
+        // Create webview container for this tool
+        const toolPanelContent = document.getElementById("tool-panel-content");
+        if (!toolPanelContent) return;
+
+        const webviewContainer = document.createElement("div");
+        webviewContainer.className = "tool-webview-container";
+        webviewContainer.id = `tool-webview-${toolId}`;
+
+        const toolWebview = document.createElement("webview") as any;
+        toolWebview.style.width = "100%";
+        toolWebview.style.height = "100%";
+
+        // Set webview src - in real implementation, this would load the tool's UI
+        // For mock tools, we'll create a simple welcome page
+        const toolHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <style>
+                html, body { 
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                }
+                body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                padding: 40px; 
+                background: #f5f5f5;
+                box-sizing: border-box;
+                }
+                .tool-container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                h1 { 
+                color: #d83b01; 
+                margin-top: 0;
+                }
+                .error {
+                background: #fde7e9;
+                padding: 15px;
+                border-radius: 4px;
+                margin: 20px 0;
+                border-left: 4px solid #d83b01;
+                color: #a4262c;
+                }
+                .metadata {
+                display: grid;
+                grid-template-columns: 150px 1fr;
+                gap: 10px;
+                margin: 20px 0;
+                }
+                .metadata-label {
+                font-weight: 600;
+                color: #605e5c;
+                }
+                .metadata-value {
+                color: #323130;
+                }
+            </style>
+            </head>
+            <body>
+            <div class="tool-container">
+                <h1>⚠️ Error Loading Tool</h1>
+                <div class="error">
+                <strong>Unable to load the contents of this tool.</strong><br>
+                Please reach out to the tool author for support.<br>
+                <span style="font-size: 13px;">Author: ${tool.author || "Unknown"}</span>
+                </div>
+                <div class="metadata">
+                <div class="metadata-label">Tool Name:</div>
+                <div class="metadata-value">${tool.name}</div>
+                <div class="metadata-label">Tool ID:</div>
+                <div class="metadata-value">${tool.id}</div>
+                <div class="metadata-label">Version:</div>
+                <div class="metadata-value">${tool.version || "N/A"}</div>
+                </div>
+            </div>
+            </body>
+            </html>
+        `;
+
+        // Use data URI to load content into webview
+        toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(webviewHtml || toolHtml);
+
+        webviewContainer.appendChild(toolWebview);
+        toolPanelContent.appendChild(webviewContainer);
+
+        // Store the open tool
+        openTools.set(toolId, {
+            id: toolId,
+            tool: tool,
+            webviewContainer: webviewContainer,
+            webview: toolWebview,
+            isPinned: false,
+            connectionId: null,
+        });
+
+        // Create and add tab
+        createTab(toolId, tool);
+
+        // Switch to the new tab
+        switchToTool(toolId);
+
+        // Update split view button visibility
+        updateSplitViewButtonVisibility();
+
+        // Update footer connection
+        updateFooterConnection();
+
+        // Save session after launching
+        saveSession();
+
+        window.toolboxAPI.showNotification({
+            title: "Tool Launched",
+            body: `${tool.name} opened in new tab`,
+            type: "success",
+        });
 
         console.log("Tool launched successfully:", tool.name);
     } catch (error) {
@@ -390,6 +481,502 @@ async function launchTool(toolId: string) {
             type: "error",
         });
     }
+}
+
+function createTab(toolId: string, tool: any) {
+    const toolTabs = document.getElementById("tool-tabs");
+    if (!toolTabs) return;
+
+    const tab = document.createElement("div");
+    tab.className = "tool-tab";
+    tab.id = `tool-tab-${toolId}`;
+    tab.setAttribute("data-tool-id", toolId);
+    tab.setAttribute("draggable", "true");
+
+    const icon = document.createElement("span");
+    icon.className = "tool-tab-icon";
+    icon.textContent = tool.icon || "🔧";
+
+    const name = document.createElement("span");
+    name.className = "tool-tab-name";
+    name.textContent = tool.name;
+    name.title = tool.name;
+
+    const connectionBadge = document.createElement("span");
+    connectionBadge.className = "tool-tab-connection";
+    connectionBadge.id = `tab-connection-${toolId}`;
+    connectionBadge.textContent = "🔗";
+    connectionBadge.title = "No connection";
+    connectionBadge.style.display = "none";
+
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "tool-tab-pin";
+    pinBtn.textContent = "📌";
+    pinBtn.title = "Pin tab";
+
+    pinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        togglePinTab(toolId);
+    });
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "tool-tab-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close";
+
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTool(toolId);
+    });
+
+    tab.addEventListener("click", () => {
+        switchToTool(toolId);
+    });
+
+    // Drag and drop events
+    tab.addEventListener("dragstart", (e) => handleDragStart(e, tab));
+    tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
+    tab.addEventListener("drop", (e) => handleDrop(e));
+    tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
+
+    tab.appendChild(icon);
+    tab.appendChild(name);
+    tab.appendChild(connectionBadge);
+    tab.appendChild(pinBtn);
+    tab.appendChild(closeBtn);
+    toolTabs.appendChild(tab);
+}
+
+function switchToTool(toolId: string) {
+    if (!openTools.has(toolId)) return;
+
+    if (isSplitView) {
+        // In split view, determine if this should be primary or secondary
+        // If it's the secondary tool, keep it there, otherwise make it primary
+        if (toolId === secondaryToolId) {
+            // Just highlight it, don't move
+            updateSplitViewDisplay();
+        } else {
+            // Set as primary
+            activeToolId = toolId;
+            updateSplitViewDisplay();
+        }
+    } else {
+        // Normal single view mode
+        activeToolId = toolId;
+
+        // Update tab active states
+        document.querySelectorAll(".tool-tab").forEach((tab) => {
+            tab.classList.remove("active");
+        });
+        const activeTab = document.getElementById(`tool-tab-${toolId}`);
+        if (activeTab) {
+            activeTab.classList.add("active");
+        }
+
+        // Update webview container visibility
+        document.querySelectorAll(".tool-webview-container").forEach((container) => {
+            container.classList.remove("active");
+        });
+        const activeContainer = document.getElementById(`tool-webview-${toolId}`);
+        if (activeContainer) {
+            activeContainer.classList.add("active");
+        }
+    }
+
+    // Update footer connection (no longer updating connection selector)
+    updateFooterConnection();
+}
+
+function closeTool(toolId: string) {
+    const openTool = openTools.get(toolId);
+    if (!openTool) return;
+
+    // Check if tab is pinned
+    if (openTool.isPinned) {
+        window.toolboxAPI.showNotification({
+            title: "Cannot Close Pinned Tab",
+            body: "Unpin the tab before closing it",
+            type: "warning",
+        });
+        return;
+    }
+
+    // Remove tab
+    const tab = document.getElementById(`tool-tab-${toolId}`);
+    if (tab) {
+        tab.remove();
+    }
+
+    // Remove webview container
+    openTool.webviewContainer.remove();
+
+    // Remove from open tools
+    openTools.delete(toolId);
+
+    // Update split view button visibility
+    updateSplitViewButtonVisibility();
+
+    // Save session after closing
+    saveSession();
+
+    // If this was the active tool, switch to another tool or close the panel
+    if (activeToolId === toolId) {
+        if (openTools.size > 0) {
+            // Switch to the last tool in the list
+            const lastToolId = Array.from(openTools.keys())[openTools.size - 1];
+            switchToTool(lastToolId);
+        } else {
+            // No more tools open, hide the tool panel
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+            }
+            activeToolId = null;
+            // Show tools view again
+            switchView("tools");
+        }
+    }
+}
+
+function closeAllTools() {
+    // Close all tools
+    const toolIds = Array.from(openTools.keys());
+    toolIds.forEach((toolId) => {
+        closeTool(toolId);
+    });
+}
+
+// Toggle pin state for a tab
+function togglePinTab(toolId: string) {
+    const openTool = openTools.get(toolId);
+    if (!openTool) return;
+
+    openTool.isPinned = !openTool.isPinned;
+
+    const tab = document.getElementById(`tool-tab-${toolId}`);
+    if (tab) {
+        if (openTool.isPinned) {
+            tab.classList.add("pinned");
+        } else {
+            tab.classList.remove("pinned");
+        }
+    }
+
+    saveSession();
+}
+
+// Drag and drop handlers for tab reordering
+let draggedTab: HTMLElement | null = null;
+
+function handleDragStart(e: DragEvent, tab: HTMLElement) {
+    draggedTab = tab;
+    tab.classList.add("dragging");
+    if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/html", tab.innerHTML);
+    }
+}
+
+function handleDragOver(e: DragEvent, tab: HTMLElement) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "move";
+    }
+
+    if (draggedTab && tab !== draggedTab) {
+        const toolTabs = document.getElementById("tool-tabs");
+        if (!toolTabs) return;
+
+        const tabs = Array.from(toolTabs.children);
+        const draggedIndex = tabs.indexOf(draggedTab);
+        const targetIndex = tabs.indexOf(tab);
+
+        if (draggedIndex < targetIndex) {
+            toolTabs.insertBefore(draggedTab, tab.nextSibling);
+        } else {
+            toolTabs.insertBefore(draggedTab, tab);
+        }
+    }
+
+    return false;
+}
+
+function handleDrop(e: DragEvent) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    return false;
+}
+
+function handleDragEnd(e: DragEvent, tab: HTMLElement) {
+    tab.classList.remove("dragging");
+    document.querySelectorAll(".tool-tab").forEach((t) => {
+        t.classList.remove("over");
+    });
+}
+
+// Session management - save and restore
+function saveSession() {
+    const session = {
+        openTools: Array.from(openTools.entries()).map(([id, tool]) => ({
+            id,
+            isPinned: tool.isPinned,
+            connectionId: tool.connectionId,
+        })),
+        activeToolId,
+    };
+    localStorage.setItem("toolbox-session", JSON.stringify(session));
+}
+
+async function restoreSession() {
+    const sessionData = localStorage.getItem("toolbox-session");
+    if (!sessionData) return;
+
+    try {
+        const session = JSON.parse(sessionData);
+        if (session.openTools && Array.isArray(session.openTools)) {
+            for (const toolInfo of session.openTools) {
+                await launchTool(toolInfo.id);
+                if (toolInfo.isPinned) {
+                    togglePinTab(toolInfo.id);
+                }
+                if (toolInfo.connectionId) {
+                    setToolConnection(toolInfo.id, toolInfo.connectionId);
+                }
+            }
+            if (session.activeToolId && openTools.has(session.activeToolId)) {
+                switchToTool(session.activeToolId);
+            }
+        }
+    } catch (error) {
+        console.error("Failed to restore session:", error);
+    }
+}
+
+// Keyboard shortcuts
+function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", (e) => {
+        // Ctrl+Tab - Switch to next tab
+        if (e.ctrlKey && e.key === "Tab") {
+            e.preventDefault();
+            const toolIds = Array.from(openTools.keys());
+            if (toolIds.length === 0) return;
+
+            const currentIndex = activeToolId ? toolIds.indexOf(activeToolId) : -1;
+            const nextIndex = (currentIndex + 1) % toolIds.length;
+            switchToTool(toolIds[nextIndex]);
+        }
+
+        // Ctrl+W - Close current tab
+        if (e.ctrlKey && e.key === "w") {
+            e.preventDefault();
+            if (activeToolId) {
+                closeTool(activeToolId);
+            }
+        }
+
+        // Ctrl+Shift+Tab - Switch to previous tab
+        if (e.ctrlKey && e.shiftKey && e.key === "Tab") {
+            e.preventDefault();
+            const toolIds = Array.from(openTools.keys());
+            if (toolIds.length === 0) return;
+
+            const currentIndex = activeToolId ? toolIds.indexOf(activeToolId) : -1;
+            const prevIndex = currentIndex <= 0 ? toolIds.length - 1 : currentIndex - 1;
+            switchToTool(toolIds[prevIndex]);
+        }
+    });
+}
+
+// Connection management for tabs
+// Legacy function - no longer used since connection selector was removed from header
+// Keeping for backwards compatibility in case needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function updateConnectionSelector() {
+    const selector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
+    if (!selector) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+
+        // Clear and repopulate
+        selector.innerHTML = '<option value="">No Connection</option>';
+        connections.forEach((conn: any) => {
+            const option = document.createElement("option");
+            option.value = conn.id;
+            option.textContent = `${conn.name} (${conn.environment})`;
+            selector.appendChild(option);
+        });
+
+        // Set current selection
+        if (activeToolId && openTools.has(activeToolId)) {
+            const tool = openTools.get(activeToolId);
+            if (tool && tool.connectionId) {
+                selector.value = tool.connectionId;
+            } else {
+                selector.value = "";
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update connection selector:", error);
+    }
+}
+
+function setToolConnection(toolId: string, connectionId: string | null) {
+    const tool = openTools.get(toolId);
+    if (!tool) return;
+
+    tool.connectionId = connectionId;
+
+    // Update connection badge on tab
+    const badge = document.getElementById(`tab-connection-${toolId}`);
+    if (badge) {
+        if (connectionId) {
+            badge.style.display = "inline";
+            badge.title = "Connected";
+        } else {
+            badge.style.display = "none";
+            badge.title = "No connection";
+        }
+    }
+
+    saveSession();
+
+    // Notify tool of connection change (in a real implementation, this would message the webview)
+    console.log(`Tool ${toolId} connection set to:`, connectionId);
+}
+
+// Split view management
+function toggleSplitView() {
+    isSplitView = !isSplitView;
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+
+    if (!wrapper) return;
+
+    if (isSplitView) {
+        wrapper.classList.add("split-view");
+
+        // If there are at least 2 tools, show the second tool in secondary panel
+        const toolIds = Array.from(openTools.keys());
+        if (toolIds.length >= 2) {
+            // Set secondary to first non-active tool
+            const secondaryId = toolIds.find((id) => id !== activeToolId) || toolIds[0];
+            setSecondaryTool(secondaryId);
+        }
+
+        window.toolboxAPI.showNotification({
+            title: "Split View Enabled",
+            body: "Click on tabs to switch between primary and secondary panel",
+            type: "success",
+        });
+    } else {
+        wrapper.classList.remove("split-view");
+        secondaryToolId = null;
+
+        // Move all tools back to primary panel
+        const primaryPanel = document.getElementById("tool-panel-content");
+        if (primaryPanel) {
+            openTools.forEach((tool) => {
+                if (tool.webviewContainer.parentElement !== primaryPanel) {
+                    primaryPanel.appendChild(tool.webviewContainer);
+                }
+            });
+        }
+    }
+
+    updateSplitViewDisplay();
+}
+
+function setSecondaryTool(toolId: string) {
+    if (!openTools.has(toolId)) return;
+
+    secondaryToolId = toolId;
+    updateSplitViewDisplay();
+}
+
+function updateSplitViewDisplay() {
+    if (!isSplitView) return;
+
+    const primaryPanel = document.getElementById("tool-panel-content");
+    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+
+    if (!primaryPanel || !secondaryPanel) return;
+
+    // Move tools to appropriate panels
+    openTools.forEach((tool, toolId) => {
+        if (toolId === activeToolId) {
+            if (tool.webviewContainer.parentElement !== primaryPanel) {
+                primaryPanel.appendChild(tool.webviewContainer);
+            }
+            tool.webviewContainer.classList.add("active");
+        } else if (toolId === secondaryToolId) {
+            if (tool.webviewContainer.parentElement !== secondaryPanel) {
+                secondaryPanel.appendChild(tool.webviewContainer);
+            }
+            tool.webviewContainer.classList.add("active");
+        } else {
+            tool.webviewContainer.classList.remove("active");
+        }
+    });
+
+    // Update tab indicators
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        const toolId = tab.getAttribute("data-tool-id");
+        tab.classList.remove("active", "secondary-active");
+
+        if (toolId === activeToolId) {
+            tab.classList.add("active");
+        } else if (toolId === secondaryToolId) {
+            tab.classList.add("secondary-active");
+        }
+    });
+}
+
+function setupResizeHandle() {
+    const handle = document.getElementById("resize-handle");
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    const primaryPanel = document.getElementById("tool-panel-content");
+
+    if (!handle || !wrapper || !primaryPanel) return;
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    handle.addEventListener("mousedown", (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = primaryPanel.offsetWidth;
+        document.body.style.cursor = "col-resize";
+        e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+
+        const diff = e.clientX - startX;
+        const newWidth = startWidth + diff;
+        const wrapperWidth = wrapper.offsetWidth;
+        const percentage = (newWidth / wrapperWidth) * 100;
+
+        if (percentage >= 20 && percentage <= 80) {
+            primaryPanel.style.flex = `0 0 ${percentage}%`;
+            const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+            if (secondaryPanel) {
+                secondaryPanel.style.flex = `0 0 ${100 - percentage}%`;
+            }
+        }
+    });
+
+    document.addEventListener("mouseup", () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = "";
+        }
+    });
 }
 
 async function toolSettings(toolId: string) {
@@ -675,6 +1262,8 @@ async function deleteConnection(id: string) {
 }
 
 // Settings Management
+// Legacy loadSettings function - kept for backwards compatibility if full settings view is needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function loadSettings() {
     const settings = await window.toolboxAPI.getUserSettings();
 
@@ -832,42 +1421,387 @@ function closeModal(modalId: string) {
     }
 }
 
-// Initialize the application
-async function init() {
-    // Sidebar toggle
-    const sidebarToggle = document.getElementById("sidebar-toggle");
+// Activity Bar and Sidebar Management
+let currentSidebarId: string | null = "tools";
+
+function switchSidebar(sidebarId: string) {
     const sidebar = document.getElementById("sidebar");
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener("click", () => {
-            sidebar.classList.toggle("collapsed");
+    if (!sidebar) return;
+
+    // If clicking the same sidebar, toggle collapse
+    if (currentSidebarId === sidebarId) {
+        sidebar.classList.toggle("collapsed");
+        if (sidebar.classList.contains("collapsed")) {
+            // Sidebar is now collapsed
+            document.querySelectorAll(".activity-item").forEach((item) => {
+                item.classList.remove("active");
+            });
+            currentSidebarId = null;
+        } else {
+            // Sidebar is now expanded
+            const activeActivity = document.querySelector(`[data-sidebar="${sidebarId}"]`);
+            if (activeActivity) {
+                activeActivity.classList.add("active");
+            }
+            currentSidebarId = sidebarId;
+        }
+        return;
+    }
+
+    // Switching to a different sidebar
+    sidebar.classList.remove("collapsed");
+    currentSidebarId = sidebarId;
+
+    // Update activity items
+    document.querySelectorAll(".activity-item").forEach((item) => {
+        item.classList.remove("active");
+    });
+    const activeActivity = document.querySelector(`[data-sidebar="${sidebarId}"]`);
+    if (activeActivity) {
+        activeActivity.classList.add("active");
+    }
+
+    // Update sidebar content
+    document.querySelectorAll(".sidebar-content").forEach((content) => {
+        content.classList.remove("active");
+    });
+    const activeSidebar = document.getElementById(`sidebar-${sidebarId}`);
+    if (activeSidebar) {
+        activeSidebar.classList.add("active");
+    }
+
+    // Load content based on sidebar
+    if (sidebarId === "tools") {
+        loadSidebarTools();
+    } else if (sidebarId === "connections") {
+        loadSidebarConnections();
+    } else if (sidebarId === "marketplace") {
+        loadMarketplace();
+    } else if (sidebarId === "settings") {
+        loadSidebarSettings();
+    }
+}
+
+async function loadSidebarTools() {
+    const toolsList = document.getElementById("sidebar-tools-list");
+    if (!toolsList) return;
+
+    let tools = await window.toolboxAPI.getAllTools();
+
+    // Add mock tools for testing if no tools are installed
+    if (tools.length === 0) {
+        tools = mockTools;
+    }
+
+    // Setup search
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement;
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            renderSidebarTools(tools, searchInput.value);
         });
     }
 
-    // Set up navigation
-    const navItems = document.querySelectorAll(".nav-item");
-    navItems.forEach((item) => {
-        item.addEventListener("click", () => {
-            const view = item.getAttribute("data-view");
-            if (view) {
-                switchView(view);
-                if (view === "tools") loadTools();
-                if (view === "connections") loadConnections();
-                if (view === "settings") loadSettings();
+    renderSidebarTools(tools, "");
+}
+
+function renderSidebarTools(tools: any[], searchTerm: string) {
+    const toolsList = document.getElementById("sidebar-tools-list");
+    if (!toolsList) return;
+
+    const filteredTools = tools.filter((tool) => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return tool.name.toLowerCase().includes(term) || tool.description.toLowerCase().includes(term);
+    });
+
+    if (filteredTools.length === 0) {
+        toolsList.innerHTML = `
+            <div class="empty-state">
+                <p>No tools found.</p>
+            </div>
+        `;
+        return;
+    }
+
+    toolsList.innerHTML = filteredTools
+        .map(
+            (tool) => `
+        <div class="tool-item-vscode" data-tool-id="${tool.id}">
+            <div class="tool-item-header-vscode">
+                <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
+                <div class="tool-item-name-vscode">${tool.name}</div>
+            </div>
+            <div class="tool-item-description-vscode">${tool.description}</div>
+            <div class="tool-item-actions-vscode">
+                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+            </div>
+        </div>
+    `,
+        )
+        .join("");
+
+    // Add event listeners
+    toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
+        item.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === "BUTTON") return; // Button click will handle
+
+            const toolId = item.getAttribute("data-tool-id");
+            if (toolId) {
+                launchTool(toolId);
             }
         });
     });
 
-    // Tool panel close button
-    const closeToolPanel = document.getElementById("close-tool-panel");
-    if (closeToolPanel) {
-        closeToolPanel.addEventListener("click", () => {
-            const toolPanel = document.getElementById("tool-panel");
-            if (toolPanel) {
-                toolPanel.style.display = "none";
-            }
-            // Show tools view again
-            switchView("tools");
+    toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const target = e.target as HTMLButtonElement;
+            const toolId = target.getAttribute("data-tool-id");
+            if (!toolId) return;
+
+            launchTool(toolId);
         });
+    });
+}
+
+async function loadSidebarConnections() {
+    const connectionsList = document.getElementById("sidebar-connections-list");
+    if (!connectionsList) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+
+        if (connections.length === 0) {
+            connectionsList.innerHTML = `
+                <div class="empty-state">
+                    <p>No connections configured yet.</p>
+                    <p class="empty-state-hint">Add a connection to get started.</p>
+                </div>
+            `;
+            return;
+        }
+
+        connectionsList.innerHTML = connections
+            .map(
+                (conn: any) => `
+            <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
+                <div class="connection-item-header-vscode">
+                    <div class="connection-item-name-vscode">${conn.name}</div>
+                    <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                </div>
+                <div class="connection-item-url-vscode">${conn.url}</div>
+                <div class="connection-item-actions-vscode">
+                    ${
+                        !conn.isActive
+                            ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                            : `<button class="btn btn-secondary" disabled>Connected</button>`
+                    }
+                    <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                </div>
+            </div>
+        `,
+            )
+            .join("");
+
+        // Add event listeners
+        connectionsList.querySelectorAll("button").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                const target = e.target as HTMLButtonElement;
+                const action = target.getAttribute("data-action");
+                const connectionId = target.getAttribute("data-connection-id");
+                if (!connectionId) return;
+
+                if (action === "connect") {
+                    await window.toolboxAPI.setActiveConnection(connectionId);
+                    loadSidebarConnections();
+                    updateFooterConnection();
+                } else if (action === "delete") {
+                    if (confirm("Are you sure you want to delete this connection?")) {
+                        await window.toolboxAPI.deleteConnection(connectionId);
+                        loadSidebarConnections();
+                        updateFooterConnection();
+                    }
+                }
+            });
+        });
+    } catch (error) {
+        console.error("Failed to load connections:", error);
+    }
+}
+
+function loadMarketplace() {
+    const marketplaceList = document.getElementById("marketplace-tools-list");
+    if (!marketplaceList) return;
+
+    // Filter based on search
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
+
+    const filteredTools = toolLibrary.filter((tool) => {
+        if (!searchTerm) return true;
+        return tool.name.toLowerCase().includes(searchTerm) || tool.description.toLowerCase().includes(searchTerm) || tool.category.toLowerCase().includes(searchTerm);
+    });
+
+    marketplaceList.innerHTML = filteredTools
+        .map(
+            (tool) => `
+        <div class="marketplace-item-vscode">
+            <div class="marketplace-item-header-vscode">
+                <div class="marketplace-item-info-vscode">
+                    <div class="marketplace-item-name-vscode">${tool.name}</div>
+                    <div class="marketplace-item-author-vscode">by ${tool.author}</div>
+                </div>
+            </div>
+            <div class="marketplace-item-description-vscode">${tool.description}</div>
+            <div class="marketplace-item-footer-vscode">
+                <span class="marketplace-item-category-vscode">${tool.category}</span>
+                <div class="marketplace-item-actions-vscode">
+                    <button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>
+                </div>
+            </div>
+        </div>
+    `,
+        )
+        .join("");
+
+    // Add event listeners
+    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
+        button.addEventListener("click", async (e) => {
+            const target = e.target as HTMLButtonElement;
+            const action = target.getAttribute("data-action");
+            const toolId = target.getAttribute("data-tool-id");
+            if (!toolId) return;
+
+            if (action === "install") {
+                target.disabled = true;
+                target.textContent = "Installing...";
+
+                try {
+                    await window.toolboxAPI.installTool(toolId);
+                    target.textContent = "Installed";
+                    target.classList.remove("btn-primary");
+                    target.classList.add("btn-secondary");
+
+                    window.toolboxAPI.showNotification({
+                        title: "Tool Installed",
+                        body: `Tool has been installed successfully`,
+                        type: "success",
+                    });
+
+                    // Reload tools sidebar
+                    loadSidebarTools();
+                } catch (error) {
+                    target.disabled = false;
+                    target.textContent = "Install";
+                    window.toolboxAPI.showNotification({
+                        title: "Installation Failed",
+                        body: `Failed to install tool: ${error}`,
+                        type: "error",
+                    });
+                }
+            }
+        });
+    });
+
+    // Setup search
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            loadMarketplace();
+        });
+    }
+}
+
+async function loadSidebarSettings() {
+    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+
+    if (themeSelect && autoUpdateCheck) {
+        const settings = await window.toolboxAPI.getUserSettings();
+        themeSelect.value = settings.theme;
+        autoUpdateCheck.checked = settings.autoUpdate;
+    }
+}
+
+async function saveSidebarSettings() {
+    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+
+    if (!themeSelect || !autoUpdateCheck) return;
+
+    const settings = {
+        theme: themeSelect.value,
+        autoUpdate: autoUpdateCheck.checked,
+    };
+
+    await window.toolboxAPI.updateUserSettings(settings);
+    applyTheme(settings.theme);
+
+    await window.toolboxAPI.showNotification({
+        title: "Settings Saved",
+        body: "Your settings have been saved.",
+        type: "success",
+    });
+}
+
+// Initialize the application
+async function init() {
+    // Set up Activity Bar navigation
+    const activityItems = document.querySelectorAll(".activity-item");
+    activityItems.forEach((item) => {
+        item.addEventListener("click", () => {
+            const sidebar = item.getAttribute("data-sidebar");
+            if (sidebar) {
+                switchSidebar(sidebar);
+            }
+        });
+    });
+
+    // Remove old sidebar toggle logic
+    // (keeping for backwards compatibility in case needed)
+
+    // Tool panel close all button
+    const closeAllToolsBtn = document.getElementById("close-all-tools");
+    if (closeAllToolsBtn) {
+        closeAllToolsBtn.addEventListener("click", () => {
+            closeAllTools();
+        });
+    }
+
+    // Remove connection selector logic (no longer using it in header)
+    // Connection will be selected when tool is launched
+
+    // Split view button
+    const splitViewBtn = document.getElementById("split-view-btn");
+    if (splitViewBtn) {
+        splitViewBtn.addEventListener("click", () => {
+            toggleSplitView();
+        });
+    }
+
+    // Set up resize handle
+    setupResizeHandle();
+
+    // Sidebar add connection button
+    const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
+    if (sidebarAddConnectionBtn) {
+        sidebarAddConnectionBtn.addEventListener("click", () => {
+            openModal("add-connection-modal");
+        });
+    }
+
+    // Footer change connection button
+    const footerChangeConnectionBtn = document.getElementById("footer-change-connection-btn");
+    if (footerChangeConnectionBtn) {
+        footerChangeConnectionBtn.addEventListener("click", () => {
+            openModal("connection-select-modal");
+        });
+    }
+
+    // Sidebar save settings button
+    const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
+    if (sidebarSaveSettingsBtn) {
+        sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
     }
 
     // Install tool modal
@@ -936,12 +1870,25 @@ async function init() {
     // Set up auto-update listeners
     setupAutoUpdateListeners();
 
+    // Set up keyboard shortcuts
+    setupKeyboardShortcuts();
+
     // Load and apply theme settings on startup
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
 
+    // Load initial sidebar content (tools by default)
+    await loadSidebarTools();
+    await loadMarketplace();
+
     // Load initial data
     await loadTools();
+
+    // Update footer connection info
+    await updateFooterConnection();
+
+    // Restore previous session
+    await restoreSession();
 
     // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
@@ -951,12 +1898,15 @@ async function init() {
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
             loadConnections().catch((err) => console.error("Failed to reload connections:", err));
+            loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
+            updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             console.log("Tool event detected, reloading tools...");
             loadTools().catch((err) => console.error("Failed to reload tools:", err));
+            loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
         }
     });
 }

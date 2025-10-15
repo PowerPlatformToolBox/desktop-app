@@ -1,427 +1,417 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
-import * as path from 'path';
-import { ToolBoxAPI } from '../api/toolboxAPI';
-import { ToolBoxEvent } from '../types';
-import { AutoUpdateManager } from './managers/autoUpdateManager';
-import { SettingsManager } from './managers/settingsManager';
-import { ToolManager } from './managers/toolsManager';
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
+import * as path from "path";
+import { ToolBoxAPI } from "../api/toolboxAPI";
+import { ToolBoxEvent } from "../types";
+import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { SettingsManager } from "./managers/settingsManager";
+import { ToolManager } from "./managers/toolsManager";
 
 class ToolBoxApp {
-  private mainWindow: BrowserWindow | null = null;
-  private settingsManager: SettingsManager;
-  private toolManager: ToolManager;
-  private api: ToolBoxAPI;
-  private autoUpdateManager: AutoUpdateManager;
+    private mainWindow: BrowserWindow | null = null;
+    private settingsManager: SettingsManager;
+    private toolManager: ToolManager;
+    private api: ToolBoxAPI;
+    private autoUpdateManager: AutoUpdateManager;
 
-  constructor() {
-    this.settingsManager = new SettingsManager();
-    this.toolManager = new ToolManager(path.join(app.getPath('userData'), 'tools'));
-    this.api = new ToolBoxAPI();
-    this.autoUpdateManager = new AutoUpdateManager();
+    constructor() {
+        this.settingsManager = new SettingsManager();
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        this.api = new ToolBoxAPI();
+        this.autoUpdateManager = new AutoUpdateManager();
 
-    this.setupEventListeners();
-    this.setupIpcHandlers();
-  }
+        this.setupEventListeners();
+        this.setupIpcHandlers();
+    }
 
-  /**
-   * Set up event listeners
-   */
-  private setupEventListeners(): void {
-    // Listen to tool manager events
-    this.toolManager.on('tool:loaded', (tool) => {
-      this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
-    });
+    /**
+     * Set up event listeners
+     */
+    private setupEventListeners(): void {
+        // Listen to tool manager events
+        this.toolManager.on("tool:loaded", (tool) => {
+            this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
+        });
 
-    this.toolManager.on('tool:unloaded', (tool) => {
-      this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
-    });
+        this.toolManager.on("tool:unloaded", (tool) => {
+            this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
+        });
 
-    // Forward ALL ToolBox events to renderer process
-    const eventTypes = [
-      ToolBoxEvent.TOOL_LOADED,
-      ToolBoxEvent.TOOL_UNLOADED,
-      ToolBoxEvent.CONNECTION_CREATED,
-      ToolBoxEvent.CONNECTION_UPDATED,
-      ToolBoxEvent.CONNECTION_DELETED,
-      ToolBoxEvent.SETTINGS_UPDATED,
-      ToolBoxEvent.NOTIFICATION_SHOWN
-    ];
+        // Forward ALL ToolBox events to renderer process
+        const eventTypes = [
+            ToolBoxEvent.TOOL_LOADED,
+            ToolBoxEvent.TOOL_UNLOADED,
+            ToolBoxEvent.CONNECTION_CREATED,
+            ToolBoxEvent.CONNECTION_UPDATED,
+            ToolBoxEvent.CONNECTION_DELETED,
+            ToolBoxEvent.SETTINGS_UPDATED,
+            ToolBoxEvent.NOTIFICATION_SHOWN,
+        ];
 
-    eventTypes.forEach(eventType => {
-      this.api.on(eventType, (payload) => {
-        if (this.mainWindow) {
-          this.mainWindow.webContents.send('toolbox-event', payload);
-        }
-      });
-    });
+        eventTypes.forEach((eventType) => {
+            this.api.on(eventType, (payload) => {
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send("toolbox-event", payload);
+                }
+            });
+        });
 
-    // Listen to auto-update events
-    this.autoUpdateManager.on('update-available', (info) => {
-      this.api.showNotification({
-        title: 'Update Available',
-        body: `Version ${info.version} is available for download.`,
-        type: 'info',
-      });
-    });
+        // Listen to auto-update events
+        this.autoUpdateManager.on("update-available", (info) => {
+            this.api.showNotification({
+                title: "Update Available",
+                body: `Version ${info.version} is available for download.`,
+                type: "info",
+            });
+        });
 
-    this.autoUpdateManager.on('update-downloaded', (info) => {
-      this.api.showNotification({
-        title: 'Update Ready',
-        body: `Version ${info.version} has been downloaded and will be installed on restart.`,
-        type: 'success',
-      });
-    });
+        this.autoUpdateManager.on("update-downloaded", (info) => {
+            this.api.showNotification({
+                title: "Update Ready",
+                body: `Version ${info.version} has been downloaded and will be installed on restart.`,
+                type: "success",
+            });
+        });
 
-    this.autoUpdateManager.on('update-error', (error) => {
-      this.api.showNotification({
-        title: 'Update Error',
-        body: `Failed to check for updates: ${error.message}`,
-        type: 'error',
-      });
-    });
-  }
+        this.autoUpdateManager.on("update-error", (error) => {
+            this.api.showNotification({
+                title: "Update Error",
+                body: `Failed to check for updates: ${error.message}`,
+                type: "error",
+            });
+        });
+    }
 
-  /**
-   * Set up IPC handlers for communication with renderer
-   */
-  private setupIpcHandlers(): void {
-    // Settings handlers
-    ipcMain.handle('get-user-settings', () => {
-      return this.settingsManager.getUserSettings();
-    });
+    /**
+     * Set up IPC handlers for communication with renderer
+     */
+    private setupIpcHandlers(): void {
+        // Settings handlers
+        ipcMain.handle("get-user-settings", () => {
+            return this.settingsManager.getUserSettings();
+        });
 
-    ipcMain.handle('update-user-settings', (_, settings) => {
-      this.settingsManager.updateUserSettings(settings);
-      this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
-    });
+        ipcMain.handle("update-user-settings", (_, settings) => {
+            this.settingsManager.updateUserSettings(settings);
+            this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
+        });
 
-    ipcMain.handle('get-setting', (_, key) => {
-      return this.settingsManager.getSetting(key);
-    });
+        ipcMain.handle("get-setting", (_, key) => {
+            return this.settingsManager.getSetting(key);
+        });
 
-    ipcMain.handle('set-setting', (_, key, value) => {
-      this.settingsManager.setSetting(key, value);
-    });
+        ipcMain.handle("set-setting", (_, key, value) => {
+            this.settingsManager.setSetting(key, value);
+        });
 
-    // Connection handlers
-    ipcMain.handle('add-connection', (_, connection) => {
-      this.settingsManager.addConnection(connection);
-      this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
-    });
+        // Connection handlers
+        ipcMain.handle("add-connection", (_, connection) => {
+            this.settingsManager.addConnection(connection);
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
+        });
 
-    ipcMain.handle('update-connection', (_, id, updates) => {
-      this.settingsManager.updateConnection(id, updates);
-      this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
-    });
+        ipcMain.handle("update-connection", (_, id, updates) => {
+            this.settingsManager.updateConnection(id, updates);
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
+        });
 
-    ipcMain.handle('delete-connection', (_, id) => {
-      this.settingsManager.deleteConnection(id);
-      this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
-    });
+        ipcMain.handle("delete-connection", (_, id) => {
+            this.settingsManager.deleteConnection(id);
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
+        });
 
-    ipcMain.handle('get-connections', () => {
-      return this.settingsManager.getConnections();
-    });
+        ipcMain.handle("get-connections", () => {
+            return this.settingsManager.getConnections();
+        });
 
-    ipcMain.handle('set-active-connection', (_, id) => {
-      this.settingsManager.setActiveConnection(id);
-      this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
-    });
+        ipcMain.handle("set-active-connection", (_, id) => {
+            this.settingsManager.setActiveConnection(id);
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+        });
 
-    ipcMain.handle('get-active-connection', () => {
-      return this.settingsManager.getActiveConnection();
-    });
+        ipcMain.handle("get-active-connection", () => {
+            return this.settingsManager.getActiveConnection();
+        });
 
-    ipcMain.handle('disconnect-connection', () => {
-      this.settingsManager.disconnectActiveConnection();
-    });
+        ipcMain.handle("disconnect-connection", () => {
+            this.settingsManager.disconnectActiveConnection();
+        });
 
-    // Tool handlers
-    ipcMain.handle('get-all-tools', () => {
-      return this.toolManager.getAllTools();
-    });
+        // Tool handlers
+        ipcMain.handle("get-all-tools", () => {
+            return this.toolManager.getAllTools();
+        });
 
-    ipcMain.handle('get-tool', (_, toolId) => {
-      return this.toolManager.getTool(toolId);
-    });
+        ipcMain.handle("get-tool", (_, toolId) => {
+            return this.toolManager.getTool(toolId);
+        });
 
-    ipcMain.handle('load-tool', async (_, packageName) => {
-      return await this.toolManager.loadTool(packageName);
-    });
+        ipcMain.handle("load-tool", async (_, packageName) => {
+            return await this.toolManager.loadTool(packageName);
+        });
 
-    ipcMain.handle('unload-tool', (_, toolId) => {
-      this.toolManager.unloadTool(toolId);
-    });
+        ipcMain.handle("unload-tool", (_, toolId) => {
+            this.toolManager.unloadTool(toolId);
+        });
 
-    ipcMain.handle('install-tool', async (_, packageName) => {
-      await this.toolManager.installTool(packageName);
-      const tool = await this.toolManager.loadTool(packageName);
-      this.settingsManager.addInstalledTool(packageName);
-      return tool;
-    });
+        ipcMain.handle("install-tool", async (_, packageName) => {
+            await this.toolManager.installTool(packageName);
+            const tool = await this.toolManager.loadTool(packageName);
+            this.settingsManager.addInstalledTool(packageName);
+            return tool;
+        });
 
-    ipcMain.handle('uninstall-tool', async (_, packageName, toolId) => {
-      this.toolManager.unloadTool(toolId);
-      await this.toolManager.uninstallTool(packageName);
-      this.settingsManager.removeInstalledTool(packageName);
-    });
+        ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
+            this.toolManager.unloadTool(toolId);
+            await this.toolManager.uninstallTool(packageName);
+            this.settingsManager.removeInstalledTool(packageName);
+        });
 
-    // Tool settings handlers
-    ipcMain.handle('get-tool-settings', (_, toolId) => {
-      return this.settingsManager.getToolSettings(toolId);
-    });
+        ipcMain.handle("get-tool-webview-html", (_, packageName) => {
+            return this.toolManager.getToolWebviewHtml(packageName);
+        });
 
-    ipcMain.handle('update-tool-settings', (_, toolId, settings) => {
-      this.settingsManager.updateToolSettings(toolId, settings);
-    });
+        // Tool settings handlers
+        ipcMain.handle("get-tool-settings", (_, toolId) => {
+            return this.settingsManager.getToolSettings(toolId);
+        });
 
-    // Notification handler
-    ipcMain.handle('show-notification', (_, options) => {
-      this.api.showNotification(options);
-    });
+        ipcMain.handle("update-tool-settings", (_, toolId, settings) => {
+            this.settingsManager.updateToolSettings(toolId, settings);
+        });
 
-    // Clipboard handler
-    ipcMain.handle('copy-to-clipboard', (_, text) => {
-      this.api.copyToClipboard(text);
-    });
+        // Notification handler
+        ipcMain.handle("show-notification", (_, options) => {
+            this.api.showNotification(options);
+        });
 
-    // Save file handler
-    ipcMain.handle('save-file', async (_, defaultPath, content) => {
-      return await this.api.saveFile(defaultPath, content);
-    });
+        // Clipboard handler
+        ipcMain.handle("copy-to-clipboard", (_, text) => {
+            this.api.copyToClipboard(text);
+        });
 
-    // Event history handler
-    ipcMain.handle('get-event-history', (_, limit) => {
-      return this.api.getEventHistory(limit);
-    });
+        // Save file handler
+        ipcMain.handle("save-file", async (_, defaultPath, content) => {
+            return await this.api.saveFile(defaultPath, content);
+        });
 
-    // Auto-update handlers
-    ipcMain.handle('check-for-updates', async () => {
-      await this.autoUpdateManager.checkForUpdates();
-    });
+        // Event history handler
+        ipcMain.handle("get-event-history", (_, limit) => {
+            return this.api.getEventHistory(limit);
+        });
 
-    ipcMain.handle('download-update', async () => {
-      await this.autoUpdateManager.downloadUpdate();
-    });
+        // Auto-update handlers
+        ipcMain.handle("check-for-updates", async () => {
+            await this.autoUpdateManager.checkForUpdates();
+        });
 
-    ipcMain.handle('quit-and-install', () => {
-      this.autoUpdateManager.quitAndInstall();
-    });
+        ipcMain.handle("download-update", async () => {
+            await this.autoUpdateManager.downloadUpdate();
+        });
 
-    ipcMain.handle('get-app-version', () => {
-      return this.autoUpdateManager.getCurrentVersion();
-    });
-  }
+        ipcMain.handle("quit-and-install", () => {
+            this.autoUpdateManager.quitAndInstall();
+        });
 
-  /**
-   * Create application menu
-   */
-  private createMenu(): void {
-    const isMac = process.platform === 'darwin';
+        ipcMain.handle("get-app-version", () => {
+            return this.autoUpdateManager.getCurrentVersion();
+        });
+    }
 
-    const template: any[] = [
-      // App menu (macOS only)
-      ...(isMac ? [{
-        label: app.name,
-        submenu: [
-          { role: 'about' },
-          { type: 'separator' },
-          { role: 'services' },
-          { type: 'separator' },
-          { role: 'hide' },
-          { role: 'hideOthers' },
-          { role: 'unhide' },
-          { type: 'separator' },
-          { role: 'quit' }
-        ]
-      }] : []),
+    /**
+     * Create application menu
+     */
+    private createMenu(): void {
+        const isMac = process.platform === "darwin";
 
-      // File menu
-      {
-        label: 'File',
-        submenu: [
-          isMac ? { role: 'close' } : { role: 'quit' }
-        ]
-      },
+        const template: any[] = [
+            // App menu (macOS only)
+            ...(isMac
+                ? [
+                      {
+                          label: app.name,
+                          submenu: [
+                              { role: "about" },
+                              { type: "separator" },
+                              { role: "services" },
+                              { type: "separator" },
+                              { role: "hide" },
+                              { role: "hideOthers" },
+                              { role: "unhide" },
+                              { type: "separator" },
+                              { role: "quit" },
+                          ],
+                      },
+                  ]
+                : []),
 
-      // Edit menu
-      {
-        label: 'Edit',
-        submenu: [
-          { role: 'undo' },
-          { role: 'redo' },
-          { type: 'separator' },
-          { role: 'cut' },
-          { role: 'copy' },
-          { role: 'paste' },
-          ...(isMac ? [
-            { role: 'pasteAndMatchStyle' },
-            { role: 'delete' },
-            { role: 'selectAll' },
-            { type: 'separator' },
+            // File menu
             {
-              label: 'Speech',
-              submenu: [
-                { role: 'startSpeaking' },
-                { role: 'stopSpeaking' }
-              ]
-            }
-          ] : [
-            { role: 'delete' },
-            { type: 'separator' },
-            { role: 'selectAll' }
-          ])
-        ]
-      },
+                label: "File",
+                submenu: [isMac ? { role: "close" } : { role: "quit" }],
+            },
 
-      // View menu
-      {
-        label: 'View',
-        submenu: [
-          { role: 'reload' },
-          { role: 'forceReload' },
-          { 
-            label: 'Toggle Developer Tools',
-            accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-            click: () => {
-              if (this.mainWindow) {
-                this.mainWindow.webContents.toggleDevTools();
-              }
-            }
-          },
-          { type: 'separator' },
-          { role: 'resetZoom' },
-          { role: 'zoomIn' },
-          { role: 'zoomOut' },
-          { type: 'separator' },
-          { role: 'togglefullscreen' }
-        ]
-      },
+            // Edit menu
+            {
+                label: "Edit",
+                submenu: [
+                    { role: "undo" },
+                    { role: "redo" },
+                    { type: "separator" },
+                    { role: "cut" },
+                    { role: "copy" },
+                    { role: "paste" },
+                    ...(isMac
+                        ? [
+                              { role: "pasteAndMatchStyle" },
+                              { role: "delete" },
+                              { role: "selectAll" },
+                              { type: "separator" },
+                              {
+                                  label: "Speech",
+                                  submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
+                              },
+                          ]
+                        : [{ role: "delete" }, { type: "separator" }, { role: "selectAll" }]),
+                ],
+            },
 
-      // Window menu
-      {
-        label: 'Window',
-        submenu: [
-          { role: 'minimize' },
-          { role: 'zoom' },
-          ...(isMac ? [
-            { type: 'separator' },
-            { role: 'front' },
-            { type: 'separator' },
-            { role: 'window' }
-          ] : [
-            { role: 'close' }
-          ])
-        ]
-      },
+            // View menu
+            {
+                label: "View",
+                submenu: [
+                    { role: "reload" },
+                    { role: "forceReload" },
+                    {
+                        label: "Toggle Developer Tools",
+                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.toggleDevTools();
+                            }
+                        },
+                    },
+                    { type: "separator" },
+                    { role: "resetZoom" },
+                    { role: "zoomIn" },
+                    { role: "zoomOut" },
+                    { type: "separator" },
+                    { role: "togglefullscreen" },
+                ],
+            },
 
-      // Help menu
-      {
-        role: 'help',
-        submenu: [
-          {
-            label: 'Learn More',
-            click: async () => {
-              await shell.openExternal('https://github.com/PowerPlatform-ToolBox/desktop-app');
-            }
-          },
-          {
-            label: 'Documentation',
-            click: async () => {
-              await shell.openExternal('https://github.com/PowerPlatform-ToolBox/desktop-app#readme');
-            }
-          },
-          { type: 'separator' },
-          {
-            label: 'Toggle Developer Tools',
-            accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-            click: () => {
-              if (this.mainWindow) {
-                this.mainWindow.webContents.toggleDevTools();
-              }
-            }
-          }
-        ]
-      }
-    ];
+            // Window menu
+            {
+                label: "Window",
+                submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }])],
+            },
 
-    const menu = Menu.buildFromTemplate(template);
-    Menu.setApplicationMenu(menu);
-  }
+            // Help menu
+            {
+                role: "help",
+                submenu: [
+                    {
+                        label: "Learn More",
+                        click: async () => {
+                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+                        },
+                    },
+                    {
+                        label: "Documentation",
+                        click: async () => {
+                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app#readme");
+                        },
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Toggle Developer Tools",
+                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.toggleDevTools();
+                            }
+                        },
+                    },
+                ],
+            },
+        ];
 
-  /**
-   * Create the main application window
-   */
-  private createWindow(): void {
-    this.mainWindow = new BrowserWindow({
-      width: 1200,
-      height: 800,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
-        webviewTag: true, // Enable webview tag
-      },
-      title: 'PowerPlatform ToolBox',
-      icon: path.join(__dirname, '../../assets/icon.png'),
-    });
-
-    // Set the main window for auto-updater
-    this.autoUpdateManager.setMainWindow(this.mainWindow);
-
-    // Create the application menu
-    this.createMenu();
-
-    // Load the index.html
-    this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-
-    // Open DevTools in development
-    if (process.env.NODE_ENV === 'development') {
-      this.mainWindow.webContents.openDevTools();
+        const menu = Menu.buildFromTemplate(template);
+        Menu.setApplicationMenu(menu);
     }
 
-    this.mainWindow.on('closed', () => {
-      this.mainWindow = null;
-    });
-  }
+    /**
+     * Create the main application window
+     */
+    private createWindow(): void {
+        this.mainWindow = new BrowserWindow({
+            width: 1200,
+            height: 800,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                preload: path.join(__dirname, "preload.js"),
+                webviewTag: true, // Enable webview tag
+            },
+            title: "PowerPlatform ToolBox",
+            icon: path.join(__dirname, "../../assets/icon.png"),
+        });
 
-  /**
-   * Initialize the application
-   */
-  async initialize(): Promise<void> {
-    await app.whenReady();
-    this.createWindow();
+        // Set the main window for auto-updater
+        this.autoUpdateManager.setMainWindow(this.mainWindow);
 
-    // Load all installed tools
-    const installedTools = this.settingsManager.getInstalledTools();
-    if (installedTools.length > 0) {
-      await this.toolManager.loadInstalledTools(installedTools);
+        // Create the application menu
+        this.createMenu();
+
+        // Load the index.html
+        this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+
+        // Open DevTools in development
+        if (process.env.NODE_ENV === "development") {
+            this.mainWindow.webContents.openDevTools();
+        }
+
+        this.mainWindow.on("closed", () => {
+            this.mainWindow = null;
+        });
     }
 
-    // Check if auto-update is enabled
-    const autoUpdate = this.settingsManager.getSetting('autoUpdate');
-    if (autoUpdate) {
-      // Enable automatic update checks every 6 hours
-      this.autoUpdateManager.enableAutoUpdateChecks(6);
-    }
-
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+    /**
+     * Initialize the application
+     */
+    async initialize(): Promise<void> {
+        await app.whenReady();
         this.createWindow();
-      }
-    });
 
-    app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        app.quit();
-      }
-    });
+        // Load all installed tools
+        const installedTools = this.settingsManager.getInstalledTools();
+        if (installedTools.length > 0) {
+            await this.toolManager.loadInstalledTools(installedTools);
+        }
 
-    app.on('before-quit', () => {
-      // Clean up update checks
-      this.autoUpdateManager.disableAutoUpdateChecks();
-    });
-  }
+        // Check if auto-update is enabled
+        const autoUpdate = this.settingsManager.getSetting("autoUpdate");
+        if (autoUpdate) {
+            // Enable automatic update checks every 6 hours
+            this.autoUpdateManager.enableAutoUpdateChecks(6);
+        }
+
+        app.on("activate", () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                this.createWindow();
+            }
+        });
+
+        app.on("window-all-closed", () => {
+            if (process.platform !== "darwin") {
+                app.quit();
+            }
+        });
+
+        app.on("before-quit", () => {
+            // Clean up update checks
+            this.autoUpdateManager.disableAutoUpdateChecks();
+        });
+    }
 }
 
 // Create and initialize the application
