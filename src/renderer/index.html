@@ -9,28 +9,101 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
-                <span class="toggle-icon">◀</span>
-            </button>
-            <div class="sidebar-header">
-                <h1 class="app-title">PowerPlatform<br>ToolBox</h1>
+        <!-- Activity Bar (VSCode-like narrow sidebar) -->
+        <aside class="activity-bar" id="activity-bar">
+            <div class="activity-bar-header">
+                <div class="app-icon" title="PowerPlatform ToolBox">PP</div>
             </div>
-            <nav class="sidebar-nav">
-                <button class="nav-item active" data-view="tools">
-                    <span class="nav-icon">🔧</span>
-                    <span class="nav-label">Tools</span>
+            <nav class="activity-bar-nav">
+                <button class="activity-item active" data-sidebar="tools" title="Installed Tools">
+                    <span class="activity-icon">🔧</span>
+                    <span class="activity-label">Tools</span>
                 </button>
-                <button class="nav-item" data-view="connections">
-                    <span class="nav-icon">🔗</span>
-                    <span class="nav-label">Connections</span>
+                <button class="activity-item" data-sidebar="connections" title="Connection Manager">
+                    <span class="activity-icon">🔗</span>
+                    <span class="activity-label">Connections</span>
                 </button>
-                <button class="nav-item" data-view="settings">
-                    <span class="nav-icon">⚙️</span>
-                    <span class="nav-label">Settings</span>
+                <button class="activity-item" data-sidebar="marketplace" title="Tools Marketplace">
+                    <span class="activity-icon">🛒</span>
+                    <span class="activity-label">Marketplace</span>
                 </button>
             </nav>
+            <nav class="activity-bar-footer">
+                <button class="activity-item" data-sidebar="settings" title="Settings">
+                    <span class="activity-icon">⚙️</span>
+                    <span class="activity-label">Settings</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Sidebar (context-sensitive based on Activity Bar selection) -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Tools Sidebar -->
+            <div class="sidebar-content active" id="sidebar-tools">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">Installed Tools</h2>
+                </div>
+                <div class="sidebar-body">
+                    <div class="tools-list" id="sidebar-tools-list">
+                        <!-- Tools will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connections Sidebar -->
+            <div class="sidebar-content" id="sidebar-connections">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">Connection Manager</h2>
+                    <button class="btn btn-primary btn-sm" id="sidebar-add-connection-btn">+ Add</button>
+                </div>
+                <div class="sidebar-body">
+                    <div class="connections-list-sidebar" id="sidebar-connections-list">
+                        <!-- Connections will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Marketplace Sidebar -->
+            <div class="sidebar-content" id="sidebar-marketplace">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">Tools Marketplace</h2>
+                </div>
+                <div class="sidebar-body">
+                    <div class="marketplace-search">
+                        <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools...">
+                    </div>
+                    <div class="marketplace-tools-list" id="marketplace-tools-list">
+                        <!-- Marketplace tools will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Sidebar -->
+            <div class="sidebar-content" id="sidebar-settings">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">Settings</h2>
+                </div>
+                <div class="sidebar-body">
+                    <div class="settings-container-sidebar">
+                        <div class="setting-group">
+                            <label class="setting-label" for="sidebar-theme-select">Theme</label>
+                            <select id="sidebar-theme-select" class="setting-input">
+                                <option value="system">System</option>
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
+                            <input type="checkbox" id="sidebar-auto-update-check" class="setting-checkbox">
+                            <span class="setting-hint">Automatically check for updates</span>
+                        </div>
+                        <div class="setting-group">
+                            <button class="btn btn-primary" id="sidebar-save-settings-btn">Save Settings</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Content -->

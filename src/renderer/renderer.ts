@@ -1217,6 +1217,8 @@ async function deleteConnection(id: string) {
 }
 
 // Settings Management
+// Legacy loadSettings function - kept for backwards compatibility if full settings view is needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function loadSettings() {
     const settings = await window.toolboxAPI.getUserSettings();
 
@@ -1374,30 +1376,272 @@ function closeModal(modalId: string) {
     }
 }
 
-// Initialize the application
-async function init() {
-    // Sidebar toggle
-    const sidebarToggle = document.getElementById("sidebar-toggle");
-    const sidebar = document.getElementById("sidebar");
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener("click", () => {
-            sidebar.classList.toggle("collapsed");
-        });
+// Activity Bar and Sidebar Management
+function switchSidebar(sidebarId: string) {
+    // Update activity items
+    document.querySelectorAll(".activity-item").forEach(item => {
+        item.classList.remove("active");
+    });
+    const activeActivity = document.querySelector(`[data-sidebar="${sidebarId}"]`);
+    if (activeActivity) {
+        activeActivity.classList.add("active");
     }
 
-    // Set up navigation
-    const navItems = document.querySelectorAll(".nav-item");
-    navItems.forEach((item) => {
-        item.addEventListener("click", () => {
-            const view = item.getAttribute("data-view");
-            if (view) {
-                switchView(view);
-                if (view === "tools") loadTools();
-                if (view === "connections") loadConnections();
-                if (view === "settings") loadSettings();
+    // Update sidebar content
+    document.querySelectorAll(".sidebar-content").forEach(content => {
+        content.classList.remove("active");
+    });
+    const activeSidebar = document.getElementById(`sidebar-${sidebarId}`);
+    if (activeSidebar) {
+        activeSidebar.classList.add("active");
+    }
+
+    // Load content based on sidebar
+    if (sidebarId === "tools") {
+        loadSidebarTools();
+    } else if (sidebarId === "connections") {
+        loadSidebarConnections();
+    } else if (sidebarId === "marketplace") {
+        loadMarketplace();
+    } else if (sidebarId === "settings") {
+        loadSidebarSettings();
+    }
+}
+
+async function loadSidebarTools() {
+    const toolsList = document.getElementById("sidebar-tools-list");
+    if (!toolsList) return;
+
+    let tools = await window.toolboxAPI.getAllTools();
+
+    // Add mock tools for testing if no tools are installed
+    if (tools.length === 0) {
+        tools = mockTools;
+    }
+
+    if (tools.length === 0) {
+        toolsList.innerHTML = `
+            <div class="empty-state">
+                <p>No tools installed yet.</p>
+                <p class="empty-state-hint">Check the marketplace to install tools.</p>
+            </div>
+        `;
+        return;
+    }
+
+    toolsList.innerHTML = tools.map((tool) => `
+        <div class="tool-list-item">
+            <div class="tool-list-item-header">
+                <span class="tool-list-item-icon">${tool.icon || "🔧"}</span>
+                <div class="tool-list-item-name">${tool.name}</div>
+            </div>
+            <div class="tool-list-item-description">${tool.description}</div>
+            <div class="tool-list-item-actions">
+                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                <button class="btn btn-secondary" data-action="settings" data-tool-id="${tool.id}">Settings</button>
+            </div>
+        </div>
+    `).join("");
+
+    // Add event listeners
+    toolsList.querySelectorAll(".tool-list-item-actions button").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const target = e.target as HTMLButtonElement;
+            const action = target.getAttribute("data-action");
+            const toolId = target.getAttribute("data-tool-id");
+            if (!toolId) return;
+
+            if (action === "launch") {
+                launchTool(toolId);
+            } else if (action === "settings") {
+                toolSettings(toolId);
             }
         });
     });
+}
+
+async function loadSidebarConnections() {
+    const connectionsList = document.getElementById("sidebar-connections-list");
+    if (!connectionsList) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+        
+        if (connections.length === 0) {
+            connectionsList.innerHTML = `
+                <div class="empty-state">
+                    <p>No connections configured yet.</p>
+                    <p class="empty-state-hint">Add a connection to get started.</p>
+                </div>
+            `;
+            return;
+        }
+
+        connectionsList.innerHTML = connections.map((conn: any) => `
+            <div class="connection-list-item ${conn.isActive ? "active" : ""}">
+                <div class="connection-list-item-name">${conn.name}</div>
+                <div class="connection-list-item-url">${conn.url}</div>
+                <div class="connection-list-item-actions">
+                    ${!conn.isActive 
+                        ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                        : `<button class="btn btn-secondary" disabled>Connected</button>`
+                    }
+                    <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                </div>
+            </div>
+        `).join("");
+
+        // Add event listeners
+        connectionsList.querySelectorAll("button").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                const target = e.target as HTMLButtonElement;
+                const action = target.getAttribute("data-action");
+                const connectionId = target.getAttribute("data-connection-id");
+                if (!connectionId) return;
+
+                if (action === "connect") {
+                    await window.toolboxAPI.setActiveConnection(connectionId);
+                    loadSidebarConnections();
+                } else if (action === "delete") {
+                    if (confirm("Are you sure you want to delete this connection?")) {
+                        await window.toolboxAPI.deleteConnection(connectionId);
+                        loadSidebarConnections();
+                    }
+                }
+            });
+        });
+    } catch (error) {
+        console.error("Failed to load connections:", error);
+    }
+}
+
+function loadMarketplace() {
+    const marketplaceList = document.getElementById("marketplace-tools-list");
+    if (!marketplaceList) return;
+
+    // Filter based on search
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
+
+    const filteredTools = toolLibrary.filter(tool => {
+        if (!searchTerm) return true;
+        return tool.name.toLowerCase().includes(searchTerm) ||
+               tool.description.toLowerCase().includes(searchTerm) ||
+               tool.category.toLowerCase().includes(searchTerm);
+    });
+
+    marketplaceList.innerHTML = filteredTools.map((tool) => `
+        <div class="marketplace-tool-item">
+            <div class="marketplace-tool-header">
+                <div class="marketplace-tool-info">
+                    <div class="marketplace-tool-name">${tool.name}</div>
+                    <div class="marketplace-tool-author">by ${tool.author}</div>
+                </div>
+            </div>
+            <div class="marketplace-tool-description">${tool.description}</div>
+            <div class="marketplace-tool-meta">
+                <span>Category: ${tool.category}</span>
+            </div>
+            <div class="marketplace-tool-actions">
+                <button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>
+            </div>
+        </div>
+    `).join("");
+
+    // Add event listeners
+    marketplaceList.querySelectorAll(".marketplace-tool-actions button").forEach((button) => {
+        button.addEventListener("click", async (e) => {
+            const target = e.target as HTMLButtonElement;
+            const action = target.getAttribute("data-action");
+            const toolId = target.getAttribute("data-tool-id");
+            if (!toolId) return;
+
+            if (action === "install") {
+                target.disabled = true;
+                target.textContent = "Installing...";
+                
+                try {
+                    await window.toolboxAPI.installTool(toolId);
+                    target.textContent = "Installed";
+                    target.classList.remove("btn-primary");
+                    target.classList.add("btn-secondary");
+                    
+                    window.toolboxAPI.showNotification({
+                        title: "Tool Installed",
+                        body: `Tool has been installed successfully`,
+                        type: "success",
+                    });
+
+                    // Reload tools sidebar
+                    loadSidebarTools();
+                } catch (error) {
+                    target.disabled = false;
+                    target.textContent = "Install";
+                    window.toolboxAPI.showNotification({
+                        title: "Installation Failed",
+                        body: `Failed to install tool: ${error}`,
+                        type: "error",
+                    });
+                }
+            }
+        });
+    });
+
+    // Setup search
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            loadMarketplace();
+        });
+    }
+}
+
+async function loadSidebarSettings() {
+    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    
+    if (themeSelect && autoUpdateCheck) {
+        const settings = await window.toolboxAPI.getUserSettings();
+        themeSelect.value = settings.theme;
+        autoUpdateCheck.checked = settings.autoUpdate;
+    }
+}
+
+async function saveSidebarSettings() {
+    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    
+    if (!themeSelect || !autoUpdateCheck) return;
+
+    const settings = {
+        theme: themeSelect.value,
+        autoUpdate: autoUpdateCheck.checked,
+    };
+
+    await window.toolboxAPI.updateUserSettings(settings);
+    applyTheme(settings.theme);
+
+    await window.toolboxAPI.showNotification({
+        title: "Settings Saved",
+        body: "Your settings have been saved.",
+        type: "success",
+    });
+}
+
+// Initialize the application
+async function init() {
+    // Set up Activity Bar navigation
+    const activityItems = document.querySelectorAll(".activity-item");
+    activityItems.forEach((item) => {
+        item.addEventListener("click", () => {
+            const sidebar = item.getAttribute("data-sidebar");
+            if (sidebar) {
+                switchSidebar(sidebar);
+            }
+        });
+    });
+
+    // Remove old sidebar toggle logic
+    // (keeping for backwards compatibility in case needed)
 
     // Tool panel close all button
     const closeAllToolsBtn = document.getElementById("close-all-tools");
@@ -1428,6 +1672,20 @@ async function init() {
 
     // Set up resize handle
     setupResizeHandle();
+
+    // Sidebar add connection button
+    const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
+    if (sidebarAddConnectionBtn) {
+        sidebarAddConnectionBtn.addEventListener("click", () => {
+            openModal("add-connection-modal");
+        });
+    }
+
+    // Sidebar save settings button
+    const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
+    if (sidebarSaveSettingsBtn) {
+        sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
 
     // Install tool modal
     const installToolBtn = document.getElementById("install-tool-btn");
@@ -1502,6 +1760,10 @@ async function init() {
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
 
+    // Load initial sidebar content (tools by default)
+    await loadSidebarTools();
+    await loadMarketplace();
+
     // Load initial data
     await loadTools();
 
@@ -1516,12 +1778,14 @@ async function init() {
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
             loadConnections().catch((err) => console.error("Failed to reload connections:", err));
+            loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             console.log("Tool event detected, reloading tools...");
             loadTools().catch((err) => console.error("Failed to reload tools:", err));
+            loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
         }
     });
 }
