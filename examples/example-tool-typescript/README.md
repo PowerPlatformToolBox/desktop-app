@@ -15,6 +15,20 @@ This example demonstrates:
 - **Error handling** best practices
 - **Command registration** with async/await
 - **File operations** with type safety
+- **Webview UI** with advanced features
+
+## User Interface
+
+The tool includes an advanced webview UI (`ui/webview.html`) featuring:
+
+- **Dashboard Cards**: Real-time statistics on commands, events, and status
+- **Configuration Panel**: Type-safe settings management
+- **Command Table**: Comprehensive list of all available commands
+- **Dataverse Entity Viewer**: Simulated entity metadata browser
+- **Type Safety Examples**: Code snippets showing TypeScript features
+- **Status Bar**: Live connection and resource monitoring
+
+The UI demonstrates how to build rich, interactive tool interfaces that work seamlessly with the Tool Host architecture.
 
 ## Project Structure
 
@@ -23,6 +37,8 @@ example-tool-typescript/
 ├── src/
 │   ├── index.ts          # Main tool implementation
 │   └── pptoolbox.d.ts    # Type definitions for pptoolbox API
+├── ui/
+│   └── webview.html      # Tool user interface
 ├── dist/                 # Compiled JavaScript (generated)
 ├── package.json          # Tool manifest with contribution points
 └── tsconfig.json         # TypeScript configuration

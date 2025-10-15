@@ -210,6 +210,29 @@ Regardless of which you choose, both examples show:
 - ✅ Error handling
 - ✅ File operations
 - ✅ Proper cleanup with disposables
+- ✅ Webview-based user interfaces
+- ✅ Interactive UI components
+
+## User Interface
+
+Both examples include complete webview UIs:
+
+### JavaScript Example UI
+- Clean, functional interface
+- Command execution buttons
+- Event log viewer
+- Custom message input
+- Real-time activity tracking
+
+### TypeScript Example UI
+- Advanced dashboard with statistics
+- Configuration management panel
+- Comprehensive command table
+- Simulated Dataverse entity browser
+- Type safety code examples
+- Resource monitoring status bar
+
+The UIs are built with standard HTML/CSS/JavaScript and are rendered in the ToolBox renderer as webviews, providing a native-like experience while maintaining security through process isolation.
 
 ## Resources
 

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <title>Example Tool TypeScript</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #cccccc;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #569cd6;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ts-badge {
+            background: #3178c6;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .section {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            color: #4ec9b0;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon {
+            font-size: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+        }
+
+        .card h3 {
+            color: #dcdcaa;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .card .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #569cd6;
+            margin: 10px 0;
+        }
+
+        .card .label {
+            color: #9d9d9d;
+            font-size: 12px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover {
+            background: #1177bb;
+        }
+
+        button:active {
+            background: #0d5a8f;
+        }
+
+        button.success {
+            background: #0e7a0e;
+        }
+
+        button.success:hover {
+            background: #1a9e1a;
+        }
+
+        button.secondary {
+            background: #3e3e42;
+        }
+
+        button.secondary:hover {
+            background: #505053;
+        }
+
+        button.danger {
+            background: #c72e2e;
+        }
+
+        button.danger:hover {
+            background: #e03e3e;
+        }
+
+        .command-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .command-table th {
+            text-align: left;
+            padding: 8px;
+            background: #1a1a1a;
+            color: #4ec9b0;
+            font-size: 13px;
+            border-bottom: 2px solid #3e3e42;
+        }
+
+        .command-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #2d2d30;
+            font-size: 13px;
+        }
+
+        .command-table tr:hover {
+            background: #2a2a2a;
+        }
+
+        .command-name {
+            color: #dcdcaa;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .command-category {
+            color: #4fc1ff;
+            font-size: 11px;
+            padding: 2px 6px;
+            background: #1a1a1a;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            color: #cccccc;
+            border-radius: 3px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        label {
+            color: #9d9d9d;
+            font-size: 13px;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .entity-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .entity-item {
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            border-radius: 3px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .entity-item:hover {
+            background: #2a2a2a;
+            border-color: #569cd6;
+        }
+
+        .entity-info {
+            flex: 1;
+        }
+
+        .entity-name {
+            color: #dcdcaa;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .entity-meta {
+            color: #9d9d9d;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .status-bar {
+            background: #007acc;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #1a1a1a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0e7a0e, #1a9e1a);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .code-block {
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            border-radius: 3px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+
+        .code-block .keyword {
+            color: #c586c0;
+        }
+
+        .code-block .string {
+            color: #ce9178;
+        }
+
+        .code-block .number {
+            color: #b5cea8;
+        }
+
+        .code-block .comment {
+            color: #6a9955;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span class="icon">⚡</span>
+            Example TypeScript Tool
+            <span class="ts-badge">TypeScript</span>
+        </h1>
+        
+        <div class="grid">
+            <div class="card">
+                <h3>Commands Registered</h3>
+                <div class="value" id="commandCount">4</div>
+                <div class="label">Available commands</div>
+            </div>
+            <div class="card">
+                <h3>Events Subscribed</h3>
+                <div class="value" id="eventCount">2</div>
+                <div class="label">Active event listeners</div>
+            </div>
+            <div class="card">
+                <h3>Tool Status</h3>
+                <div class="value" style="color: #0e7a0e;">Active</div>
+                <div class="label">Process running</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="icon">⚙️</span> Tool Configuration</h2>
+            <label for="enableTool">Enable Tool</label>
+            <select id="enableTool">
+                <option value="true" selected>Enabled</option>
+                <option value="false">Disabled</option>
+            </select>
+
+            <label for="apiTimeout">API Timeout (ms)</label>
+            <input type="number" id="apiTimeout" value="5000" min="1000" max="30000">
+
+            <label for="messageTemplate">Message Template</label>
+            <input type="text" id="messageTemplate" value="Hello from TypeScript Tool!" placeholder="Enter message template">
+
+            <div class="button-group" style="margin-top: 15px;">
+                <button class="success" onclick="saveConfig()">💾 Save Configuration</button>
+                <button class="secondary" onclick="resetConfig()">↺ Reset to Defaults</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="icon">🎯</span> Available Commands</h2>
+            <table class="command-table">
+                <thead>
+                    <tr>
+                        <th>Command</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="command-name">exampleTs.sayHello</td>
+                        <td><span class="command-category">Example TS</span></td>
+                        <td>Display hello message with usage tracking</td>
+                        <td><button onclick="executeCommand('exampleTs.sayHello')">Execute</button></td>
+                    </tr>
+                    <tr>
+                        <td class="command-name">exampleTs.showNotification</td>
+                        <td><span class="command-category">Example TS</span></td>
+                        <td>Show example notification</td>
+                        <td><button onclick="executeCommand('exampleTs.showNotification')">Execute</button></td>
+                    </tr>
+                    <tr>
+                        <td class="command-name">exampleTs.exportData</td>
+                        <td><span class="command-category">Example TS</span></td>
+                        <td>Export data to JSON with type safety</td>
+                        <td><button onclick="executeCommand('exampleTs.exportData')">Execute</button></td>
+                    </tr>
+                    <tr>
+                        <td class="command-name">exampleTs.fetchDataverseData</td>
+                        <td><span class="command-category">Example TS</span></td>
+                        <td>Fetch Dataverse entity metadata</td>
+                        <td><button onclick="executeCommand('exampleTs.fetchDataverseData')">Execute</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2><span class="icon">📊</span> Dataverse Entities (Simulated)</h2>
+            <div class="button-group">
+                <button onclick="fetchEntities()">🔄 Fetch Entities</button>
+                <button class="success" onclick="refreshEntities()">✓ Refresh List</button>
+            </div>
+            
+            <div class="progress-bar" id="progressBar" style="display: none;">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <div class="entity-list" id="entityList">
+                <div class="entity-item">
+                    <div class="entity-info">
+                        <div class="entity-name">account</div>
+                        <div class="entity-meta">Primary: accountid • Display: name</div>
+                    </div>
+                    <button class="secondary">View</button>
+                </div>
+                <div class="entity-item">
+                    <div class="entity-info">
+                        <div class="entity-name">contact</div>
+                        <div class="entity-meta">Primary: contactid • Display: fullname</div>
+                    </div>
+                    <button class="secondary">View</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="icon">🔍</span> Type Safety Example</h2>
+            <p style="color: #9d9d9d; font-size: 13px; margin-bottom: 10px;">
+                This tool uses TypeScript for compile-time type checking and better IDE support.
+            </p>
+            <div class="code-block">
+                <span class="keyword">interface</span> <span style="color: #4ec9b0;">ExportData</span> {<br>
+                &nbsp;&nbsp;timestamp: <span style="color: #4ec9b0;">string</span>;<br>
+                &nbsp;&nbsp;message: <span style="color: #4ec9b0;">string</span>;<br>
+                &nbsp;&nbsp;tool: <span style="color: #4ec9b0;">string</span>;<br>
+                &nbsp;&nbsp;version: <span style="color: #4ec9b0;">string</span>;<br>
+                }<br><br>
+                <span class="keyword">const</span> data: <span style="color: #4ec9b0;">ExportData</span> = {<br>
+                &nbsp;&nbsp;timestamp: <span class="keyword">new</span> Date().toISOString(),<br>
+                &nbsp;&nbsp;message: <span class="string">'Export from TypeScript'</span>,<br>
+                &nbsp;&nbsp;tool: <span class="string">'example-tool-typescript'</span>,<br>
+                &nbsp;&nbsp;version: <span class="string">'1.0.0'</span><br>
+                };
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <span>🟢 Tool Host: Connected</span>
+            <span>Process ID: <span id="processId">12345</span></span>
+            <span>Memory: <span id="memory">~30MB</span></span>
+        </div>
+    </div>
+
+    <script>
+        // Execute command
+        function executeCommand(commandId) {
+            console.log('Execute command:', commandId);
+            showProgress();
+            setTimeout(() => {
+                hideProgress();
+                alert(`Command "${commandId}" executed successfully!`);
+            }, 1000);
+        }
+
+        // Save configuration
+        function saveConfig() {
+            const enabled = document.getElementById('enableTool').value;
+            const timeout = document.getElementById('apiTimeout').value;
+            const message = document.getElementById('messageTemplate').value;
+            
+            console.log('Saving config:', { enabled, timeout, message });
+            alert('Configuration saved successfully!');
+        }
+
+        // Reset configuration
+        function resetConfig() {
+            document.getElementById('enableTool').value = 'true';
+            document.getElementById('apiTimeout').value = '5000';
+            document.getElementById('messageTemplate').value = 'Hello from TypeScript Tool!';
+            alert('Configuration reset to defaults');
+        }
+
+        // Fetch entities
+        function fetchEntities() {
+            showProgress();
+            setTimeout(() => {
+                hideProgress();
+                alert('Entities fetched successfully!');
+            }, 1500);
+        }
+
+        // Refresh entities
+        function refreshEntities() {
+            showProgress();
+            setTimeout(() => {
+                hideProgress();
+                const entityList = document.getElementById('entityList');
+                const newEntity = document.createElement('div');
+                newEntity.className = 'entity-item';
+                newEntity.innerHTML = `
+                    <div class="entity-info">
+                        <div class="entity-name">opportunity</div>
+                        <div class="entity-meta">Primary: opportunityid • Display: name</div>
+                    </div>
+                    <button class="secondary">View</button>
+                `;
+                entityList.appendChild(newEntity);
+            }, 1000);
+        }
+
+        // Show progress
+        function showProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            
+            let width = 0;
+            const interval = setInterval(() => {
+                width += 10;
+                progressFill.style.width = width + '%';
+                if (width >= 100) {
+                    clearInterval(interval);
+                }
+            }, 100);
+        }
+
+        // Hide progress
+        function hideProgress() {
+            setTimeout(() => {
+                document.getElementById('progressBar').style.display = 'none';
+            }, 300);
+        }
+
+        // Simulate random process ID
+        document.getElementById('processId').textContent = Math.floor(10000 + Math.random() * 90000);
+    </script>
+</body>
+</html>

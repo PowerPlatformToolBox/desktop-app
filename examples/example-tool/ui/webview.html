@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <title>Example Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #cccccc;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #569cd6;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .section {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            color: #4ec9b0;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1177bb;
+        }
+
+        button:active {
+            background: #0d5a8f;
+        }
+
+        button.secondary {
+            background: #3e3e42;
+        }
+
+        button.secondary:hover {
+            background: #505053;
+        }
+
+        .info-box {
+            background: #1a1a1a;
+            border-left: 3px solid #569cd6;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 2px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        .info-box strong {
+            color: #dcdcaa;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status.active {
+            background: #0e7a0e;
+            color: white;
+        }
+
+        .status.inactive {
+            background: #6c6c6c;
+            color: white;
+        }
+
+        .command-list {
+            list-style: none;
+            margin: 10px 0;
+        }
+
+        .command-list li {
+            padding: 8px;
+            background: #1a1a1a;
+            margin: 5px 0;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .command-list .command-name {
+            color: #dcdcaa;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+
+        .command-list .command-desc {
+            color: #9d9d9d;
+            font-size: 12px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            color: #cccccc;
+            border-radius: 3px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        .event-log {
+            background: #1a1a1a;
+            border: 1px solid #3e3e42;
+            border-radius: 3px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+        }
+
+        .event-log .event {
+            padding: 4px;
+            border-bottom: 1px solid #2d2d30;
+        }
+
+        .event-log .event:last-child {
+            border-bottom: none;
+        }
+
+        .event-log .timestamp {
+            color: #6a9955;
+        }
+
+        .event-log .event-type {
+            color: #4fc1ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Example PowerPlatform Tool <span class="status active">Active</span></h1>
+        
+        <div class="section">
+            <h2>Tool Information</h2>
+            <div class="info-box">
+                <p><strong>Tool ID:</strong> @powerplatform/example-tool</p>
+                <p><strong>Version:</strong> 1.0.0</p>
+                <p><strong>Architecture:</strong> VS Code Extension Host-inspired</p>
+                <p><strong>Process:</strong> Isolated Node.js Process</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Available Commands</h2>
+            <ul class="command-list">
+                <li>
+                    <div>
+                        <div class="command-name">example.sayHello</div>
+                        <div class="command-desc">Display a hello message</div>
+                    </div>
+                    <button onclick="executeCommand('example.sayHello')">Execute</button>
+                </li>
+                <li>
+                    <div>
+                        <div class="command-name">example.showNotification</div>
+                        <div class="command-desc">Show an example notification</div>
+                    </div>
+                    <button onclick="executeCommand('example.showNotification')">Execute</button>
+                </li>
+                <li>
+                    <div>
+                        <div class="command-name">example.exportData</div>
+                        <div class="command-desc">Export example data to JSON file</div>
+                    </div>
+                    <button onclick="executeCommand('example.exportData')">Execute</button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Tool Actions</h2>
+            <div class="button-group">
+                <button onclick="showNotification()">Show Notification</button>
+                <button onclick="copyToClipboard()">Copy to Clipboard</button>
+                <button onclick="exportData()">Export Data</button>
+                <button class="secondary" onclick="clearEventLog()">Clear Event Log</button>
+            </div>
+            
+            <div>
+                <label for="customMessage" style="color: #9d9d9d; font-size: 13px;">Custom Message:</label>
+                <input type="text" id="customMessage" placeholder="Enter a custom message..." value="Hello from Example Tool!">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Event Log</h2>
+            <div class="event-log" id="eventLog">
+                <div class="event">
+                    <span class="timestamp">[System]</span>
+                    <span class="event-type">TOOL_LOADED</span>
+                    <span> - Tool initialized successfully</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>About This Tool</h2>
+            <p style="color: #9d9d9d; font-size: 13px; line-height: 1.6;">
+                This example tool demonstrates the PowerPlatform ToolBox architecture with secure IPC communication,
+                contribution points, and isolated process execution. The tool runs in its own Node.js process and
+                communicates with the main application through a structured protocol.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Log an event to the event log
+        function logEvent(type, message) {
+            const eventLog = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            eventDiv.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span>
+                <span class="event-type">${type}</span>
+                <span> - ${message}</span>
+            `;
+            eventLog.appendChild(eventDiv);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        // Execute a command
+        function executeCommand(commandId) {
+            logEvent('COMMAND', `Executing ${commandId}`);
+            // In a real implementation, this would call the tool's command via the ToolBox API
+            console.log('Execute command:', commandId);
+        }
+
+        // Show notification
+        function showNotification() {
+            const message = document.getElementById('customMessage').value;
+            logEvent('ACTION', `Showing notification: "${message}"`);
+            console.log('Show notification:', message);
+        }
+
+        // Copy to clipboard
+        function copyToClipboard() {
+            const message = document.getElementById('customMessage').value;
+            logEvent('ACTION', `Copied to clipboard: "${message}"`);
+            console.log('Copy to clipboard:', message);
+        }
+
+        // Export data
+        function exportData() {
+            logEvent('ACTION', 'Exporting data to JSON file');
+            console.log('Export data');
+        }
+
+        // Clear event log
+        function clearEventLog() {
+            const eventLog = document.getElementById('eventLog');
+            eventLog.innerHTML = '<div class="event"><span class="timestamp">[System]</span><span class="event-type">LOG_CLEARED</span><span> - Event log cleared</span></div>';
+        }
+
+        // Log tool ready event
+        logEvent('SYSTEM', 'Tool UI loaded and ready');
+    </script>
+</body>
+</html>
