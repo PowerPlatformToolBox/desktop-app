@@ -32,6 +32,7 @@ export interface UserSettings {
   autoUpdate: boolean;
   lastUsedTools: string[];
   connections: DataverseConnection[];
+  installedTools: string[]; // List of installed tool package names
 }
 
 /**
