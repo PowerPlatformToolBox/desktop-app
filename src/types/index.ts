@@ -13,7 +13,6 @@ export interface Tool {
   author: string;
   icon?: string;
   settings?: ToolSettings;
-  main: string; // Entry point for the tool
 }
 
 /**
@@ -80,4 +79,13 @@ export interface ToolBoxEventPayload {
   event: ToolBoxEvent;
   data: unknown;
   timestamp: string;
+}
+
+/**
+ * Tool context provided to tools running in webviews
+ */
+export interface ToolContext {
+  toolId: string;
+  connectionUrl: string | null;
+  accessToken: string | null;
 }

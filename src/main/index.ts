@@ -15,8 +15,8 @@ class ToolBoxApp {
 
     constructor() {
         this.settingsManager = new SettingsManager();
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.api = new ToolBoxAPI();
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
 
         this.setupEventListeners();
@@ -168,6 +168,10 @@ class ToolBoxApp {
 
         ipcMain.handle("get-tool-webview-html", (_, packageName) => {
             return this.toolManager.getToolWebviewHtml(packageName);
+        });
+
+        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl, accessToken) => {
+            return this.toolManager.getToolContext(packageName, connectionUrl, accessToken);
         });
 
         // Tool settings handlers

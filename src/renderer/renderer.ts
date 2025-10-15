@@ -57,11 +57,11 @@ const toolLibrary = [
         category: "Data Management",
     },
     {
-        id: "@powerplatform/solution-manager",
-        name: "Solution Manager",
-        description: "Manage and deploy solutions",
+        id: "pptb-example-tool-test",
+        name: "PowerPlatform Example Tool",
+        description: "An example tool for PowerPlatform",
         author: "PowerPlatform ToolBox",
-        category: "Solutions",
+        category: "Development",
     },
     {
         id: "@powerplatform/plugin-tracer",
@@ -338,7 +338,16 @@ async function launchTool(toolId: string) {
             return;
         }
 
+        // Get active connection for passing to tool
+        const activeConnection = await window.toolboxAPI.getActiveConnection();
+        const connectionUrl = activeConnection?.url;
+        const accessToken = activeConnection?.accessToken; // This would come from auth flow
+
+        // Get tool HTML without context injection (to avoid CSP issues)
         const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+        
+        // Get tool context separately for postMessage
+        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
         // Hide all views
         document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
@@ -357,11 +366,24 @@ async function launchTool(toolId: string) {
         webviewContainer.className = "tool-webview-container";
         webviewContainer.id = `tool-webview-${toolId}`;
 
-        const toolWebview = document.createElement("webview") as any;
-        toolWebview.style.width = "100%";
-        toolWebview.style.height = "100%";
+        const toolIframe = document.createElement("iframe");
+        toolIframe.style.width = "100%";
+        toolIframe.style.height = "100%";
+        toolIframe.style.border = "none";
+        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        
+        // Set up event listener to post context to iframe after it loads
+        toolIframe.addEventListener('load', () => {
+            if (toolIframe.contentWindow) {
+                // Post the TOOLBOX_CONTEXT to the iframe
+                toolIframe.contentWindow.postMessage({
+                    type: 'TOOLBOX_CONTEXT',
+                    data: toolContext
+                }, '*');
+            }
+        });
 
-        // Set webview src - in real implementation, this would load the tool's UI
+        // Set iframe src - in real implementation, this would load the tool's UI
         // For mock tools, we'll create a simple welcome page
         const toolHtml = `
             <!DOCTYPE html>
@@ -435,10 +457,11 @@ async function launchTool(toolId: string) {
             </html>
         `;
 
-        // Use data URI to load content into webview
-        toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(webviewHtml || toolHtml);
+        // Use srcdoc to load content into iframe
+        // This allows the HTML to execute properly and fire DOMContentLoaded
+        toolIframe.srcdoc = webviewHtml || toolHtml;
 
-        webviewContainer.appendChild(toolWebview);
+        webviewContainer.appendChild(toolIframe);
         toolPanelContent.appendChild(webviewContainer);
 
         // Store the open tool
@@ -446,7 +469,7 @@ async function launchTool(toolId: string) {
             id: toolId,
             tool: tool,
             webviewContainer: webviewContainer,
-            webview: toolWebview,
+            webview: toolIframe,
             isPinned: false,
             connectionId: null,
         });

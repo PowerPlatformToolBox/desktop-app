@@ -2,6 +2,12 @@
  * Type definitions for the renderer process
  */
 
+export interface ToolContext {
+    toolId: string;
+    connectionUrl: string | null;
+    accessToken: string | null;
+}
+
 export interface ToolboxAPI {
     getUserSettings: () => Promise<any>;
     updateUserSettings: (settings: any) => Promise<void>;
@@ -21,6 +27,7 @@ export interface ToolboxAPI {
     installTool: (packageName: string) => Promise<any>;
     uninstallTool: (packageName: string, toolId: string) => Promise<void>;
     getToolWebviewHtml: (packageName: string) => Promise<string | null>;
+    getToolContext: (packageName: string, connectionUrl?: string, accessToken?: string) => Promise<ToolContext>;
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
     showNotification: (options: any) => Promise<void>;
@@ -45,5 +52,6 @@ export interface ToolboxAPI {
 declare global {
     interface Window {
         toolboxAPI: ToolboxAPI;
+        TOOLBOX_CONTEXT?: ToolContext;
     }
 }

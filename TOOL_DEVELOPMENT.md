@@ -1,160 +1,389 @@
 # Tool Development Guide
 
-This guide explains how to develop external tools for the PowerPlatform ToolBox.
+This guide explains how to develop external tools for the PowerPlatform ToolBox using the new **Tool Host architecture** based on VS Code's Extension Host model.
 
-## Tool Structure
+## Overview
 
-A tool is an npm package that follows a specific structure. Here's an example `package.json`:
+The PowerPlatform ToolBox uses a secure, isolated architecture for running tools:
+
+- **Tool Host**: Each tool runs in a separate Node.js process
+- **Secure IPC**: Structured message protocol for safe communication
+- **API Injection**: The `pptoolbox` API is injected at runtime
+- **Contribution Points**: Tools declare capabilities in `package.json`
+
+## Quick Start
+
+### 1. Create Your Tool Package
+
+Create a new npm package with this structure:
+
+```
+my-tool/
+├── package.json
+├── index.js
+└── README.md
+```
+
+### 2. Define package.json
 
 ```json
 {
   "name": "@powerplatform/my-tool",
   "version": "1.0.0",
-  "description": "Description of what your tool does",
   "displayName": "My Tool",
+  "description": "Description of what your tool does",
   "main": "index.js",
   "author": "Your Name",
-  "icon": "🔧",
   "keywords": ["powerplatform", "dataverse", "toolbox"],
-  "peerDependencies": {
-    "powerplatform-toolbox": "^1.0.0"
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
 ```
 
-## Required Fields
+### 3. Implement Your Tool
 
-- **name**: Unique package name (preferably under `@powerplatform` scope)
-- **version**: Semantic version of your tool
-- **description**: Brief description of your tool's functionality
-- **main**: Entry point JavaScript file
-
-## Optional Fields
-
-- **displayName**: Human-readable name (defaults to package name)
-- **author**: Tool author information
-- **icon**: Emoji or path to icon file
-
-## Tool Entry Point
-
-Your main file should export functions and UI that integrate with the ToolBox:
+Create `index.js` with activation and deactivation functions:
 
 ```javascript
-// index.js
-module.exports = {
-  init: function(toolboxAPI, settings) {
-    // Initialize your tool
-    console.log('Tool initialized!');
-    
-    // Access ToolBox API
-    toolboxAPI.showNotification({
-      title: 'Tool Ready',
-      body: 'My tool is ready to use',
-      type: 'success'
-    });
-    
-    // Subscribe to events
-    toolboxAPI.subscribe('connection:created', (event) => {
-      console.log('New connection created:', event.data);
-    });
-    
-    return {
-      // Tool interface
-      getUI: () => {
-        return '<div>Tool UI HTML</div>';
-      },
-      cleanup: () => {
-        // Cleanup when tool is unloaded
-      }
-    };
+// Import the PowerPlatform ToolBox API
+const pptoolbox = require('pptoolbox');
+
+/**
+ * Called when your tool is activated
+ */
+function activate(context) {
+  console.log('My tool is now active!');
+
+  // Register a command
+  const disposable = pptoolbox.commands.registerCommand(
+    'myTool.doSomething',
+    async () => {
+      await pptoolbox.window.showInformationMessage('Hello from My Tool!');
+    }
+  );
+
+  // Subscribe to events
+  const listener = pptoolbox.events.onEvent(
+    pptoolbox.EventType.CONNECTION_CREATED,
+    (event) => {
+      console.log('Connection created:', event);
+    }
+  );
+
+  // Store disposables for cleanup
+  context.subscriptions.push(disposable);
+  context.subscriptions.push(listener);
+
+  // Save state
+  context.globalState.update('activated', new Date().toISOString());
+}
+
+/**
+ * Called when your tool is deactivated
+ */
+function deactivate() {
+  console.log('My tool is now deactivated!');
+  // Cleanup is automatic via context.subscriptions
+}
+
+module.exports = { activate, deactivate };
+```
+
+## ToolBox API Reference
+
+The `pptoolbox` module provides access to ToolBox functionality.
+
+### Commands API
+
+```javascript
+// Register a command
+const disposable = pptoolbox.commands.registerCommand(
+  'myTool.commandId',
+  async (...args) => {
+    // Command implementation
   }
-};
+);
+
+// Execute a command
+await pptoolbox.commands.executeCommand('myTool.commandId', arg1, arg2);
 ```
 
-## Accessing ToolBox API
+### Window API
 
-The ToolBox API provides several methods:
-
-### Notifications
 ```javascript
-toolboxAPI.showNotification({
-  title: 'Title',
-  body: 'Message',
-  type: 'info' | 'success' | 'warning' | 'error',
-  duration: 5000 // milliseconds
-});
+// Show information message
+await pptoolbox.window.showInformationMessage('Info message');
+
+// Show warning message
+await pptoolbox.window.showWarningMessage('Warning message');
+
+// Show error message
+await pptoolbox.window.showErrorMessage('Error message');
+
+// Copy to clipboard
+await pptoolbox.window.copyToClipboard('text to copy');
 ```
 
-### Events
+### Workspace API
+
+```javascript
+// Save file with dialog
+const filePath = await pptoolbox.workspace.saveFile(
+  'default-filename.json',
+  JSON.stringify(data, null, 2)
+);
+```
+
+### Events API
+
 ```javascript
 // Subscribe to events
-toolboxAPI.subscribe('tool:loaded', (event) => {
-  console.log(event);
-});
+const disposable = pptoolbox.events.onEvent(
+  pptoolbox.EventType.CONNECTION_CREATED,
+  (event) => {
+    console.log('Event:', event);
+  }
+);
 
-// Unsubscribe from events
-toolboxAPI.unsubscribe('tool:loaded', callback);
+// Emit custom event
+await pptoolbox.events.emitEvent('myTool.customEvent', { data: 'value' });
 
 // Get event history
-const events = toolboxAPI.getEventHistory(10); // Last 10 events
+const history = await pptoolbox.events.getEventHistory(10);
 ```
 
-### Available Events
-- `tool:loaded` - When a tool is loaded
-- `tool:unloaded` - When a tool is unloaded
-- `connection:created` - When a Dataverse connection is created
-- `connection:updated` - When a connection is updated
-- `connection:deleted` - When a connection is deleted
-- `settings:updated` - When settings are updated
-- `notification:shown` - When a notification is shown
-
-## Tool Settings
-
-Tools can have their own settings that persist across sessions:
+### Available Event Types
 
 ```javascript
-// In your tool
-const mySettings = await toolboxAPI.getToolSettings('my-tool-id');
+pptoolbox.EventType.TOOL_LOADED
+pptoolbox.EventType.TOOL_UNLOADED
+pptoolbox.EventType.CONNECTION_CREATED
+pptoolbox.EventType.CONNECTION_UPDATED
+pptoolbox.EventType.CONNECTION_DELETED
+pptoolbox.EventType.SETTINGS_UPDATED
+pptoolbox.EventType.NOTIFICATION_SHOWN
+```
 
-// Update settings
-await toolboxAPI.updateToolSettings('my-tool-id', {
-  option1: true,
-  option2: 'value'
+## Tool Context
+
+The `context` object passed to `activate()` provides:
+
+### Global State
+
+Persistent state across all workspaces:
+
+```javascript
+// Get value with default
+const value = context.globalState.get('key', defaultValue);
+
+// Update value
+await context.globalState.update('key', value);
+
+// Get all keys
+const keys = context.globalState.keys();
+```
+
+### Workspace State
+
+State specific to the current workspace:
+
+```javascript
+// Same API as globalState
+const value = context.workspaceState.get('key', defaultValue);
+await context.workspaceState.update('key', value);
+```
+
+### Subscriptions
+
+Array for cleanup on deactivation:
+
+```javascript
+function activate(context) {
+  const disposable = pptoolbox.commands.registerCommand(...);
+  
+  // Add to subscriptions for automatic cleanup
+  context.subscriptions.push(disposable);
+}
+```
+
+### Tool Information
+
+```javascript
+context.toolId           // Your tool's ID
+context.extensionPath    // Path to your tool's installation directory
+```
+
+## Security Model
+
+### Isolated Execution
+
+- Each tool runs in a separate Node.js process
+- Tools cannot directly access the main application or other tools
+- All communication goes through the structured IPC protocol
+
+### API Restrictions
+
+- Tools only have access to the `pptoolbox` API
+- No direct access to Electron APIs or Node.js fs module
+- File operations go through secure dialogs
+
+### Message Validation
+
+- All IPC messages are validated for structure and content
+- Prevents malicious or buggy tools from compromising the app
+- Request/response pattern with timeouts
+
+## Best Practices
+
+### 1. Command Naming
+
+Use a unique prefix for your commands:
+```javascript
+'myTool.commandName'  // Good
+'commandName'          // Bad - conflicts possible
+```
+
+### 2. Error Handling
+
+Always handle errors gracefully:
+```javascript
+pptoolbox.commands.registerCommand('myTool.action', async () => {
+  try {
+    // Your code
+  } catch (error) {
+    await pptoolbox.window.showErrorMessage(
+      `Failed to execute action: ${error.message}`
+    );
+  }
 });
 ```
 
-## Accessing Dataverse Connections
+### 3. State Management
 
+Use context.globalState for persistent settings:
 ```javascript
-// Get all configured connections
-const connections = await toolboxAPI.getConnections();
+// Save user preference
+await context.globalState.update('lastUsedConnection', connectionId);
 
-// Use a connection
-connections.forEach(conn => {
-  console.log(`Connection: ${conn.name} at ${conn.url}`);
-});
+// Load on next activation
+const lastConn = context.globalState.get('lastUsedConnection');
+```
+
+### 4. Resource Cleanup
+
+Always add disposables to context.subscriptions:
+```javascript
+function activate(context) {
+  const cmd = pptoolbox.commands.registerCommand(...);
+  const listener = pptoolbox.events.onEvent(...);
+  
+  context.subscriptions.push(cmd, listener);
+  // Automatic cleanup on deactivation
+}
+```
+
+### 5. Activation Events
+
+Use specific activation events when possible:
+```javascript
+"activationEvents": [
+  "onCommand:myTool.action"  // Good - loads only when needed
+  // "*"                      // Avoid - loads on startup
+]
 ```
 
 ## Publishing Your Tool
 
-1. Develop and test your tool locally
-2. Publish to npm:
-   ```bash
-   npm publish
-   ```
-3. Users can install your tool from the ToolBox UI by providing your package name
+### 1. Test Locally
 
-## Best Practices
+Install your tool locally for testing:
+```bash
+cd my-tool
+npm link
 
-1. **Error Handling**: Always handle errors gracefully
-2. **Cleanup**: Implement proper cleanup in your tool's cleanup method
-3. **Settings**: Store user preferences in tool settings
-4. **Events**: Use the event system to react to ToolBox state changes
-5. **Documentation**: Provide clear documentation for your tool
-6. **Testing**: Test your tool with different Dataverse environments
+# In ToolBox data directory
+cd ~/AppData/Roaming/powerplatform-toolbox/tools  # Windows
+# or ~/Library/Application Support/powerplatform-toolbox/tools  # macOS
+npm link @powerplatform/my-tool
+```
+
+### 2. Publish to npm
+
+```bash
+cd my-tool
+npm login
+npm publish --access public
+```
+
+### 3. Install in ToolBox
+
+Users can then install your tool from the ToolBox UI or command palette.
 
 ## Example Tool
 
-A complete example tool is available at: `@powerplatform/example-tool`
+A complete example tool is available in the repository:
+- Package: `@powerplatform/example-tool`
+- Location: `/examples/example-tool/`
 
-You can install it to see how a tool integrates with the ToolBox.
+This example demonstrates:
+- Command registration
+- Event subscriptions
+- State management
+- File operations
+- Menu contributions
+
+## Debugging
+
+### Console Output
+
+Use `console.log()` in your tool - output appears in the ToolBox developer console.
+
+### Error Messages
+
+Unhandled errors in your tool will be caught and displayed to the user.
+
+### Tool Host Logs
+
+Check the main ToolBox logs for tool host process information.
+
+## Migration from Old Architecture
+
+If you have tools using the old architecture:
+
+### Old Pattern
+```javascript
+module.exports = {
+  init: function(toolboxAPI, settings) {
+    // Old initialization
+  }
+};
+```
+
+### New Pattern
+```javascript
+function activate(context) {
+  // New activation
+}
+
+function deactivate() {
+  // Cleanup
+}
+
+module.exports = { activate, deactivate };
+```
+
+### Key Changes
+
+1. **Import API**: Use `require('pptoolbox')` instead of receiving it as parameter
+2. **Context**: Use `context` object for state and subscriptions
+3. **Commands**: Register commands via `pptoolbox.commands.registerCommand()`
+4. **Lifecycle**: Implement `activate()` and `deactivate()` functions
+5. **Contribution Points**: Declare in `package.json` instead of at runtime
+
+## Support and Resources
+
+- **Documentation**: https://github.com/PowerPlatform-ToolBox/desktop-app
+- **Example Tool**: `/examples/example-tool/`
+- **Issues**: https://github.com/PowerPlatform-ToolBox/desktop-app/issues
+- **Discussions**: https://github.com/PowerPlatform-ToolBox/desktop-app/discussions

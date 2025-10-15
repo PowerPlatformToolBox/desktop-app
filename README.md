@@ -5,6 +5,7 @@ A modern desktop application built with Electron and TypeScript that serves as a
 ## Features
 
 - **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
+- **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
 - **🔗 Dataverse Connections**: Create and manage connections to Dataverse environments
 - **⚙️ Settings Management**: 
   - User settings for the ToolBox application
@@ -13,10 +14,17 @@ A modern desktop application built with Electron and TypeScript that serves as a
 - **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 - **🔔 Notifications**: Built-in notification system to keep users informed
 - **🔄 Auto-Updates**: Automatic application updates with user control
+- **📦 Contribution Points**: Tools declare capabilities (commands, menus) in package.json
 
 ## Architecture
 
-The application is structured into several key components:
+The application uses a **robust Tool Host architecture** inspired by VS Code's Extension Host:
+
+### Tool Host System (`src/main/toolHost/`)
+- **Tool Host Manager**: Coordinates all tool host processes
+- **Tool Host Process**: Each tool runs in an isolated Node.js process
+- **Tool Host Protocol**: Secure IPC communication with message validation
+- **Tool Host Runner**: Entry point for tool execution in isolated environment
 
 ### Main Process (`src/main/`)
 - **index.ts**: Main Electron application entry point
@@ -24,6 +32,11 @@ The application is structured into several key components:
 - **tool-manager.ts**: Handles tool installation, loading, and management via npm
 - **auto-update-manager.ts**: Manages automatic application updates using electron-updater
 - **preload.ts**: Secure bridge between main and renderer processes
+
+### ToolBox API (`src/toolHost/api/`)
+- **pptoolbox.ts**: API module injected into tools at runtime
+- Tools import with: `const pptoolbox = require('pptoolbox');`
+- Provides: commands, window, workspace, and events APIs
 
 ### API Layer (`src/api/`)
 - **toolbox-api.ts**: Event-driven API system for tools and application events
@@ -35,6 +48,62 @@ The application is structured into several key components:
 
 ### Types (`src/types/`)
 - Comprehensive TypeScript type definitions for all application entities
+- Tool contribution points and Tool Host protocol types
+
+## Security Model
+
+- **Process Isolation**: Each tool runs in a separate Node.js process
+- **Structured IPC**: All communication via validated message protocol
+- **Limited API Surface**: Tools only access specific ToolBox APIs
+- **No Direct Access**: Tools cannot access file system, Electron APIs, or other tools
+
+## Tool Development
+
+Tools are npm packages that follow a specific structure. See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for detailed guide.
+
+### Quick Example
+
+```javascript
+// Tool entry point
+const pptoolbox = require('pptoolbox');
+
+function activate(context) {
+  // Register a command
+  const cmd = pptoolbox.commands.registerCommand(
+    'myTool.action',
+    async () => {
+      await pptoolbox.window.showInformationMessage('Hello!');
+    }
+  );
+  
+  context.subscriptions.push(cmd);
+}
+
+function deactivate() {
+  // Cleanup handled automatically
+}
+
+module.exports = { activate, deactivate };
+```
+
+### Contribution Points (package.json)
+
+```json
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "myTool.action",
+        "title": "My Action",
+        "category": "My Tool"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onCommand:myTool.action"
+  ]
+}
+```
 
 ## Getting Started
 
@@ -96,26 +165,44 @@ This will create installers for your platform in the `build/` directory.
 
 ## Tool Development
 
-Tools are external npm packages that can be integrated into the ToolBox. Each tool should:
+Tools are npm packages with specific structure and contribution points.
 
+### Requirements
+
+A tool must:
 1. Be published as an npm package
 2. Include proper metadata in `package.json`:
-   - `name`: Unique package name
+   - `name`: Unique package name (e.g., `@powerplatform/my-tool`)
    - `version`: Semantic version
    - `description`: Tool description
    - `displayName`: Human-readable name (optional)
    - `author`: Tool author
-   - `icon`: Tool icon (optional)
-   - `main`: Entry point
+   - `main`: Entry point (e.g., `index.js`)
+   - `contributes`: Contribution points (commands, menus, configuration)
+   - `activationEvents`: When the tool should be loaded
 
-3. Expose compatible APIs for integration with ToolBox
+3. Export `activate(context)` and `deactivate()` functions
+4. Use the `pptoolbox` API for ToolBox integration
+
+### Example Tool Structure
+
+See `examples/example-tool/` for a complete example.
+
+For detailed documentation, see [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md).
 
 ### Installing Tools
 
 Users can install tools directly from the application:
 1. Click "Install Tool" button
-2. Enter the npm package name (e.g., `@powerplatform/my-tool`)
-3. The tool will be installed and loaded automatically
+2. Enter the npm package name (e.g., `@powerplatform/example-tool`)
+3. The tool will be installed, loaded, and activated automatically
+
+### Tool Security
+
+- Each tool runs in an isolated Node.js process
+- Tools communicate with ToolBox via secure IPC protocol
+- Tools only have access to the `pptoolbox` API
+- No direct access to file system, Electron, or Node.js APIs
 
 ## Dataverse Connections
 
@@ -155,11 +242,20 @@ The ToolBox emits events for various operations:
 
 - `tool:loaded` - When a tool is loaded
 - `tool:unloaded` - When a tool is unloaded
+- `tool:activated` - When a tool is activated
+- `tool:deactivated` - When a tool is deactivated
 - `connection:created` - When a connection is created
 - `connection:updated` - When a connection is updated
 - `connection:deleted` - When a connection is deleted
 - `settings:updated` - When settings are updated
 - `notification:shown` - When a notification is shown
+
+## Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Application architecture overview
+- **[TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
+- **[TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
 ## License
 

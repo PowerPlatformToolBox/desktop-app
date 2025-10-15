@@ -83,7 +83,45 @@ The main process is the entry point of the Electron application and manages the 
   - Load/unload tools
   - Install/uninstall tools via npm
   - Track loaded tools
+  - Coordinate with Tool Host Manager
+  - Parse contribution points from package.json
   - Emit tool lifecycle events
+
+#### Tool Host (`src/main/toolHost/`)
+
+The Tool Host subsystem provides secure, isolated execution of tools, inspired by VS Code's Extension Host.
+
+##### `toolHostManager.ts`
+- **Purpose**: Coordinate all tool host processes
+- **Responsibilities**:
+  - Create and manage tool host processes
+  - Route API calls between tools and main process
+  - Handle command execution
+  - Manage tool lifecycle events
+
+##### `toolHostProcess.ts`
+- **Purpose**: Manage individual tool host process
+- **Responsibilities**:
+  - Fork separate Node.js process for each tool
+  - Handle tool activation/deactivation
+  - Manage IPC communication with tool
+  - Process lifecycle management
+
+##### `toolHostProtocol.ts`
+- **Purpose**: Secure IPC protocol implementation
+- **Responsibilities**:
+  - Request/response message handling
+  - Message validation and serialization
+  - Timeout management
+  - Protocol message creation
+
+##### `toolHostRunner.ts`
+- **Purpose**: Entry point for tool host processes
+- **Responsibilities**:
+  - Load tool modules in isolated environment
+  - Execute tool activation/deactivation
+  - Handle API calls from tools
+  - Manage tool context and state
 
 #### `preload.ts`
 - **Purpose**: Secure bridge between main and renderer
@@ -134,11 +172,25 @@ The renderer process handles the UI and user interactions.
 #### `index.ts`
 - **Purpose**: TypeScript type definitions
 - **Contents**:
-  - Tool interface
+  - Tool interface with contribution points
+  - Contribution point types (commands, menus, views, configuration)
+  - Tool Host protocol types and message structures
+  - Tool context and state storage interfaces
   - Settings interfaces
   - Connection interfaces
   - Event types and payloads
   - Notification options
+
+### 5. Tool Host API (`src/toolHost/api/`)
+
+#### `pptoolbox.ts`
+- **Purpose**: API module injected into tools at runtime
+- **Responsibilities**:
+  - Provide `pptoolbox` module that tools import
+  - Handle IPC communication with main process
+  - Expose commands, window, workspace, and events APIs
+  - Request/response handling for API calls
+- **Similar to**: VS Code's `vscode` module
 
 ## Data Flow
 
@@ -201,6 +253,90 @@ Application applies new settings
 ```
 
 ## Security Model
+
+### Tool Host Architecture
+
+The PowerPlatform ToolBox implements a **VS Code Extension Host-like architecture** for secure tool execution:
+
+#### Isolated Processes
+- Each tool runs in a separate Node.js process (Tool Host Process)
+- Tools cannot directly access the main application or other tools
+- Process isolation prevents memory leaks and crashes from affecting the main app
+
+#### Structured IPC Protocol
+- All communication uses a structured message protocol (ToolHostProtocol)
+- Messages are validated for structure and content
+- Request/response pattern with unique message IDs
+- Automatic timeout handling (30 seconds default)
+- Message types: REQUEST, RESPONSE, EVENT, ERROR, ACTIVATE, DEACTIVATE, API_CALL
+
+#### API Injection
+- Tools import `pptoolbox` module: `const pptoolbox = require('pptoolbox');`
+- The actual API is injected at runtime by the Tool Host environment
+- Tools only have access to the specific APIs exposed by ToolBox
+- No direct access to Node.js fs, Electron APIs, or other sensitive modules
+
+#### Message Flow Example
+```
+Tool                    Tool Host Process              Tool Host Manager           Main Process
+ |                             |                              |                          |
+ |--pptoolbox.window.show()--->|                              |                          |
+ |                             |--API_CALL(showNotification)->|                          |
+ |                             |                              |--showNotification()----->|
+ |                             |                              |<-----success-------------|
+ |                             |<-------RESPONSE--------------|                          |
+ |<----promise resolved--------|                              |                          |
+```
+
+### Contribution Points
+
+Tools declare their capabilities in `package.json`:
+
+#### Commands
+```json
+"contributes": {
+  "commands": [
+    {
+      "command": "myTool.action",
+      "title": "My Action",
+      "category": "My Tool"
+    }
+  ]
+}
+```
+
+#### Menus
+```json
+"contributes": {
+  "menus": {
+    "commandPalette": [{ "command": "myTool.action" }],
+    "toolsMenu": [{ "command": "myTool.action", "group": "navigation" }]
+  }
+}
+```
+
+#### Configuration
+```json
+"contributes": {
+  "configuration": [{
+    "title": "My Tool Settings",
+    "properties": {
+      "myTool.enabled": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }]
+}
+```
+
+#### Activation Events
+```json
+"activationEvents": [
+  "onCommand:myTool.action",  // Load when command is invoked
+  "*"                          // Load on startup
+]
+```
 
 ### Context Isolation
 
