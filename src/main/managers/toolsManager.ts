@@ -156,7 +156,7 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Get webview HTML for a tool with inlined resources
+     * Get webview HTML for a tool with absolute file paths
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */
     getToolWebviewHtml(packageName: string): string | undefined {
@@ -167,22 +167,22 @@ export class ToolManager extends EventEmitter {
         if (fs.existsSync(distHtmlPath)) {
             let html = fs.readFileSync(distHtmlPath, "utf-8");
             
-            // Inline CSS files
-            html = html.replace(/<link\s+[^>]*href=["']([^"']+\.css)["'][^>]*>/gi, (match, cssFile) => {
+            // Convert relative CSS paths to absolute file:// URLs
+            html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
                 const cssPath = path.join(distPath, cssFile);
                 if (fs.existsSync(cssPath)) {
-                    const cssContent = fs.readFileSync(cssPath, "utf-8");
-                    return `<style>${cssContent}</style>`;
+                    const absolutePath = `file://${cssPath.replace(/\\/g, '/')}`;
+                    return `<link ${before}href="${absolutePath}"${after}>`;
                 }
                 return match;
             });
             
-            // Inline JavaScript files
-            html = html.replace(/<script\s+[^>]*src=["']([^"']+\.js)["'][^>]*><\/script>/gi, (match, jsFile) => {
+            // Convert relative JavaScript paths to absolute file:// URLs
+            html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
                 const jsPath = path.join(distPath, jsFile);
                 if (fs.existsSync(jsPath)) {
-                    const jsContent = fs.readFileSync(jsPath, "utf-8");
-                    return `<script>${jsContent}</script>`;
+                    const absolutePath = `file://${jsPath.replace(/\\/g, '/')}`;
+                    return `<script ${before}src="${absolutePath}"${after}></script>`;
                 }
                 return match;
             });
