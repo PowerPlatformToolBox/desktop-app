@@ -343,7 +343,11 @@ async function launchTool(toolId: string) {
         const connectionUrl = activeConnection?.url;
         const accessToken = activeConnection?.accessToken; // This would come from auth flow
 
-        const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id, connectionUrl, accessToken);
+        // Get tool HTML without context injection (to avoid CSP issues)
+        const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+        
+        // Get tool context separately for postMessage
+        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
         // Hide all views
         document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
@@ -367,6 +371,17 @@ async function launchTool(toolId: string) {
         toolIframe.style.height = "100%";
         toolIframe.style.border = "none";
         toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        
+        // Set up event listener to post context to iframe after it loads
+        toolIframe.addEventListener('load', () => {
+            if (toolIframe.contentWindow) {
+                // Post the TOOLBOX_CONTEXT to the iframe
+                toolIframe.contentWindow.postMessage({
+                    type: 'TOOLBOX_CONTEXT',
+                    data: toolContext
+                }, '*');
+            }
+        });
 
         // Set iframe src - in real implementation, this would load the tool's UI
         // For mock tools, we'll create a simple welcome page

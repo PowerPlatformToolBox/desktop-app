@@ -15,6 +15,22 @@ const toolbox = window.toolboxAPI;
 let eventCount = 0;
 
 /**
+ * Listen for TOOLBOX_CONTEXT from parent window (passed via postMessage)
+ */
+window.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "TOOLBOX_CONTEXT") {
+        // Set the context on window object
+        window.TOOLBOX_CONTEXT = event.data.data;
+        console.log("Received TOOLBOX_CONTEXT:", window.TOOLBOX_CONTEXT);
+        
+        // If DOM is already ready, update the display immediately
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            displayConnectionContext();
+        }
+    }
+});
+
+/**
  * Initialize the tool when DOM is ready
  */
 document.addEventListener("DOMContentLoaded", async () => {

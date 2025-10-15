@@ -156,39 +156,35 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Get webview HTML for a tool with injected context
+     * Get webview HTML for a tool
+     * Context (connection URL, token) is passed via postMessage after iframe loads
      */
-    getToolWebviewHtml(packageName: string, connectionUrl?: string, accessToken?: string): string | undefined {
+    getToolWebviewHtml(packageName: string): string | undefined {
         const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
-        // TODO - Update to match actual tool structure
         const distHtmlPath = path.join(toolPath, "dist", "index.html");
-        //const distHtmlPath = path.join(toolPath, "ui", "webview.html");
 
         if (fs.existsSync(distHtmlPath)) {
-            let html = fs.readFileSync(distHtmlPath, "utf-8");
-
-            // TODO remove in favor of proper auth flows
-            // Mock Test Context Injection
-            connectionUrl = "https://powermaverick.crm.dynamics.com/";
-            accessToken =
-                "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IkhTMjNiN0RvN1RjYVUxUm9MSHdwSXEyNFZZZyIsImtpZCI6IkhTMjNiN0RvN1RjYVUxUm9MSHdwSXEyNFZZZyJ9.eyJhdWQiOiJodHRwczovL3Bvd2VybWF2ZXJpY2suY3JtLmR5bmFtaWNzLmNvbS8iLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC8zMWMyMGEyMy0yZWQyLTQ2OGQtYmFhYi00MmVkZjk5ODEyOGIvIiwiaWF0IjoxNzYwNTU0NzgzLCJuYmYiOjE3NjA1NTQ3ODMsImV4cCI6MTc2MDU2MDA3NiwiYWNjdCI6MCwiYWNyIjoiMSIsImFpbyI6IkFYUUFpLzhhQUFBQXUyWGZELzFhWXFsRU0rbDJrbjJveU1KZWNqNExmenkrYldYb2kzdDd2UVdOelNXblc2SVMvelF4cmpGTnlJRTJPTUJRNnAvTmtNSVdYN0MrRFM5WXpSTFUwbUI4UnBYd1ZVUlpERkswaEFLLzE0YXl1eVFYdzRzbnNBQmZMZHNXV1JQcWhPZmZCSHNKVm1wVXpTaEFQZz09IiwiYW1yIjpbInB3ZCIsIm1mYSJdLCJhcHBpZCI6IjUxZjgxNDg5LTEyZWUtNGE5ZS1hYWFlLWEyNTkxZjQ1OTg3ZCIsImFwcGlkYWNyIjoiMCIsImZhbWlseV9uYW1lIjoiTmFnbGVrYXIiLCJnaXZlbl9uYW1lIjoiRGFuaXNoIiwiaWR0eXAiOiJ1c2VyIiwiaXBhZGRyIjoiOTguMTIxLjIzMy41NyIsImxvZ2luX2hpbnQiOiJPLkNpUmtNR0l5WXpBMVl5MHlZemRpTFRRd016SXRZV1V6TXkxaU1tWTRNRGs1TnpRNVltTVNKRE14WXpJd1lUSXpMVEpsWkRJdE5EWTRaQzFpWVdGaUxUUXlaV1JtT1RrNE1USTRZaG9qWVdSdGFXNUFjRzkzWlhKdFlYWmxjbWxqYXk1dmJtMXBZM0p2YzI5bWRDNWpiMjBnQ1E9PSIsIm5hbWUiOiJEYW5pc2ggTmFnbGVrYXIiLCJvaWQiOiJkMGIyYzA1Yy0yYzdiLTQwMzItYWUzMy1iMmY4MDk5NzQ5YmMiLCJwdWlkIjoiMTAwMzIwMDA4RTVERUIzMiIsInJoIjoiMS5BVVVBSXdyQ01kSXVqVWE2cTBMdC1aZ1Npd2NBQUFBQUFBQUF3QUFBQUFBQUFBQmZBWlJGQUEuIiwic2NwIjoidXNlcl9pbXBlcnNvbmF0aW9uIiwic2lkIjoiMDA3Y2Q5MDktOTJiNi1hYjg5LTU5MzMtM2RmZmJhODgxZjc1Iiwic3ViIjoiVDJlTE1BY19hdkZzNEFQNGxRbERTcnlFYzdGZTBuMmZGU2ZCcmpkLTdJRSIsInRlbmFudF9yZWdpb25fc2NvcGUiOiJOQSIsInRpZCI6IjMxYzIwYTIzLTJlZDItNDY4ZC1iYWFiLTQyZWRmOTk4MTI4YiIsInVuaXF1ZV9uYW1lIjoiYWRtaW5AcG93ZXJtYXZlcmljay5vbm1pY3Jvc29mdC5jb20iLCJ1cG4iOiJhZG1pbkBwb3dlcm1hdmVyaWNrLm9ubWljcm9zb2Z0LmNvbSIsInV0aSI6IkVJSVpCTlJiTFVTMWV0QWFtdDBGQUEiLCJ2ZXIiOiIxLjAiLCJ3aWRzIjpbIjYyZTkwMzk0LTY5ZjUtNDIzNy05MTkwLTAxMjE3NzE0NWUxMCIsImI3OWZiZjRkLTNlZjktNDY4OS04MTQzLTc2YjE5NGU4NTUwOSJdLCJ4bXNfZnRkIjoiNXM5N1RRT2RuQVI5Snllb1BIZE95cFBaSkgwcXlvQUlKYnRYNktWR2lJSUJkWE5sWVhOMExXUnpiWE0iLCJ4bXNfaWRyZWwiOiIyMiAxIn0.COX_TNU93E20htg8Dlq7424Hwmqh_1Cvzhwn6nZ7tABK__K4qQoD1g2M3gEBua47BdCfxkesNKJL8A3VzQZJ-jF0omSuSRMAOP-_vmBin93fgbfm9zU6NdLZXVW_GNAkxA6vw0L9Kz_1CbB0oTKXg9uhllcwk21rsjcmiGtmdWesEJ7iaVNdDPIjHnWThDeYWNOOYXGlFyh6hNAEqHxzL2v8Y_1JpJOsdkfj59gP3mD-DcHOlxiNp_WlIu9-pgZLx23uJJQMEME-rsf-RCAhCWJ5cRCEQdD7dSwUeOoOXj2hqfSZkZuHBkOKip9ru6jGgD99nteb-01kowb9l4ICqw";
-
-            // Inject connection context as a script tag before any other scripts
-            if (connectionUrl || accessToken) {
-                const contextScript = `
-                    <script>
-                        window.TOOLBOX_CONTEXT = {
-                            connectionUrl: ${connectionUrl ? `"${connectionUrl}"` : "null"},
-                            accessToken: ${accessToken ? `"${accessToken}"` : "null"},
-                            toolId: "${packageName}"
-                        };
-                    </script>
-                `;
-                html = html.replace("<head>", "<head>" + contextScript);
-            }
-
+            const html = fs.readFileSync(distHtmlPath, "utf-8");
             return html;
         }
         return undefined;
+    }
+
+    /**
+     * Get tool context (connection URL and access token) for a tool
+     * This is passed to the renderer for postMessage to iframe
+     */
+    getToolContext(packageName: string, connectionUrl?: string, accessToken?: string): any {
+        // TODO remove in favor of proper auth flows
+        // Mock Test Context Injection
+        connectionUrl = "https://powermaverick.crm.dynamics.com/";
+        accessToken =
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IkhTMjNiN0RvN1RjYVUxUm9MSHdwSXEyNFZZZyIsImtpZCI6IkhTMjNiN0RvN1RjYVUxUm9MSHdwSXEyNFZZZyJ9.eyJhdWQiOiJodHRwczovL3Bvd2VybWF2ZXJpY2suY3JtLmR5bmFtaWNzLmNvbS8iLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC8zMWMyMGEyMy0yZWQyLTQ2OGQtYmFhYi00MmVkZjk5ODEyOGIvIiwiaWF0IjoxNzYwNTU0NzgzLCJuYmYiOjE3NjA1NTQ3ODMsImV4cCI6MTc2MDU2MDA3NiwiYWNjdCI6MCwiYWNyIjoiMSIsImFpbyI6IkFYUUFpLzhhQUFBQXUyWGZELzFhWXFsRU0rbDJrbjJveU1KZWNqNExmenkrYldYb2kzdDd2UVdOelNXblc2SVMvelF4cmpGTnlJRTJPTUJRNnAvTmtNSVdYN0MrRFM5WXpSTFUwbUI4UnBYd1ZVUlpERkswaEFLLzE0YXl1eVFYdzRzbnNBQmZMZHNXV1JQcWhPZmZCSHNKVm1wVXpTaEFQZz09IiwiYW1yIjpbInB3ZCIsIm1mYSJdLCJhcHBpZCI6IjUxZjgxNDg5LTEyZWUtNGE5ZS1hYWFlLWEyNTkxZjQ1OTg3ZCIsImFwcGlkYWNyIjoiMCIsImZhbWlseV9uYW1lIjoiTmFnbGVrYXIiLCJnaXZlbl9uYW1lIjoiRGFuaXNoIiwiaWR0eXAiOiJ1c2VyIiwiaXBhZGRyIjoiOTguMTIxLjIzMy41NyIsImxvZ2luX2hpbnQiOiJPLkNpUmtNR0l5WXpBMVl5MHlZemRpTFRRd016SXRZV1V6TXkxaU1tWTRNRGs1TnpRNVltTVNKRE14WXpJd1lUSXpMVEpsWkRJdE5EWTRaQzFpWVdGaUxUUXlaV1JtT1RrNE1USTRZaG9qWVdSdGFXNUFjRzkzWlhKdFlYWmxjbWxqYXk1dmJtMXBZM0p2YzI5bWRDNWpiMjBnQ1E9PSIsIm5hbWUiOiJEYW5pc2ggTmFnbGVrYXIiLCJvaWQiOiJkMGIyYzA1Yy0yYzdiLTQwMzItYWUzMy1iMmY4MDk5NzQ5YmMiLCJwdWlkIjoiMTAwMzIwMDA4RTVERUIzMiIsInJoIjoiMS5BVVVBSXdyQ01kSXVqVWE2cTBMdC1aZ1Npd2NBQUFBQUFBQUF3QUFBQUFBQUFBQmZBWlJGQUEuIiwic2NwIjoidXNlcl9pbXBlcnNvbmF0aW9uIiwic2lkIjoiMDA3Y2Q5MDktOTJiNi1hYjg5LTU5MzMtM2RmZmJhODgxZjc1Iiwic3ViIjoiVDJlTE1BY19hdkZzNEFQNGxRbERTcnlFYzdGZTBuMmZGU2ZCcmpkLTdJRSIsInRlbmFudF9yZWdpb25fc2NvcGUiOiJOQSIsInRpZCI6IjMxYzIwYTIzLTJlZDItNDY4ZC1iYWFiLTQyZWRmOTk4MTI4YiIsInVuaXF1ZV9uYW1lIjoiYWRtaW5AcG93ZXJtYXZlcmljay5vbm1pY3Jvc29mdC5jb20iLCJ1cG4iOiJhZG1pbkBwb3dlcm1hdmVyaWNrLm9ubWljcm9zb2Z0LmNvbSIsInV0aSI6IkVJSVpCTlJiTFVTMWV0QWFtdDBGQUEiLCJ2ZXIiOiIxLjAiLCJ3aWRzIjpbIjYyZTkwMzk0LTY5ZjUtNDIzNy05MTkwLTAxMjE3NzE0NWUxMCIsImI3OWZiZjRkLTNlZjktNDY4OS04MTQzLTc2YjE5NGU4NTUwOSJdLCJ4bXNfZnRkIjoiNXM5N1RRT2RuQVI5Snllb1BIZE95cFBaSkgwcXlvQUlKYnRYNktWR2lJSUJkWE5sWVhOMExXUnpiWE0iLCJ4bXNfaWRyZWwiOiIyMiAxIn0.COX_TNU93E20htg8Dlq7424Hwmqh_1Cvzhwn6nZ7tABK__K4qQoD1g2M3gEBua47BdCfxkesNKJL8A3VzQZJ-jF0omSuSRMAOP-_vmBin93fgbfm9zU6NdLZXVW_GNAkxA6vw0L9Kz_1CbB0oTKXg9uhllcwk21rsjcmiGtmdWesEJ7iaVNdDPIjHnWThDeYWNOOYXGlFyh6hNAEqHxzL2v8Y_1JpJOsdkfj59gP3mD-DcHOlxiNp_WlIu9-pgZLx23uJJQMEME-rsf-RCAhCWJ5cRCEQdD7dSwUeOoOXj2hqfSZkZuHBkOKip9ru6jGgD99nteb-01kowb9l4ICqw";
+
+        return {
+            connectionUrl: connectionUrl || null,
+            accessToken: accessToken || null,
+            toolId: packageName,
+        };
     }
 }

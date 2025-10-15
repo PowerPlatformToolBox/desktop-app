@@ -166,17 +166,12 @@ class ToolBoxApp {
             this.settingsManager.removeInstalledTool(packageName);
         });
 
-        ipcMain.handle("get-tool-webview-html", (_, packageName, connectionUrl, accessToken) => {
-            return this.toolManager.getToolWebviewHtml(packageName, connectionUrl, accessToken);
+        ipcMain.handle("get-tool-webview-html", (_, packageName) => {
+            return this.toolManager.getToolWebviewHtml(packageName);
         });
 
-        ipcMain.handle("get-tool-context", async () => {
-            const activeConnection = this.settingsManager.getActiveConnection();
-            return {
-                toolId: null,
-                connectionUrl: activeConnection?.url || null,
-                accessToken: null, // TODO: Implement token retrieval
-            };
+        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl, accessToken) => {
+            return this.toolManager.getToolContext(packageName, connectionUrl, accessToken);
         });
 
         // Tool settings handlers
