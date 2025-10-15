@@ -41,7 +41,12 @@
                     <div class="tool-tabs" id="tool-tabs">
                         <!-- Tabs will be dynamically added here -->
                     </div>
-                    <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
+                    <div class="tool-panel-controls">
+                        <select id="tab-connection-selector" class="connection-selector" title="Select connection for active tool">
+                            <option value="">No Connection</option>
+                        </select>
+                        <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
+                    </div>
                 </div>
                 <div class="tool-panel-content" id="tool-panel-content">
                     <!-- Tool webviews will be dynamically added here -->

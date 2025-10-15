@@ -8,6 +8,7 @@ interface OpenTool {
     webviewContainer: HTMLElement;
     webview: any;
     isPinned: boolean;
+    connectionId: string | null;
 }
 
 const openTools = new Map<string, OpenTool>();
@@ -411,7 +412,8 @@ async function launchTool(toolId: string) {
             tool: tool,
             webviewContainer: webviewContainer,
             webview: toolWebview,
-            isPinned: false
+            isPinned: false,
+            connectionId: null
         });
 
         // Create and add tab
@@ -459,6 +461,13 @@ function createTab(toolId: string, tool: any) {
     name.textContent = tool.name;
     name.title = tool.name;
 
+    const connectionBadge = document.createElement("span");
+    connectionBadge.className = "tool-tab-connection";
+    connectionBadge.id = `tab-connection-${toolId}`;
+    connectionBadge.textContent = "🔗";
+    connectionBadge.title = "No connection";
+    connectionBadge.style.display = "none";
+
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
     pinBtn.textContent = "📌";
@@ -491,6 +500,7 @@ function createTab(toolId: string, tool: any) {
 
     tab.appendChild(icon);
     tab.appendChild(name);
+    tab.appendChild(connectionBadge);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
@@ -519,6 +529,9 @@ function switchToTool(toolId: string) {
     if (activeContainer) {
         activeContainer.classList.add("active");
     }
+
+    // Update connection selector
+    updateConnectionSelector();
 }
 
 function closeTool(toolId: string) {
@@ -654,6 +667,7 @@ function saveSession() {
         openTools: Array.from(openTools.entries()).map(([id, tool]) => ({
             id,
             isPinned: tool.isPinned,
+            connectionId: tool.connectionId,
         })),
         activeToolId,
     };
@@ -671,6 +685,9 @@ async function restoreSession() {
                 await launchTool(toolInfo.id);
                 if (toolInfo.isPinned) {
                     togglePinTab(toolInfo.id);
+                }
+                if (toolInfo.connectionId) {
+                    setToolConnection(toolInfo.id, toolInfo.connectionId);
                 }
             }
             if (session.activeToolId && openTools.has(session.activeToolId)) {
@@ -715,6 +732,61 @@ function setupKeyboardShortcuts() {
             switchToTool(toolIds[prevIndex]);
         }
     });
+}
+
+// Connection management for tabs
+async function updateConnectionSelector() {
+    const selector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
+    if (!selector) return;
+
+    try {
+        const connections = await window.toolboxAPI.getConnections();
+        
+        // Clear and repopulate
+        selector.innerHTML = '<option value="">No Connection</option>';
+        connections.forEach((conn: any) => {
+            const option = document.createElement("option");
+            option.value = conn.id;
+            option.textContent = `${conn.name} (${conn.environment})`;
+            selector.appendChild(option);
+        });
+
+        // Set current selection
+        if (activeToolId && openTools.has(activeToolId)) {
+            const tool = openTools.get(activeToolId);
+            if (tool && tool.connectionId) {
+                selector.value = tool.connectionId;
+            } else {
+                selector.value = "";
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update connection selector:", error);
+    }
+}
+
+function setToolConnection(toolId: string, connectionId: string | null) {
+    const tool = openTools.get(toolId);
+    if (!tool) return;
+
+    tool.connectionId = connectionId;
+    
+    // Update connection badge on tab
+    const badge = document.getElementById(`tab-connection-${toolId}`);
+    if (badge) {
+        if (connectionId) {
+            badge.style.display = "inline";
+            badge.title = "Connected";
+        } else {
+            badge.style.display = "none";
+            badge.title = "No connection";
+        }
+    }
+
+    saveSession();
+
+    // Notify tool of connection change (in a real implementation, this would message the webview)
+    console.log(`Tool ${toolId} connection set to:`, connectionId);
 }
 
 async function toolSettings(toolId: string) {
@@ -1187,6 +1259,17 @@ async function init() {
     if (closeAllToolsBtn) {
         closeAllToolsBtn.addEventListener("click", () => {
             closeAllTools();
+        });
+    }
+
+    // Connection selector for active tool
+    const connectionSelector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
+    if (connectionSelector) {
+        connectionSelector.addEventListener("change", () => {
+            if (activeToolId) {
+                const connectionId = connectionSelector.value || null;
+                setToolConnection(activeToolId, connectionId);
+            }
         });
     }
 
