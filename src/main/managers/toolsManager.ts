@@ -2,31 +2,19 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { Tool } from "../../types";
-import { ToolHostManager } from "../toolHost/toolHostManager";
-import { ToolBoxAPI } from "../../api/toolboxAPI";
 
 /**
  * Manages tool plugins loaded from npm packages
- * Now integrated with Tool Host for secure, isolated execution
+ * Tools are HTML-first and loaded directly into webviews
  */
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
-    private toolHostManager: ToolHostManager;
 
-    constructor(toolsDirectory: string, api: ToolBoxAPI) {
+    constructor(toolsDirectory: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.toolHostManager = new ToolHostManager(api);
         this.ensureToolsDirectory();
-
-        // Forward tool host events
-        this.toolHostManager.on("tool:loaded", (tool) => this.emit("tool:loaded", tool));
-        this.toolHostManager.on("tool:unloaded", (tool) => this.emit("tool:unloaded", tool));
-        this.toolHostManager.on("tool:activated", (tool) => this.emit("tool:activated", tool));
-        this.toolHostManager.on("tool:deactivated", (tool) => this.emit("tool:deactivated", tool));
-        this.toolHostManager.on("tool:error", ({ tool, error }) => this.emit("tool:error", { tool, error }));
-        this.toolHostManager.on("tool:event", ({ tool, event }) => this.emit("tool:event", { tool, event }));
     }
 
     /**
@@ -40,7 +28,7 @@ export class ToolManager extends EventEmitter {
 
     /**
      * Load a tool from an npm package
-     * Now loads the tool into an isolated Tool Host process
+     * Loads tool metadata for webview rendering
      */
     async loadTool(packageName: string): Promise<Tool> {
         try {
@@ -60,13 +48,10 @@ export class ToolManager extends EventEmitter {
                 description: packageJson.description || "",
                 author: packageJson.author || "Unknown",
                 icon: packageJson.icon,
-                main: path.join(toolPath, packageJson.main || "index.js"),
             };
 
             this.tools.set(tool.id, tool);
-
-            // Load the tool into Tool Host for isolated execution
-            await this.toolHostManager.loadTool(tool);
+            this.emit("tool:loaded", tool);
 
             return tool;
         } catch (error) {
@@ -77,32 +62,12 @@ export class ToolManager extends EventEmitter {
     /**
      * Unload a tool
      */
-    async unloadTool(toolId: string): Promise<void> {
+    unloadTool(toolId: string): void {
         const tool = this.tools.get(toolId);
         if (tool) {
-            await this.toolHostManager.unloadTool(toolId);
             this.tools.delete(toolId);
+            this.emit("tool:unloaded", tool);
         }
-    }
-
-    /**
-     * Activate a tool (trigger its activation function)
-     */
-    async activateTool(toolId: string): Promise<void> {
-        if (!this.tools.has(toolId)) {
-            throw new Error(`Tool ${toolId} not found`);
-        }
-        await this.toolHostManager.activateTool(toolId);
-    }
-
-    /**
-     * Execute a command contributed by a tool
-     */
-    async executeCommand(toolId: string, command: string, ...args: unknown[]): Promise<unknown> {
-        if (!this.tools.has(toolId)) {
-            throw new Error(`Tool ${toolId} not found`);
-        }
-        return this.toolHostManager.executeCommand(toolId, command, ...args);
     }
 
     /**
@@ -140,12 +105,7 @@ export class ToolManager extends EventEmitter {
         }
     }
 
-    /**
-     * Dispose and cleanup all tool hosts
-     */
-    async dispose(): Promise<void> {
-        await this.toolHostManager.dispose();
-    }
+
 
     /**
      * Install a tool via npm
@@ -198,13 +158,30 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Get webview HTML for a tool
+     * Get webview HTML for a tool with injected context
      */
-    getToolWebviewHtml(packageName: string): string | undefined {
+    getToolWebviewHtml(packageName: string, connectionUrl?: string, accessToken?: string): string | undefined {
         const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
-        const webviewHtmlPath = path.join(toolPath, "ui", "webview.html");
-        if (fs.existsSync(webviewHtmlPath)) {
-            return fs.readFileSync(webviewHtmlPath, "utf-8");
+        const distHtmlPath = path.join(toolPath, "dist", "index.html");
+        
+        if (fs.existsSync(distHtmlPath)) {
+            let html = fs.readFileSync(distHtmlPath, "utf-8");
+            
+            // Inject connection context as a script tag before any other scripts
+            if (connectionUrl || accessToken) {
+                const contextScript = `
+                    <script>
+                        window.TOOLBOX_CONTEXT = {
+                            connectionUrl: ${connectionUrl ? `"${connectionUrl}"` : 'null'},
+                            accessToken: ${accessToken ? `"${accessToken}"` : 'null'},
+                            toolId: "${packageName}"
+                        };
+                    </script>
+                `;
+                html = html.replace('<head>', '<head>' + contextScript);
+            }
+            
+            return html;
         }
         return undefined;
     }

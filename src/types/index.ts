@@ -13,7 +13,6 @@ export interface Tool {
   author: string;
   icon?: string;
   settings?: ToolSettings;
-  main: string; // Entry point for the tool
 }
 
 /**
@@ -83,68 +82,10 @@ export interface ToolBoxEventPayload {
 }
 
 /**
- * Tool Host IPC Protocol
+ * Tool context provided to tools running in webviews
  */
-
-/**
- * Message types for Tool Host communication
- */
-export enum ToolHostMessageType {
-  // Requests from Tool Host to Main
-  REQUEST = 'request',
-  RESPONSE = 'response',
-  EVENT = 'event',
-  ERROR = 'error',
-  
-  // Tool lifecycle
-  ACTIVATE = 'activate',
-  DEACTIVATE = 'deactivate',
-  
-  // API calls
-  API_CALL = 'api:call',
-}
-
-/**
- * Tool Host IPC message structure
- */
-export interface ToolHostMessage {
-  type: ToolHostMessageType;
-  id: string; // Unique message ID for request/response correlation
-  toolId: string; // ID of the tool sending/receiving the message
-  method?: string; // API method being called
-  args?: unknown[]; // Arguments for the method
-  result?: unknown; // Result of the method call
-  error?: string; // Error message if any
-  timestamp: number;
-}
-
-/**
- * Tool Host context provided to each tool
- */
-export interface ToolHostContext {
+export interface ToolContext {
   toolId: string;
-  extensionPath: string;
-  globalState: ToolStateStorage;
-  workspaceState: ToolStateStorage;
-  subscriptions: { dispose(): void }[];
+  connectionUrl: string | null;
+  accessToken: string | null;
 }
-
-/**
- * Tool state storage interface
- */
-export interface ToolStateStorage {
-  get<T>(key: string): T | undefined;
-  get<T>(key: string, defaultValue: T): T;
-  update(key: string, value: unknown): Promise<void>;
-  keys(): readonly string[];
-}
-
-/**
- * Tool activation function signature
- */
-export type ToolActivationFunction = (context: ToolHostContext) => void | Promise<void>;
-
-/**
- * Tool deactivation function signature
- */
-export type ToolDeactivationFunction = () => void | Promise<void>;

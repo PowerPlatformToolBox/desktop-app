@@ -1,96 +1,127 @@
-# Example PowerPlatform Tool
+# PowerPlatform Example Tool
 
-This is an example tool that demonstrates the PowerPlatform ToolBox architecture with:
-
-- **Secure Tool Host**: Runs in an isolated process with structured IPC
-- **Contribution Points**: Commands, menus, and configuration declared in package.json
-- **ToolBox API**: Access to notifications, clipboard, file operations, and events
-- **State Management**: Persistent global and workspace state
-- **Webview UI**: Interactive user interface rendered in the ToolBox renderer
+A complete example tool demonstrating the HTML-first architecture with TypeScript for PowerPlatform ToolBox.
 
 ## Features
 
-### Commands
+- ✅ TypeScript with full type safety
+- ✅ HTML+CSS+JS architecture
+- ✅ Access to ToolBox API via `window.toolboxAPI`
+- ✅ Connection URL and access token handling
+- ✅ Event subscription and handling
+- ✅ Interactive UI with notifications, clipboard, and data display
 
-- `example.sayHello` - Shows a hello message
-- `example.showNotification` - Displays an example notification
-- `example.exportData` - Exports example data to a JSON file
-
-### Event Subscriptions
-
-- Listens to connection created events
-- Listens to settings updated events
-
-### User Interface
-
-The tool includes a webview-based UI (`ui/webview.html`) that provides:
-- Tool information dashboard
-- Command execution buttons
-- Event log viewer
-- Custom message input
-- Interactive controls for all tool features
-
-## Installation
-
-In the PowerPlatform ToolBox, use the Tools menu to install:
-
-```
-@powerplatform/example-tool
-```
-
-The tool will be automatically loaded and activated.
-
-## Project Structure
+## Structure
 
 ```
 example-tool/
-├── index.js          # Main tool implementation
-├── ui/
-│   └── webview.html  # Tool user interface
-├── package.json      # Tool manifest with contribution points
-└── README.md         # This file
+├── src/
+│   ├── index.html      # Main UI
+│   ├── index.ts        # Tool logic (TypeScript)
+│   └── styles.css      # Styling
+├── dist/               # Compiled output (after build)
+│   ├── index.html
+│   ├── index.js
+│   ├── index.js.map
+│   └── styles.css
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
-## User Interface
+## Installation
 
-The tool includes a webview UI that displays in the ToolBox renderer:
+Install dependencies:
 
-- **Tool Information**: Shows tool metadata and status
-- **Available Commands**: Lists all registered commands with execute buttons
-- **Tool Actions**: Quick access buttons for common operations
-- **Event Log**: Real-time log of tool activities
-- **Custom Input**: Allows users to customize messages and actions
-
-The UI is rendered using standard HTML/CSS/JavaScript and communicates with the tool's backend through the ToolBox API.
-
-## Usage
-
-Once installed, the tool will automatically activate when:
-- Any of its commands are executed
-- The ToolBox starts (via `*` activation event)
+```bash
+npm install
+```
 
 ## Development
 
-To create your own tool based on this example:
+Build the tool:
 
-1. Copy this structure to a new directory
-2. Update `package.json` with your tool information
-3. Modify `index.js` to implement your tool logic
-4. Publish to npm with `npm publish`
+```bash
+npm run build
+```
 
-## Architecture
+Watch mode for development:
 
-This tool demonstrates the VS Code Extension Host-like architecture:
+```bash
+npm run watch
+```
 
-- **Isolated Execution**: Runs in a separate Node.js process
-- **Secure IPC**: Structured message protocol for communication
-- **API Injection**: `pptoolbox` module is injected at runtime
-- **Lifecycle Management**: `activate()` and `deactivate()` functions
+## Usage in ToolBox
 
-## API Reference
+1. Install the tool in ToolBox:
+   ```javascript
+   await window.toolboxAPI.installTool('@powerplatform/example-tool');
+   ```
 
-See the main ToolBox documentation for complete API reference:
-- `pptoolbox.commands` - Command registration and execution
-- `pptoolbox.window` - UI interactions (messages, clipboard)
-- `pptoolbox.workspace` - File operations
-- `pptoolbox.events` - Event subscription and emission
+2. Load the tool:
+   ```javascript
+   await window.toolboxAPI.loadTool('@powerplatform/example-tool');
+   ```
+
+3. Get the tool's HTML with connection context:
+   ```javascript
+   const html = await window.toolboxAPI.getToolWebviewHtml(
+     '@powerplatform/example-tool',
+     'https://your-env.crm.dynamics.com',
+     'your-access-token'
+   );
+   ```
+
+4. Render the HTML in a webview.
+
+## API Usage
+
+The tool demonstrates various ToolBox API features:
+
+### Getting Connection Context
+
+```typescript
+const context = await window.toolboxAPI.getToolContext();
+console.log(context.connectionUrl);
+console.log(context.accessToken);
+```
+
+### Showing Notifications
+
+```typescript
+await window.toolboxAPI.showNotification({
+  title: 'Success',
+  body: 'Operation completed',
+  type: 'success'
+});
+```
+
+### Subscribing to Events
+
+```typescript
+window.toolboxAPI.onToolboxEvent((event, payload) => {
+  console.log('Event:', payload.event);
+  console.log('Data:', payload.data);
+});
+```
+
+### Accessing Connections
+
+```typescript
+const connections = await window.toolboxAPI.getConnections();
+const active = await window.toolboxAPI.getActiveConnection();
+```
+
+## Type Definitions
+
+This tool uses `@powerplatform/pptoolbox-types` for full TypeScript support. The type definitions provide:
+
+- Full ToolBoxAPI interface
+- Event type definitions
+- Connection and Tool interfaces
+- Notification options
+- And more...
+
+## License
+
+MIT

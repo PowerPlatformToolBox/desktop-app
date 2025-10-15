@@ -24,11 +24,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getTool: (toolId: string) => ipcRenderer.invoke("get-tool", toolId),
     loadTool: (packageName: string) => ipcRenderer.invoke("load-tool", packageName),
     unloadTool: (toolId: string) => ipcRenderer.invoke("unload-tool", toolId),
-    activateTool: (toolId: string) => ipcRenderer.invoke("activate-tool", toolId),
-    executeCommand: (toolId: string, command: string, ...args: unknown[]) => ipcRenderer.invoke("execute-command", toolId, command, ...args),
     installTool: (packageName: string) => ipcRenderer.invoke("install-tool", packageName),
     uninstallTool: (packageName: string, toolId: string) => ipcRenderer.invoke("uninstall-tool", packageName, toolId),
-    getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
+    getToolWebviewHtml: (packageName: string, connectionUrl?: string, accessToken?: string) => ipcRenderer.invoke("get-tool-webview-html", packageName, connectionUrl, accessToken),
+    getToolContext: () => ipcRenderer.invoke("get-tool-context"),
 
     // Tool Settings
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),

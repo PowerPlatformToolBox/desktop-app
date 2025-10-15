@@ -16,7 +16,7 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.api = new ToolBoxAPI();
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), this.api);
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
 
         this.setupEventListeners();
@@ -149,16 +149,8 @@ class ToolBoxApp {
             return await this.toolManager.loadTool(packageName);
         });
 
-        ipcMain.handle("unload-tool", async (_, toolId) => {
-            await this.toolManager.unloadTool(toolId);
-        });
-
-        ipcMain.handle("activate-tool", async (_, toolId) => {
-            await this.toolManager.activateTool(toolId);
-        });
-
-        ipcMain.handle("execute-command", async (_, toolId, command, ...args) => {
-            return await this.toolManager.executeCommand(toolId, command, ...args);
+        ipcMain.handle("unload-tool", (_, toolId) => {
+            this.toolManager.unloadTool(toolId);
         });
 
         ipcMain.handle("install-tool", async (_, packageName) => {
@@ -169,13 +161,22 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
-            await this.toolManager.unloadTool(toolId);
+            this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
         });
 
-        ipcMain.handle("get-tool-webview-html", (_, packageName) => {
-            return this.toolManager.getToolWebviewHtml(packageName);
+        ipcMain.handle("get-tool-webview-html", (_, packageName, connectionUrl, accessToken) => {
+            return this.toolManager.getToolWebviewHtml(packageName, connectionUrl, accessToken);
+        });
+
+        ipcMain.handle("get-tool-context", async () => {
+            const activeConnection = this.settingsManager.getActiveConnection();
+            return {
+                toolId: null,
+                connectionUrl: activeConnection?.url || null,
+                accessToken: null, // TODO: Implement token retrieval
+            };
         });
 
         // Tool settings handlers
@@ -418,8 +419,6 @@ class ToolBoxApp {
         app.on("before-quit", () => {
             // Clean up update checks
             this.autoUpdateManager.disableAutoUpdateChecks();
-            // Clean up tool hosts
-            this.toolManager.dispose();
         });
     }
 }
