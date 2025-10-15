@@ -38,14 +38,13 @@
             <!-- Tool Panel (for launched tools) -->
             <div id="tool-panel" class="tool-panel" style="display: none;">
                 <div class="tool-panel-header">
-                    <div class="tool-panel-title">
-                        <span class="tool-panel-icon">🔧</span>
-                        <span id="tool-panel-name">Tool Name</span>
+                    <div class="tool-tabs" id="tool-tabs">
+                        <!-- Tabs will be dynamically added here -->
                     </div>
-                    <button class="btn-icon" id="close-tool-panel" title="Close tool">✕</button>
+                    <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
                 </div>
-                <div class="tool-panel-content">
-                    <webview id="tool-webview" style="width: 100%; height: 100%;"></webview>
+                <div class="tool-panel-content" id="tool-panel-content">
+                    <!-- Tool webviews will be dynamically added here -->
                 </div>
             </div>
 

@@ -701,30 +701,104 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 24px;
     background: var(--sidebar-bg);
     border-bottom: 1px solid var(--border-color);
+    height: 40px;
+    min-height: 40px;
 }
 
-.tool-panel-title {
+.tool-tabs {
+    display: flex;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 100%;
+}
+
+.tool-tabs::-webkit-scrollbar {
+    height: 0;
+}
+
+.tool-tab {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 18px;
-    font-weight: 600;
+    gap: 8px;
+    padding: 0 12px;
+    height: 100%;
+    border-right: 1px solid var(--border-color);
+    background: var(--secondary-color);
+    color: var(--text-color);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+    min-width: 120px;
+    max-width: 200px;
 }
 
-.tool-panel-icon {
-    font-size: 24px;
+.tool-tab:hover {
+    background: var(--bg-color);
+}
+
+.tool-tab.active {
+    background: var(--bg-color);
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.tool-tab-icon {
+    font-size: 16px;
+}
+
+.tool-tab-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+.tool-tab-close {
+    background: none;
+    border: none;
+    color: #8a8886;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 16px;
+    line-height: 1;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.tool-tab:hover .tool-tab-close {
+    opacity: 1;
+}
+
+.tool-tab-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
 }
 
 .tool-panel-content {
     flex: 1;
-    overflow: hidden;
     position: relative;
+    overflow: hidden;
 }
 
-.tool-panel-content webview {
+.tool-webview-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+}
+
+.tool-webview-container.active {
+    display: block;
+}
+
+.tool-webview-container webview {
     width: 100%;
     height: 100%;
     border: none;

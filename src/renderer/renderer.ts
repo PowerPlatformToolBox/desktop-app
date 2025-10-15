@@ -1,6 +1,17 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="types.d.ts" />
 
+// Tab management for multiple tools
+interface OpenTool {
+    id: string;
+    tool: any;
+    webviewContainer: HTMLElement;
+    webview: any;
+}
+
+const openTools = new Map<string, OpenTool>();
+let activeToolId: string | null = null;
+
 // Tools Management - Testing Only
 const mockTools = [
     {
@@ -266,6 +277,13 @@ async function uninstallTool(toolId: string) {
 async function launchTool(toolId: string) {
     try {
         console.log("Launching tool:", toolId);
+        
+        // If tool is already open, just switch to its tab
+        if (openTools.has(toolId)) {
+            switchToTool(toolId);
+            return;
+        }
+        
         // Load the tool
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
@@ -282,104 +300,129 @@ async function launchTool(toolId: string) {
 
         // Show tool panel
         const toolPanel = document.getElementById("tool-panel");
-        const toolPanelName = document.getElementById("tool-panel-name");
-        const toolWebview = document.getElementById("tool-webview") as any;
-
-        if (toolPanel && toolPanelName && toolWebview) {
+        if (toolPanel) {
             toolPanel.style.display = "flex";
-            toolPanelName.textContent = tool.name;
-
-            // Set webview src - in real implementation, this would load the tool's UI
-            // For mock tools, we'll create a simple welcome page
-            const toolHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        html, body { 
-                            height: 100%;
-                            margin: 0;
-                            padding: 0;
-                        }
-                        body { 
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                            padding: 40px; 
-                            background: #f5f5f5;
-                            box-sizing: border-box;
-                        }
-                        .tool-container {
-                            max-width: 800px;
-                            margin: 0 auto;
-                            background: white;
-                            padding: 30px;
-                            border-radius: 8px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }
-                        h1 { 
-                            color: #0078d4; 
-                            margin-top: 0;
-                        }
-                        .info { 
-                            background: #e7f3ff; 
-                            padding: 15px; 
-                            border-radius: 4px; 
-                            margin: 20px 0;
-                            border-left: 4px solid #0078d4;
-                        }
-                        .metadata {
-                            display: grid;
-                            grid-template-columns: 150px 1fr;
-                            gap: 10px;
-                            margin: 20px 0;
-                        }
-                        .metadata-label {
-                            font-weight: 600;
-                            color: #605e5c;
-                        }
-                        .metadata-value {
-                            color: #323130;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="tool-container">
-                        <h1>${tool.icon || "🔧"} ${tool.name}</h1>
-                        <p>${tool.description || "No description available"}</p>
-                        
-                        <div class="info">
-                            <strong>ℹ️ Tool Information</strong><br>
-                            This is a ${tool.id.includes("mock") ? "mock" : "real"} tool running in the PowerPlatform ToolBox.
-                        </div>
-                        
-                        <div class="metadata">
-                            <div class="metadata-label">Version:</div>
-                            <div class="metadata-value">${tool.version || "N/A"}</div>
-                            
-                            <div class="metadata-label">Author:</div>
-                            <div class="metadata-value">${tool.author || "Unknown"}</div>
-                            
-                            <div class="metadata-label">Tool ID:</div>
-                            <div class="metadata-value">${tool.id}</div>
-                        </div>
-                        
-                        <p style="margin-top: 30px; color: #605e5c; font-size: 14px;">
-                            In a production environment, this panel would load the tool's actual UI from its package.
-                            The tool would have access to the ToolBox API for connections, settings, and other features.
-                        </p>
-                    </div>
-                </body>
-                </html>
-            `;
-
-            // Use data URI to load content into webview
-            toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(toolHtml);
-
-            window.toolboxAPI.showNotification({
-                title: "Tool Launched",
-                body: `${tool.name} opened in panel`,
-                type: "success",
-            });
         }
+
+        // Create webview container for this tool
+        const toolPanelContent = document.getElementById("tool-panel-content");
+        if (!toolPanelContent) return;
+
+        const webviewContainer = document.createElement("div");
+        webviewContainer.className = "tool-webview-container";
+        webviewContainer.id = `tool-webview-${toolId}`;
+        
+        const toolWebview = document.createElement("webview") as any;
+        toolWebview.style.width = "100%";
+        toolWebview.style.height = "100%";
+        
+        // Set webview src - in real implementation, this would load the tool's UI
+        // For mock tools, we'll create a simple welcome page
+        const toolHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    html, body { 
+                        height: 100%;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    body { 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        padding: 40px; 
+                        background: #f5f5f5;
+                        box-sizing: border-box;
+                    }
+                    .tool-container {
+                        max-width: 800px;
+                        margin: 0 auto;
+                        background: white;
+                        padding: 30px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    }
+                    h1 { 
+                        color: #0078d4; 
+                        margin-top: 0;
+                    }
+                    .info { 
+                        background: #e7f3ff; 
+                        padding: 15px; 
+                        border-radius: 4px; 
+                        margin: 20px 0;
+                        border-left: 4px solid #0078d4;
+                    }
+                    .metadata {
+                        display: grid;
+                        grid-template-columns: 150px 1fr;
+                        gap: 10px;
+                        margin: 20px 0;
+                    }
+                    .metadata-label {
+                        font-weight: 600;
+                        color: #605e5c;
+                    }
+                    .metadata-value {
+                        color: #323130;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="tool-container">
+                    <h1>${tool.icon || "🔧"} ${tool.name}</h1>
+                    <p>${tool.description || "No description available"}</p>
+                    
+                    <div class="info">
+                        <strong>ℹ️ Tool Information</strong><br>
+                        This is a ${tool.id.includes("mock") ? "mock" : "real"} tool running in the PowerPlatform ToolBox.
+                    </div>
+                    
+                    <div class="metadata">
+                        <div class="metadata-label">Version:</div>
+                        <div class="metadata-value">${tool.version || "N/A"}</div>
+                        
+                        <div class="metadata-label">Author:</div>
+                        <div class="metadata-value">${tool.author || "Unknown"}</div>
+                        
+                        <div class="metadata-label">Tool ID:</div>
+                        <div class="metadata-value">${tool.id}</div>
+                    </div>
+                    
+                    <p style="margin-top: 30px; color: #605e5c; font-size: 14px;">
+                        In a production environment, this panel would load the tool's actual UI from its package.
+                        The tool would have access to the ToolBox API for connections, settings, and other features.
+                    </p>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // Use data URI to load content into webview
+        toolWebview.src = "data:text/html;charset=utf-8," + encodeURIComponent(toolHtml);
+        
+        webviewContainer.appendChild(toolWebview);
+        toolPanelContent.appendChild(webviewContainer);
+
+        // Store the open tool
+        openTools.set(toolId, {
+            id: toolId,
+            tool: tool,
+            webviewContainer: webviewContainer,
+            webview: toolWebview
+        });
+
+        // Create and add tab
+        createTab(toolId, tool);
+
+        // Switch to the new tab
+        switchToTool(toolId);
+
+        window.toolboxAPI.showNotification({
+            title: "Tool Launched",
+            body: `${tool.name} opened in new tab`,
+            type: "success",
+        });
 
         console.log("Tool launched successfully:", tool.name);
     } catch (error) {
@@ -390,6 +433,112 @@ async function launchTool(toolId: string) {
             type: "error",
         });
     }
+}
+
+function createTab(toolId: string, tool: any) {
+    const toolTabs = document.getElementById("tool-tabs");
+    if (!toolTabs) return;
+
+    const tab = document.createElement("div");
+    tab.className = "tool-tab";
+    tab.id = `tool-tab-${toolId}`;
+    tab.setAttribute("data-tool-id", toolId);
+
+    const icon = document.createElement("span");
+    icon.className = "tool-tab-icon";
+    icon.textContent = tool.icon || "🔧";
+
+    const name = document.createElement("span");
+    name.className = "tool-tab-name";
+    name.textContent = tool.name;
+    name.title = tool.name;
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "tool-tab-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close";
+    
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTool(toolId);
+    });
+
+    tab.addEventListener("click", () => {
+        switchToTool(toolId);
+    });
+
+    tab.appendChild(icon);
+    tab.appendChild(name);
+    tab.appendChild(closeBtn);
+    toolTabs.appendChild(tab);
+}
+
+function switchToTool(toolId: string) {
+    if (!openTools.has(toolId)) return;
+
+    // Update active tool ID
+    activeToolId = toolId;
+
+    // Update tab active states
+    document.querySelectorAll(".tool-tab").forEach(tab => {
+        tab.classList.remove("active");
+    });
+    const activeTab = document.getElementById(`tool-tab-${toolId}`);
+    if (activeTab) {
+        activeTab.classList.add("active");
+    }
+
+    // Update webview container visibility
+    document.querySelectorAll(".tool-webview-container").forEach(container => {
+        container.classList.remove("active");
+    });
+    const activeContainer = document.getElementById(`tool-webview-${toolId}`);
+    if (activeContainer) {
+        activeContainer.classList.add("active");
+    }
+}
+
+function closeTool(toolId: string) {
+    const openTool = openTools.get(toolId);
+    if (!openTool) return;
+
+    // Remove tab
+    const tab = document.getElementById(`tool-tab-${toolId}`);
+    if (tab) {
+        tab.remove();
+    }
+
+    // Remove webview container
+    openTool.webviewContainer.remove();
+
+    // Remove from open tools
+    openTools.delete(toolId);
+
+    // If this was the active tool, switch to another tool or close the panel
+    if (activeToolId === toolId) {
+        if (openTools.size > 0) {
+            // Switch to the last tool in the list
+            const lastToolId = Array.from(openTools.keys())[openTools.size - 1];
+            switchToTool(lastToolId);
+        } else {
+            // No more tools open, hide the tool panel
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+            }
+            activeToolId = null;
+            // Show tools view again
+            switchView("tools");
+        }
+    }
+}
+
+function closeAllTools() {
+    // Close all tools
+    const toolIds = Array.from(openTools.keys());
+    toolIds.forEach(toolId => {
+        closeTool(toolId);
+    });
 }
 
 async function toolSettings(toolId: string) {
@@ -857,16 +1006,11 @@ async function init() {
         });
     });
 
-    // Tool panel close button
-    const closeToolPanel = document.getElementById("close-tool-panel");
-    if (closeToolPanel) {
-        closeToolPanel.addEventListener("click", () => {
-            const toolPanel = document.getElementById("tool-panel");
-            if (toolPanel) {
-                toolPanel.style.display = "none";
-            }
-            // Show tools view again
-            switchView("tools");
+    // Tool panel close all button
+    const closeAllToolsBtn = document.getElementById("close-all-tools");
+    if (closeAllToolsBtn) {
+        closeAllToolsBtn.addEventListener("click", () => {
+            closeAllTools();
         });
     }
 
