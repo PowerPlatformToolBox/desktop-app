@@ -16,6 +16,33 @@ let activeToolId: string | null = null;
 let secondaryToolId: string | null = null;
 let isSplitView = false;
 
+// Set up message handler for iframe communication
+window.addEventListener('message', async (event) => {
+    // Handle toolboxAPI calls from iframes
+    if (event.data.type === 'TOOLBOX_API_CALL') {
+        const { messageId, method, args } = event.data;
+        
+        try {
+            // Call the actual toolboxAPI method
+            const result = await (window.toolboxAPI as any)[method](...(args || []));
+            
+            // Send response back to iframe
+            event.source?.postMessage({
+                type: 'TOOLBOX_API_RESPONSE',
+                messageId,
+                result
+            }, '*' as any);
+        } catch (error) {
+            // Send error back to iframe
+            event.source?.postMessage({
+                type: 'TOOLBOX_API_RESPONSE',
+                messageId,
+                error: (error as Error).message
+            }, '*' as any);
+        }
+    }
+});
+
 // Tools Management - Testing Only
 const mockTools = [
     {
@@ -366,25 +393,7 @@ async function launchTool(toolId: string) {
         webviewContainer.className = "tool-webview-container";
         webviewContainer.id = `tool-webview-${toolId}`;
 
-        const toolIframe = document.createElement("iframe");
-        toolIframe.style.width = "100%";
-        toolIframe.style.height = "100%";
-        toolIframe.style.border = "none";
-        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
-        
-        // Set up event listener to post context to iframe after it loads
-        toolIframe.addEventListener('load', () => {
-            if (toolIframe.contentWindow) {
-                // Post the TOOLBOX_CONTEXT to the iframe
-                toolIframe.contentWindow.postMessage({
-                    type: 'TOOLBOX_CONTEXT',
-                    data: toolContext
-                }, '*');
-            }
-        });
-
-        // Set iframe src - in real implementation, this would load the tool's UI
-        // For mock tools, we'll create a simple welcome page
+        // Default HTML for tools that fail to load
         const toolHtml = `
             <!DOCTYPE html>
             <html>
@@ -457,9 +466,195 @@ async function launchTool(toolId: string) {
             </html>
         `;
 
+        const toolIframe = document.createElement("iframe");
+        toolIframe.style.width = "100%";
+        toolIframe.style.height = "100%";
+        toolIframe.style.border = "none";
+        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        
+        // Inject the toolboxAPI bridge script into the tool HTML
+        let injectedHtml = webviewHtml || toolHtml;
+        
+        // Create the bridge script that will expose toolboxAPI in the iframe
+        const bridgeScript = `
+        <script>
+        (function() {
+            // Generate unique IDs for IPC messages
+            let messageIdCounter = 0;
+            function generateMessageId() {
+                return 'toolbox-api-' + Date.now() + '-' + messageIdCounter++;
+            }
+
+            // Store pending promises for IPC calls
+            const pendingCalls = new Map();
+
+            // Listen for responses from parent window
+            window.addEventListener('message', function(event) {
+                const data = event.data;
+                if (data.type === 'TOOLBOX_API_RESPONSE') {
+                    const pending = pendingCalls.get(data.messageId);
+                    if (pending) {
+                        if (data.error) {
+                            pending.reject(new Error(data.error));
+                        } else {
+                            pending.resolve(data.result);
+                        }
+                        pendingCalls.delete(data.messageId);
+                    }
+                }
+            });
+
+            // Call a toolboxAPI method in the parent window via postMessage
+            function callParentAPI(method) {
+                var args = Array.prototype.slice.call(arguments, 1);
+                return new Promise(function(resolve, reject) {
+                    const messageId = generateMessageId();
+                    
+                    // Store the promise callbacks
+                    pendingCalls.set(messageId, { resolve: resolve, reject: reject });
+                    
+                    // Send message to parent window
+                    window.parent.postMessage({
+                        type: 'TOOLBOX_API_CALL',
+                        messageId: messageId,
+                        method: method,
+                        args: args
+                    }, '*');
+                    
+                    // Set a timeout to reject if no response
+                    setTimeout(function() {
+                        if (pendingCalls.has(messageId)) {
+                            pendingCalls.delete(messageId);
+                            reject(new Error('API call timeout: ' + method));
+                        }
+                    }, 30000); // 30 second timeout
+                });
+            }
+
+            // Create the toolboxAPI proxy object
+            window.toolboxAPI = {
+                // Settings
+                getUserSettings: function() { return callParentAPI('getUserSettings'); },
+                updateUserSettings: function(settings) { return callParentAPI('updateUserSettings', settings); },
+                getSetting: function(key) { return callParentAPI('getSetting', key); },
+                setSetting: function(key, value) { return callParentAPI('setSetting', key, value); },
+
+                // Connections
+                addConnection: function(connection) { return callParentAPI('addConnection', connection); },
+                updateConnection: function(id, updates) { return callParentAPI('updateConnection', id, updates); },
+                deleteConnection: function(id) { return callParentAPI('deleteConnection', id); },
+                getConnections: function() { return callParentAPI('getConnections'); },
+                setActiveConnection: function(id) { return callParentAPI('setActiveConnection', id); },
+                getActiveConnection: function() { return callParentAPI('getActiveConnection'); },
+                disconnectConnection: function() { return callParentAPI('disconnectConnection'); },
+
+                // Tools
+                getAllTools: function() { return callParentAPI('getAllTools'); },
+                getTool: function(toolId) { return callParentAPI('getTool', toolId); },
+                loadTool: function(packageName) { return callParentAPI('loadTool', packageName); },
+                unloadTool: function(toolId) { return callParentAPI('unloadTool', toolId); },
+                installTool: function(packageName) { return callParentAPI('installTool', packageName); },
+                uninstallTool: function(packageName, toolId) { return callParentAPI('uninstallTool', packageName, toolId); },
+                getToolWebviewHtml: function(packageName, connectionUrl, accessToken) { 
+                    return callParentAPI('getToolWebviewHtml', packageName, connectionUrl, accessToken); 
+                },
+                getToolContext: function() { 
+                    // Return the stored context that was injected via postMessage
+                    return Promise.resolve(window.TOOLBOX_CONTEXT || { toolId: null, connectionUrl: null, accessToken: null });
+                },
+
+                // Tool Settings
+                getToolSettings: function(toolId) { return callParentAPI('getToolSettings', toolId); },
+                updateToolSettings: function(toolId, settings) { return callParentAPI('updateToolSettings', toolId, settings); },
+
+                // Notifications
+                showNotification: function(options) { return callParentAPI('showNotification', options); },
+
+                // Clipboard
+                copyToClipboard: function(text) { return callParentAPI('copyToClipboard', text); },
+
+                // File operations
+                saveFile: function(defaultPath, content) { return callParentAPI('saveFile', defaultPath, content); },
+
+                // Events
+                getEventHistory: function(limit) { return callParentAPI('getEventHistory', limit); },
+                onToolboxEvent: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'TOOLBOX_EVENT') {
+                            callback(event, event.data.payload);
+                        }
+                    });
+                },
+                removeToolboxEventListener: function(callback) {
+                    // Cleanup would go here
+                },
+
+                // Auto-update
+                checkForUpdates: function() { return callParentAPI('checkForUpdates'); },
+                downloadUpdate: function() { return callParentAPI('downloadUpdate'); },
+                quitAndInstall: function() { return callParentAPI('quitAndInstall'); },
+                getAppVersion: function() { return callParentAPI('getAppVersion'); },
+                onUpdateChecking: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_CHECKING') callback();
+                    });
+                },
+                onUpdateAvailable: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_AVAILABLE') callback(event.data.info);
+                    });
+                },
+                onUpdateNotAvailable: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_NOT_AVAILABLE') callback();
+                    });
+                },
+                onUpdateDownloadProgress: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_DOWNLOAD_PROGRESS') callback(event.data.progress);
+                    });
+                },
+                onUpdateDownloaded: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_DOWNLOADED') callback(event.data.info);
+                    });
+                },
+                onUpdateError: function(callback) {
+                    window.addEventListener('message', function(event) {
+                        if (event.data.type === 'UPDATE_ERROR') callback(event.data.error);
+                    });
+                }
+            };
+
+            console.log('ToolBox API bridge loaded in webview');
+        })();
+        </script>
+        `;
+        
+        // Inject the bridge script before the closing </head> tag or at the beginning of <body>
+        if (injectedHtml.includes('</head>')) {
+            injectedHtml = injectedHtml.replace('</head>', bridgeScript + '</head>');
+        } else if (injectedHtml.includes('<body>')) {
+            injectedHtml = injectedHtml.replace('<body>', '<body>' + bridgeScript);
+        } else {
+            // If no head or body tags, prepend the script
+            injectedHtml = bridgeScript + injectedHtml;
+        }
+        
+        // Set up event listener to post context to iframe after it loads
+        toolIframe.addEventListener('load', () => {
+            if (toolIframe.contentWindow) {
+                // Post the TOOLBOX_CONTEXT to the iframe
+                toolIframe.contentWindow.postMessage({
+                    type: 'TOOLBOX_CONTEXT',
+                    data: toolContext
+                }, '*');
+            }
+        });
+
         // Use srcdoc to load content into iframe
         // This allows the HTML to execute properly and fire DOMContentLoaded
-        toolIframe.srcdoc = webviewHtml || toolHtml;
+        toolIframe.srcdoc = injectedHtml;
 
         webviewContainer.appendChild(toolIframe);
         toolPanelContent.appendChild(webviewContainer);
