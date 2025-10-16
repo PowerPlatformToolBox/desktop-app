@@ -166,7 +166,7 @@ class ToolBoxApp {
         // Test connection handler
         ipcMain.handle("test-connection", async (_, connection) => {
             try {
-                await this.authManager.testConnection(connection);
+                await this.authManager.testConnection(connection, this.mainWindow || undefined);
                 return { success: true };
             } catch (error) {
                 return { success: false, error: (error as Error).message };

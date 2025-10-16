@@ -192,7 +192,7 @@ export class AuthManager {
   /**
    * Test connection by verifying the URL and attempting a simple authenticated request
    */
-  async testConnection(connection: DataverseConnection): Promise<boolean> {
+  async testConnection(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<boolean> {
     try {
       // First, validate the URL format
       if (!connection.url || !connection.url.startsWith('https://')) {
@@ -204,7 +204,7 @@ export class AuthManager {
 
       switch (connection.authenticationType) {
         case 'interactive': {
-          const interactiveResult = await this.authenticateInteractive(connection);
+          const interactiveResult = await this.authenticateInteractive(connection, parentWindow);
           accessToken = interactiveResult.accessToken;
           break;
         }
