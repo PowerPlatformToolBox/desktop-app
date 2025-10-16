@@ -115,6 +115,7 @@ const toolLibrary = [
 
 // Navigation - No longer needed since we removed the main view switching
 // Tools are now managed via the sidebar only
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function switchView(viewName: string) {
     // Deprecated - keeping for backwards compatibility but no longer used
     console.log("switchView is deprecated:", viewName);
@@ -244,6 +245,7 @@ async function installTool() {
     loadToolLibrary();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function uninstallTool(toolId: string) {
     if (!confirm("Are you sure you want to uninstall this tool?")) {
         return;
@@ -974,6 +976,7 @@ function setupResizeHandle() {
     });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function toolSettings(toolId: string) {
     try {
         console.log("Opening settings for tool:", toolId);
@@ -1296,6 +1299,7 @@ function applyTheme(theme: string) {
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
@@ -1358,6 +1362,7 @@ function updateProgress(percent: number) {
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function checkForUpdates() {
     hideUpdateStatus();
     hideUpdateProgress();
