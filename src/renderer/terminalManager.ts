@@ -22,14 +22,9 @@ class TerminalManager {
     private terminalHeight: number = 300;
 
     async initialize(): Promise<void> {
-        // Dynamically import xterm
-        const { Terminal } = await import('@xterm/xterm');
-        const { FitAddon } = await import('@xterm/addon-fit');
+        // xterm libraries are loaded via script tags in index.html
+        // They are available as window.Terminal and window.FitAddon
         
-        // Store for later use
-        (window as any).Terminal = Terminal;
-        (window as any).FitAddon = FitAddon;
-
         this.setupEventListeners();
         this.setupTerminalListeners();
         await this.loadShells();
