@@ -1,0 +1,42 @@
+[
+    {
+        "id": "dvdt-erd-generator",
+        "name": "ERD Generator",
+        "description": "Generate Entity Relationship Diagrams for Dataverse",
+        "author": "Power Maverick",
+        "category": "Data Management",
+        "readmeUrl": "https://raw.githubusercontent.com/Power-Maverick/dvdt-erd-generator/main/README.md"
+    },
+    {
+        "id": "pptb-example-tool-test",
+        "name": "PowerPlatform Example Tool",
+        "description": "An example tool for PowerPlatform",
+        "author": "PowerPlatform ToolBox",
+        "category": "Development",
+        "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/example-tool/main/README.md"
+    },
+    {
+        "id": "@powerplatform/plugin-tracer",
+        "name": "Plugin Trace Viewer",
+        "description": "View and analyze plugin traces",
+        "author": "PowerPlatform ToolBox",
+        "category": "Development",
+        "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/plugin-tracer/main/README.md"
+    },
+    {
+        "id": "@powerplatform/bulk-data-tools",
+        "name": "Bulk Data Tools",
+        "description": "Import and export data in bulk",
+        "author": "PowerPlatform ToolBox",
+        "category": "Data Management",
+        "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/bulk-data-tools/main/README.md"
+    },
+    {
+        "id": "@powerplatform/security-analyzer",
+        "name": "Security Analyzer",
+        "description": "Analyze security roles and permissions",
+        "author": "PowerPlatform ToolBox",
+        "category": "Security",
+        "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/security-analyzer/main/README.md"
+    }
+]
