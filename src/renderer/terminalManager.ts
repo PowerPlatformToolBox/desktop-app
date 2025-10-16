@@ -20,23 +20,8 @@ class TerminalManager {
     private isVisible: boolean = false;
     private resizing: boolean = false;
     private terminalHeight: number = 300;
-    private isAvailable: boolean = false;
 
     async initialize(): Promise<void> {
-        // Check if terminal functionality is available
-        try {
-            this.isAvailable = await window.toolboxAPI.isTerminalAvailable();
-        } catch (error) {
-            console.error('Failed to check terminal availability:', error);
-            this.isAvailable = false;
-        }
-
-        if (!this.isAvailable) {
-            console.warn('Terminal functionality is not available. Terminal features will be disabled.');
-            this.disableTerminalUI();
-            return;
-        }
-
         // Dynamically import xterm
         const { Terminal } = await import('@xterm/xterm');
         const { FitAddon } = await import('@xterm/addon-fit');
@@ -48,17 +33,6 @@ class TerminalManager {
         this.setupEventListeners();
         this.setupTerminalListeners();
         await this.loadShells();
-    }
-
-    private disableTerminalUI(): void {
-        // Hide terminal toggle button and show a message
-        const toggleBtn = document.getElementById('footer-terminal-toggle');
-        if (toggleBtn) {
-            toggleBtn.style.display = 'none';
-        }
-        
-        // Optionally show a message to the user
-        console.info('Terminal features are disabled. Run "npm run rebuild" to enable them.');
     }
 
     private setupEventListeners(): void {
@@ -137,12 +111,6 @@ class TerminalManager {
     }
 
     async createTerminal(options: any = {}): Promise<void> {
-        if (!this.isAvailable) {
-            console.error('Terminal functionality is not available');
-            alert('Terminal functionality is not available. Please run "npm run rebuild" and restart the app.');
-            return;
-        }
-
         try {
             const Terminal = (window as any).Terminal;
             const FitAddon = (window as any).FitAddon;

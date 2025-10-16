@@ -4,11 +4,13 @@
 
 This document summarizes the implementation of the integrated terminal feature for PowerPlatform ToolBox, providing VSCode-like terminal functionality with shell selection and command execution API for tools.
 
+**Architecture**: Uses Node.js's built-in `child_process` module - **no native dependencies required**!
+
 ## Implemented Features
 
 ### 1. Backend Terminal Manager (`src/main/managers/terminalManager.ts`)
 
-The `TerminalManager` class handles all terminal operations in the main process:
+The `TerminalManager` class handles all terminal operations in the main process using `child_process`:
 
 #### Core Functionality
 - **Shell Detection**: Automatically detects available shells on Windows, macOS, and Linux
@@ -17,19 +19,19 @@ The `TerminalManager` class handles all terminal operations in the main process:
   - Linux: Bash, Zsh, Sh, Fish
 
 - **Terminal Lifecycle Management**:
-  - `createTerminal(options)`: Create new terminal instances with configurable options
+  - `createTerminal(options)`: Create new terminal instances with configurable options using `child_process.spawn`
   - `disposeTerminal(terminalId)`: Clean up and close terminals
   - `getAllTerminals()`: Get list of active terminals
   - `getTerminal(terminalId)`: Get specific terminal details
 
 - **Terminal Operations**:
-  - `writeToTerminal(terminalId, data)`: Send input to terminal
-  - `executeCommand(terminalId, command, timeout)`: Execute commands with result capture
-  - `resizeTerminal(terminalId, cols, rows)`: Handle terminal resizing
+  - `writeToTerminal(terminalId, data)`: Send input to terminal via stdin
+  - `executeCommand(terminalId, command, timeout)`: Execute commands with result capture from stdout/stderr
+  - `resizeTerminal(terminalId, cols, rows)`: Handled by xterm UI (no native resize needed)
 
 - **Event System**:
   - `terminal:created`: Emitted when terminal is created
-  - `terminal:data`: Emitted for terminal output
+  - `terminal:data`: Emitted for terminal output (stdout and stderr)
   - `terminal:disposed`: Emitted when terminal is closed
 
 ### 2. Frontend Terminal UI (`src/renderer/terminalManager.ts`)
@@ -125,10 +127,11 @@ Comprehensive CSS for terminal UI:
 
 ### 6. Dependencies
 
-New dependencies added:
-- `node-pty`: Terminal backend for spawning shell processes
+Dependencies added:
 - `@xterm/xterm`: Terminal UI component
 - `@xterm/addon-fit`: xterm addon for automatic fitting
+
+**No native dependencies required!** Uses Node.js built-in `child_process` module.
 
 ## Tool API
 

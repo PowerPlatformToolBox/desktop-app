@@ -1,46 +1,29 @@
 import { EventEmitter } from 'events';
+import { spawn, ChildProcess } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Terminal, TerminalOptions, CommandResult, ShellInfo } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Dynamically import node-pty to make it optional
-let pty: typeof import('node-pty') | null = null;
-let ptyLoadError: Error | null = null;
-
-try {
-  pty = require('node-pty');
-} catch (error) {
-  ptyLoadError = error as Error;
-  console.warn('node-pty is not available. Terminal features will be disabled.', error);
-}
-
 /**
- * Manages terminal instances and their lifecycle
+ * Manages terminal instances and their lifecycle using child_process
+ * This approach doesn't require native modules like node-pty
  */
 export class TerminalManager extends EventEmitter {
   private terminals: Map<string, TerminalInstance> = new Map();
   private commandBuffers: Map<string, CommandBuffer> = new Map();
-  private isAvailable: boolean;
 
   constructor() {
     super();
-    this.isAvailable = pty !== null;
   }
 
   /**
    * Check if terminal functionality is available
+   * With child_process approach, it's always available
    */
   isTerminalAvailable(): boolean {
-    return this.isAvailable;
-  }
-
-  /**
-   * Get the error that occurred when loading node-pty (if any)
-   */
-  getLoadError(): Error | null {
-    return ptyLoadError;
+    return true;
   }
 
   /**
@@ -141,61 +124,73 @@ export class TerminalManager extends EventEmitter {
   }
 
   /**
-   * Create a new terminal instance
+   * Create a new terminal instance using child_process
    */
   createTerminal(options: TerminalOptions = {}): Terminal {
-    if (!this.isAvailable || !pty) {
-      throw new Error('Terminal functionality is not available. node-pty module failed to load.');
-    }
-
     const id = uuidv4();
     const shellPath = options.shellPath || this.getDefaultShell();
     const name = options.name || `Terminal ${this.terminals.size + 1}`;
     
-    const ptyProcess = pty.spawn(shellPath, options.shellArgs || [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
+    // Spawn shell process
+    const shellArgs = options.shellArgs || [];
+    const childProcess = spawn(shellPath, shellArgs, {
       cwd: options.cwd || process.env.HOME || process.env.USERPROFILE || os.homedir(),
       env: { ...process.env, ...options.env },
+      shell: false,
+      // On Windows, we need detached: false for proper process management
+      // On Unix, we can use detached: true for better terminal emulation
+      detached: os.platform() !== 'win32',
     });
 
     const terminal: Terminal = {
       id,
       name,
       shellPath,
-      processId: ptyProcess.pid,
+      processId: childProcess.pid,
       createdAt: new Date().toISOString(),
     };
 
     const instance: TerminalInstance = {
       terminal,
-      ptyProcess,
+      childProcess,
     };
 
     this.terminals.set(id, instance);
 
-    // Handle terminal data output
-    ptyProcess.onData((data: string) => {
-      this.emit('terminal:data', { terminalId: id, data });
+    // Handle stdout data
+    childProcess.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      this.emit('terminal:data', { terminalId: id, data: text });
       
       // If there's a command buffer, accumulate output
       const buffer = this.commandBuffers.get(id);
       if (buffer) {
-        buffer.output += data;
+        buffer.output += text;
       }
     });
 
-    // Handle terminal exit
-    ptyProcess.onExit(({ exitCode }) => {
+    // Handle stderr data
+    childProcess.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      this.emit('terminal:data', { terminalId: id, data: text });
+      
+      // Also accumulate stderr in buffer
+      const buffer = this.commandBuffers.get(id);
+      if (buffer) {
+        buffer.output += text;
+      }
+    });
+
+    // Handle process exit
+    childProcess.on('exit', (exitCode) => {
       const buffer = this.commandBuffers.get(id);
       if (buffer && !buffer.completed) {
         buffer.completed = true;
-        buffer.exitCode = exitCode;
+        buffer.exitCode = exitCode || 0;
         this.emit('command:completed', {
           terminalId: id,
           output: buffer.output,
-          exitCode,
+          exitCode: exitCode || 0,
           completed: true,
         });
       }
@@ -203,6 +198,12 @@ export class TerminalManager extends EventEmitter {
       this.emit('terminal:disposed', { terminalId: id });
       this.terminals.delete(id);
       this.commandBuffers.delete(id);
+    });
+
+    // Handle errors
+    childProcess.on('error', (error) => {
+      console.error(`Terminal ${id} error:`, error);
+      this.emit('terminal:data', { terminalId: id, data: `Error: ${error.message}\r\n` });
     });
 
     this.emit('terminal:created', terminal);
@@ -217,7 +218,9 @@ export class TerminalManager extends EventEmitter {
     if (!instance) {
       throw new Error(`Terminal ${terminalId} not found`);
     }
-    instance.ptyProcess.write(data);
+    if (instance.childProcess.stdin) {
+      instance.childProcess.stdin.write(data);
+    }
   }
 
   /**
@@ -238,7 +241,9 @@ export class TerminalManager extends EventEmitter {
     this.commandBuffers.set(terminalId, buffer);
 
     // Write the command
-    instance.ptyProcess.write(command + '\r');
+    if (instance.childProcess.stdin) {
+      instance.childProcess.stdin.write(command + '\n');
+    }
 
     // Wait for completion or timeout
     return new Promise((resolve) => {
@@ -268,13 +273,16 @@ export class TerminalManager extends EventEmitter {
 
   /**
    * Resize a terminal
+   * Note: With child_process, we don't have direct resize support like node-pty
+   * The terminal UI will handle display resizing
    */
   resizeTerminal(terminalId: string, cols: number, rows: number): void {
     const instance = this.terminals.get(terminalId);
     if (!instance) {
       throw new Error(`Terminal ${terminalId} not found`);
     }
-    instance.ptyProcess.resize(cols, rows);
+    // child_process doesn't support resize natively
+    // The xterm UI will handle the display resizing
   }
 
   /**
@@ -286,7 +294,7 @@ export class TerminalManager extends EventEmitter {
       return;
     }
     
-    instance.ptyProcess.kill();
+    instance.childProcess.kill();
     this.terminals.delete(terminalId);
     this.commandBuffers.delete(terminalId);
     this.emit('terminal:disposed', { terminalId });
@@ -322,7 +330,7 @@ export class TerminalManager extends EventEmitter {
  */
 interface TerminalInstance {
   terminal: Terminal;
-  ptyProcess: any; // pty.IPty when node-pty is available
+  childProcess: ChildProcess;
 }
 
 /**

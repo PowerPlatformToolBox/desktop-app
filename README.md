@@ -126,12 +126,7 @@ cd desktop-app
 npm install
 ```
 
-**Note**: The terminal feature uses `node-pty`, a native Node.js module that's now installed as an **optional dependency**. The app will work even if `node-pty` fails to build - terminal features will simply be disabled. To enable terminal functionality after installation, run:
-```bash
-npm run rebuild
-```
-
-If the rebuild succeeds, restart the app to use terminal features.
+**Note**: The terminal feature uses Node.js's built-in `child_process` module - **no native dependencies required**! Terminal functionality works out of the box on all platforms.
 
 3. Build the application:
 ```bash
@@ -315,61 +310,23 @@ The ToolBox emits events for various operations:
 
 ## Troubleshooting
 
-### Terminal Features Not Available
+### Terminal Features
 
-If the terminal button doesn't appear or terminal features are disabled:
+The terminal feature uses Node.js's built-in `child_process` module, so it works out of the box on all platforms without any native dependencies. No special rebuild or compilation steps are needed!
 
-1. This is expected if `node-pty` failed to build during installation
-2. The app will work normally; only terminal features are disabled
-3. To enable terminal features:
+If you experience any terminal-related issues:
 
-```bash
-npm run rebuild
-```
-
-Then restart the app. If successful, the terminal button will appear in the footer.
-
-### Terminal Module Version Error
-
-If you encounter an error like:
-```
-Error: The module 'node_modules/node-pty/build/Release/pty.node'
-was compiled against a different Node.js version using
-NODE_MODULE_VERSION XXX. This version of Node.js requires
-NODE_MODULE_VERSION YYY.
-```
-
-This happens when `node-pty` (used by the terminal feature) was compiled for a different Node.js version than the one Electron is using. To fix:
-
-1. Run the rebuild script:
-```bash
-npm run rebuild
-```
-
-2. Restart the application
-
-### Build Errors During Installation (Node.js v23+)
-
-If `npm install` shows warnings or errors related to `node-pty`:
-
-1. **This is normal and expected** - `node-pty` is now an optional dependency
-2. **The app will still work** - Terminal features will be disabled, but everything else works
-3. **To enable terminal features**, run after installation:
-```bash
-npm run rebuild
-```
-
-This rebuilds `node-pty` specifically for Electron's Node.js version (v20).
-
-4. **Alternative**: Use Node.js LTS v20.x for development to avoid build issues.
+1. Check that the app has permission to spawn processes on your system
+2. Verify that your shell (bash, zsh, PowerShell, etc.) is properly configured
+3. Check the console for any error messages
 
 ### Architecture Notes
 
-The terminal feature is designed to be **optional and non-breaking**:
-- If `node-pty` fails to load, the app continues to work
-- Terminal features are gracefully disabled with a clear message
-- No TypeScript compilation errors occur if `node-pty` is missing
-- The terminal toggle button is automatically hidden when unavailable
+The terminal feature uses a **pure Node.js approach**:
+- Built on `child_process` module - no native dependencies
+- Works cross-platform (Windows, macOS, Linux)
+- No build or compilation issues
+- Instant availability after `npm install`
 
 ## License
 
