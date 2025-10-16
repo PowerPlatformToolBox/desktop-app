@@ -1162,6 +1162,9 @@ async function connectToConnection(id: string) {
             body: (error as Error).message,
             type: "error",
         });
+        // Reload sidebar to reset button state
+        await loadSidebarConnections();
+        throw error; // Re-throw to let caller handle it
     }
 }
 
@@ -1415,6 +1418,7 @@ function updateAuthFieldsVisibility() {
     const clientSecretFields = document.getElementById("client-secret-fields");
     const usernamePasswordFields = document.getElementById("username-password-fields");
     const optionalClientIdField = document.getElementById("optional-client-id-field");
+    const testConnectionBtn = document.getElementById("test-connection-btn");
 
     if (!authTypeSelect) return;
 
@@ -1428,11 +1432,15 @@ function updateAuthFieldsVisibility() {
     // Show relevant fields based on auth type
     if (authType === "clientSecret") {
         if (clientSecretFields) clientSecretFields.style.display = "block";
+        if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
     } else if (authType === "usernamePassword") {
         if (usernamePasswordFields) usernamePasswordFields.style.display = "block";
         if (optionalClientIdField) optionalClientIdField.style.display = "block";
+        if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
     } else if (authType === "interactive") {
         if (optionalClientIdField) optionalClientIdField.style.display = "block";
+        // Hide test connection button for interactive auth
+        if (testConnectionBtn) testConnectionBtn.style.display = "none";
     }
 }
 
@@ -1622,7 +1630,47 @@ function closeModal(modalId: string) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove("active");
+        
+        // Reset add-connection-modal when closed
+        if (modalId === "add-connection-modal") {
+            resetConnectionModal();
+        }
     }
+}
+
+function resetConnectionModal() {
+    // Reset all form fields
+    const nameInput = document.getElementById("connection-name") as HTMLInputElement;
+    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
+    const environmentSelect = document.getElementById("connection-environment") as HTMLSelectElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
+    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
+    const testBtn = document.getElementById("test-connection-btn") as HTMLButtonElement;
+
+    if (nameInput) nameInput.value = "";
+    if (urlInput) urlInput.value = "";
+    if (environmentSelect) environmentSelect.value = "Dev";
+    if (authTypeSelect) authTypeSelect.value = "interactive";
+    if (clientIdInput) clientIdInput.value = "";
+    if (clientSecretInput) clientSecretInput.value = "";
+    if (tenantIdInput) tenantIdInput.value = "";
+    if (usernameInput) usernameInput.value = "";
+    if (passwordInput) passwordInput.value = "";
+    if (optionalClientIdInput) optionalClientIdInput.value = "";
+    
+    // Reset test button state
+    if (testBtn) {
+        testBtn.disabled = false;
+        testBtn.textContent = "Test Connection";
+    }
+
+    // Reset field visibility
+    updateAuthFieldsVisibility();
 }
 
 // Activity Bar and Sidebar Management
@@ -1795,13 +1843,15 @@ async function loadSidebarConnections() {
                     <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                 </div>
                 <div class="connection-item-url-vscode">${conn.url}</div>
-                <div class="connection-item-actions-vscode">
-                    ${
-                        conn.isActive
-                            ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
-                            : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                    }
-                    <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        ${
+                            conn.isActive
+                                ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
+                                : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                        }
+                    </div>
+                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">🗑️</button>
                 </div>
             </div>
         `,
