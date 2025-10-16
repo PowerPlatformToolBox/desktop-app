@@ -1308,7 +1308,6 @@ async function addConnection() {
 }
 
 async function testConnection() {
-    const nameInput = document.getElementById("connection-name") as HTMLInputElement;
     const urlInput = document.getElementById("connection-url") as HTMLInputElement;
     const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
     const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;

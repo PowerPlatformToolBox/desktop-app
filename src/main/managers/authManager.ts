@@ -169,18 +169,21 @@ export class AuthManager {
       let accessToken: string;
 
       switch (connection.authenticationType) {
-        case 'interactive':
+        case 'interactive': {
           const interactiveResult = await this.authenticateInteractive(connection);
           accessToken = interactiveResult.accessToken;
           break;
-        case 'clientSecret':
+        }
+        case 'clientSecret': {
           const clientSecretResult = await this.authenticateClientSecret(connection);
           accessToken = clientSecretResult.accessToken;
           break;
-        case 'usernamePassword':
+        }
+        case 'usernamePassword': {
           const passwordResult = await this.authenticateUsernamePassword(connection);
           accessToken = passwordResult.accessToken;
           break;
+        }
         default:
           throw new Error('Invalid authentication type');
       }
