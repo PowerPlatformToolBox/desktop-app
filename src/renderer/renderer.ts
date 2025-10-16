@@ -17,62 +17,37 @@ let secondaryToolId: string | null = null;
 let isSplitView = false;
 
 // Set up message handler for iframe communication
-window.addEventListener('message', async (event) => {
+window.addEventListener("message", async (event) => {
     // Handle toolboxAPI calls from iframes
-    if (event.data.type === 'TOOLBOX_API_CALL') {
+    if (event.data.type === "TOOLBOX_API_CALL") {
         const { messageId, method, args } = event.data;
-        
+
         try {
             // Call the actual toolboxAPI method
             const result = await (window.toolboxAPI as any)[method](...(args || []));
-            
+
             // Send response back to iframe
-            event.source?.postMessage({
-                type: 'TOOLBOX_API_RESPONSE',
-                messageId,
-                result
-            }, '*' as any);
+            event.source?.postMessage(
+                {
+                    type: "TOOLBOX_API_RESPONSE",
+                    messageId,
+                    result,
+                },
+                "*" as any,
+            );
         } catch (error) {
             // Send error back to iframe
-            event.source?.postMessage({
-                type: 'TOOLBOX_API_RESPONSE',
-                messageId,
-                error: (error as Error).message
-            }, '*' as any);
+            event.source?.postMessage(
+                {
+                    type: "TOOLBOX_API_RESPONSE",
+                    messageId,
+                    error: (error as Error).message,
+                },
+                "*" as any,
+            );
         }
     }
 });
-
-// Tools Management - Testing Only
-const mockTools = [
-    {
-        id: "mock-entity-editor",
-        name: "Entity Editor (Mock)",
-        description: "Edit Dataverse entities and records - Test Tool",
-        version: "1.0.0",
-        author: "PowerPlatform ToolBox",
-        icon: "📝",
-        main: "index.js",
-    },
-    {
-        id: "mock-solution-manager",
-        name: "Solution Manager (Mock)",
-        description: "Manage and deploy solutions - Test Tool",
-        version: "1.2.3",
-        author: "PowerPlatform ToolBox",
-        icon: "📦",
-        main: "index.js",
-    },
-    {
-        id: "mock-plugin-tracer",
-        name: "Plugin Trace Viewer (Mock)",
-        description: "View and analyze plugin traces - Test Tool",
-        version: "2.0.1",
-        author: "PowerPlatform ToolBox",
-        icon: "🔍",
-        main: "index.js",
-    },
-];
 
 // Tool library with predefined tools
 const toolLibrary = [
@@ -141,8 +116,7 @@ async function updateFooterConnection() {
     if (!footerConnectionName) return;
 
     try {
-        const connections = await window.toolboxAPI.getConnections();
-        const activeConn = connections.find((conn: any) => conn.isActive);
+        const activeConn = await window.toolboxAPI.getActiveConnection();
 
         if (activeConn) {
             footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
@@ -299,7 +273,7 @@ async function launchTool(toolId: string) {
 
         // Get tool HTML without context injection (to avoid CSP issues)
         const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
-        
+
         // Get tool context separately for postMessage
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
@@ -401,35 +375,38 @@ async function launchTool(toolId: string) {
         toolIframe.style.height = "100%";
         toolIframe.style.border = "none";
         toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
-        
+
         // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
-        
+
         // Get the absolute path to the bridge script
         // The main renderer runs from dist/renderer/, so we use that as base
-        const bridgePath = window.location.href.replace(/[^/]*$/, 'toolboxAPIBridge.js');
+        const bridgePath = window.location.href.replace(/[^/]*$/, "toolboxAPIBridge.js");
         const bridgeScriptTag = `<script src="${bridgePath}"></script>`;
-        
+
         // Inject the script tag before the closing </head> tag or at the beginning of <body>
-        if (injectedHtml.includes('</head>')) {
-            injectedHtml = injectedHtml.replace('</head>', bridgeScriptTag + '</head>');
-        } else if (injectedHtml.includes('<body>')) {
-            injectedHtml = injectedHtml.replace('<body>', '<body>' + bridgeScriptTag);
+        if (injectedHtml.includes("</head>")) {
+            injectedHtml = injectedHtml.replace("</head>", bridgeScriptTag + "</head>");
+        } else if (injectedHtml.includes("<body>")) {
+            injectedHtml = injectedHtml.replace("<body>", "<body>" + bridgeScriptTag);
         } else {
             // If no head or body tags, prepend the script
             injectedHtml = bridgeScriptTag + injectedHtml;
         }
-        
+
         // Set up event listener to post context after iframe loads
-        toolIframe.addEventListener('load', () => {
+        toolIframe.addEventListener("load", () => {
             if (toolIframe.contentWindow) {
                 // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
                 setTimeout(() => {
                     if (toolIframe.contentWindow) {
-                        toolIframe.contentWindow.postMessage({
-                            type: 'TOOLBOX_CONTEXT',
-                            data: toolContext
-                        }, '*');
+                        toolIframe.contentWindow.postMessage(
+                            {
+                                type: "TOOLBOX_CONTEXT",
+                                data: toolContext,
+                            },
+                            "*",
+                        );
                     }
                 }, 100);
             }
@@ -859,7 +836,7 @@ function showHomePage() {
     if (toolPanel) {
         toolPanel.style.display = "none";
     }
-    
+
     // Show home view
     const homeView = document.getElementById("home-view");
     if (homeView) {
@@ -1274,7 +1251,7 @@ async function addConnection() {
     }
 
     try {
-        console.log("Adding connection:", { ...connection, password: connection.password ? '***' : undefined, clientSecret: connection.clientSecret ? '***' : undefined });
+        console.log("Adding connection:", { ...connection, password: connection.password ? "***" : undefined, clientSecret: connection.clientSecret ? "***" : undefined });
         await window.toolboxAPI.addConnection(connection);
 
         await window.toolboxAPI.showNotification({
@@ -1386,7 +1363,7 @@ async function testConnection() {
 
     try {
         const result = await window.toolboxAPI.testConnection(testConn);
-        
+
         if (result.success) {
             await window.toolboxAPI.showNotification({
                 title: "Connection Successful",
@@ -1417,7 +1394,6 @@ function updateAuthFieldsVisibility() {
     const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
     const clientSecretFields = document.getElementById("client-secret-fields");
     const usernamePasswordFields = document.getElementById("username-password-fields");
-    const optionalClientIdField = document.getElementById("optional-client-id-field");
     const testConnectionBtn = document.getElementById("test-connection-btn");
 
     if (!authTypeSelect) return;
@@ -1427,7 +1403,6 @@ function updateAuthFieldsVisibility() {
     // Hide all fields first
     if (clientSecretFields) clientSecretFields.style.display = "none";
     if (usernamePasswordFields) usernamePasswordFields.style.display = "none";
-    if (optionalClientIdField) optionalClientIdField.style.display = "none";
 
     // Show relevant fields based on auth type
     if (authType === "clientSecret") {
@@ -1435,10 +1410,8 @@ function updateAuthFieldsVisibility() {
         if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
     } else if (authType === "usernamePassword") {
         if (usernamePasswordFields) usernamePasswordFields.style.display = "block";
-        if (optionalClientIdField) optionalClientIdField.style.display = "block";
         if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
     } else if (authType === "interactive") {
-        if (optionalClientIdField) optionalClientIdField.style.display = "block";
         // Hide test connection button for interactive auth
         if (testConnectionBtn) testConnectionBtn.style.display = "none";
     }
@@ -1630,7 +1603,7 @@ function closeModal(modalId: string) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove("active");
-        
+
         // Reset add-connection-modal when closed
         if (modalId === "add-connection-modal") {
             resetConnectionModal();
@@ -1662,7 +1635,7 @@ function resetConnectionModal() {
     if (usernameInput) usernameInput.value = "";
     if (passwordInput) passwordInput.value = "";
     if (optionalClientIdInput) optionalClientIdInput.value = "";
-    
+
     // Reset test button state
     if (testBtn) {
         testBtn.disabled = false;
@@ -1738,11 +1711,17 @@ async function loadSidebarTools() {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
 
-    let tools = await window.toolboxAPI.getAllTools();
+    const tools = await window.toolboxAPI.getAllTools();
 
-    // Add mock tools for testing if no tools are installed
-    if (tools.length === 0) {
-        tools = mockTools;
+    // If no tools are found, show an empty state
+    if (!tools || tools.length === 0) {
+        toolsList.innerHTML = `
+            <div class="empty-state">
+                <p>No tools installed.</p>
+                <p class="empty-state-hint">Install tools from the marketplace.</p>
+            </div>
+        `;
+        return;
     }
 
     // Setup search
@@ -1851,7 +1830,9 @@ async function loadSidebarConnections() {
                                 : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
                         }
                     </div>
-                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">🗑️</button>
+                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
+                        <img src="icons/trash.svg" alt="Delete" style="width:16px; height:16px;" />
+                    </button>
                 </div>
             </div>
         `,
@@ -1869,7 +1850,7 @@ async function loadSidebarConnections() {
                     // Disable button while connecting
                     target.disabled = true;
                     target.textContent = "Connecting...";
-                    
+
                     try {
                         await connectToConnection(connectionId);
                     } catch (error) {
@@ -2200,7 +2181,11 @@ async function init() {
     // Device code modal
     const closeDeviceCodeBtn = document.getElementById("close-device-code-btn");
     if (closeDeviceCodeBtn) {
-        closeDeviceCodeBtn.addEventListener("click", () => closeModal("device-code-modal"));
+        closeDeviceCodeBtn.addEventListener("click", async () => {
+            closeModal("device-code-modal");
+            // Reload sidebar to reset button state
+            await loadSidebarConnections();
+        });
     }
 
     // Authentication error modal
@@ -2244,23 +2229,24 @@ async function init() {
 
     // Set up IPC listeners for authentication dialogs
     window.toolboxAPI.onShowDeviceCodeDialog((message: string) => {
-        const messageElement = document.getElementById('device-code-message');
+        const messageElement = document.getElementById("device-code-message");
         if (messageElement) {
-            messageElement.textContent = message;
+            const urlRegex = /https:\/\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]+/g;
+            messageElement.innerHTML = message.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
         }
-        openModal('device-code-modal');
+        openModal("device-code-modal");
     });
 
     window.toolboxAPI.onCloseDeviceCodeDialog(() => {
-        closeModal('device-code-modal');
+        closeModal("device-code-modal");
     });
 
     window.toolboxAPI.onShowAuthErrorDialog((message: string) => {
-        const messageElement = document.getElementById('auth-error-message');
+        const messageElement = document.getElementById("auth-error-message");
         if (messageElement) {
             messageElement.textContent = message;
         }
-        openModal('auth-error-modal');
+        openModal("auth-error-modal");
     });
 
     // Listen for toolbox events and react to them
