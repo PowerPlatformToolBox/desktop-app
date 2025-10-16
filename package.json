@@ -7,7 +7,7 @@
     "start": "electron .",
     "dev": "npm run build && electron .",
     "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
-    "copy-static": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/ && shx cp src/renderer/toolboxAPIBridge.js dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/",
+    "copy-static": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/ && shx cp src/renderer/toolboxAPIBridge.js dist/renderer/ && shx cp src/renderer/tools.json dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "package": "npm run build && electron-builder"

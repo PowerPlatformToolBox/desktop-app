@@ -5,7 +5,7 @@
         "description": "Generate Entity Relationship Diagrams for Dataverse",
         "author": "Power Maverick",
         "category": "Data Management",
-        "readmeUrl": "https://raw.githubusercontent.com/Power-Maverick/dvdt-erd-generator/main/README.md"
+        "readmeUrl": "https://raw.githubusercontent.com/Power-Maverick/DVDT-Tools/main/README.md"
     },
     {
         "id": "pptb-example-tool-test",
