@@ -383,6 +383,11 @@ class ToolBoxApp {
      * Initialize the application
      */
     async initialize(): Promise<void> {
+        // Set app user model ID for Windows notifications
+        if (process.platform === 'win32') {
+            app.setAppUserModelId('com.powerplatform.toolbox');
+        }
+
         await app.whenReady();
         this.createWindow();
 

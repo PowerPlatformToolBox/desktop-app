@@ -17,11 +17,23 @@ export class ToolBoxAPI extends EventEmitter {
    * Show a notification to the user
    */
   showNotification(options: NotificationOptions): void {
-    const notification = new Notification({
+    // Check if notifications are supported
+    if (!Notification.isSupported()) {
+      console.warn('Notifications are not supported on this system');
+      return;
+    }
+
+    const notificationOptions: Electron.NotificationConstructorOptions = {
       title: options.title,
       body: options.body,
-      urgency: options.type === 'error' ? 'critical' : 'normal',
-    });
+    };
+
+    // urgency is only supported on Linux
+    if (process.platform === 'linux') {
+      notificationOptions.urgency = options.type === 'error' ? 'critical' : 'normal';
+    }
+
+    const notification = new Notification(notificationOptions);
 
     notification.show();
 
