@@ -23,11 +23,17 @@ export class ToolBoxAPI extends EventEmitter {
       return;
     }
 
-    const notification = new Notification({
+    const notificationOptions: Electron.NotificationConstructorOptions = {
       title: options.title,
       body: options.body,
-      urgency: options.type === 'error' ? 'critical' : 'normal',
-    });
+    };
+
+    // urgency is only supported on Linux
+    if (process.platform === 'linux') {
+      notificationOptions.urgency = options.type === 'error' ? 'critical' : 'normal';
+    }
+
+    const notification = new Notification(notificationOptions);
 
     notification.show();
 
