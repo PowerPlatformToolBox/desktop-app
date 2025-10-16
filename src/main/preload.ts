@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     setActiveConnection: (id: string) => ipcRenderer.invoke("set-active-connection", id),
     getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
     disconnectConnection: () => ipcRenderer.invoke("disconnect-connection"),
+    testConnection: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
 
     // Tools
     getAllTools: () => ipcRenderer.invoke("get-all-tools"),
@@ -94,5 +95,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Home page
     onShowHomePage: (callback: () => void) => {
         ipcRenderer.on("show-home-page", callback);
+    },
+
+    // Authentication dialogs
+    onShowDeviceCodeDialog: (callback: (message: string) => void) => {
+        ipcRenderer.on("show-device-code-dialog", (_, message) => callback(message));
+    },
+    onCloseDeviceCodeDialog: (callback: () => void) => {
+        ipcRenderer.on("close-device-code-dialog", callback);
+    },
+    onShowAuthErrorDialog: (callback: (message: string) => void) => {
+        ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
     },
 });

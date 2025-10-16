@@ -104,12 +104,17 @@ export class SettingsManager {
   /**
    * Set active connection (only one can be active at a time)
    */
-  setActiveConnection(id: string): void {
+  setActiveConnection(id: string, authTokens?: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
     const connections = this.store.get('connections');
     connections.forEach(c => {
       c.isActive = c.id === id;
       if (c.isActive) {
         c.lastUsedAt = new Date().toISOString();
+        if (authTokens) {
+          c.accessToken = authTokens.accessToken;
+          c.refreshToken = authTokens.refreshToken;
+          c.tokenExpiry = authTokens.expiresOn.toISOString();
+        }
       }
     });
     this.store.set('connections', connections);

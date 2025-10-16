@@ -17,62 +17,37 @@ let secondaryToolId: string | null = null;
 let isSplitView = false;
 
 // Set up message handler for iframe communication
-window.addEventListener('message', async (event) => {
+window.addEventListener("message", async (event) => {
     // Handle toolboxAPI calls from iframes
-    if (event.data.type === 'TOOLBOX_API_CALL') {
+    if (event.data.type === "TOOLBOX_API_CALL") {
         const { messageId, method, args } = event.data;
-        
+
         try {
             // Call the actual toolboxAPI method
             const result = await (window.toolboxAPI as any)[method](...(args || []));
-            
+
             // Send response back to iframe
-            event.source?.postMessage({
-                type: 'TOOLBOX_API_RESPONSE',
-                messageId,
-                result
-            }, '*' as any);
+            event.source?.postMessage(
+                {
+                    type: "TOOLBOX_API_RESPONSE",
+                    messageId,
+                    result,
+                },
+                "*" as any,
+            );
         } catch (error) {
             // Send error back to iframe
-            event.source?.postMessage({
-                type: 'TOOLBOX_API_RESPONSE',
-                messageId,
-                error: (error as Error).message
-            }, '*' as any);
+            event.source?.postMessage(
+                {
+                    type: "TOOLBOX_API_RESPONSE",
+                    messageId,
+                    error: (error as Error).message,
+                },
+                "*" as any,
+            );
         }
     }
 });
-
-// Tools Management - Testing Only
-const mockTools = [
-    {
-        id: "mock-entity-editor",
-        name: "Entity Editor (Mock)",
-        description: "Edit Dataverse entities and records - Test Tool",
-        version: "1.0.0",
-        author: "PowerPlatform ToolBox",
-        icon: "📝",
-        main: "index.js",
-    },
-    {
-        id: "mock-solution-manager",
-        name: "Solution Manager (Mock)",
-        description: "Manage and deploy solutions - Test Tool",
-        version: "1.2.3",
-        author: "PowerPlatform ToolBox",
-        icon: "📦",
-        main: "index.js",
-    },
-    {
-        id: "mock-plugin-tracer",
-        name: "Plugin Trace Viewer (Mock)",
-        description: "View and analyze plugin traces - Test Tool",
-        version: "2.0.1",
-        author: "PowerPlatform ToolBox",
-        icon: "🔍",
-        main: "index.js",
-    },
-];
 
 // Tool library with predefined tools
 const toolLibrary = [
@@ -141,8 +116,7 @@ async function updateFooterConnection() {
     if (!footerConnectionName) return;
 
     try {
-        const connections = await window.toolboxAPI.getConnections();
-        const activeConn = connections.find((conn: any) => conn.isActive);
+        const activeConn = await window.toolboxAPI.getActiveConnection();
 
         if (activeConn) {
             footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
@@ -299,7 +273,7 @@ async function launchTool(toolId: string) {
 
         // Get tool HTML without context injection (to avoid CSP issues)
         const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
-        
+
         // Get tool context separately for postMessage
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
@@ -401,35 +375,38 @@ async function launchTool(toolId: string) {
         toolIframe.style.height = "100%";
         toolIframe.style.border = "none";
         toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
-        
+
         // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
-        
+
         // Get the absolute path to the bridge script
         // The main renderer runs from dist/renderer/, so we use that as base
-        const bridgePath = window.location.href.replace(/[^/]*$/, 'toolboxAPIBridge.js');
+        const bridgePath = window.location.href.replace(/[^/]*$/, "toolboxAPIBridge.js");
         const bridgeScriptTag = `<script src="${bridgePath}"></script>`;
-        
+
         // Inject the script tag before the closing </head> tag or at the beginning of <body>
-        if (injectedHtml.includes('</head>')) {
-            injectedHtml = injectedHtml.replace('</head>', bridgeScriptTag + '</head>');
-        } else if (injectedHtml.includes('<body>')) {
-            injectedHtml = injectedHtml.replace('<body>', '<body>' + bridgeScriptTag);
+        if (injectedHtml.includes("</head>")) {
+            injectedHtml = injectedHtml.replace("</head>", bridgeScriptTag + "</head>");
+        } else if (injectedHtml.includes("<body>")) {
+            injectedHtml = injectedHtml.replace("<body>", "<body>" + bridgeScriptTag);
         } else {
             // If no head or body tags, prepend the script
             injectedHtml = bridgeScriptTag + injectedHtml;
         }
-        
+
         // Set up event listener to post context after iframe loads
-        toolIframe.addEventListener('load', () => {
+        toolIframe.addEventListener("load", () => {
             if (toolIframe.contentWindow) {
                 // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
                 setTimeout(() => {
                     if (toolIframe.contentWindow) {
-                        toolIframe.contentWindow.postMessage({
-                            type: 'TOOLBOX_CONTEXT',
-                            data: toolContext
-                        }, '*');
+                        toolIframe.contentWindow.postMessage(
+                            {
+                                type: "TOOLBOX_CONTEXT",
+                                data: toolContext,
+                            },
+                            "*",
+                        );
                     }
                 }, 100);
             }
@@ -859,7 +836,7 @@ function showHomePage() {
     if (toolPanel) {
         toolPanel.style.display = "none";
     }
-    
+
     // Show home view
     const homeView = document.getElementById("home-view");
     if (homeView) {
@@ -1150,16 +1127,21 @@ async function connectToConnection(id: string) {
         await window.toolboxAPI.setActiveConnection(id);
         await window.toolboxAPI.showNotification({
             title: "Connected",
-            body: "Successfully connected to Dataverse environment.",
+            body: "Successfully authenticated and connected to the environment.",
             type: "success",
         });
         await loadConnections();
+        await loadSidebarConnections();
+        await updateFooterConnection();
     } catch (error) {
         await window.toolboxAPI.showNotification({
             title: "Connection Failed",
             body: (error as Error).message,
             type: "error",
         });
+        // Reload sidebar to reset button state
+        await loadSidebarConnections();
+        throw error; // Re-throw to let caller handle it
     }
 }
 
@@ -1168,10 +1150,12 @@ async function disconnectConnection() {
         await window.toolboxAPI.disconnectConnection();
         await window.toolboxAPI.showNotification({
             title: "Disconnected",
-            body: "Disconnected from Dataverse environment.",
+            body: "Disconnected from environment.",
             type: "info",
         });
         await loadConnections();
+        await loadSidebarConnections();
+        await updateFooterConnection();
     } catch (error) {
         await window.toolboxAPI.showNotification({
             title: "Disconnect Failed",
@@ -1185,11 +1169,16 @@ async function addConnection() {
     const nameInput = document.getElementById("connection-name") as HTMLInputElement;
     const urlInput = document.getElementById("connection-url") as HTMLInputElement;
     const environmentSelect = document.getElementById("connection-environment") as HTMLSelectElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
     const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
     const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
 
     // Check if all elements exist
-    if (!nameInput || !urlInput || !environmentSelect) {
+    if (!nameInput || !urlInput || !environmentSelect || !authTypeSelect) {
         console.error("Connection form elements not found");
         await window.toolboxAPI.showNotification({
             title: "Error",
@@ -1202,8 +1191,7 @@ async function addConnection() {
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
     const environment = environmentSelect.value as "Dev" | "Test" | "UAT" | "Production";
-    const clientId = clientIdInput?.value.trim() || "";
-    const tenantId = tenantIdInput?.value.trim() || "";
+    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
 
     if (!name || !url) {
         await window.toolboxAPI.showNotification({
@@ -1214,19 +1202,56 @@ async function addConnection() {
         return;
     }
 
-    const connection = {
+    // Validate based on authentication type
+    if (authenticationType === "clientSecret") {
+        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Client ID, Client Secret, and Tenant ID are required for Client ID/Secret authentication.",
+                type: "error",
+            });
+            return;
+        }
+    } else if (authenticationType === "usernamePassword") {
+        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Username and Password are required for Username/Password authentication.",
+                type: "error",
+            });
+            return;
+        }
+    }
+
+    const connection: any = {
         id: Date.now().toString(),
         name,
         url,
         environment,
-        clientId: clientId || undefined,
-        tenantId: tenantId || undefined,
+        authenticationType,
         createdAt: new Date().toISOString(),
         isActive: false,
     };
 
+    // Add authentication-specific fields
+    if (authenticationType === "clientSecret") {
+        connection.clientId = clientIdInput.value.trim();
+        connection.clientSecret = clientSecretInput.value.trim();
+        connection.tenantId = tenantIdInput.value.trim();
+    } else if (authenticationType === "usernamePassword") {
+        connection.username = usernameInput.value.trim();
+        connection.password = passwordInput.value.trim();
+        if (optionalClientIdInput?.value.trim()) {
+            connection.clientId = optionalClientIdInput.value.trim();
+        }
+    } else if (authenticationType === "interactive") {
+        if (optionalClientIdInput?.value.trim()) {
+            connection.clientId = optionalClientIdInput.value.trim();
+        }
+    }
+
     try {
-        console.log("Adding connection:", connection);
+        console.log("Adding connection:", { ...connection, password: connection.password ? "***" : undefined, clientSecret: connection.clientSecret ? "***" : undefined });
         await window.toolboxAPI.addConnection(connection);
 
         await window.toolboxAPI.showNotification({
@@ -1239,8 +1264,16 @@ async function addConnection() {
         nameInput.value = "";
         urlInput.value = "";
         environmentSelect.value = "Dev";
+        authTypeSelect.value = "interactive";
         if (clientIdInput) clientIdInput.value = "";
+        if (clientSecretInput) clientSecretInput.value = "";
         if (tenantIdInput) tenantIdInput.value = "";
+        if (usernameInput) usernameInput.value = "";
+        if (passwordInput) passwordInput.value = "";
+        if (optionalClientIdInput) optionalClientIdInput.value = "";
+
+        // Reset field visibility
+        updateAuthFieldsVisibility();
 
         closeModal("add-connection-modal");
         await loadConnections();
@@ -1251,6 +1284,136 @@ async function addConnection() {
             body: (error as Error).message,
             type: "error",
         });
+    }
+}
+
+async function testConnection() {
+    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
+    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
+    const testBtn = document.getElementById("test-connection-btn") as HTMLButtonElement;
+
+    if (!urlInput || !authTypeSelect || !testBtn) {
+        return;
+    }
+
+    const url = urlInput.value.trim();
+    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
+
+    if (!url) {
+        await window.toolboxAPI.showNotification({
+            title: "Invalid Input",
+            body: "Please provide an environment URL.",
+            type: "error",
+        });
+        return;
+    }
+
+    // Build test connection object
+    const testConn: any = {
+        id: "test",
+        name: "Test Connection",
+        url,
+        environment: "Test",
+        authenticationType,
+        createdAt: new Date().toISOString(),
+    };
+
+    // Add authentication-specific fields
+    if (authenticationType === "clientSecret") {
+        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Client ID, Client Secret, and Tenant ID are required for testing Client ID/Secret authentication.",
+                type: "error",
+            });
+            return;
+        }
+        testConn.clientId = clientIdInput.value.trim();
+        testConn.clientSecret = clientSecretInput.value.trim();
+        testConn.tenantId = tenantIdInput.value.trim();
+    } else if (authenticationType === "usernamePassword") {
+        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Username and Password are required for testing Username/Password authentication.",
+                type: "error",
+            });
+            return;
+        }
+        testConn.username = usernameInput.value.trim();
+        testConn.password = passwordInput.value.trim();
+        if (optionalClientIdInput?.value.trim()) {
+            testConn.clientId = optionalClientIdInput.value.trim();
+        }
+    } else if (authenticationType === "interactive") {
+        if (optionalClientIdInput?.value.trim()) {
+            testConn.clientId = optionalClientIdInput.value.trim();
+        }
+    }
+
+    // Disable the test button and show loading state
+    testBtn.disabled = true;
+    testBtn.textContent = "Testing...";
+
+    try {
+        const result = await window.toolboxAPI.testConnection(testConn);
+
+        if (result.success) {
+            await window.toolboxAPI.showNotification({
+                title: "Connection Successful",
+                body: "Successfully connected to the environment!",
+                type: "success",
+            });
+        } else {
+            await window.toolboxAPI.showNotification({
+                title: "Connection Failed",
+                body: result.error || "Failed to connect to the environment.",
+                type: "error",
+            });
+        }
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: "Connection Test Failed",
+            body: (error as Error).message,
+            type: "error",
+        });
+    } finally {
+        // Re-enable the button
+        testBtn.disabled = false;
+        testBtn.textContent = "Test Connection";
+    }
+}
+
+function updateAuthFieldsVisibility() {
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientSecretFields = document.getElementById("client-secret-fields");
+    const usernamePasswordFields = document.getElementById("username-password-fields");
+    const testConnectionBtn = document.getElementById("test-connection-btn");
+
+    if (!authTypeSelect) return;
+
+    const authType = authTypeSelect.value;
+
+    // Hide all fields first
+    if (clientSecretFields) clientSecretFields.style.display = "none";
+    if (usernamePasswordFields) usernamePasswordFields.style.display = "none";
+
+    // Show relevant fields based on auth type
+    if (authType === "clientSecret") {
+        if (clientSecretFields) clientSecretFields.style.display = "block";
+        if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
+    } else if (authType === "usernamePassword") {
+        if (usernamePasswordFields) usernamePasswordFields.style.display = "block";
+        if (testConnectionBtn) testConnectionBtn.style.display = "inline-block";
+    } else if (authType === "interactive") {
+        // Hide test connection button for interactive auth
+        if (testConnectionBtn) testConnectionBtn.style.display = "none";
     }
 }
 
@@ -1440,7 +1603,47 @@ function closeModal(modalId: string) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove("active");
+
+        // Reset add-connection-modal when closed
+        if (modalId === "add-connection-modal") {
+            resetConnectionModal();
+        }
     }
+}
+
+function resetConnectionModal() {
+    // Reset all form fields
+    const nameInput = document.getElementById("connection-name") as HTMLInputElement;
+    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
+    const environmentSelect = document.getElementById("connection-environment") as HTMLSelectElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
+    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
+    const testBtn = document.getElementById("test-connection-btn") as HTMLButtonElement;
+
+    if (nameInput) nameInput.value = "";
+    if (urlInput) urlInput.value = "";
+    if (environmentSelect) environmentSelect.value = "Dev";
+    if (authTypeSelect) authTypeSelect.value = "interactive";
+    if (clientIdInput) clientIdInput.value = "";
+    if (clientSecretInput) clientSecretInput.value = "";
+    if (tenantIdInput) tenantIdInput.value = "";
+    if (usernameInput) usernameInput.value = "";
+    if (passwordInput) passwordInput.value = "";
+    if (optionalClientIdInput) optionalClientIdInput.value = "";
+
+    // Reset test button state
+    if (testBtn) {
+        testBtn.disabled = false;
+        testBtn.textContent = "Test Connection";
+    }
+
+    // Reset field visibility
+    updateAuthFieldsVisibility();
 }
 
 // Activity Bar and Sidebar Management
@@ -1508,11 +1711,17 @@ async function loadSidebarTools() {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
 
-    let tools = await window.toolboxAPI.getAllTools();
+    const tools = await window.toolboxAPI.getAllTools();
 
-    // Add mock tools for testing if no tools are installed
-    if (tools.length === 0) {
-        tools = mockTools;
+    // If no tools are found, show an empty state
+    if (!tools || tools.length === 0) {
+        toolsList.innerHTML = `
+            <div class="empty-state">
+                <p>No tools installed.</p>
+                <p class="empty-state-hint">Install tools from the marketplace.</p>
+            </div>
+        `;
+        return;
     }
 
     // Setup search
@@ -1613,13 +1822,17 @@ async function loadSidebarConnections() {
                     <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                 </div>
                 <div class="connection-item-url-vscode">${conn.url}</div>
-                <div class="connection-item-actions-vscode">
-                    ${
-                        !conn.isActive
-                            ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                            : `<button class="btn btn-secondary" disabled>Connected</button>`
-                    }
-                    <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        ${
+                            conn.isActive
+                                ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
+                                : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                        }
+                    </div>
+                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
+                        <img src="icons/trash.svg" alt="Delete" style="width:16px; height:16px;" />
+                    </button>
                 </div>
             </div>
         `,
@@ -1632,13 +1845,22 @@ async function loadSidebarConnections() {
                 const target = e.target as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
                 const connectionId = target.getAttribute("data-connection-id");
-                if (!connectionId) return;
 
-                if (action === "connect") {
-                    await window.toolboxAPI.setActiveConnection(connectionId);
-                    loadSidebarConnections();
-                    updateFooterConnection();
-                } else if (action === "delete") {
+                if (action === "connect" && connectionId) {
+                    // Disable button while connecting
+                    target.disabled = true;
+                    target.textContent = "Connecting...";
+
+                    try {
+                        await connectToConnection(connectionId);
+                    } catch (error) {
+                        // Error is already handled in connectToConnection
+                    } finally {
+                        // Reload will refresh the button state
+                    }
+                } else if (action === "disconnect") {
+                    await disconnectConnection();
+                } else if (action === "delete" && connectionId) {
                     if (confirm("Are you sure you want to delete this connection?")) {
                         await window.toolboxAPI.deleteConnection(connectionId);
                         loadSidebarConnections();
@@ -1909,6 +2131,39 @@ async function init() {
         confirmConnectionBtn.addEventListener("click", addConnection);
     }
 
+    // Test connection button
+    const testConnectionBtn = document.getElementById("test-connection-btn");
+    if (testConnectionBtn) {
+        testConnectionBtn.addEventListener("click", testConnection);
+    }
+
+    // Authentication type change handler
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    if (authTypeSelect) {
+        authTypeSelect.addEventListener("change", updateAuthFieldsVisibility);
+    }
+
+    // Password toggle buttons
+    const toggleClientSecret = document.getElementById("toggle-client-secret");
+    if (toggleClientSecret) {
+        toggleClientSecret.addEventListener("click", () => {
+            const input = document.getElementById("connection-client-secret") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
+    }
+
+    const togglePassword = document.getElementById("toggle-password");
+    if (togglePassword) {
+        togglePassword.addEventListener("click", () => {
+            const input = document.getElementById("connection-password") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
+    }
+
     // Tool settings modal
     const closeToolSettingsModal = document.getElementById("close-tool-settings-modal");
     if (closeToolSettingsModal) {
@@ -1922,6 +2177,27 @@ async function init() {
 
     // Settings save button - removed since settings view is gone
     // Auto-update button handler - removed since settings view is gone
+
+    // Device code modal
+    const closeDeviceCodeBtn = document.getElementById("close-device-code-btn");
+    if (closeDeviceCodeBtn) {
+        closeDeviceCodeBtn.addEventListener("click", async () => {
+            closeModal("device-code-modal");
+            // Reload sidebar to reset button state
+            await loadSidebarConnections();
+        });
+    }
+
+    // Authentication error modal
+    const closeAuthErrorModal = document.getElementById("close-auth-error-modal");
+    if (closeAuthErrorModal) {
+        closeAuthErrorModal.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
+
+    const closeAuthErrorBtn = document.getElementById("close-auth-error-btn");
+    if (closeAuthErrorBtn) {
+        closeAuthErrorBtn.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
 
     // Set up auto-update listeners
     setupAutoUpdateListeners();
@@ -1956,6 +2232,27 @@ async function init() {
     if (terminalManager) {
         await terminalManager.initialize();
     }
+    // Set up IPC listeners for authentication dialogs
+    window.toolboxAPI.onShowDeviceCodeDialog((message: string) => {
+        const messageElement = document.getElementById("device-code-message");
+        if (messageElement) {
+            const urlRegex = /https:\/\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]+/g;
+            messageElement.innerHTML = message.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
+        }
+        openModal("device-code-modal");
+    });
+
+    window.toolboxAPI.onCloseDeviceCodeDialog(() => {
+        closeModal("device-code-modal");
+    });
+
+    window.toolboxAPI.onShowAuthErrorDialog((message: string) => {
+        const messageElement = document.getElementById("auth-error-message");
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        openModal("auth-error-modal");
+    });
 
     // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
