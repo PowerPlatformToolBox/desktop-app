@@ -50,6 +50,10 @@ export interface ToolboxAPI {
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
     onShowHomePage: (callback: () => void) => void;
+    // Authentication dialogs
+    onShowDeviceCodeDialog: (callback: (message: string) => void) => void;
+    onCloseDeviceCodeDialog: (callback: () => void) => void;
+    onShowAuthErrorDialog: (callback: (message: string) => void) => void;
 }
 
 declare global {

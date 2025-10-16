@@ -374,6 +374,41 @@
             </div>
         </div>
 
+        <!-- Device Code Modal -->
+        <div id="device-code-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Device Authentication</h3>
+                </div>
+                <div class="modal-body">
+                    <p id="device-code-message" style="white-space: pre-wrap; font-family: monospace; background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 10px 0;">
+                        <!-- Device code message will be displayed here -->
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="close-device-code-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authentication Error Modal -->
+        <div id="auth-error-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Authentication Error</h3>
+                    <button class="modal-close" id="close-auth-error-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="auth-error-message" style="color: #d83b01; padding: 15px;">
+                        <!-- Error message will be displayed here -->
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" id="close-auth-error-btn">OK</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Tool Settings Modal -->
         <div id="tool-settings-modal" class="modal">
             <div class="modal-content">

@@ -54,14 +54,16 @@ export class AuthManager {
       const deviceCodeRequest = {
         scopes: scopes,
         deviceCodeCallback: (response: any) => {
-          // Show the device code to the user
+          // Show the device code to the user in a modal dialog
           console.log('Device Code:', response.message);
-          // In a real implementation, show this in a dialog
-          parentWindow?.webContents.send('device-code', response.message);
+          this.showDeviceCodeDialog(response.message, parentWindow);
         },
       };
 
       const response: any = await (this.msalApp as any).acquireTokenByDeviceCode(deviceCodeRequest);
+
+      // Close the device code dialog when authentication is complete
+      parentWindow?.webContents.send('close-device-code-dialog');
 
       return {
         accessToken: response.accessToken,
@@ -70,7 +72,29 @@ export class AuthManager {
       };
     } catch (error) {
       console.error('Interactive authentication failed:', error);
+      // Close the device code dialog on error
+      parentWindow?.webContents.send('close-device-code-dialog');
+      // Show error in a modal dialog
+      this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
       throw new Error(`Authentication failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Show device code dialog to the user
+   */
+  private showDeviceCodeDialog(message: string, parentWindow?: BrowserWindow): void {
+    if (parentWindow) {
+      parentWindow.webContents.send('show-device-code-dialog', message);
+    }
+  }
+
+  /**
+   * Show error dialog to the user
+   */
+  private showErrorDialog(message: string, parentWindow?: BrowserWindow): void {
+    if (parentWindow) {
+      parentWindow.webContents.send('show-auth-error-dialog', message);
     }
   }
 
@@ -109,7 +133,12 @@ export class AuthManager {
       };
     } catch (error) {
       console.error('Client secret authentication failed:', error);
-      throw new Error(`Authentication failed: ${(error as Error).message}`);
+      const errorMessage = `Authentication failed: ${(error as Error).message}`;
+      // Show error in a modal dialog (for main window context)
+      if (typeof (error as any).showDialog !== 'undefined') {
+        this.showErrorDialog(errorMessage);
+      }
+      throw new Error(errorMessage);
     }
   }
 
@@ -151,7 +180,12 @@ export class AuthManager {
       };
     } catch (error) {
       console.error('Username/password authentication failed:', error);
-      throw new Error(`Authentication failed: ${(error as Error).message}`);
+      const errorMessage = `Authentication failed: ${(error as Error).message}`;
+      // Show error in a modal dialog (for main window context)
+      if (typeof (error as any).showDialog !== 'undefined') {
+        this.showErrorDialog(errorMessage);
+      }
+      throw new Error(errorMessage);
     }
   }
 

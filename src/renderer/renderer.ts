@@ -2147,6 +2147,23 @@ async function init() {
     // Settings save button - removed since settings view is gone
     // Auto-update button handler - removed since settings view is gone
 
+    // Device code modal
+    const closeDeviceCodeBtn = document.getElementById("close-device-code-btn");
+    if (closeDeviceCodeBtn) {
+        closeDeviceCodeBtn.addEventListener("click", () => closeModal("device-code-modal"));
+    }
+
+    // Authentication error modal
+    const closeAuthErrorModal = document.getElementById("close-auth-error-modal");
+    if (closeAuthErrorModal) {
+        closeAuthErrorModal.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
+
+    const closeAuthErrorBtn = document.getElementById("close-auth-error-btn");
+    if (closeAuthErrorBtn) {
+        closeAuthErrorBtn.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
+
     // Set up auto-update listeners
     setupAutoUpdateListeners();
 
@@ -2174,6 +2191,27 @@ async function init() {
 
     // Restore previous session
     await restoreSession();
+
+    // Set up IPC listeners for authentication dialogs
+    window.toolboxAPI.onShowDeviceCodeDialog((message: string) => {
+        const messageElement = document.getElementById('device-code-message');
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        openModal('device-code-modal');
+    });
+
+    window.toolboxAPI.onCloseDeviceCodeDialog(() => {
+        closeModal('device-code-modal');
+    });
+
+    window.toolboxAPI.onShowAuthErrorDialog((message: string) => {
+        const messageElement = document.getElementById('auth-error-message');
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        openModal('auth-error-modal');
+    });
 
     // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {

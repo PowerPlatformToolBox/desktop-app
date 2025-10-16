@@ -83,4 +83,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onShowHomePage: (callback: () => void) => {
         ipcRenderer.on("show-home-page", callback);
     },
+
+    // Authentication dialogs
+    onShowDeviceCodeDialog: (callback: (message: string) => void) => {
+        ipcRenderer.on("show-device-code-dialog", (_, message) => callback(message));
+    },
+    onCloseDeviceCodeDialog: (callback: () => void) => {
+        ipcRenderer.on("close-device-code-dialog", callback);
+    },
+    onShowAuthErrorDialog: (callback: (message: string) => void) => {
+        ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
+    },
 });
