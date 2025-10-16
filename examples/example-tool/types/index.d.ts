@@ -34,7 +34,10 @@ declare namespace ToolBox {
     | 'connection:updated'
     | 'connection:deleted'
     | 'settings:updated'
-    | 'notification:shown';
+    | 'notification:shown'
+    | 'terminal:created'
+    | 'terminal:disposed'
+    | 'terminal:data';
 
   /**
    * Event payload for ToolBox events
@@ -70,6 +73,47 @@ declare namespace ToolBox {
     description: string;
     author: string;
     icon?: string;
+  }
+
+  /**
+   * Terminal instance configuration
+   */
+  export interface TerminalOptions {
+    name?: string;
+    shellPath?: string;
+    shellArgs?: string[];
+    cwd?: string;
+    env?: { [key: string]: string };
+  }
+
+  /**
+   * Terminal instance information
+   */
+  export interface Terminal {
+    id: string;
+    name: string;
+    shellPath: string;
+    processId?: number;
+    createdAt: string;
+  }
+
+  /**
+   * Command execution result
+   */
+  export interface CommandResult {
+    terminalId: string;
+    output: string;
+    exitCode?: number;
+    completed: boolean;
+  }
+
+  /**
+   * Available shell information
+   */
+  export interface ShellInfo {
+    path: string;
+    name: string;
+    isDefault: boolean;
   }
 
   /**
@@ -138,6 +182,16 @@ declare namespace ToolBox {
     onUpdateDownloadProgress: (callback: (progress: any) => void) => void;
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
+
+    // Terminal
+    getAvailableShells: () => Promise<ShellInfo[]>;
+    createTerminal: (options?: TerminalOptions) => Promise<Terminal>;
+    writeToTerminal: (terminalId: string, data: string) => Promise<void>;
+    executeCommand: (terminalId: string, command: string, timeout?: number) => Promise<CommandResult>;
+    resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
+    disposeTerminal: (terminalId: string) => Promise<void>;
+    getAllTerminals: () => Promise<Terminal[]>;
+    getTerminal: (terminalId: string) => Promise<Terminal | null>;
   }
 }
 
