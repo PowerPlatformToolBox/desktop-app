@@ -1741,7 +1741,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
             <div class="tool-item-actions-vscode">
                 <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                    <img src="icons/trash-codicon.svg" alt="Delete" />
+                    <img src="icons/trash.svg" alt="Delete" />
                 </button>
             </div>
         </div>
@@ -1803,7 +1803,7 @@ async function uninstallToolFromSidebar(toolId: string) {
 
         // Reload the sidebar tools
         await loadSidebarTools();
-        
+
         // Reload marketplace to update installed status
         await loadMarketplace();
     } catch (error) {
@@ -1928,11 +1928,7 @@ async function loadMarketplace() {
             <div class="marketplace-item-footer-vscode">
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
                 <div class="marketplace-item-actions-vscode">
-                    ${
-                        !isInstalled
-                            ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>`
-                            : ""
-                    }
+                    ${!isInstalled ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
             </div>
         </div>
@@ -2000,7 +1996,7 @@ async function loadMarketplace() {
         // Remove existing listeners
         const newSearchInput = searchInput.cloneNode(true) as HTMLInputElement;
         searchInput.parentNode?.replaceChild(newSearchInput, searchInput);
-        
+
         newSearchInput.addEventListener("input", () => {
             loadMarketplace();
         });
@@ -2034,11 +2030,11 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
         } else {
             installBtn.style.display = "block";
             installedBadge.style.display = "none";
-            
+
             // Setup install button handler
             const newInstallBtn = installBtn.cloneNode(true) as HTMLButtonElement;
             installBtn.parentNode?.replaceChild(newInstallBtn, installBtn);
-            
+
             newInstallBtn.addEventListener("click", async () => {
                 newInstallBtn.disabled = true;
                 newInstallBtn.textContent = "Installing...";
@@ -2072,12 +2068,12 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
     // Load README
     if (readmeContent) {
         readmeContent.innerHTML = '<p class="loading-text">Loading README...</p>';
-        
+
         if (tool.readmeUrl) {
             try {
                 const response = await fetch(tool.readmeUrl);
                 const markdown = await response.text();
-                
+
                 // Simple markdown to HTML conversion
                 const html = convertMarkdownToHtml(markdown);
                 readmeContent.innerHTML = html;
@@ -2095,36 +2091,36 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
 // Simple markdown to HTML converter
 function convertMarkdownToHtml(markdown: string): string {
     let html = markdown;
-    
+
     // Headers
-    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-    
+    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+
     // Bold
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
     // Italic
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
     // Links
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-    
+
     // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
     // Code blocks
-    html = html.replace(/```([^`]+)```/gs, '<pre><code>$1</code></pre>');
-    
+    html = html.replace(/```([^`]+)```/gs, "<pre><code>$1</code></pre>");
+
     // Line breaks
-    html = html.replace(/\n\n/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    
+    html = html.replace(/\n\n/g, "</p><p>");
+    html = html.replace(/\n/g, "<br>");
+
     // Wrap in paragraphs if not already in a tag
-    if (!html.startsWith('<')) {
-        html = '<p>' + html + '</p>';
+    if (!html.startsWith("<")) {
+        html = "<p>" + html + "</p>";
     }
-    
+
     return html;
 }
 
