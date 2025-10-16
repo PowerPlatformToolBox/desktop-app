@@ -113,28 +113,11 @@ const toolLibrary = [
     },
 ];
 
-// Navigation
+// Navigation - No longer needed since we removed the main view switching
+// Tools are now managed via the sidebar only
 function switchView(viewName: string) {
-    const views = document.querySelectorAll(".view");
-    const navItems = document.querySelectorAll(".nav-item");
-
-    views.forEach((view) => {
-        view.classList.remove("active");
-    });
-
-    navItems.forEach((item) => {
-        item.classList.remove("active");
-    });
-
-    const targetView = document.getElementById(`${viewName}-view`);
-    if (targetView) {
-        targetView.classList.add("active");
-    }
-
-    const targetNav = document.querySelector(`[data-view="${viewName}"]`);
-    if (targetNav) {
-        targetNav.classList.add("active");
-    }
+    // Deprecated - keeping for backwards compatibility but no longer used
+    console.log("switchView is deprecated:", viewName);
 }
 
 // Update split view button visibility based on number of open tabs
@@ -177,68 +160,10 @@ async function updateFooterConnection() {
 }
 
 async function loadTools() {
-    const toolsGrid = document.getElementById("tools-grid");
-    if (!toolsGrid) return;
-
-    let tools = await window.toolboxAPI.getAllTools();
-
-    // Add mock tools for testing if no tools are installed
-    if (tools.length === 0) {
-        tools = mockTools;
-    }
-
-    if (tools.length === 0) {
-        toolsGrid.innerHTML = `
-            <div class="empty-state">
-                <p>No tools installed yet.</p>
-                <p class="empty-state-hint">Install tools from the tool library to get started.</p>
-            </div>
-        `;
-        return;
-    }
-
-    toolsGrid.innerHTML = tools
-        .map(
-            (tool) => `
-        <div class="tool-card">
-            <div class="tool-card-header">
-                <span class="tool-icon">${tool.icon || "🔧"}</span>
-                <div>
-                    <div class="tool-name">${tool.name}</div>
-                </div>
-            </div>
-            <div class="tool-description">${tool.description}</div>
-            <div class="tool-meta">
-                <span>v${tool.version}</span>
-                <span>${tool.author}</span>
-            </div>
-            <div class="tool-actions">
-                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
-                <button class="btn btn-secondary" data-action="settings" data-tool-id="${tool.id}">Settings</button>
-                <button class="btn btn-danger" data-action="uninstall" data-tool-id="${tool.id}">Uninstall</button>
-            </div>
-        </div>
-    `,
-        )
-        .join("");
-
-    // Add event listeners to all tool action buttons
-    toolsGrid.querySelectorAll(".tool-actions button").forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const target = e.target as HTMLButtonElement;
-            const action = target.getAttribute("data-action");
-            const toolId = target.getAttribute("data-tool-id");
-            if (!toolId) return;
-
-            if (action === "launch") {
-                launchTool(toolId);
-            } else if (action === "settings") {
-                toolSettings(toolId);
-            } else if (action === "uninstall") {
-                uninstallTool(toolId);
-            }
-        });
-    });
+    // This function is no longer used for the main view
+    // Tools are now displayed in the sidebar only
+    // Keeping for backwards compatibility
+    console.log("loadTools is deprecated - tools are now managed in sidebar");
 }
 
 function loadToolLibrary() {
@@ -704,8 +629,7 @@ function closeTool(toolId: string) {
                 toolPanel.style.display = "none";
             }
             activeToolId = null;
-            // Show tools view again
-            switchView("tools");
+            // Home view is always visible now, no need to switch views
         }
     }
 }
@@ -1875,30 +1799,73 @@ async function init() {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
     }
 
-    // Install tool modal
-    const installToolBtn = document.getElementById("install-tool-btn");
-    if (installToolBtn) {
-        installToolBtn.addEventListener("click", () => {
-            openModal("install-tool-modal");
-            loadToolLibrary();
+    // Home screen action buttons
+    const sponsorBtn = document.getElementById("sponsor-btn");
+    if (sponsorBtn) {
+        sponsorBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/sponsors/PowerPlatform-ToolBox");
         });
     }
 
-    const closeInstallModal = document.getElementById("close-install-modal");
-    if (closeInstallModal) {
-        closeInstallModal.addEventListener("click", () => closeModal("install-tool-modal"));
+    const githubBtn = document.getElementById("github-btn");
+    if (githubBtn) {
+        githubBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+        });
     }
 
-    const cancelInstallBtn = document.getElementById("cancel-install-btn");
-    if (cancelInstallBtn) {
-        cancelInstallBtn.addEventListener("click", () => closeModal("install-tool-modal"));
+    const bugsFeaturesBtn = document.getElementById("bugs-features-btn");
+    if (bugsFeaturesBtn) {
+        bugsFeaturesBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/issues");
+        });
     }
 
-    // Add connection modal
-    const addConnectionBtn = document.getElementById("add-connection-btn");
-    if (addConnectionBtn) {
-        addConnectionBtn.addEventListener("click", () => openModal("add-connection-modal"));
+    const createToolBtn = document.getElementById("create-tool-btn");
+    if (createToolBtn) {
+        createToolBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/TOOL_DEVELOPMENT.md");
+        });
     }
+
+    // Resource links
+    const docsLink = document.getElementById("docs-link");
+    if (docsLink) {
+        docsLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/README.md");
+        });
+    }
+
+    const toolDevGuideLink = document.getElementById("tool-dev-guide-link");
+    if (toolDevGuideLink) {
+        toolDevGuideLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/TOOL_DEVELOPMENT.md");
+        });
+    }
+
+    const architectureLink = document.getElementById("architecture-link");
+    if (architectureLink) {
+        architectureLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/ARCHITECTURE.md");
+        });
+    }
+
+    const contributingLink = document.getElementById("contributing-link");
+    if (contributingLink) {
+        contributingLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/CONTRIBUTING.md");
+        });
+    }
+
+    // Install tool modal - removed since we don't have the button anymore
 
     const closeConnectionModal = document.getElementById("close-connection-modal");
     if (closeConnectionModal) {
@@ -1926,17 +1893,8 @@ async function init() {
         cancelToolSettingsBtn.addEventListener("click", () => closeModal("tool-settings-modal"));
     }
 
-    // Settings save button
-    const saveSettingsBtn = document.getElementById("save-settings-btn");
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener("click", saveSettings);
-    }
-
-    // Auto-update button handler
-    const checkUpdatesBtn = document.getElementById("check-updates-btn");
-    if (checkUpdatesBtn) {
-        checkUpdatesBtn.addEventListener("click", checkForUpdates);
-    }
+    // Settings save button - removed since settings view is gone
+    // Auto-update button handler - removed since settings view is gone
 
     // Set up auto-update listeners
     setupAutoUpdateListeners();
@@ -1952,8 +1910,8 @@ async function init() {
     await loadSidebarTools();
     await loadMarketplace();
 
-    // Load initial data
-    await loadTools();
+    // Load initial data - tools view is deprecated, no need to load
+    // await loadTools();
 
     // Update footer connection info
     await updateFooterConnection();
@@ -1968,7 +1926,6 @@ async function init() {
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
-            loadConnections().catch((err) => console.error("Failed to reload connections:", err));
             loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
             updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
         }
@@ -1976,7 +1933,6 @@ async function init() {
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             console.log("Tool event detected, reloading tools...");
-            loadTools().catch((err) => console.error("Failed to reload tools:", err));
             loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
         }
     });

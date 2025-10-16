@@ -203,6 +203,11 @@ class ToolBoxApp {
             return this.api.getEventHistory(limit);
         });
 
+        // Open external URL handler
+        ipcMain.handle("open-external", async (_, url) => {
+            await shell.openExternal(url);
+        });
+
         // Auto-update handlers
         ipcMain.handle("check-for-updates", async () => {
             await this.autoUpdateManager.checkForUpdates();

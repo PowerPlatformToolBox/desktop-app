@@ -33,6 +33,7 @@ export interface ToolboxAPI {
     showNotification: (options: any) => Promise<void>;
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
+    openExternal: (url: string) => Promise<void>;
     getEventHistory: (limit?: number) => Promise<any[]>;
     onToolboxEvent: (callback: (event: any, payload: any) => void) => void;
     removeToolboxEventListener: (callback: (event: any, payload: any) => void) => void;
