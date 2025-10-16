@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
+import { randomUUID } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Terminal, TerminalOptions, CommandResult, ShellInfo } from '../../types';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Manages terminal instances and their lifecycle using child_process
@@ -127,7 +127,7 @@ export class TerminalManager extends EventEmitter {
    * Create a new terminal instance using child_process
    */
   createTerminal(options: TerminalOptions = {}): Terminal {
-    const id = uuidv4();
+    const id = randomUUID();
     const shellPath = options.shellPath || this.getDefaultShell();
     const name = options.name || `Terminal ${this.terminals.size + 1}`;
     
