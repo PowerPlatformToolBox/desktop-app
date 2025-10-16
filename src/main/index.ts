@@ -5,6 +5,7 @@ import { ToolBoxEvent } from "../types";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { ToolManager } from "./managers/toolsManager";
+import { AuthManager } from "./managers/authManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -12,12 +13,14 @@ class ToolBoxApp {
     private toolManager: ToolManager;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
+    private authManager: AuthManager;
 
     constructor() {
         this.settingsManager = new SettingsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
+        this.authManager = new AuthManager();
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -123,9 +126,51 @@ class ToolBoxApp {
             return this.settingsManager.getConnections();
         });
 
-        ipcMain.handle("set-active-connection", (_, id) => {
-            this.settingsManager.setActiveConnection(id);
-            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+        ipcMain.handle("set-active-connection", async (_, id) => {
+            const connection = this.settingsManager.getConnections().find(c => c.id === id);
+            if (!connection) {
+                throw new Error('Connection not found');
+            }
+
+            // Authenticate based on the authentication type
+            try {
+                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
+                
+                switch (connection.authenticationType) {
+                    case 'interactive':
+                        authResult = await this.authManager.authenticateInteractive(connection, this.mainWindow || undefined);
+                        break;
+                    case 'clientSecret':
+                        authResult = await this.authManager.authenticateClientSecret(connection);
+                        break;
+                    case 'usernamePassword':
+                        authResult = await this.authManager.authenticateUsernamePassword(connection);
+                        break;
+                    default:
+                        throw new Error('Invalid authentication type');
+                }
+
+                // Set the connection as active with tokens
+                this.settingsManager.setActiveConnection(id, {
+                    accessToken: authResult.accessToken,
+                    refreshToken: authResult.refreshToken,
+                    expiresOn: authResult.expiresOn,
+                });
+
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+            } catch (error) {
+                throw new Error(`Authentication failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Test connection handler
+        ipcMain.handle("test-connection", async (_, connection) => {
+            try {
+                await this.authManager.testConnection(connection, this.mainWindow || undefined);
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: (error as Error).message };
+            }
         });
 
         ipcMain.handle("get-active-connection", () => {
