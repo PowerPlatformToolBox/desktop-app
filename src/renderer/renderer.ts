@@ -16,6 +16,33 @@ let activeToolId: string | null = null;
 let secondaryToolId: string | null = null;
 let isSplitView = false;
 
+// Set up message handler for iframe communication
+window.addEventListener('message', async (event) => {
+    // Handle toolboxAPI calls from iframes
+    if (event.data.type === 'TOOLBOX_API_CALL') {
+        const { messageId, method, args } = event.data;
+        
+        try {
+            // Call the actual toolboxAPI method
+            const result = await (window.toolboxAPI as any)[method](...(args || []));
+            
+            // Send response back to iframe
+            event.source?.postMessage({
+                type: 'TOOLBOX_API_RESPONSE',
+                messageId,
+                result
+            }, '*' as any);
+        } catch (error) {
+            // Send error back to iframe
+            event.source?.postMessage({
+                type: 'TOOLBOX_API_RESPONSE',
+                messageId,
+                error: (error as Error).message
+            }, '*' as any);
+        }
+    }
+});
+
 // Tools Management - Testing Only
 const mockTools = [
     {
@@ -366,25 +393,7 @@ async function launchTool(toolId: string) {
         webviewContainer.className = "tool-webview-container";
         webviewContainer.id = `tool-webview-${toolId}`;
 
-        const toolIframe = document.createElement("iframe");
-        toolIframe.style.width = "100%";
-        toolIframe.style.height = "100%";
-        toolIframe.style.border = "none";
-        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
-        
-        // Set up event listener to post context to iframe after it loads
-        toolIframe.addEventListener('load', () => {
-            if (toolIframe.contentWindow) {
-                // Post the TOOLBOX_CONTEXT to the iframe
-                toolIframe.contentWindow.postMessage({
-                    type: 'TOOLBOX_CONTEXT',
-                    data: toolContext
-                }, '*');
-            }
-        });
-
-        // Set iframe src - in real implementation, this would load the tool's UI
-        // For mock tools, we'll create a simple welcome page
+        // Default HTML for tools that fail to load
         const toolHtml = `
             <!DOCTYPE html>
             <html>
@@ -457,9 +466,48 @@ async function launchTool(toolId: string) {
             </html>
         `;
 
+        const toolIframe = document.createElement("iframe");
+        toolIframe.style.width = "100%";
+        toolIframe.style.height = "100%";
+        toolIframe.style.border = "none";
+        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        
+        // Inject script tag to load external bridge file (avoids CSP violation)
+        let injectedHtml = webviewHtml || toolHtml;
+        
+        // Get the absolute path to the bridge script
+        // The main renderer runs from dist/renderer/, so we use that as base
+        const bridgePath = window.location.href.replace(/[^/]*$/, 'toolboxAPIBridge.js');
+        const bridgeScriptTag = `<script src="${bridgePath}"></script>`;
+        
+        // Inject the script tag before the closing </head> tag or at the beginning of <body>
+        if (injectedHtml.includes('</head>')) {
+            injectedHtml = injectedHtml.replace('</head>', bridgeScriptTag + '</head>');
+        } else if (injectedHtml.includes('<body>')) {
+            injectedHtml = injectedHtml.replace('<body>', '<body>' + bridgeScriptTag);
+        } else {
+            // If no head or body tags, prepend the script
+            injectedHtml = bridgeScriptTag + injectedHtml;
+        }
+        
+        // Set up event listener to post context after iframe loads
+        toolIframe.addEventListener('load', () => {
+            if (toolIframe.contentWindow) {
+                // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
+                setTimeout(() => {
+                    if (toolIframe.contentWindow) {
+                        toolIframe.contentWindow.postMessage({
+                            type: 'TOOLBOX_CONTEXT',
+                            data: toolContext
+                        }, '*');
+                    }
+                }, 100);
+            }
+        });
+
         // Use srcdoc to load content into iframe
         // This allows the HTML to execute properly and fire DOMContentLoaded
-        toolIframe.srcdoc = webviewHtml || toolHtml;
+        toolIframe.srcdoc = injectedHtml;
 
         webviewContainer.appendChild(toolIframe);
         toolPanelContent.appendChild(webviewContainer);
