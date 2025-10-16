@@ -126,6 +126,11 @@ cd desktop-app
 npm install
 ```
 
+**Note**: The terminal feature uses `node-pty`, a native Node.js module. After installation, it will be automatically rebuilt for Electron via the `postinstall` script. If you encounter module version mismatch errors, run:
+```bash
+npm run rebuild
+```
+
 3. Build the application:
 ```bash
 npm run build
@@ -305,6 +310,33 @@ The ToolBox emits events for various operations:
 - **[TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
 - **[TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+
+## Troubleshooting
+
+### Terminal Module Version Error
+
+If you encounter an error like:
+```
+Error: The module 'node_modules/node-pty/build/Release/pty.node'
+was compiled against a different Node.js version using
+NODE_MODULE_VERSION XXX. This version of Node.js requires
+NODE_MODULE_VERSION YYY.
+```
+
+This happens when `node-pty` (used by the terminal feature) was compiled for a different Node.js version than the one Electron is using. To fix:
+
+1. Run the rebuild script:
+```bash
+npm run rebuild
+```
+
+2. If that doesn't work, try a clean reinstall:
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+The `postinstall` script will automatically rebuild native modules for Electron after installation.
 
 ## License
 
