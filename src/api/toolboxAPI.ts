@@ -17,6 +17,12 @@ export class ToolBoxAPI extends EventEmitter {
    * Show a notification to the user
    */
   showNotification(options: NotificationOptions): void {
+    // Check if notifications are supported
+    if (!Notification.isSupported()) {
+      console.warn('Notifications are not supported on this system');
+      return;
+    }
+
     const notification = new Notification({
       title: options.title,
       body: options.body,
