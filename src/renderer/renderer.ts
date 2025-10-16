@@ -2108,7 +2108,7 @@ function convertMarkdownToHtml(markdown: string): string {
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     
     // Links
-    html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
     
     // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
