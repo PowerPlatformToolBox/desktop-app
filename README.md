@@ -126,7 +126,7 @@ cd desktop-app
 npm install
 ```
 
-**Note**: The terminal feature uses `node-pty`, a native Node.js module. After installation, it will be automatically rebuilt for Electron via the `postinstall` script. If you encounter module version mismatch errors, run:
+**Note**: The terminal feature uses `node-pty`, a native Node.js module. If `npm install` completes successfully, the module will be automatically rebuilt for Electron. If you encounter build errors during installation (especially with Node.js v23+), you can safely ignore them and run the rebuild after installation:
 ```bash
 npm run rebuild
 ```
@@ -334,9 +334,25 @@ npm run rebuild
 ```bash
 rm -rf node_modules package-lock.json
 npm install
+npm run rebuild
 ```
 
-The `postinstall` script will automatically rebuild native modules for Electron after installation.
+### Build Errors During Installation (Node.js v23+)
+
+If `npm install` fails with `node-gyp` errors (especially with Node.js v23 or newer):
+
+1. **The error is expected** - Node.js v23+ may not be fully supported by `node-pty` yet, but Electron uses its own Node.js version.
+
+2. **Let the installation complete** - Even if the postinstall script fails, most packages will install successfully.
+
+3. **Run the rebuild manually**:
+```bash
+npm run rebuild
+```
+
+This will rebuild `node-pty` specifically for Electron's Node.js version (v20), which is what matters for the application to run.
+
+4. **Alternative**: Use a Node.js LTS version (v20.x) for development to avoid build issues entirely.
 
 ## License
 

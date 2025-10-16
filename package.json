@@ -7,11 +7,11 @@
     "start": "electron .",
     "dev": "npm run build && electron .",
     "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
-    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/ && cp src/renderer/toolboxAPIBridge.js dist/renderer/ && cp -r src/renderer/icons dist/renderer/ && cp node_modules/@xterm/xterm/css/xterm.css dist/renderer/",
+    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/ && cp -r src/renderer/icons dist/renderer/ && cp node_modules/@xterm/xterm/css/xterm.css dist/renderer/",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "rebuild": "electron-rebuild -f -w node-pty",
-    "postinstall": "electron-rebuild -f -w node-pty",
+    "postinstall": "electron-rebuild -f -w node-pty || echo 'Note: electron-rebuild will run on first start if needed'",
     "package": "npm run build && electron-builder"
   },
   "keywords": [
