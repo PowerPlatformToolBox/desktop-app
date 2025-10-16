@@ -49,44 +49,19 @@ window.addEventListener("message", async (event) => {
     }
 });
 
-// Tool library with predefined tools
-const toolLibrary = [
-    {
-        id: "dvdt-erd-generator",
-        name: "ERD Generator",
-        description: "Generate Entity Relationship Diagrams for Dataverse",
-        author: "Power Maverick",
-        category: "Data Management",
-    },
-    {
-        id: "pptb-example-tool-test",
-        name: "PowerPlatform Example Tool",
-        description: "An example tool for PowerPlatform",
-        author: "PowerPlatform ToolBox",
-        category: "Development",
-    },
-    {
-        id: "@powerplatform/plugin-tracer",
-        name: "Plugin Trace Viewer",
-        description: "View and analyze plugin traces",
-        author: "PowerPlatform ToolBox",
-        category: "Development",
-    },
-    {
-        id: "@powerplatform/bulk-data-tools",
-        name: "Bulk Data Tools",
-        description: "Import and export data in bulk",
-        author: "PowerPlatform ToolBox",
-        category: "Data Management",
-    },
-    {
-        id: "@powerplatform/security-analyzer",
-        name: "Security Analyzer",
-        description: "Analyze security roles and permissions",
-        author: "PowerPlatform ToolBox",
-        category: "Security",
-    },
-];
+// Tool library will be loaded from tools.json
+let toolLibrary: any[] = [];
+
+// Load tools.json
+async function loadToolsLibrary() {
+    try {
+        const response = await fetch("tools.json");
+        toolLibrary = await response.json();
+    } catch (error) {
+        console.error("Failed to load tools.json:", error);
+        toolLibrary = [];
+    }
+}
 
 // Navigation - No longer needed since we removed the main view switching
 // Tools are now managed via the sidebar only
@@ -1765,6 +1740,9 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
             <div class="tool-item-description-vscode">${tool.description}</div>
             <div class="tool-item-actions-vscode">
                 <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
+                    <img src="icons/trash.svg" alt="Delete" />
+                </button>
             </div>
         </div>
     `,
@@ -1785,15 +1763,56 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     });
 
     toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
-        button.addEventListener("click", (e) => {
+        button.addEventListener("click", async (e) => {
             e.stopPropagation();
-            const target = e.target as HTMLButtonElement;
-            const toolId = target.getAttribute("data-tool-id");
+            const target = e.target as HTMLElement;
+            const button = target.closest("button") as HTMLButtonElement;
+            if (!button) return;
+
+            const action = button.getAttribute("data-action");
+            const toolId = button.getAttribute("data-tool-id");
             if (!toolId) return;
 
-            launchTool(toolId);
+            if (action === "launch") {
+                launchTool(toolId);
+            } else if (action === "delete") {
+                await uninstallToolFromSidebar(toolId);
+            }
         });
     });
+}
+
+async function uninstallToolFromSidebar(toolId: string) {
+    if (!confirm("Are you sure you want to uninstall this tool?")) {
+        return;
+    }
+
+    try {
+        const tool = await window.toolboxAPI.getTool(toolId);
+        if (!tool) {
+            throw new Error("Tool not found");
+        }
+
+        await window.toolboxAPI.uninstallTool(tool.id, toolId);
+
+        await window.toolboxAPI.showNotification({
+            title: "Tool Uninstalled",
+            body: `${tool.name} has been uninstalled.`,
+            type: "success",
+        });
+
+        // Reload the sidebar tools
+        await loadSidebarTools();
+
+        // Reload marketplace to update installed status
+        await loadMarketplace();
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: "Uninstall Failed",
+            body: `Failed to uninstall tool: ${(error as Error).message}`,
+            type: "error",
+        });
+    }
 }
 
 async function loadSidebarConnections() {
@@ -1874,9 +1893,13 @@ async function loadSidebarConnections() {
     }
 }
 
-function loadMarketplace() {
+async function loadMarketplace() {
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
+
+    // Get installed tools
+    const installedTools = await window.toolboxAPI.getAllTools();
+    const installedToolIds = new Set(installedTools.map((t: any) => t.id));
 
     // Filter based on search
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
@@ -1888,12 +1911,16 @@ function loadMarketplace() {
     });
 
     marketplaceList.innerHTML = filteredTools
-        .map(
-            (tool) => `
-        <div class="marketplace-item-vscode">
+        .map((tool) => {
+            const isInstalled = installedToolIds.has(tool.id);
+            return `
+        <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
                 <div class="marketplace-item-info-vscode">
-                    <div class="marketplace-item-name-vscode">${tool.name}</div>
+                    <div class="marketplace-item-name-vscode">
+                        ${tool.name}
+                        ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
+                    </div>
                     <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
             </div>
@@ -1901,17 +1928,35 @@ function loadMarketplace() {
             <div class="marketplace-item-footer-vscode">
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
                 <div class="marketplace-item-actions-vscode">
-                    <button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>
+                    ${!isInstalled ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
             </div>
         </div>
-    `,
-        )
+    `;
+        })
         .join("");
 
-    // Add event listeners
+    // Add click handlers for marketplace items to open detail view
+    marketplaceList.querySelectorAll(".marketplace-item-vscode").forEach((item) => {
+        item.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement;
+            // Don't open detail if clicking a button
+            if (target.tagName === "BUTTON") return;
+
+            const toolId = item.getAttribute("data-tool-id");
+            if (toolId) {
+                const tool = toolLibrary.find((t) => t.id === toolId);
+                if (tool) {
+                    openToolDetail(tool, installedToolIds.has(toolId));
+                }
+            }
+        });
+    });
+
+    // Add event listeners for install buttons
     marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
         button.addEventListener("click", async (e) => {
+            e.stopPropagation(); // Prevent opening detail modal
             const target = e.target as HTMLButtonElement;
             const action = target.getAttribute("data-action");
             const toolId = target.getAttribute("data-tool-id");
@@ -1923,9 +1968,6 @@ function loadMarketplace() {
 
                 try {
                     await window.toolboxAPI.installTool(toolId);
-                    target.textContent = "Installed";
-                    target.classList.remove("btn-primary");
-                    target.classList.add("btn-secondary");
 
                     window.toolboxAPI.showNotification({
                         title: "Tool Installed",
@@ -1933,8 +1975,9 @@ function loadMarketplace() {
                         type: "success",
                     });
 
-                    // Reload tools sidebar
-                    loadSidebarTools();
+                    // Reload marketplace and tools sidebar
+                    await loadMarketplace();
+                    await loadSidebarTools();
                 } catch (error) {
                     target.disabled = false;
                     target.textContent = "Install";
@@ -1950,10 +1993,135 @@ function loadMarketplace() {
 
     // Setup search
     if (searchInput) {
-        searchInput.addEventListener("input", () => {
+        // Remove existing listeners
+        const newSearchInput = searchInput.cloneNode(true) as HTMLInputElement;
+        searchInput.parentNode?.replaceChild(newSearchInput, searchInput);
+
+        newSearchInput.addEventListener("input", () => {
             loadMarketplace();
         });
     }
+}
+
+// Open tool detail modal
+async function openToolDetail(tool: any, isInstalled: boolean) {
+    const modal = document.getElementById("tool-detail-modal");
+    if (!modal) return;
+
+    // Set tool info
+    const nameElement = document.getElementById("tool-detail-name");
+    const descElement = document.getElementById("tool-detail-description");
+    const authorElement = document.getElementById("tool-detail-author");
+    const categoryElement = document.getElementById("tool-detail-category");
+    const installBtn = document.getElementById("tool-detail-install-btn");
+    const installedBadge = document.getElementById("tool-detail-installed-badge");
+    const readmeContent = document.getElementById("tool-detail-readme-content");
+
+    if (nameElement) nameElement.textContent = tool.name;
+    if (descElement) descElement.textContent = tool.description;
+    if (authorElement) authorElement.textContent = `Author: ${tool.author}`;
+    if (categoryElement) categoryElement.textContent = `Category: ${tool.category}`;
+
+    // Show install button or installed badge
+    if (installBtn && installedBadge) {
+        if (isInstalled) {
+            installBtn.style.display = "none";
+            installedBadge.style.display = "inline-flex";
+        } else {
+            installBtn.style.display = "block";
+            installedBadge.style.display = "none";
+
+            // Setup install button handler
+            const newInstallBtn = installBtn.cloneNode(true) as HTMLButtonElement;
+            installBtn.parentNode?.replaceChild(newInstallBtn, installBtn);
+
+            newInstallBtn.addEventListener("click", async () => {
+                newInstallBtn.disabled = true;
+                newInstallBtn.textContent = "Installing...";
+
+                try {
+                    await window.toolboxAPI.installTool(tool.id);
+
+                    window.toolboxAPI.showNotification({
+                        title: "Tool Installed",
+                        body: `${tool.name} has been installed successfully`,
+                        type: "success",
+                    });
+
+                    // Close modal and reload
+                    closeModal("tool-detail-modal");
+                    await loadMarketplace();
+                    await loadSidebarTools();
+                } catch (error) {
+                    newInstallBtn.disabled = false;
+                    newInstallBtn.textContent = "Install";
+                    window.toolboxAPI.showNotification({
+                        title: "Installation Failed",
+                        body: `Failed to install tool: ${error}`,
+                        type: "error",
+                    });
+                }
+            });
+        }
+    }
+
+    // Load README
+    if (readmeContent) {
+        readmeContent.innerHTML = '<p class="loading-text">Loading README...</p>';
+
+        if (tool.readmeUrl) {
+            try {
+                const response = await fetch(tool.readmeUrl);
+                const markdown = await response.text();
+
+                // Simple markdown to HTML conversion
+                const html = convertMarkdownToHtml(markdown);
+                readmeContent.innerHTML = html;
+            } catch (error) {
+                readmeContent.innerHTML = '<p class="loading-text">Failed to load README</p>';
+            }
+        } else {
+            readmeContent.innerHTML = '<p class="loading-text">No README available</p>';
+        }
+    }
+
+    openModal("tool-detail-modal");
+}
+
+// Simple markdown to HTML converter
+function convertMarkdownToHtml(markdown: string): string {
+    let html = markdown;
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Code blocks
+    html = html.replace(/```([^`]+)```/gs, "<pre><code>$1</code></pre>");
+
+    // Line breaks
+    html = html.replace(/\n\n/g, "</p><p>");
+    html = html.replace(/\n/g, "<br>");
+
+    // Wrap in paragraphs if not already in a tag
+    if (!html.startsWith("<")) {
+        html = "<p>" + html + "</p>";
+    }
+
+    return html;
 }
 
 async function loadSidebarSettings() {
@@ -2199,6 +2367,12 @@ async function init() {
         closeAuthErrorBtn.addEventListener("click", () => closeModal("auth-error-modal"));
     }
 
+    // Tool detail modal
+    const closeToolDetailModal = document.getElementById("close-tool-detail-modal");
+    if (closeToolDetailModal) {
+        closeToolDetailModal.addEventListener("click", () => closeModal("tool-detail-modal"));
+    }
+
     // Set up auto-update listeners
     setupAutoUpdateListeners();
 
@@ -2213,6 +2387,9 @@ async function init() {
     // Load and apply theme settings on startup
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
+
+    // Load tools library from JSON
+    await loadToolsLibrary();
 
     // Load initial sidebar content (tools by default)
     await loadSidebarTools();

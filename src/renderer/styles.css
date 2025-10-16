@@ -1210,11 +1210,34 @@ body.light-theme .activity-bar {
 .tool-item-actions-vscode {
     display: flex;
     gap: 8px;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .tool-item-actions-vscode .btn {
     padding: 2px 8px;
     font-size: 11px;
+}
+
+.tool-item-delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #d83b01;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-item-delete-btn:hover {
+    opacity: 0.7;
+}
+
+.tool-item-delete-btn img {
+    width: 16px;
+    height: 16px;
 }
 
 /* VSCode-style marketplace list */
@@ -1720,4 +1743,183 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb {
 
 body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     background: #505050;
+}
+
+/* Tool Detail Modal Styles */
+.tool-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 24px;
+}
+
+.tool-detail-info {
+    flex: 1;
+}
+
+.tool-detail-info h2 {
+    font-size: 24px;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.tool-detail-info p {
+    font-size: 14px;
+    color: #605e5c;
+    margin-bottom: 12px;
+}
+
+.tool-detail-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #8a8886;
+}
+
+.tool-detail-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-detail-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.tool-installed-badge {
+    background: #107c10;
+    color: white;
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-installed-badge::before {
+    content: "✓";
+}
+
+.tool-detail-readme {
+    margin-top: 24px;
+}
+
+.tool-detail-readme h3 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: var(--text-color);
+}
+
+.markdown-content {
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+    margin-top: 24px;
+    margin-bottom: 12px;
+    color: var(--text-color);
+}
+
+.markdown-content h1 {
+    font-size: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.markdown-content h2 {
+    font-size: 20px;
+}
+
+.markdown-content h3 {
+    font-size: 16px;
+}
+
+.markdown-content p {
+    margin-bottom: 12px;
+}
+
+.markdown-content code {
+    background: var(--secondary-color);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.markdown-content pre {
+    background: var(--secondary-color);
+    padding: 16px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-bottom: 12px;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-left: 24px;
+    margin-bottom: 12px;
+}
+
+.markdown-content li {
+    margin-bottom: 4px;
+}
+
+.markdown-content a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.loading-text {
+    color: #8a8886;
+    font-style: italic;
+}
+
+/* Marketplace item with installed badge */
+.marketplace-item-installed-badge {
+    background: #107c10;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.marketplace-item-installed-badge::before {
+    content: "✓";
+}
+
+.marketplace-item-vscode.installed {
+    background: rgba(16, 124, 16, 0.05);
+}
+
+.marketplace-item-vscode.installed:hover {
+    background: rgba(16, 124, 16, 0.1);
+}
+
+/* Make marketplace items clickable */
+.marketplace-item-vscode {
+    cursor: pointer;
 }
