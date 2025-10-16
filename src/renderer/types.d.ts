@@ -48,6 +48,7 @@ export interface ToolboxAPI {
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
     // Terminal
+    isTerminalAvailable: () => Promise<boolean>;
     getAvailableShells: () => Promise<any[]>;
     createTerminal: (options?: any) => Promise<any>;
     writeToTerminal: (terminalId: string, data: string) => Promise<void>;

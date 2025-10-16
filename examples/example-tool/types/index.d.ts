@@ -184,6 +184,7 @@ declare namespace ToolBox {
     onUpdateError: (callback: (error: string) => void) => void;
 
     // Terminal
+    isTerminalAvailable: () => Promise<boolean>;
     getAvailableShells: () => Promise<ShellInfo[]>;
     createTerminal: (options?: TerminalOptions) => Promise<Terminal>;
     writeToTerminal: (terminalId: string, data: string) => Promise<void>;

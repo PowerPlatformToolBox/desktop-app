@@ -1,10 +1,20 @@
 import { EventEmitter } from 'events';
-import * as pty from 'node-pty';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Terminal, TerminalOptions, CommandResult, ShellInfo } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
+
+// Dynamically import node-pty to make it optional
+let pty: typeof import('node-pty') | null = null;
+let ptyLoadError: Error | null = null;
+
+try {
+  pty = require('node-pty');
+} catch (error) {
+  ptyLoadError = error as Error;
+  console.warn('node-pty is not available. Terminal features will be disabled.', error);
+}
 
 /**
  * Manages terminal instances and their lifecycle
@@ -12,9 +22,25 @@ import { v4 as uuidv4 } from 'uuid';
 export class TerminalManager extends EventEmitter {
   private terminals: Map<string, TerminalInstance> = new Map();
   private commandBuffers: Map<string, CommandBuffer> = new Map();
+  private isAvailable: boolean;
 
   constructor() {
     super();
+    this.isAvailable = pty !== null;
+  }
+
+  /**
+   * Check if terminal functionality is available
+   */
+  isTerminalAvailable(): boolean {
+    return this.isAvailable;
+  }
+
+  /**
+   * Get the error that occurred when loading node-pty (if any)
+   */
+  getLoadError(): Error | null {
+    return ptyLoadError;
   }
 
   /**
@@ -118,6 +144,10 @@ export class TerminalManager extends EventEmitter {
    * Create a new terminal instance
    */
   createTerminal(options: TerminalOptions = {}): Terminal {
+    if (!this.isAvailable || !pty) {
+      throw new Error('Terminal functionality is not available. node-pty module failed to load.');
+    }
+
     const id = uuidv4();
     const shellPath = options.shellPath || this.getDefaultShell();
     const name = options.name || `Terminal ${this.terminals.size + 1}`;
@@ -292,7 +322,7 @@ export class TerminalManager extends EventEmitter {
  */
 interface TerminalInstance {
   terminal: Terminal;
-  ptyProcess: pty.IPty;
+  ptyProcess: any; // pty.IPty when node-pty is available
 }
 
 /**

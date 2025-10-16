@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     },
 
     // Terminal operations
+    isTerminalAvailable: () => ipcRenderer.invoke("terminal:is-available"),
     getAvailableShells: () => ipcRenderer.invoke("terminal:get-available-shells"),
     createTerminal: (options: unknown) => ipcRenderer.invoke("terminal:create", options),
     writeToTerminal: (terminalId: string, data: string) => ipcRenderer.invoke("terminal:write", terminalId, data),

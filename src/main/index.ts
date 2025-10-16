@@ -240,11 +240,21 @@ class ToolBoxApp {
         });
 
         // Terminal handlers
+        ipcMain.handle("terminal:is-available", () => {
+            return this.terminalManager.isTerminalAvailable();
+        });
+
         ipcMain.handle("terminal:get-available-shells", () => {
+            if (!this.terminalManager.isTerminalAvailable()) {
+                return [];
+            }
             return this.terminalManager.getAvailableShells();
         });
 
         ipcMain.handle("terminal:create", (_, options) => {
+            if (!this.terminalManager.isTerminalAvailable()) {
+                throw new Error('Terminal functionality is not available. Please run: npm run rebuild');
+            }
             return this.terminalManager.createTerminal(options);
         });
 
