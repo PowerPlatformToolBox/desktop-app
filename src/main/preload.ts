@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     setActiveConnection: (id: string) => ipcRenderer.invoke("set-active-connection", id),
     getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
     disconnectConnection: () => ipcRenderer.invoke("disconnect-connection"),
+    testConnection: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
 
     // Tools
     getAllTools: () => ipcRenderer.invoke("get-all-tools"),

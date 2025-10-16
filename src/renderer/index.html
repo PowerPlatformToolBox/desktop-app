@@ -299,6 +299,13 @@
                     <label for="connection-url">Environment URL:</label>
                     <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" class="modal-input" />
 
+                    <label for="connection-authentication-type">Authentication Type:</label>
+                    <select id="connection-authentication-type" class="modal-input">
+                        <option value="interactive">Microsoft Login Prompt</option>
+                        <option value="clientSecret">Client ID/Secret</option>
+                        <option value="usernamePassword">Username/Password</option>
+                    </select>
+
                     <label for="connection-environment">Environment:</label>
                     <select id="connection-environment" class="modal-input">
                         <option value="Dev">Dev</option>
@@ -307,13 +314,41 @@
                         <option value="Production">Production</option>
                     </select>
 
-                    <label for="connection-client-id">Client ID (Optional):</label>
-                    <input type="text" id="connection-client-id" placeholder="client-id" class="modal-input" />
+                    <!-- Client ID/Secret fields (hidden by default) -->
+                    <div id="client-secret-fields" style="display: none;">
+                        <label for="connection-client-id">Client ID:</label>
+                        <input type="text" id="connection-client-id" placeholder="client-id" class="modal-input" />
 
-                    <label for="connection-tenant-id">Tenant ID (Optional):</label>
-                    <input type="text" id="connection-tenant-id" placeholder="tenant-id" class="modal-input" />
+                        <label for="connection-client-secret">Client Secret:</label>
+                        <div style="position: relative;">
+                            <input type="password" id="connection-client-secret" placeholder="client-secret" class="modal-input" />
+                            <button type="button" class="password-toggle-btn" id="toggle-client-secret" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">👁️</button>
+                        </div>
+
+                        <label for="connection-tenant-id">Tenant ID:</label>
+                        <input type="text" id="connection-tenant-id" placeholder="tenant-id" class="modal-input" />
+                    </div>
+
+                    <!-- Username/Password fields (hidden by default) -->
+                    <div id="username-password-fields" style="display: none;">
+                        <label for="connection-username">Username:</label>
+                        <input type="text" id="connection-username" placeholder="user@domain.com" class="modal-input" />
+
+                        <label for="connection-password">Password:</label>
+                        <div style="position: relative;">
+                            <input type="password" id="connection-password" placeholder="password" class="modal-input" />
+                            <button type="button" class="password-toggle-btn" id="toggle-password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">👁️</button>
+                        </div>
+                    </div>
+
+                    <!-- Optional Client ID for interactive and username/password auth -->
+                    <div id="optional-client-id-field" style="display: none;">
+                        <label for="connection-optional-client-id">Client ID (Optional):</label>
+                        <input type="text" id="connection-optional-client-id" placeholder="Leave empty to use default" class="modal-input" />
+                    </div>
                 </div>
                 <div class="modal-footer">
+                    <button class="btn btn-secondary" id="test-connection-btn" style="margin-right: auto;">Test Connection</button>
                     <button class="btn btn-secondary" id="cancel-connection-btn">Cancel</button>
                     <button class="btn btn-primary" id="confirm-connection-btn">Add</button>
                 </div>

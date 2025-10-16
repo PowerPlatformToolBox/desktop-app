@@ -1150,10 +1150,12 @@ async function connectToConnection(id: string) {
         await window.toolboxAPI.setActiveConnection(id);
         await window.toolboxAPI.showNotification({
             title: "Connected",
-            body: "Successfully connected to Dataverse environment.",
+            body: "Successfully authenticated and connected to the environment.",
             type: "success",
         });
         await loadConnections();
+        await loadSidebarConnections();
+        await updateFooterConnection();
     } catch (error) {
         await window.toolboxAPI.showNotification({
             title: "Connection Failed",
@@ -1168,10 +1170,12 @@ async function disconnectConnection() {
         await window.toolboxAPI.disconnectConnection();
         await window.toolboxAPI.showNotification({
             title: "Disconnected",
-            body: "Disconnected from Dataverse environment.",
+            body: "Disconnected from environment.",
             type: "info",
         });
         await loadConnections();
+        await loadSidebarConnections();
+        await updateFooterConnection();
     } catch (error) {
         await window.toolboxAPI.showNotification({
             title: "Disconnect Failed",
@@ -1185,11 +1189,16 @@ async function addConnection() {
     const nameInput = document.getElementById("connection-name") as HTMLInputElement;
     const urlInput = document.getElementById("connection-url") as HTMLInputElement;
     const environmentSelect = document.getElementById("connection-environment") as HTMLSelectElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
     const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
     const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
 
     // Check if all elements exist
-    if (!nameInput || !urlInput || !environmentSelect) {
+    if (!nameInput || !urlInput || !environmentSelect || !authTypeSelect) {
         console.error("Connection form elements not found");
         await window.toolboxAPI.showNotification({
             title: "Error",
@@ -1202,8 +1211,7 @@ async function addConnection() {
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
     const environment = environmentSelect.value as "Dev" | "Test" | "UAT" | "Production";
-    const clientId = clientIdInput?.value.trim() || "";
-    const tenantId = tenantIdInput?.value.trim() || "";
+    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
 
     if (!name || !url) {
         await window.toolboxAPI.showNotification({
@@ -1214,19 +1222,56 @@ async function addConnection() {
         return;
     }
 
-    const connection = {
+    // Validate based on authentication type
+    if (authenticationType === "clientSecret") {
+        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Client ID, Client Secret, and Tenant ID are required for Client ID/Secret authentication.",
+                type: "error",
+            });
+            return;
+        }
+    } else if (authenticationType === "usernamePassword") {
+        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Username and Password are required for Username/Password authentication.",
+                type: "error",
+            });
+            return;
+        }
+    }
+
+    const connection: any = {
         id: Date.now().toString(),
         name,
         url,
         environment,
-        clientId: clientId || undefined,
-        tenantId: tenantId || undefined,
+        authenticationType,
         createdAt: new Date().toISOString(),
         isActive: false,
     };
 
+    // Add authentication-specific fields
+    if (authenticationType === "clientSecret") {
+        connection.clientId = clientIdInput.value.trim();
+        connection.clientSecret = clientSecretInput.value.trim();
+        connection.tenantId = tenantIdInput.value.trim();
+    } else if (authenticationType === "usernamePassword") {
+        connection.username = usernameInput.value.trim();
+        connection.password = passwordInput.value.trim();
+        if (optionalClientIdInput?.value.trim()) {
+            connection.clientId = optionalClientIdInput.value.trim();
+        }
+    } else if (authenticationType === "interactive") {
+        if (optionalClientIdInput?.value.trim()) {
+            connection.clientId = optionalClientIdInput.value.trim();
+        }
+    }
+
     try {
-        console.log("Adding connection:", connection);
+        console.log("Adding connection:", { ...connection, password: connection.password ? '***' : undefined, clientSecret: connection.clientSecret ? '***' : undefined });
         await window.toolboxAPI.addConnection(connection);
 
         await window.toolboxAPI.showNotification({
@@ -1239,8 +1284,16 @@ async function addConnection() {
         nameInput.value = "";
         urlInput.value = "";
         environmentSelect.value = "Dev";
+        authTypeSelect.value = "interactive";
         if (clientIdInput) clientIdInput.value = "";
+        if (clientSecretInput) clientSecretInput.value = "";
         if (tenantIdInput) tenantIdInput.value = "";
+        if (usernameInput) usernameInput.value = "";
+        if (passwordInput) passwordInput.value = "";
+        if (optionalClientIdInput) optionalClientIdInput.value = "";
+
+        // Reset field visibility
+        updateAuthFieldsVisibility();
 
         closeModal("add-connection-modal");
         await loadConnections();
@@ -1251,6 +1304,136 @@ async function addConnection() {
             body: (error as Error).message,
             type: "error",
         });
+    }
+}
+
+async function testConnection() {
+    const nameInput = document.getElementById("connection-name") as HTMLInputElement;
+    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
+    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
+    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
+    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
+    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
+    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
+    const testBtn = document.getElementById("test-connection-btn") as HTMLButtonElement;
+
+    if (!urlInput || !authTypeSelect || !testBtn) {
+        return;
+    }
+
+    const url = urlInput.value.trim();
+    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
+
+    if (!url) {
+        await window.toolboxAPI.showNotification({
+            title: "Invalid Input",
+            body: "Please provide an environment URL.",
+            type: "error",
+        });
+        return;
+    }
+
+    // Build test connection object
+    const testConn: any = {
+        id: "test",
+        name: "Test Connection",
+        url,
+        environment: "Test",
+        authenticationType,
+        createdAt: new Date().toISOString(),
+    };
+
+    // Add authentication-specific fields
+    if (authenticationType === "clientSecret") {
+        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Client ID, Client Secret, and Tenant ID are required for testing Client ID/Secret authentication.",
+                type: "error",
+            });
+            return;
+        }
+        testConn.clientId = clientIdInput.value.trim();
+        testConn.clientSecret = clientSecretInput.value.trim();
+        testConn.tenantId = tenantIdInput.value.trim();
+    } else if (authenticationType === "usernamePassword") {
+        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
+            await window.toolboxAPI.showNotification({
+                title: "Invalid Input",
+                body: "Username and Password are required for testing Username/Password authentication.",
+                type: "error",
+            });
+            return;
+        }
+        testConn.username = usernameInput.value.trim();
+        testConn.password = passwordInput.value.trim();
+        if (optionalClientIdInput?.value.trim()) {
+            testConn.clientId = optionalClientIdInput.value.trim();
+        }
+    } else if (authenticationType === "interactive") {
+        if (optionalClientIdInput?.value.trim()) {
+            testConn.clientId = optionalClientIdInput.value.trim();
+        }
+    }
+
+    // Disable the test button and show loading state
+    testBtn.disabled = true;
+    testBtn.textContent = "Testing...";
+
+    try {
+        const result = await window.toolboxAPI.testConnection(testConn);
+        
+        if (result.success) {
+            await window.toolboxAPI.showNotification({
+                title: "Connection Successful",
+                body: "Successfully connected to the environment!",
+                type: "success",
+            });
+        } else {
+            await window.toolboxAPI.showNotification({
+                title: "Connection Failed",
+                body: result.error || "Failed to connect to the environment.",
+                type: "error",
+            });
+        }
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: "Connection Test Failed",
+            body: (error as Error).message,
+            type: "error",
+        });
+    } finally {
+        // Re-enable the button
+        testBtn.disabled = false;
+        testBtn.textContent = "Test Connection";
+    }
+}
+
+function updateAuthFieldsVisibility() {
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    const clientSecretFields = document.getElementById("client-secret-fields");
+    const usernamePasswordFields = document.getElementById("username-password-fields");
+    const optionalClientIdField = document.getElementById("optional-client-id-field");
+
+    if (!authTypeSelect) return;
+
+    const authType = authTypeSelect.value;
+
+    // Hide all fields first
+    if (clientSecretFields) clientSecretFields.style.display = "none";
+    if (usernamePasswordFields) usernamePasswordFields.style.display = "none";
+    if (optionalClientIdField) optionalClientIdField.style.display = "none";
+
+    // Show relevant fields based on auth type
+    if (authType === "clientSecret") {
+        if (clientSecretFields) clientSecretFields.style.display = "block";
+    } else if (authType === "usernamePassword") {
+        if (usernamePasswordFields) usernamePasswordFields.style.display = "block";
+        if (optionalClientIdField) optionalClientIdField.style.display = "block";
+    } else if (authType === "interactive") {
+        if (optionalClientIdField) optionalClientIdField.style.display = "block";
     }
 }
 
@@ -1615,9 +1798,9 @@ async function loadSidebarConnections() {
                 <div class="connection-item-url-vscode">${conn.url}</div>
                 <div class="connection-item-actions-vscode">
                     ${
-                        !conn.isActive
-                            ? `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                            : `<button class="btn btn-secondary" disabled>Connected</button>`
+                        conn.isActive
+                            ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
+                            : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
                     }
                     <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                 </div>
@@ -1632,13 +1815,22 @@ async function loadSidebarConnections() {
                 const target = e.target as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
                 const connectionId = target.getAttribute("data-connection-id");
-                if (!connectionId) return;
 
-                if (action === "connect") {
-                    await window.toolboxAPI.setActiveConnection(connectionId);
-                    loadSidebarConnections();
-                    updateFooterConnection();
-                } else if (action === "delete") {
+                if (action === "connect" && connectionId) {
+                    // Disable button while connecting
+                    target.disabled = true;
+                    target.textContent = "Connecting...";
+                    
+                    try {
+                        await connectToConnection(connectionId);
+                    } catch (error) {
+                        // Error is already handled in connectToConnection
+                    } finally {
+                        // Reload will refresh the button state
+                    }
+                } else if (action === "disconnect") {
+                    await disconnectConnection();
+                } else if (action === "delete" && connectionId) {
                     if (confirm("Are you sure you want to delete this connection?")) {
                         await window.toolboxAPI.deleteConnection(connectionId);
                         loadSidebarConnections();
@@ -1907,6 +2099,39 @@ async function init() {
     const confirmConnectionBtn = document.getElementById("confirm-connection-btn");
     if (confirmConnectionBtn) {
         confirmConnectionBtn.addEventListener("click", addConnection);
+    }
+
+    // Test connection button
+    const testConnectionBtn = document.getElementById("test-connection-btn");
+    if (testConnectionBtn) {
+        testConnectionBtn.addEventListener("click", testConnection);
+    }
+
+    // Authentication type change handler
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    if (authTypeSelect) {
+        authTypeSelect.addEventListener("change", updateAuthFieldsVisibility);
+    }
+
+    // Password toggle buttons
+    const toggleClientSecret = document.getElementById("toggle-client-secret");
+    if (toggleClientSecret) {
+        toggleClientSecret.addEventListener("click", () => {
+            const input = document.getElementById("connection-client-secret") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
+    }
+
+    const togglePassword = document.getElementById("toggle-password");
+    if (togglePassword) {
+        togglePassword.addEventListener("click", () => {
+            const input = document.getElementById("connection-password") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
     }
 
     // Tool settings modal

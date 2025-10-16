@@ -35,6 +35,11 @@ export interface UserSettings {
 }
 
 /**
+ * Authentication type for Dataverse connection
+ */
+export type AuthenticationType = 'interactive' | 'clientSecret' | 'usernamePassword';
+
+/**
  * Dataverse connection configuration
  */
 export interface DataverseConnection {
@@ -42,11 +47,18 @@ export interface DataverseConnection {
   name: string;
   url: string;
   environment: 'Dev' | 'Test' | 'UAT' | 'Production';
+  authenticationType: AuthenticationType;
   clientId?: string;
+  clientSecret?: string;
   tenantId?: string;
+  username?: string;
+  password?: string;
   createdAt: string;
   lastUsedAt?: string;
   isActive?: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiry?: string;
 }
 
 /**

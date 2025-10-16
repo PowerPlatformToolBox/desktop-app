@@ -20,6 +20,7 @@ export interface ToolboxAPI {
     setActiveConnection: (id: string) => Promise<void>;
     getActiveConnection: () => Promise<any | null>;
     disconnectConnection: () => Promise<void>;
+    testConnection: (connection: any) => Promise<{ success: boolean; error?: string }>;
     getAllTools: () => Promise<any[]>;
     getTool: (toolId: string) => Promise<any>;
     loadTool: (packageName: string) => Promise<any>;
