@@ -15,6 +15,7 @@ A modern desktop application built with Electron and TypeScript that serves as a
 - **🔔 Notifications**: Built-in notification system to keep users informed
 - **🔄 Auto-Updates**: Automatic application updates with user control
 - **📦 Contribution Points**: Tools declare capabilities (commands, menus) in package.json
+- **💻 Integrated Terminal**: VSCode-like terminal with shell selection and command execution API for tools
 
 ## Architecture
 
@@ -124,6 +125,8 @@ cd desktop-app
 ```bash
 npm install
 ```
+
+**Note**: The terminal feature uses Node.js's built-in `child_process` module - **no native dependencies required**! Terminal functionality works out of the box on all platforms.
 
 3. Build the application:
 ```bash
@@ -236,6 +239,51 @@ The application supports automatic updates to keep your ToolBox up to date:
 - Updates are published via GitHub releases
 - The application checks for updates on startup (if auto-update is enabled)
 
+## Integrated Terminal
+
+The ToolBox includes an integrated terminal similar to VS Code:
+
+### Using the Terminal
+
+1. **Open Terminal**: Click the Terminal button in the footer or use the keyboard shortcut
+2. **Create New Terminal**: Click the "+" button in the terminal panel
+3. **Select Shell**: Use the shell dropdown to choose your preferred shell (PowerShell, Bash, Zsh, etc.)
+4. **Multiple Terminals**: Open multiple terminals with tabs to switch between them
+5. **Resize**: Drag the resize handle to adjust terminal height
+
+### Terminal Features
+
+- **Shell Selection**: Choose from available shells on your system
+- **Multiple Instances**: Open multiple terminal tabs
+- **Resize Support**: Adjust terminal panel height
+- **Integrated with Tools**: Tools can programmatically execute commands via the Terminal API
+
+### Terminal API for Tools
+
+Tools can interact with the terminal programmatically:
+
+```javascript
+// Create a terminal
+const terminal = await pptoolbox.terminal.createTerminal({
+  name: 'My Script',
+  shellPath: '/bin/bash'
+});
+
+// Execute a command and get results
+const result = await pptoolbox.terminal.executeCommand(
+  terminal.id,
+  'npm install',
+  60000  // timeout in ms
+);
+
+if (result.completed) {
+  console.log('Output:', result.output);
+  console.log('Exit code:', result.exitCode);
+}
+```
+
+See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for complete Terminal API documentation.
+
 ## Event System
 
 The ToolBox emits events for various operations:
@@ -249,6 +297,9 @@ The ToolBox emits events for various operations:
 - `connection:deleted` - When a connection is deleted
 - `settings:updated` - When settings are updated
 - `notification:shown` - When a notification is shown
+- `terminal:created` - When a terminal is created
+- `terminal:disposed` - When a terminal is disposed
+- `terminal:data` - When terminal outputs data
 
 ## Documentation
 
@@ -256,6 +307,26 @@ The ToolBox emits events for various operations:
 - **[TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
 - **[TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+
+## Troubleshooting
+
+### Terminal Features
+
+The terminal feature uses Node.js's built-in `child_process` module, so it works out of the box on all platforms without any native dependencies. No special rebuild or compilation steps are needed!
+
+If you experience any terminal-related issues:
+
+1. Check that the app has permission to spawn processes on your system
+2. Verify that your shell (bash, zsh, PowerShell, etc.) is properly configured
+3. Check the console for any error messages
+
+### Architecture Notes
+
+The terminal feature uses a **pure Node.js approach**:
+- Built on `child_process` module - no native dependencies
+- Works cross-platform (Windows, macOS, Linux)
+- No build or compilation issues
+- Instant availability after `npm install`
 
 ## License
 

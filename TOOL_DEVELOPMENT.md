@@ -163,6 +163,151 @@ pptoolbox.EventType.CONNECTION_UPDATED
 pptoolbox.EventType.CONNECTION_DELETED
 pptoolbox.EventType.SETTINGS_UPDATED
 pptoolbox.EventType.NOTIFICATION_SHOWN
+pptoolbox.EventType.TERMINAL_CREATED
+pptoolbox.EventType.TERMINAL_DISPOSED
+pptoolbox.EventType.TERMINAL_DATA
+```
+
+### Terminal API
+
+The Terminal API allows tools to interact with the integrated terminal, similar to VS Code's terminal functionality.
+
+#### Get Available Shells
+
+```javascript
+// Get list of available shells on the system
+const shells = await pptoolbox.terminal.getAvailableShells();
+// Returns: [{ path: '/bin/bash', name: 'Bash', isDefault: true }, ...]
+```
+
+#### Create Terminal
+
+```javascript
+// Create a new terminal with default shell
+const terminal = await pptoolbox.terminal.createTerminal();
+
+// Create terminal with specific shell
+const terminal = await pptoolbox.terminal.createTerminal({
+  name: 'My Custom Terminal',
+  shellPath: '/bin/zsh',
+  cwd: '/path/to/directory'
+});
+
+// Returns: { id: 'uuid', name: 'Terminal 1', shellPath: '/bin/bash', ... }
+```
+
+#### Execute Command
+
+```javascript
+// Execute a command and get the result
+const result = await pptoolbox.terminal.executeCommand(
+  terminalId,
+  'echo "Hello World"',
+  5000  // timeout in ms (optional, default: 30000)
+);
+
+// Returns: { terminalId: 'uuid', output: 'Hello World\n', completed: true, exitCode: 0 }
+```
+
+**Note:** The `executeCommand` method will:
+- Send the command to the terminal
+- Collect output until completion or timeout
+- Return a completion event with output and exit code if available
+- If the command doesn't complete within the timeout, `completed` will be `false`
+
+#### Listen for Terminal Events
+
+```javascript
+// Listen for terminal data (real-time output)
+const listener = pptoolbox.events.onEvent(
+  pptoolbox.EventType.TERMINAL_DATA,
+  (event) => {
+    const { terminalId, data } = event.data;
+    console.log(`Terminal ${terminalId} output:`, data);
+  }
+);
+
+// Listen for terminal creation
+pptoolbox.events.onEvent(
+  pptoolbox.EventType.TERMINAL_CREATED,
+  (event) => {
+    console.log('Terminal created:', event.data);
+  }
+);
+
+// Listen for terminal disposal
+pptoolbox.events.onEvent(
+  pptoolbox.EventType.TERMINAL_DISPOSED,
+  (event) => {
+    console.log('Terminal disposed:', event.data.terminalId);
+  }
+);
+```
+
+#### Dispose Terminal
+
+```javascript
+// Close a terminal
+await pptoolbox.terminal.dispose(terminalId);
+```
+
+#### Get Terminals
+
+```javascript
+// Get all active terminals
+const terminals = await pptoolbox.terminal.getAll();
+
+// Get specific terminal
+const terminal = await pptoolbox.terminal.get(terminalId);
+```
+
+### Terminal API Example
+
+Here's a complete example showing how to use the terminal API in a tool:
+
+```javascript
+const pptoolbox = require('pptoolbox');
+
+function activate(context) {
+  // Register a command to run a script
+  const cmd = pptoolbox.commands.registerCommand(
+    'myTool.runScript',
+    async () => {
+      try {
+        // Create a new terminal
+        const terminal = await pptoolbox.terminal.createTerminal({
+          name: 'Script Runner',
+          cwd: '/path/to/project'
+        });
+        
+        // Execute a command and wait for result
+        const result = await pptoolbox.terminal.executeCommand(
+          terminal.id,
+          'npm install',
+          60000  // 60 second timeout
+        );
+        
+        if (result.completed) {
+          await pptoolbox.window.showInformationMessage(
+            `Command completed with exit code: ${result.exitCode}`
+          );
+        } else {
+          await pptoolbox.window.showWarningMessage(
+            'Command timed out but may still be running'
+          );
+        }
+      } catch (error) {
+        await pptoolbox.window.showErrorMessage(
+          `Failed to run script: ${error.message}`
+        );
+      }
+    }
+  );
+  
+  context.subscriptions.push(cmd);
+}
+
+module.exports = { activate, deactivate: () => {} };
 ```
 
 ## Tool Context

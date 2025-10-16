@@ -2227,6 +2227,11 @@ async function init() {
     // Restore previous session
     await restoreSession();
 
+    // Initialize terminal manager
+    const terminalManager = (window as any).terminalManager;
+    if (terminalManager) {
+        await terminalManager.initialize();
+    }
     // Set up IPC listeners for authentication dialogs
     window.toolboxAPI.onShowDeviceCodeDialog((message: string) => {
         const messageElement = document.getElementById("device-code-message");

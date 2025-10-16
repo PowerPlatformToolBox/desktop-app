@@ -49,6 +49,16 @@ export interface ToolboxAPI {
     onUpdateDownloadProgress: (callback: (progress: any) => void) => void;
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
+    // Terminal
+    isTerminalAvailable: () => Promise<boolean>;
+    getAvailableShells: () => Promise<any[]>;
+    createTerminal: (options?: any) => Promise<any>;
+    writeToTerminal: (terminalId: string, data: string) => Promise<void>;
+    executeCommand: (terminalId: string, command: string, timeout?: number) => Promise<any>;
+    resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
+    disposeTerminal: (terminalId: string) => Promise<void>;
+    getAllTerminals: () => Promise<any[]>;
+    getTerminal: (terminalId: string) => Promise<any>;
     onShowHomePage: (callback: () => void) => void;
     // Authentication dialogs
     onShowDeviceCodeDialog: (callback: (message: string) => void) => void;
