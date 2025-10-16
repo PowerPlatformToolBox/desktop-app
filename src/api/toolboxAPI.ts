@@ -106,4 +106,10 @@ export class ToolBoxAPI extends EventEmitter {
   unsubscribe(event: ToolBoxEvent, callback: (payload: ToolBoxEventPayload) => void): void {
     this.off(event, callback);
   }
+
+  /**
+   * Terminal API methods
+   * Note: These are primarily for emitting events. The actual terminal operations
+   * are handled by TerminalManager in the main process.
+   */
 }

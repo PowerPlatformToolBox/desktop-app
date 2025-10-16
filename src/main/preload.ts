@@ -74,4 +74,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onUpdateError: (callback: (error: string) => void) => {
         ipcRenderer.on("update-error", (_, error) => callback(error));
     },
+
+    // Terminal operations
+    getAvailableShells: () => ipcRenderer.invoke("terminal:get-available-shells"),
+    createTerminal: (options: unknown) => ipcRenderer.invoke("terminal:create", options),
+    writeToTerminal: (terminalId: string, data: string) => ipcRenderer.invoke("terminal:write", terminalId, data),
+    executeCommand: (terminalId: string, command: string, timeout?: number) => 
+        ipcRenderer.invoke("terminal:execute-command", terminalId, command, timeout),
+    resizeTerminal: (terminalId: string, cols: number, rows: number) => 
+        ipcRenderer.invoke("terminal:resize", terminalId, cols, rows),
+    disposeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:dispose", terminalId),
+    getAllTerminals: () => ipcRenderer.invoke("terminal:get-all"),
+    getTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:get", terminalId),
 });

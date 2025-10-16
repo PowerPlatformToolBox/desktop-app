@@ -5,11 +5,13 @@ import { ToolBoxEvent } from "../types";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { ToolManager } from "./managers/toolsManager";
+import { TerminalManager } from "./managers/terminalManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private toolManager: ToolManager;
+    private terminalManager: TerminalManager;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
 
@@ -17,6 +19,7 @@ class ToolBoxApp {
         this.settingsManager = new SettingsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        this.terminalManager = new TerminalManager();
         this.autoUpdateManager = new AutoUpdateManager();
 
         this.setupEventListeners();
@@ -45,6 +48,9 @@ class ToolBoxApp {
             ToolBoxEvent.CONNECTION_DELETED,
             ToolBoxEvent.SETTINGS_UPDATED,
             ToolBoxEvent.NOTIFICATION_SHOWN,
+            ToolBoxEvent.TERMINAL_CREATED,
+            ToolBoxEvent.TERMINAL_DISPOSED,
+            ToolBoxEvent.TERMINAL_DATA,
         ];
 
         eventTypes.forEach((eventType) => {
@@ -78,6 +84,19 @@ class ToolBoxApp {
                 body: `Failed to check for updates: ${error.message}`,
                 type: "error",
             });
+        });
+
+        // Listen to terminal events
+        this.terminalManager.on("terminal:created", (terminal) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_CREATED, terminal);
+        });
+
+        this.terminalManager.on("terminal:disposed", (data) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_DISPOSED, data);
+        });
+
+        this.terminalManager.on("terminal:data", (data) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_DATA, data);
         });
     }
 
@@ -218,6 +237,39 @@ class ToolBoxApp {
 
         ipcMain.handle("get-app-version", () => {
             return this.autoUpdateManager.getCurrentVersion();
+        });
+
+        // Terminal handlers
+        ipcMain.handle("terminal:get-available-shells", () => {
+            return this.terminalManager.getAvailableShells();
+        });
+
+        ipcMain.handle("terminal:create", (_, options) => {
+            return this.terminalManager.createTerminal(options);
+        });
+
+        ipcMain.handle("terminal:write", (_, terminalId, data) => {
+            this.terminalManager.writeToTerminal(terminalId, data);
+        });
+
+        ipcMain.handle("terminal:execute-command", async (_, terminalId, command, timeout) => {
+            return await this.terminalManager.executeCommand(terminalId, command, timeout);
+        });
+
+        ipcMain.handle("terminal:resize", (_, terminalId, cols, rows) => {
+            this.terminalManager.resizeTerminal(terminalId, cols, rows);
+        });
+
+        ipcMain.handle("terminal:dispose", (_, terminalId) => {
+            this.terminalManager.disposeTerminal(terminalId);
+        });
+
+        ipcMain.handle("terminal:get-all", () => {
+            return this.terminalManager.getAllTerminals();
+        });
+
+        ipcMain.handle("terminal:get", (_, terminalId) => {
+            return this.terminalManager.getTerminal(terminalId);
         });
     }
 

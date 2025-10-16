@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
         <title>PowerPlatform ToolBox</title>
+        <link rel="stylesheet" href="xterm.css" />
         <link rel="stylesheet" href="styles.css" />
     </head>
     <body>
@@ -208,12 +209,42 @@
                     </div>
                 </div>
             </main>
+
+            <!-- Terminal Panel -->
+            <div class="terminal-panel" id="terminal-panel" style="display: none;">
+                <div class="terminal-header">
+                    <div class="terminal-title">Terminal</div>
+                    <div class="terminal-controls">
+                        <select id="terminal-shell-select" class="terminal-shell-select" title="Select Shell">
+                            <!-- Shell options will be populated here -->
+                        </select>
+                        <button class="terminal-btn" id="new-terminal-btn" title="New Terminal">+</button>
+                        <button class="terminal-btn" id="close-terminal-btn" title="Hide Terminal">✕</button>
+                    </div>
+                </div>
+                <div class="terminal-tabs" id="terminal-tabs">
+                    <!-- Terminal tabs will be added here -->
+                </div>
+                <div class="terminal-content" id="terminal-content">
+                    <!-- Terminal instances will be rendered here -->
+                </div>
+            </div>
+
+            <div class="terminal-resize-handle" id="terminal-resize-handle" style="display: none;"></div>
         </div>
 
         <!-- Footer with connection status -->
         <footer class="app-footer">
             <div class="footer-content">
                 <span id="connection-status" class="connection-status">No active connection</span>
+                <button class="footer-terminal-toggle" id="footer-terminal-toggle" title="Toggle Terminal">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2 2v12h12V2H2zm1 11V3h10v10H3z"/>
+                        <path d="M5 5l3 3-3 3v-2H4V7h1V5z"/>
+                        <rect x="9" y="10" width="2" height="1"/>
+                    </svg>
+                    Terminal
+                </button>
             </div>
         </footer>
 
@@ -310,6 +341,7 @@
             </div>
         </div>
 
+        <script type="module" src="terminalManager.js"></script>
         <script type="module" src="renderer.js"></script>
     </body>
 </html>

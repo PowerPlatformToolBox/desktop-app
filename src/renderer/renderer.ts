@@ -1961,6 +1961,12 @@ async function init() {
     // Restore previous session
     await restoreSession();
 
+    // Initialize terminal manager
+    const terminalManager = (window as any).terminalManager;
+    if (terminalManager) {
+        await terminalManager.initialize();
+    }
+
     // Listen for toolbox events and react to them
     window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);

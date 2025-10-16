@@ -7,7 +7,7 @@
     "start": "electron .",
     "dev": "npm run build && electron .",
     "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
-    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/ && cp src/renderer/toolboxAPIBridge.js dist/renderer/ && cp -r src/renderer/icons dist/renderer/",
+    "copy-static": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/styles.css dist/renderer/ && cp src/renderer/toolboxAPIBridge.js dist/renderer/ && cp -r src/renderer/icons dist/renderer/ && cp node_modules/@xterm/xterm/css/xterm.css dist/renderer/",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "package": "npm run build && electron-builder"
@@ -31,8 +31,11 @@
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
+    "node-pty": "^1.0.0",
     "uuid": "^13.0.0"
   },
   "build": {

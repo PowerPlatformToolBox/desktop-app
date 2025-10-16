@@ -70,6 +70,9 @@ export enum ToolBoxEvent {
   CONNECTION_DELETED = 'connection:deleted',
   SETTINGS_UPDATED = 'settings:updated',
   NOTIFICATION_SHOWN = 'notification:shown',
+  TERMINAL_CREATED = 'terminal:created',
+  TERMINAL_DISPOSED = 'terminal:disposed',
+  TERMINAL_DATA = 'terminal:data',
 }
 
 /**
@@ -88,4 +91,45 @@ export interface ToolContext {
   toolId: string;
   connectionUrl: string | null;
   accessToken: string | null;
+}
+
+/**
+ * Terminal instance configuration
+ */
+export interface TerminalOptions {
+  name?: string;
+  shellPath?: string;
+  shellArgs?: string[];
+  cwd?: string;
+  env?: { [key: string]: string };
+}
+
+/**
+ * Terminal instance information
+ */
+export interface Terminal {
+  id: string;
+  name: string;
+  shellPath: string;
+  processId?: number;
+  createdAt: string;
+}
+
+/**
+ * Command execution result
+ */
+export interface CommandResult {
+  terminalId: string;
+  output: string;
+  exitCode?: number;
+  completed: boolean;
+}
+
+/**
+ * Available shell information
+ */
+export interface ShellInfo {
+  path: string;
+  name: string;
+  isDefault: boolean;
 }
