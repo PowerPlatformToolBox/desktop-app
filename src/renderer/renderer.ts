@@ -472,37 +472,36 @@ async function launchTool(toolId: string) {
         toolIframe.style.border = "none";
         toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
         
-        // Don't inject inline script to avoid CSP violations
-        // Instead, we'll inject the bridge script after the iframe loads
+        // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
         
-        // Set up event listener to inject bridge and post context after iframe loads
+        // Get the absolute path to the bridge script
+        // The main renderer runs from dist/renderer/, so we use that as base
+        const bridgePath = window.location.href.replace(/[^/]*$/, 'toolboxAPIBridge.js');
+        const bridgeScriptTag = `<script src="${bridgePath}"></script>`;
+        
+        // Inject the script tag before the closing </head> tag or at the beginning of <body>
+        if (injectedHtml.includes('</head>')) {
+            injectedHtml = injectedHtml.replace('</head>', bridgeScriptTag + '</head>');
+        } else if (injectedHtml.includes('<body>')) {
+            injectedHtml = injectedHtml.replace('<body>', '<body>' + bridgeScriptTag);
+        } else {
+            // If no head or body tags, prepend the script
+            injectedHtml = bridgeScriptTag + injectedHtml;
+        }
+        
+        // Set up event listener to post context after iframe loads
         toolIframe.addEventListener('load', () => {
             if (toolIframe.contentWindow) {
-                // Inject the bridge script by creating a script element in the iframe
-                const iframeDoc = toolIframe.contentWindow.document;
-                const script = iframeDoc.createElement('script');
-                
-                // Load bridge script content from external file
-                // Since we can't easily load from file in srcdoc context, 
-                // we'll fetch it from the renderer context and inject it
-                fetch('toolboxAPIBridge.js')
-                    .then(response => response.text())
-                    .then(scriptContent => {
-                        script.textContent = scriptContent;
-                        iframeDoc.head.appendChild(script);
-                        
-                        // After bridge is loaded, post the TOOLBOX_CONTEXT to the iframe
-                        setTimeout(() => {
-                            toolIframe.contentWindow.postMessage({
-                                type: 'TOOLBOX_CONTEXT',
-                                data: toolContext
-                            }, '*');
-                        }, 100);
-                    })
-                    .catch(error => {
-                        console.error('Failed to load toolboxAPI bridge:', error);
-                    });
+                // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
+                setTimeout(() => {
+                    if (toolIframe.contentWindow) {
+                        toolIframe.contentWindow.postMessage({
+                            type: 'TOOLBOX_CONTEXT',
+                            data: toolContext
+                        }, '*');
+                    }
+                }, 100);
             }
         });
 
