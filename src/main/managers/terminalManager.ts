@@ -211,7 +211,7 @@ export class TerminalManager extends EventEmitter {
     instance.ptyProcess.write(command + '\r');
 
     // Wait for completion or timeout
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // Timeout - return what we have
         this.commandBuffers.delete(terminalId);
