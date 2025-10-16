@@ -8,6 +8,8 @@
     --border-color: #edebe9;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
+
+    --app-footer-height: 32px;
 }
 
 /* Dark theme */
@@ -60,7 +62,7 @@ body {
     flex-direction: column;
     position: relative;
     z-index: 100;
-    height: 96%;
+    height: calc(100% - var(--app-footer-height));
 }
 
 body.dark-theme .activity-bar {
@@ -708,7 +710,7 @@ body.light-theme .activity-bar {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 32px;
+    height: var(--app-footer-height);
     background-color: var(--sidebar-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
