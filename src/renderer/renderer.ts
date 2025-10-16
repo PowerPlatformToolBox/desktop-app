@@ -303,8 +303,11 @@ async function launchTool(toolId: string) {
         // Get tool context separately for postMessage
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
-        // Hide all views
-        document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+        // Hide all views (including home view)
+        document.querySelectorAll(".view").forEach((view) => {
+            view.classList.remove("active");
+            (view as HTMLElement).style.display = "none";
+        });
 
         // Show tool panel
         const toolPanel = document.getElementById("tool-panel");
@@ -625,13 +628,16 @@ function closeTool(toolId: string) {
             const lastToolId = Array.from(openTools.keys())[openTools.size - 1];
             switchToTool(lastToolId);
         } else {
-            // No more tools open, hide the tool panel
+            // No more tools open, hide the tool panel and show home view
             const toolPanel = document.getElementById("tool-panel");
+            const homeView = document.getElementById("home-view");
             if (toolPanel) {
                 toolPanel.style.display = "none";
             }
+            if (homeView) {
+                homeView.style.display = "block";
+            }
             activeToolId = null;
-            // Home view is always visible now, no need to switch views
         }
     }
 }
@@ -844,6 +850,22 @@ function setToolConnection(toolId: string, connectionId: string | null) {
 
     // Notify tool of connection change (in a real implementation, this would message the webview)
     console.log(`Tool ${toolId} connection set to:`, connectionId);
+}
+
+// Show home page function
+function showHomePage() {
+    // Hide tool panel
+    const toolPanel = document.getElementById("tool-panel");
+    if (toolPanel) {
+        toolPanel.style.display = "none";
+    }
+    
+    // Show home view
+    const homeView = document.getElementById("home-view");
+    if (homeView) {
+        homeView.style.display = "block";
+        homeView.classList.add("active");
+    }
 }
 
 // Split view management
@@ -1903,6 +1925,11 @@ async function init() {
 
     // Set up auto-update listeners
     setupAutoUpdateListeners();
+
+    // Set up home page listener
+    window.toolboxAPI.onShowHomePage(() => {
+        showHomePage();
+    });
 
     // Set up keyboard shortcuts
     setupKeyboardShortcuts();

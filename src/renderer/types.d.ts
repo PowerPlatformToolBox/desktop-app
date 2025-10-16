@@ -48,6 +48,7 @@ export interface ToolboxAPI {
     onUpdateDownloadProgress: (callback: (progress: any) => void) => void;
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
+    onShowHomePage: (callback: () => void) => void;
 }
 
 declare global {

@@ -300,6 +300,16 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
+                    {
+                        label: "Show Home Page",
+                        accelerator: isMac ? "Command+H" : "Ctrl+H",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.send("show-home-page");
+                            }
+                        },
+                    },
+                    { type: "separator" },
                     { role: "resetZoom" },
                     { role: "zoomIn" },
                     { role: "zoomOut" },

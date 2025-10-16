@@ -77,4 +77,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onUpdateError: (callback: (error: string) => void) => {
         ipcRenderer.on("update-error", (_, error) => callback(error));
     },
+    
+    // Home page
+    onShowHomePage: (callback: () => void) => {
+        ipcRenderer.on("show-home-page", callback);
+    },
 });
