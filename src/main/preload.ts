@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // File operations
     saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
 
+    // External URL
+    openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+
     // Events
     getEventHistory: (limit?: number) => ipcRenderer.invoke("get-event-history", limit),
     onToolboxEvent: (callback: (event: unknown, payload: unknown) => void) => {
@@ -87,4 +90,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     disposeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:dispose", terminalId),
     getAllTerminals: () => ipcRenderer.invoke("terminal:get-all"),
     getTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:get", terminalId),
+    
+    // Home page
+    onShowHomePage: (callback: () => void) => {
+        ipcRenderer.on("show-home-page", callback);
+    },
 });
