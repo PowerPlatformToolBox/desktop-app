@@ -108,10 +108,12 @@ class TerminalManager {
     async createTerminal(options: any = {}): Promise<void> {
         try {
             const Terminal = (window as any).Terminal;
-            const FitAddon = (window as any).FitAddon;
+            // FitAddon is exported as FitAddon.FitAddon in the UMD build
+            const FitAddonModule = (window as any).FitAddon;
+            const FitAddon = FitAddonModule?.FitAddon || FitAddonModule;
             
             if (!Terminal || !FitAddon) {
-                console.error('Terminal or FitAddon not loaded');
+                console.error('Terminal or FitAddon not loaded', { Terminal: !!Terminal, FitAddon: !!FitAddon });
                 return;
             }
 
