@@ -144,7 +144,7 @@ function setupUIEventListeners(): void {
  * Subscribe to ToolBox events
  */
 function subscribeToToolBoxEvents(): void {
-    toolbox.onToolboxEvent((event, payload) => {
+    toolbox.onToolboxEvent((_event, payload) => {
         logEvent(`ToolBox Event: ${payload.event}`, payload.data);
     });
 

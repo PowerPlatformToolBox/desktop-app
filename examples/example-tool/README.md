@@ -114,13 +114,27 @@ const active = await window.toolboxAPI.getActiveConnection();
 
 ## Type Definitions
 
-This tool uses `@powerplatform/pptoolbox-types` for full TypeScript support. The type definitions provide:
+This tool includes TypeScript type definitions in the `types/` folder. The type definitions provide:
 
 - Full ToolBoxAPI interface
 - Event type definitions
 - Connection and Tool interfaces
 - Notification options
 - And more...
+
+## TypeScript Configuration
+
+The tool uses modern TypeScript configuration:
+
+- **Target**: ES2022
+- **Module**: ES2022
+- **Module Resolution**: bundler (modern strategy)
+- **Strict Mode**: Enabled with additional safety checks:
+  - `noUnusedLocals`: Warns about unused local variables
+  - `noUnusedParameters`: Warns about unused function parameters
+  - `noFallthroughCasesInSwitch`: Ensures all switch cases handle control flow
+  - `useDefineForClassFields`: Modern class field semantics
+  - `moduleDetection`: Force module detection
 
 ## License
 
