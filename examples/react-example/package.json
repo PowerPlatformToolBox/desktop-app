@@ -1,0 +1,24 @@
+{
+  "name": "pptb-react-example",
+  "version": "0.0.1",
+  "displayName": "PowerPlatform React Example Tool",
+  "description": "Example tool demonstrating React integration with PowerPlatform ToolBox",
+  "author": "PowerPlatform ToolBox",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7"
+  }
+}

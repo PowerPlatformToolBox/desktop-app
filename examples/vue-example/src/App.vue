@@ -1,0 +1,119 @@
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+
+// Declare the toolboxAPI on window
+declare global {
+  interface Window {
+    toolboxAPI: {
+      getToolContext: () => Promise<{ connectionUrl: string; accessToken: string }>;
+      showNotification: (options: { title: string; body: string; type: string }) => Promise<void>;
+      onToolboxEvent: (callback: (event: string, payload: unknown) => void) => void;
+      getConnections: () => Promise<Array<{ id: string; name: string; url: string }>>;
+      getActiveConnection: () => Promise<{ id: string; name: string; url: string } | null>;
+    };
+  }
+}
+
+interface Connection {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface Event {
+  event: string;
+  timestamp: string;
+}
+
+const connectionUrl = ref<string>('');
+const connections = ref<Connection[]>([]);
+const loading = ref<boolean>(true);
+const events = ref<Event[]>([]);
+
+onMounted(async () => {
+  try {
+    // Get connection context
+    const context = await window.toolboxAPI.getToolContext();
+    connectionUrl.value = context.connectionUrl;
+
+    // Get all connections
+    const conns = await window.toolboxAPI.getConnections();
+    connections.value = conns;
+
+    // Subscribe to events
+    window.toolboxAPI.onToolboxEvent((event: string) => {
+      events.value = [
+        ...events.value.slice(-9),
+        { event, timestamp: new Date().toISOString() }
+      ];
+    });
+
+    loading.value = false;
+  } catch (error) {
+    console.error('Failed to initialize tool:', error);
+    loading.value = false;
+  }
+});
+
+const handleShowNotification = async () => {
+  await window.toolboxAPI.showNotification({
+    title: 'Vue Example',
+    body: 'This is a notification from the Vue example tool!',
+    type: 'success'
+  });
+};
+</script>
+
+<template>
+  <div class="container">
+    <div v-if="loading" class="loading">Loading...</div>
+    
+    <template v-else>
+      <header class="header">
+        <h1>💚 Vue Example Tool</h1>
+        <p>Demonstrating Vue 3 integration with PowerPlatform ToolBox</p>
+      </header>
+
+      <section class="section">
+        <h2>Connection Information</h2>
+        <div class="card">
+          <div class="info-item">
+            <strong>Current Connection URL:</strong>
+            <span>{{ connectionUrl || 'Not connected' }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Available Connections</h2>
+        <div class="connections-grid">
+          <p v-if="connections.length === 0">No connections available</p>
+          <div v-else v-for="conn in connections" :key="conn.id" class="card">
+            <h3>{{ conn.name }}</h3>
+            <p class="connection-url">{{ conn.url }}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Actions</h2>
+        <button class="button" @click="handleShowNotification">
+          Show Notification
+        </button>
+      </section>
+
+      <section class="section">
+        <h2>Recent Events</h2>
+        <div class="events-list">
+          <p v-if="events.length === 0">No events yet</p>
+          <div v-else v-for="(evt, idx) in events" :key="idx" class="event-item">
+            <span class="event-name">{{ evt.event }}</span>
+            <span class="event-time">
+              {{ new Date(evt.timestamp).toLocaleTimeString() }}
+            </span>
+          </div>
+        </div>
+      </section>
+    </template>
+  </div>
+</template>

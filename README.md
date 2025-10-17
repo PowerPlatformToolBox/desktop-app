@@ -184,9 +184,21 @@ A tool must:
 3. Export `activate(context)` and `deactivate()` functions
 4. Use the `pptoolbox` API for ToolBox integration
 
-### Example Tool Structure
+### Example Tools
 
-See `examples/example-tool/` for a complete example.
+Multiple framework examples are available in the `examples/` directory:
+
+- **[example-tool](examples/example-tool/)** - Basic HTML/TypeScript example
+- **[react-example](examples/react-example/)** - React 18 with TypeScript and Vite
+- **[vue-example](examples/vue-example/)** - Vue 3 with Composition API and Vite
+- **[svelte-example](examples/svelte-example/)** - Svelte 5 with TypeScript and Vite
+
+Each example demonstrates:
+- ToolBox API integration
+- Connection management
+- Event handling
+- Modern build tooling
+- TypeScript support
 
 For detailed documentation, see [TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md).
 

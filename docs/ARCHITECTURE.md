@@ -6,10 +6,12 @@ PowerPlatform ToolBox is an Electron-based desktop application built with TypeSc
 
 ## Technology Stack
 
-- **Electron**: Cross-platform desktop application framework
-- **TypeScript**: Type-safe JavaScript
+- **Electron**: Cross-platform desktop application framework (v28)
+- **TypeScript**: Type-safe JavaScript (v5.3 with ES2022 target)
 - **electron-store**: Persistent settings storage
-- **Node.js**: Runtime environment
+- **electron-updater**: Automatic application updates
+- **@azure/msal-node**: Microsoft Authentication Library for OAuth flows
+- **Node.js**: Runtime environment (v18+)
 
 ## Architecture Diagram
 
@@ -69,7 +71,9 @@ The main process is the entry point of the Electron application and manages the 
   - Set up IPC handlers
   - Coordinate between managers
 
-#### `settings-manager.ts`
+#### Managers (`src/main/managers/`)
+
+##### `settingsManager.ts`
 - **Purpose**: Manage application and tool settings
 - **Responsibilities**:
   - User settings (theme, language, auto-update)
@@ -77,7 +81,7 @@ The main process is the entry point of the Electron application and manages the 
   - Tool-specific settings
   - Persistent storage using electron-store
 
-#### `tool-manager.ts`
+##### `toolsManager.ts`
 - **Purpose**: Manage external tools
 - **Responsibilities**:
   - Load/unload tools
@@ -86,6 +90,23 @@ The main process is the entry point of the Electron application and manages the 
   - Coordinate with Tool Host Manager
   - Parse contribution points from package.json
   - Emit tool lifecycle events
+
+##### `authManager.ts`
+- **Purpose**: Manage authentication and authorization
+- **Responsibilities**:
+  - Handle OAuth flows with Azure AD
+  - Manage access tokens for Dataverse connections
+  - MSAL integration for secure authentication
+  - Token refresh and caching
+
+##### `autoUpdateManager.ts`
+- **Purpose**: Manage application auto-updates
+- **Responsibilities**:
+  - Check for updates using electron-updater
+  - Download and install updates
+  - Notify users of available updates
+  - Periodic update checks (configurable interval)
+  - User control over update installation
 
 #### Tool Host (`src/main/toolHost/`)
 
@@ -380,27 +401,38 @@ Tools and components can:
 desktop-app/
 ├── src/
 │   ├── api/
-│   │   └── toolbox-api.ts      # Event system and API
+│   │   └── toolbox-api.ts           # Event system and API
 │   ├── main/
-│   │   ├── index.ts            # Main process entry
-│   │   ├── preload.ts          # Secure IPC bridge
-│   │   ├── settings-manager.ts # Settings management
-│   │   └── tool-manager.ts     # Tool lifecycle
+│   │   ├── index.ts                 # Main process entry
+│   │   ├── preload.ts               # Secure IPC bridge
+│   │   └── managers/
+│   │       ├── settingsManager.ts   # Settings management
+│   │       ├── toolsManager.ts      # Tool lifecycle
+│   │       ├── authManager.ts       # Authentication
+│   │       └── autoUpdateManager.ts # Auto-updates
 │   ├── renderer/
-│   │   ├── index.html          # UI structure
-│   │   ├── styles.css          # Styling
-│   │   ├── renderer.ts         # UI logic
-│   │   └── types.d.ts          # Renderer types
+│   │   ├── index.html               # UI structure
+│   │   ├── styles.css               # Styling
+│   │   ├── renderer.ts              # UI logic
+│   │   ├── types.d.ts               # Renderer types
+│   │   └── toolboxAPIBridge.js      # API bridge
 │   └── types/
-│       └── index.ts            # Shared type definitions
+│       └── index.ts                 # Shared type definitions
+├── docs/
+│   ├── ARCHITECTURE.md              # Architecture documentation
+│   ├── TOOL_DEVELOPMENT.md          # Tool development guide
+│   ├── TOOL_HOST_ARCHITECTURE.md    # Tool Host details
+│   └── CONTRIBUTING.md              # Contribution guidelines
+├── examples/
+│   └── example-tool/                # Example tool implementation
 ├── assets/
-│   └── icon.png                # Application icon
-├── dist/                       # Compiled output
-├── build/                      # Build artifacts
-├── package.json                # Dependencies and scripts
-├── tsconfig.json               # TypeScript config (main)
-├── tsconfig.renderer.json      # TypeScript config (renderer)
-└── .eslintrc.js               # Linting configuration
+│   └── icon.png                     # Application icon
+├── dist/                            # Compiled output
+├── build/                           # Build artifacts
+├── package.json                     # Dependencies and scripts
+├── tsconfig.json                    # TypeScript config (main)
+├── tsconfig.renderer.json           # TypeScript config (renderer)
+└── .eslintrc.js                    # Linting configuration
 ```
 
 ## Build Process
@@ -424,16 +456,15 @@ desktop-app/
 2. **Tool Sandboxing**: Enhanced security for third-party tools
 3. **Multi-language Support**: Internationalization
 4. **Theme Customization**: User-defined themes
-5. **Auto-updates**: Automatic application updates
-6. **Plugin API v2**: Enhanced tool integration capabilities
-7. **Testing Framework**: Automated testing infrastructure
-8. **Documentation Site**: Comprehensive online documentation
+5. **Plugin API v2**: Enhanced tool integration capabilities
+6. **Testing Framework**: Automated testing infrastructure
+7. **Documentation Site**: Comprehensive online documentation
 
 ### Technical Debt
 
 1. Add comprehensive test coverage
 2. Implement proper error boundaries
-3. Add logging system
+3. Add structured logging system
 4. Implement tool verification/signing
 5. Add performance monitoring
 
