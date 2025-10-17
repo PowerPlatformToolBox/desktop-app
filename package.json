@@ -4,13 +4,16 @@
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "npm run build && electron .",
     "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
     "copy-static": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/ && shx cp src/renderer/toolboxAPIBridge.js dist/renderer/ && shx cp src/renderer/tools.json dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/",
+    "dev": "npm run build && electron .",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",
-    "package": "npm run build && electron-builder"
+    "start": "electron .",
+    "package": "npm run build && electron-builder",
+    "version": "auto-changelog -p && git add CHANGELOG.md",
+    "contributors:add": "all-contributors add",
+    "contributors:generate": "all-contributors generate"
   },
   "keywords": [
     "powerplatform",
@@ -28,7 +31,9 @@
     "electron-builder": "^24.9.0",
     "eslint": "^8.54.0",
     "shx": "^0.4.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "all-contributors-cli": "^6.20.0",
+    "auto-changelog": "^2.3.0"
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",

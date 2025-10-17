@@ -6,12 +6,12 @@ PowerPlatform ToolBox is an Electron-based desktop application built with TypeSc
 
 ## Technology Stack
 
-- **Electron**: Cross-platform desktop application framework (v28)
-- **TypeScript**: Type-safe JavaScript (v5.3 with ES2022 target)
-- **electron-store**: Persistent settings storage
-- **electron-updater**: Automatic application updates
-- **@azure/msal-node**: Microsoft Authentication Library for OAuth flows
-- **Node.js**: Runtime environment (v18+)
+-   **Electron**: Cross-platform desktop application framework (v28)
+-   **TypeScript**: Type-safe JavaScript (v5.3 with ES2022 target)
+-   **electron-store**: Persistent settings storage
+-   **electron-updater**: Automatic application updates
+-   **@azure/msal-node**: Microsoft Authentication Library for OAuth flows
+-   **Node.js**: Runtime environment (v18+)
 
 ## Architecture Diagram
 
@@ -64,154 +64,170 @@ PowerPlatform ToolBox is an Electron-based desktop application built with TypeSc
 The main process is the entry point of the Electron application and manages the application lifecycle.
 
 #### `index.ts`
-- **Purpose**: Main application entry point
-- **Responsibilities**:
-  - Initialize Electron app
-  - Create application window
-  - Set up IPC handlers
-  - Coordinate between managers
+
+-   **Purpose**: Main application entry point
+-   **Responsibilities**:
+    -   Initialize Electron app
+    -   Create application window
+    -   Set up IPC handlers
+    -   Coordinate between managers
 
 #### Managers (`src/main/managers/`)
 
 ##### `settingsManager.ts`
-- **Purpose**: Manage application and tool settings
-- **Responsibilities**:
-  - User settings (theme, language, auto-update)
-  - Dataverse connections (CRUD operations)
-  - Tool-specific settings
-  - Persistent storage using electron-store
+
+-   **Purpose**: Manage application and tool settings
+-   **Responsibilities**:
+    -   User settings (theme, language, auto-update)
+    -   Dataverse connections (CRUD operations)
+    -   Tool-specific settings
+    -   Persistent storage using electron-store
 
 ##### `toolsManager.ts`
-- **Purpose**: Manage external tools
-- **Responsibilities**:
-  - Load/unload tools
-  - Install/uninstall tools via npm
-  - Track loaded tools
-  - Coordinate with Tool Host Manager
-  - Parse contribution points from package.json
-  - Emit tool lifecycle events
+
+-   **Purpose**: Manage external tools
+-   **Responsibilities**:
+    -   Load/unload tools
+    -   Install/uninstall tools via npm
+    -   Track loaded tools
+    -   Coordinate with Tool Host Manager
+    -   Parse contribution points from package.json
+    -   Emit tool lifecycle events
 
 ##### `authManager.ts`
-- **Purpose**: Manage authentication and authorization
-- **Responsibilities**:
-  - Handle OAuth flows with Azure AD
-  - Manage access tokens for Dataverse connections
-  - MSAL integration for secure authentication
-  - Token refresh and caching
+
+-   **Purpose**: Manage authentication and authorization
+-   **Responsibilities**:
+    -   Handle OAuth flows with Azure AD
+    -   Manage access tokens for Dataverse connections
+    -   MSAL integration for secure authentication
+    -   Token refresh and caching
 
 ##### `autoUpdateManager.ts`
-- **Purpose**: Manage application auto-updates
-- **Responsibilities**:
-  - Check for updates using electron-updater
-  - Download and install updates
-  - Notify users of available updates
-  - Periodic update checks (configurable interval)
-  - User control over update installation
+
+-   **Purpose**: Manage application auto-updates
+-   **Responsibilities**:
+    -   Check for updates using electron-updater
+    -   Download and install updates
+    -   Notify users of available updates
+    -   Periodic update checks (configurable interval)
+    -   User control over update installation
 
 #### Tool Host (`src/main/toolHost/`)
 
 The Tool Host subsystem provides secure, isolated execution of tools, inspired by VS Code's Extension Host.
 
 ##### `toolHostManager.ts`
-- **Purpose**: Coordinate all tool host processes
-- **Responsibilities**:
-  - Create and manage tool host processes
-  - Route API calls between tools and main process
-  - Handle command execution
-  - Manage tool lifecycle events
+
+-   **Purpose**: Coordinate all tool host processes
+-   **Responsibilities**:
+    -   Create and manage tool host processes
+    -   Route API calls between tools and main process
+    -   Handle command execution
+    -   Manage tool lifecycle events
 
 ##### `toolHostProcess.ts`
-- **Purpose**: Manage individual tool host process
-- **Responsibilities**:
-  - Fork separate Node.js process for each tool
-  - Handle tool activation/deactivation
-  - Manage IPC communication with tool
-  - Process lifecycle management
+
+-   **Purpose**: Manage individual tool host process
+-   **Responsibilities**:
+    -   Fork separate Node.js process for each tool
+    -   Handle tool activation/deactivation
+    -   Manage IPC communication with tool
+    -   Process lifecycle management
 
 ##### `toolHostProtocol.ts`
-- **Purpose**: Secure IPC protocol implementation
-- **Responsibilities**:
-  - Request/response message handling
-  - Message validation and serialization
-  - Timeout management
-  - Protocol message creation
+
+-   **Purpose**: Secure IPC protocol implementation
+-   **Responsibilities**:
+    -   Request/response message handling
+    -   Message validation and serialization
+    -   Timeout management
+    -   Protocol message creation
 
 ##### `toolHostRunner.ts`
-- **Purpose**: Entry point for tool host processes
-- **Responsibilities**:
-  - Load tool modules in isolated environment
-  - Execute tool activation/deactivation
-  - Handle API calls from tools
-  - Manage tool context and state
+
+-   **Purpose**: Entry point for tool host processes
+-   **Responsibilities**:
+    -   Load tool modules in isolated environment
+    -   Execute tool activation/deactivation
+    -   Handle API calls from tools
+    -   Manage tool context and state
 
 #### `preload.ts`
-- **Purpose**: Secure bridge between main and renderer
-- **Responsibilities**:
-  - Expose safe APIs to renderer via contextBridge
-  - IPC communication wrapper
-  - Security isolation
+
+-   **Purpose**: Secure bridge between main and renderer
+-   **Responsibilities**:
+    -   Expose safe APIs to renderer via contextBridge
+    -   IPC communication wrapper
+    -   Security isolation
 
 ### 2. Renderer Process (`src/renderer/`)
 
 The renderer process handles the UI and user interactions.
 
 #### `index.html`
-- **Purpose**: Application UI structure
-- **Features**:
-  - Three-panel layout (Tools, Connections, Settings)
-  - Modal dialogs for tool installation and connections
-  - Modern, responsive design
+
+-   **Purpose**: Application UI structure
+-   **Features**:
+    -   Three-panel layout (Tools, Connections, Settings)
+    -   Modal dialogs for tool installation and connections
+    -   Modern, responsive design
 
 #### `styles.css`
-- **Purpose**: Application styling
-- **Features**:
-  - Modern Fluent-inspired design
-  - CSS variables for theming
-  - Responsive grid layouts
-  - Clean, professional appearance
+
+-   **Purpose**: Application styling
+-   **Features**:
+    -   Modern Fluent-inspired design
+    -   CSS variables for theming
+    -   Responsive grid layouts
+    -   Clean, professional appearance
 
 #### `renderer.ts`
-- **Purpose**: UI logic and interactions
-- **Responsibilities**:
-  - Handle user interactions
-  - Communicate with main process via IPC
-  - Update UI based on state changes
-  - Manage modal dialogs
+
+-   **Purpose**: UI logic and interactions
+-   **Responsibilities**:
+    -   Handle user interactions
+    -   Communicate with main process via IPC
+    -   Update UI based on state changes
+    -   Manage modal dialogs
 
 ### 3. API Layer (`src/api/`)
 
 #### `toolbox-api.ts`
-- **Purpose**: Event-driven API for tools and application
-- **Responsibilities**:
-  - Event emission and subscription
-  - Notification system
-  - Event history tracking
-  - Communication hub for tools
+
+-   **Purpose**: Event-driven API for tools and application
+-   **Responsibilities**:
+    -   Event emission and subscription
+    -   Notification system
+    -   Event history tracking
+    -   Communication hub for tools
 
 ### 4. Type Definitions (`src/types/`)
 
 #### `index.ts`
-- **Purpose**: TypeScript type definitions
-- **Contents**:
-  - Tool interface with contribution points
-  - Contribution point types (commands, menus, views, configuration)
-  - Tool Host protocol types and message structures
-  - Tool context and state storage interfaces
-  - Settings interfaces
-  - Connection interfaces
-  - Event types and payloads
-  - Notification options
+
+-   **Purpose**: TypeScript type definitions
+-   **Contents**:
+    -   Tool interface with contribution points
+    -   Contribution point types (commands, menus, views, configuration)
+    -   Tool Host protocol types and message structures
+    -   Tool context and state storage interfaces
+    -   Settings interfaces
+    -   Connection interfaces
+    -   Event types and payloads
+    -   Notification options
 
 ### 5. Tool Host API (`src/toolHost/api/`)
 
 #### `pptoolbox.ts`
-- **Purpose**: API module injected into tools at runtime
-- **Responsibilities**:
-  - Provide `pptoolbox` module that tools import
-  - Handle IPC communication with main process
-  - Expose commands, window, workspace, and events APIs
-  - Request/response handling for API calls
-- **Similar to**: VS Code's `vscode` module
+
+-   **Purpose**: API module injected into tools at runtime
+-   **Responsibilities**:
+    -   Provide `pptoolbox` module that tools import
+    -   Handle IPC communication with main process
+    -   Expose commands, window, workspace, and events APIs
+    -   Request/response handling for API calls
+-   **Similar to**: VS Code's `vscode` module
 
 ## Data Flow
 
@@ -280,24 +296,28 @@ Application applies new settings
 The PowerPlatform ToolBox implements a **VS Code Extension Host-like architecture** for secure tool execution:
 
 #### Isolated Processes
-- Each tool runs in a separate Node.js process (Tool Host Process)
-- Tools cannot directly access the main application or other tools
-- Process isolation prevents memory leaks and crashes from affecting the main app
+
+-   Each tool runs in a separate Node.js process (Tool Host Process)
+-   Tools cannot directly access the main application or other tools
+-   Process isolation prevents memory leaks and crashes from affecting the main app
 
 #### Structured IPC Protocol
-- All communication uses a structured message protocol (ToolHostProtocol)
-- Messages are validated for structure and content
-- Request/response pattern with unique message IDs
-- Automatic timeout handling (30 seconds default)
-- Message types: REQUEST, RESPONSE, EVENT, ERROR, ACTIVATE, DEACTIVATE, API_CALL
+
+-   All communication uses a structured message protocol (ToolHostProtocol)
+-   Messages are validated for structure and content
+-   Request/response pattern with unique message IDs
+-   Automatic timeout handling (30 seconds default)
+-   Message types: REQUEST, RESPONSE, EVENT, ERROR, ACTIVATE, DEACTIVATE, API_CALL
 
 #### API Injection
-- Tools import `pptoolbox` module: `const pptoolbox = require('pptoolbox');`
-- The actual API is injected at runtime by the Tool Host environment
-- Tools only have access to the specific APIs exposed by ToolBox
-- No direct access to Node.js fs, Electron APIs, or other sensitive modules
+
+-   Tools import `pptoolbox` module: `const pptoolbox = require('pptoolbox');`
+-   The actual API is injected at runtime by the Tool Host environment
+-   Tools only have access to the specific APIs exposed by ToolBox
+-   No direct access to Node.js fs, Electron APIs, or other sensitive modules
 
 #### Message Flow Example
+
 ```
 Tool                    Tool Host Process              Tool Host Manager           Main Process
  |                             |                              |                          |
@@ -314,6 +334,7 @@ Tool                    Tool Host Process              Tool Host Manager        
 Tools declare their capabilities in `package.json`:
 
 #### Commands
+
 ```json
 "contributes": {
   "commands": [
@@ -327,6 +348,7 @@ Tools declare their capabilities in `package.json`:
 ```
 
 #### Menus
+
 ```json
 "contributes": {
   "menus": {
@@ -337,6 +359,7 @@ Tools declare their capabilities in `package.json`:
 ```
 
 #### Configuration
+
 ```json
 "contributes": {
   "configuration": [{
@@ -352,6 +375,7 @@ Tools declare their capabilities in `package.json`:
 ```
 
 #### Activation Events
+
 ```json
 "activationEvents": [
   "onCommand:myTool.action",  // Load when command is invoked
@@ -361,27 +385,28 @@ Tools declare their capabilities in `package.json`:
 
 ### Context Isolation
 
-- Renderer process runs in isolated context
-- No direct access to Node.js APIs
-- Communication only through preload script
+-   Renderer process runs in isolated context
+-   No direct access to Node.js APIs
+-   Communication only through preload script
 
 ### IPC Communication
 
-- All main-renderer communication via IPC
-- Handlers validate and sanitize input
-- Secure contextBridge API exposure
+-   All main-renderer communication via IPC
+-   Handlers validate and sanitize input
+-   Secure contextBridge API exposure
 
 ### Settings Storage
 
-- electron-store provides encrypted storage
-- Settings stored in user data directory
-- Per-user, per-application isolation
+-   electron-store provides encrypted storage
+-   Settings stored in user data directory
+-   Per-user, per-application isolation
 
 ## Extension Points
 
 ### Tool Integration
 
 External tools can integrate through:
+
 1. **npm packages**: Standard installation mechanism
 2. **ToolBox API**: Access to events and notifications
 3. **Tool Settings**: Persistent configuration storage
@@ -390,10 +415,11 @@ External tools can integrate through:
 ### Event System
 
 Tools and components can:
-- Subscribe to system events
-- Emit custom events
-- React to state changes
-- Coordinate between tools
+
+-   Subscribe to system events
+-   Emit custom events
+-   React to state changes
+-   Coordinate between tools
 
 ## File Structure
 
@@ -422,7 +448,6 @@ desktop-app/
 │   ├── ARCHITECTURE.md              # Architecture documentation
 │   ├── TOOL_DEVELOPMENT.md          # Tool development guide
 │   ├── TOOL_HOST_ARCHITECTURE.md    # Tool Host details
-│   └── CONTRIBUTING.md              # Contribution guidelines
 ├── examples/
 │   └── example-tool/                # Example tool implementation
 ├── assets/
@@ -432,21 +457,24 @@ desktop-app/
 ├── package.json                     # Dependencies and scripts
 ├── tsconfig.json                    # TypeScript config (main)
 ├── tsconfig.renderer.json           # TypeScript config (renderer)
-└── .eslintrc.js                    # Linting configuration
+└── .eslintrc.js                     # Linting configuration
+└── CONTRIBUTING.md                  # Contribution guidelines
 ```
 
 ## Build Process
 
 1. **TypeScript Compilation**:
-   - Main process: `tsc` → `dist/main/`
-   - Renderer process: `tsc -p tsconfig.renderer.json` → `dist/renderer/`
+
+    - Main process: `tsc` → `dist/main/`
+    - Renderer process: `tsc -p tsconfig.renderer.json` → `dist/renderer/`
 
 2. **Static File Copy**:
-   - HTML and CSS → `dist/renderer/`
+
+    - HTML and CSS → `dist/renderer/`
 
 3. **Electron Packaging**:
-   - electron-builder packages the application
-   - Creates installers for Windows, macOS, Linux
+    - electron-builder packages the application
+    - Creates installers for Windows, macOS, Linux
 
 ## Future Enhancements
 
@@ -470,16 +498,18 @@ desktop-app/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
-- Setting up development environment
-- Code standards
-- Pull request process
-- Testing requirements
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on:
+
+-   Setting up development environment
+-   Code standards
+-   Pull request process
+-   Testing requirements
 
 ## Tool Development
 
 See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for:
-- Tool structure requirements
-- API documentation
-- Example implementations
-- Publishing guidelines
+
+-   Tool structure requirements
+-   API documentation
+-   Example implementations
+-   Publishing guidelines
