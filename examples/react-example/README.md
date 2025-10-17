@@ -73,8 +73,18 @@ npm run preview
 The tool uses `window.toolboxAPI` to interact with the ToolBox:
 
 ```typescript
-// Get connection context
-const context = await window.toolboxAPI.getToolContext();
+// Listen for TOOLBOX_CONTEXT from parent window (important!)
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'TOOLBOX_CONTEXT') {
+    window.TOOLBOX_CONTEXT = event.data.data;
+  }
+});
+
+// Get connection context - try TOOLBOX_CONTEXT first, then API
+let context = window.TOOLBOX_CONTEXT;
+if (!context) {
+  context = await window.toolboxAPI.getToolContext();
+}
 
 // Show notifications
 await window.toolboxAPI.showNotification({
@@ -91,6 +101,8 @@ window.toolboxAPI.onToolboxEvent((event, payload) => {
 // Get connections
 const connections = await window.toolboxAPI.getConnections();
 ```
+
+**Important**: The tool must listen for `TOOLBOX_CONTEXT` via `postMessage` from the parent window. This provides connection information when the tool is loaded in a webview.
 
 ### React Hooks
 

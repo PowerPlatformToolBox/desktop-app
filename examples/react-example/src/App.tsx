@@ -10,6 +10,7 @@ declare global {
       getConnections: () => Promise<Array<{ id: string; name: string; url: string }>>;
       getActiveConnection: () => Promise<{ id: string; name: string; url: string } | null>;
     };
+    TOOLBOX_CONTEXT?: { toolId: string | null; connectionUrl: string | null; accessToken: string | null };
   }
 }
 
@@ -26,12 +27,28 @@ function App() {
   const [events, setEvents] = useState<Array<{ event: string; timestamp: string }>>([]);
 
   useEffect(() => {
+    // Listen for TOOLBOX_CONTEXT from parent window
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'TOOLBOX_CONTEXT') {
+        window.TOOLBOX_CONTEXT = event.data.data;
+        console.log('Received TOOLBOX_CONTEXT:', window.TOOLBOX_CONTEXT);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+
     // Initialize tool
     const init = async () => {
       try {
-        // Get connection context
-        const context = await window.toolboxAPI.getToolContext();
-        setConnectionUrl(context.connectionUrl);
+        // Get connection context - try TOOLBOX_CONTEXT first
+        let context = window.TOOLBOX_CONTEXT;
+        
+        // If not available, fetch it via API
+        if (!context) {
+          context = await window.toolboxAPI.getToolContext();
+        }
+        
+        setConnectionUrl(context.connectionUrl || '');
 
         // Get all connections
         const conns = await window.toolboxAPI.getConnections();
@@ -53,6 +70,10 @@ function App() {
     };
 
     init();
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }, []);
 
   const handleShowNotification = async () => {
