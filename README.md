@@ -59,7 +59,7 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 
 ## Tool Development
 
-Tools are npm packages that follow a specific structure. See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for detailed guide.
+Tools are npm packages that follow a specific structure. See [TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md) for detailed guide.
 
 ### Quick Example
 
@@ -188,7 +188,7 @@ A tool must:
 
 See `examples/example-tool/` for a complete example.
 
-For detailed documentation, see [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md).
+For detailed documentation, see [TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md).
 
 ### Installing Tools
 
@@ -252,10 +252,10 @@ The ToolBox emits events for various operations:
 
 ## Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Application architecture overview
-- **[TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
-- **[TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
+- **[TOOL_HOST_ARCHITECTURE.md](docs/TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
+- **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** - How to contribute to the project
 
 ## License
 
@@ -263,4 +263,4 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines on how to contribute to the project.
