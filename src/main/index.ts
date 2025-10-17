@@ -211,6 +211,16 @@ class ToolBoxApp {
             this.settingsManager.removeInstalledTool(packageName);
         });
 
+        ipcMain.handle("get-latest-tool-version", async (_, packageName) => {
+            return await this.toolManager.getLatestVersion(packageName);
+        });
+
+        ipcMain.handle("update-tool", async (_, packageName) => {
+            await this.toolManager.updateTool(packageName);
+            const tool = await this.toolManager.loadTool(packageName);
+            return tool;
+        });
+
         ipcMain.handle("get-tool-webview-html", (_, packageName) => {
             return this.toolManager.getToolWebviewHtml(packageName);
         });

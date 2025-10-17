@@ -28,12 +28,21 @@ Feature suggestions are welcome! Please create an issue describing:
 ### Pull Requests
 
 1. Fork the repository
-2. Create a new branch: `git checkout -b feature/your-feature-name`
+2. Create a new branch following the naming convention:
+   - For new features: `feature/<short-description>` (e.g., `feature/add-connection-export`)
+   - For bug fixes: `fix/<issue-description>` (e.g., `fix/tool-loading-error`)
+   - For documentation: `docs/<description>` (e.g., `docs/update-api-guide`)
+   - For refactoring: `refactor/<description>` (e.g., `refactor/tool-manager`)
+   - For chores/maintenance: `chore/<description>` (e.g., `chore/update-dependencies`)
 3. Make your changes
 4. Run tests and linting: `npm run lint && npm run build`
-5. Commit your changes with a descriptive message
-6. Push to your fork: `git push origin feature/your-feature-name`
-7. Create a pull request
+5. Commit your changes with a descriptive message following conventional commits format
+6. Push to your fork: `git push origin <branch-name>`
+7. Create a pull request with a clear title and description:
+   - PR Title format: `[Type] Brief description` (e.g., `[Feature] Add connection export functionality`)
+   - PR Types: `[Feature]`, `[Fix]`, `[Docs]`, `[Refactor]`, `[Chore]`, `[Test]`
+   - Include a description of what changed and why
+   - Reference any related issues using `#issue-number`
 
 ## Development Setup
 
@@ -118,17 +127,47 @@ desktop-app/
 - Define interfaces for complex objects
 - Export types that may be used by tools
 
+## Branch Naming Convention
+
+Use the following prefixes for branch names:
+
+- `feature/` - For new features (e.g., `feature/add-connection-export`)
+- `fix/` - For bug fixes (e.g., `fix/tool-loading-error`)
+- `docs/` - For documentation changes (e.g., `docs/update-api-guide`)
+- `refactor/` - For code refactoring (e.g., `refactor/tool-manager`)
+- `chore/` - For maintenance tasks (e.g., `chore/update-dependencies`)
+- `test/` - For test additions or updates (e.g., `test/add-unit-tests`)
+
 ## Commit Message Guidelines
 
-Use clear and descriptive commit messages:
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
-- `feat: Add new feature`
-- `fix: Fix bug in connection manager`
-- `docs: Update README`
-- `style: Format code`
-- `refactor: Restructure tool manager`
-- `test: Add tests for settings`
-- `chore: Update dependencies`
+Format: `<type>(<scope>): <subject>`
+
+Examples:
+- `feat: add connection export functionality`
+- `feat(tools): add tool verification system`
+- `fix: resolve tool loading error on startup`
+- `fix(connections): handle invalid connection URLs`
+- `docs: update README with new API examples`
+- `docs(api): add missing type definitions`
+- `style: format code according to ESLint rules`
+- `refactor: restructure tool manager for better maintainability`
+- `refactor(auth): simplify authentication flow`
+- `test: add unit tests for settings manager`
+- `chore: update dependencies to latest versions`
+- `chore(build): update TypeScript configuration`
+
+**Types:**
+- `feat` - New features
+- `fix` - Bug fixes
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, etc.)
+- `refactor` - Code refactoring without changing functionality
+- `test` - Test additions or updates
+- `chore` - Maintenance tasks, dependency updates, build changes
+- `perf` - Performance improvements
+- `ci` - CI/CD changes
 
 ## Testing
 
@@ -142,10 +181,14 @@ Currently, we're establishing the testing infrastructure. When adding new featur
 
 When adding new features:
 
-1. Update README.md if needed
-2. Update TOOL_DEVELOPMENT.md for tool-related changes
-3. Add inline code comments
-4. Update type definitions
+1. Update README.md if it affects user-facing functionality
+2. Update [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for tool-related changes
+3. Update [ARCHITECTURE.md](ARCHITECTURE.md) for architectural changes
+4. Update [TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md) for Tool Host changes
+5. Add inline code comments for complex logic
+6. Update type definitions in `src/types/`
+
+All documentation files are located in the `docs/` directory.
 
 ## Release Process
 

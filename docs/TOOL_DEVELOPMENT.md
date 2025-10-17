@@ -320,18 +320,37 @@ npm publish --access public
 
 Users can then install your tool from the ToolBox UI or command palette.
 
-## Example Tool
+## Example Tools
 
-A complete example tool is available in the repository:
-- Package: `@powerplatform/example-tool`
-- Location: `/examples/example-tool/`
+Multiple complete example tools are available in the repository demonstrating different frameworks:
 
-This example demonstrates:
-- Command registration
-- Event subscriptions
-- State management
-- File operations
-- Menu contributions
+### Basic HTML/TypeScript Example
+- **Location**: `/examples/example-tool/`
+- **Package**: `pptb-example-tool-test`
+- **Demonstrates**: HTML-first architecture with TypeScript
+
+### React Example
+- **Location**: `/examples/react-example/`
+- **Package**: `pptb-react-example`
+- **Demonstrates**: React 18 with Vite, TypeScript, and hooks
+
+### Vue Example
+- **Location**: `/examples/vue-example/`
+- **Package**: `pptb-vue-example`
+- **Demonstrates**: Vue 3 with Composition API, Vite, and TypeScript
+
+### Svelte Example
+- **Location**: `/examples/svelte-example/`
+- **Package**: `pptb-svelte-example`
+- **Demonstrates**: Svelte 5 with Vite and TypeScript
+
+All examples demonstrate:
+- ToolBox API integration
+- Connection URL and access token handling
+- Event subscription and handling
+- Interactive UI with notifications
+- Modern build tooling (Vite)
+- Full TypeScript support
 
 ## Debugging
 
