@@ -1,6 +1,6 @@
 {
   "name": "pptb-vue-sample-tool",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "displayName": "Power Platform Vue Sample Tool",
   "description": "Example tool demonstrating Vue 3 integration with Power Platform ToolBox",
   "author": "Power Platform ToolBox",
