@@ -1,6 +1,6 @@
 {
   "name": "pptb-react-sample-tool",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "displayName": "Power Platform React Sample Tool",
   "description": "Example tool demonstrating React integration with Power Platform ToolBox",
   "author": "Power Platform ToolBox",
