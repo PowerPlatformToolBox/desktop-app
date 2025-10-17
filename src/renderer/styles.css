@@ -1960,3 +1960,64 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
 .marketplace-item-vscode {
     cursor: pointer;
 }
+
+/* Fluent UI Web Components Customization */
+
+/* Apply theme colors to Fluent components */
+fluent-button {
+    --accent-fill-rest: var(--primary-color);
+    --accent-fill-hover: var(--primary-hover);
+}
+
+fluent-text-field {
+    --neutral-fill-input-rest: var(--bg-color);
+    --neutral-stroke-rest: var(--border-color);
+}
+
+body.dark-theme fluent-text-field {
+    --neutral-fill-input-rest: #3e3e42;
+    --neutral-stroke-rest: #3e3e42;
+    --neutral-foreground-rest: var(--text-color);
+}
+
+fluent-select {
+    --neutral-fill-input-rest: var(--bg-color);
+    --neutral-stroke-rest: var(--border-color);
+}
+
+body.dark-theme fluent-select {
+    --neutral-fill-input-rest: #3e3e42;
+    --neutral-stroke-rest: #3e3e42;
+    --neutral-foreground-rest: var(--text-color);
+}
+
+fluent-checkbox {
+    --accent-fill-rest: var(--primary-color);
+    --accent-fill-hover: var(--primary-hover);
+}
+
+fluent-badge {
+    --accent-fill-rest: #107c10;
+}
+
+/* Ensure Fluent UI components fit the layout */
+.sidebar-search fluent-text-field::part(root) {
+    width: 100%;
+}
+
+.setting-group fluent-select::part(root) {
+    width: 100%;
+}
+
+/* Spacing adjustments for Fluent UI components */
+.modal-footer fluent-button {
+    margin-left: 8px;
+}
+
+.modal-footer fluent-button:first-child {
+    margin-left: 0;
+}
+
+.setting-checkbox-group fluent-checkbox {
+    margin-right: 8px;
+}

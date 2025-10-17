@@ -1709,7 +1709,7 @@ async function loadSidebarTools() {
     );
 
     // Setup search
-    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement;
+    const searchInput = document.getElementById("tools-search-input") as any; // Fluent UI text field
     if (searchInput) {
         searchInput.addEventListener("input", () => {
             renderSidebarTools(toolsWithUpdateInfo, searchInput.value);
@@ -1955,7 +1955,7 @@ async function loadMarketplace() {
     const installedToolsMap = new Map(installedTools.map((t: any) => [t.id, t]));
 
     // Filter based on search
-    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
+    const searchInput = document.getElementById("marketplace-search-input") as any; // Fluent UI text field
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
 
     const filteredTools = toolLibrary.filter((tool) => {
@@ -2210,8 +2210,8 @@ function convertMarkdownToHtml(markdown: string): string {
 }
 
 async function loadSidebarSettings() {
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
 
     if (themeSelect && autoUpdateCheck) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -2221,8 +2221,8 @@ async function loadSidebarSettings() {
 }
 
 async function saveSidebarSettings() {
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
 
     if (!themeSelect || !autoUpdateCheck) return;
 
