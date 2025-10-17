@@ -1,9 +1,9 @@
 {
-  "name": "pptb-svelte-example",
+  "name": "pptb-svelte-sample-tool",
   "version": "0.0.1",
-  "displayName": "PowerPlatform Svelte Example Tool",
-  "description": "Example tool demonstrating Svelte integration with PowerPlatform ToolBox",
-  "author": "PowerPlatform ToolBox",
+  "displayName": "Power Platform Svelte Sample Tool",
+  "description": "Example tool demonstrating Svelte integration with Power Platform ToolBox",
+  "author": "Power Platform ToolBox",
   "license": "MIT",
   "type": "module",
   "scripts": {

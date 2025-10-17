@@ -1,9 +1,9 @@
 {
-  "name": "pptb-example-tool-test",
+  "name": "pptb-standard-sample-tool",
   "version": "0.0.5",
-  "displayName": "PowerPlatform Example Tool",
+  "displayName": "Power Platform Standard Sample Tool",
   "description": "Example tool demonstrating HTML-first architecture with TypeScript",
-  "author": "PowerPlatform ToolBox",
+  "author": "Power Platform ToolBox",
   "license": "MIT",
   "scripts": {
     "build": "tsc && npm run copy-html && npm run copy-css",

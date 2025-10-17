@@ -1,9 +1,9 @@
 {
-  "name": "pptb-vue-example",
+  "name": "pptb-vue-sample-tool",
   "version": "0.0.1",
-  "displayName": "PowerPlatform Vue Example Tool",
-  "description": "Example tool demonstrating Vue 3 integration with PowerPlatform ToolBox",
-  "author": "PowerPlatform ToolBox",
+  "displayName": "Power Platform Vue Sample Tool",
+  "description": "Example tool demonstrating Vue 3 integration with Power Platform ToolBox",
+  "author": "Power Platform ToolBox",
   "license": "MIT",
   "type": "module",
   "scripts": {

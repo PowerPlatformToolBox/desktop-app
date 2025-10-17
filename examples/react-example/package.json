@@ -1,9 +1,9 @@
 {
-  "name": "pptb-react-example",
+  "name": "pptb-react-sample-tool",
   "version": "0.0.1",
-  "displayName": "PowerPlatform React Example Tool",
-  "description": "Example tool demonstrating React integration with PowerPlatform ToolBox",
-  "author": "PowerPlatform ToolBox",
+  "displayName": "Power Platform React Sample Tool",
+  "description": "Example tool demonstrating React integration with Power Platform ToolBox",
+  "author": "Power Platform ToolBox",
   "license": "MIT",
   "scripts": {
     "build": "vite build",
