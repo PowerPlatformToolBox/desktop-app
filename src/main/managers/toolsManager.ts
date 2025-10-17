@@ -156,6 +156,62 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Check for the latest version of a package from npm registry
+     */
+    async getLatestVersion(packageName: string): Promise<string | null> {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { spawn } = require("child_process");
+
+        return new Promise((resolve) => {
+            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+            const view = spawn(npm, ["view", packageName, "version"]);
+
+            let output = "";
+            
+            view.stdout.on("data", (data: Buffer) => {
+                output += data.toString();
+            });
+
+            view.on("close", (code: number) => {
+                if (code !== 0) {
+                    resolve(null);
+                } else {
+                    resolve(output.trim());
+                }
+            });
+
+            view.on("error", () => {
+                resolve(null);
+            });
+        });
+    }
+
+    /**
+     * Update a tool to the latest version
+     */
+    async updateTool(packageName: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { spawn } = require("child_process");
+
+        return new Promise((resolve, reject) => {
+            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+            const update = spawn(npm, ["update", packageName, "--prefix", this.toolsDirectory]);
+
+            update.on("close", (code: number) => {
+                if (code !== 0) {
+                    reject(new Error(`npm update failed with code ${code}`));
+                } else {
+                    resolve();
+                }
+            });
+
+            update.on("error", (err: Error) => {
+                reject(err);
+            });
+        });
+    }
+
+    /**
      * Get webview HTML for a tool with absolute file paths
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */

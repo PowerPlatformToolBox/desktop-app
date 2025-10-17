@@ -1699,15 +1699,24 @@ async function loadSidebarTools() {
         return;
     }
 
+    // Check for updates for all tools
+    const toolsWithUpdateInfo = await Promise.all(
+        tools.map(async (tool) => {
+            const latestVersion = await window.toolboxAPI.getLatestToolVersion(tool.id);
+            const hasUpdate = latestVersion && latestVersion !== tool.version;
+            return { ...tool, latestVersion, hasUpdate };
+        })
+    );
+
     // Setup search
     const searchInput = document.getElementById("tools-search-input") as HTMLInputElement;
     if (searchInput) {
         searchInput.addEventListener("input", () => {
-            renderSidebarTools(tools, searchInput.value);
+            renderSidebarTools(toolsWithUpdateInfo, searchInput.value);
         });
     }
 
-    renderSidebarTools(tools, "");
+    renderSidebarTools(toolsWithUpdateInfo, "");
 }
 
 function renderSidebarTools(tools: any[], searchTerm: string) {
@@ -1735,10 +1744,17 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
                 <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
-                <div class="tool-item-name-vscode">${tool.name}</div>
+                <div class="tool-item-name-vscode">
+                    ${tool.name}
+                    ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                </div>
             </div>
             <div class="tool-item-description-vscode">${tool.description}</div>
+            <div class="tool-item-version-vscode">
+                v${tool.version}${tool.hasUpdate ? ` → v${tool.latestVersion}` : ""}
+            </div>
             <div class="tool-item-actions-vscode">
+                ${tool.hasUpdate ? `<button class="btn btn-secondary btn-sm" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
                     <img src="icons/trash.svg" alt="Delete" />
@@ -1777,6 +1793,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 launchTool(toolId);
             } else if (action === "delete") {
                 await uninstallToolFromSidebar(toolId);
+            } else if (action === "update") {
+                await updateToolFromSidebar(toolId);
             }
         });
     });
@@ -1810,6 +1828,41 @@ async function uninstallToolFromSidebar(toolId: string) {
         await window.toolboxAPI.showNotification({
             title: "Uninstall Failed",
             body: `Failed to uninstall tool: ${(error as Error).message}`,
+            type: "error",
+        });
+    }
+}
+
+async function updateToolFromSidebar(toolId: string) {
+    try {
+        const tool = await window.toolboxAPI.getTool(toolId);
+        if (!tool) {
+            throw new Error("Tool not found");
+        }
+
+        await window.toolboxAPI.showNotification({
+            title: "Updating Tool",
+            body: `Updating ${tool.name}...`,
+            type: "info",
+        });
+
+        const updatedTool = await window.toolboxAPI.updateTool(tool.id);
+
+        await window.toolboxAPI.showNotification({
+            title: "Tool Updated",
+            body: `${tool.name} has been updated to v${updatedTool.version}.`,
+            type: "success",
+        });
+
+        // Reload the sidebar tools to show new version
+        await loadSidebarTools();
+
+        // Reload marketplace to update version display
+        await loadMarketplace();
+    } catch (error) {
+        await window.toolboxAPI.showNotification({
+            title: "Update Failed",
+            body: `Failed to update tool: ${(error as Error).message}`,
             type: "error",
         });
     }
@@ -1899,7 +1952,7 @@ async function loadMarketplace() {
 
     // Get installed tools
     const installedTools = await window.toolboxAPI.getAllTools();
-    const installedToolIds = new Set(installedTools.map((t: any) => t.id));
+    const installedToolsMap = new Map(installedTools.map((t: any) => [t.id, t]));
 
     // Filter based on search
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
@@ -1912,7 +1965,10 @@ async function loadMarketplace() {
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
-            const isInstalled = installedToolIds.has(tool.id);
+            const installedTool = installedToolsMap.get(tool.id);
+            const isInstalled = !!installedTool;
+            const hasUpdate = isInstalled && installedTool.version && tool.version && tool.version !== installedTool.version;
+            
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
@@ -1920,6 +1976,7 @@ async function loadMarketplace() {
                     <div class="marketplace-item-name-vscode">
                         ${tool.name}
                         ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
+                        ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                     </div>
                     <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
@@ -1927,8 +1984,10 @@ async function loadMarketplace() {
             <div class="marketplace-item-description-vscode">${tool.description}</div>
             <div class="marketplace-item-footer-vscode">
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
+                ${tool.version ? `<span class="marketplace-item-version-vscode">v${tool.version}${hasUpdate ? ` (installed: v${installedTool.version})` : ""}</span>` : ""}
                 <div class="marketplace-item-actions-vscode">
                     ${!isInstalled ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
+                    ${hasUpdate ? `<button class="btn btn-secondary" data-action="update" data-tool-id="${tool.id}">Update</button>` : ""}
                 </div>
             </div>
         </div>
@@ -1947,13 +2006,14 @@ async function loadMarketplace() {
             if (toolId) {
                 const tool = toolLibrary.find((t) => t.id === toolId);
                 if (tool) {
-                    openToolDetail(tool, installedToolIds.has(toolId));
+                    const isInstalled = installedToolsMap.has(toolId);
+                    openToolDetail(tool, isInstalled);
                 }
             }
         });
     });
 
-    // Add event listeners for install buttons
+    // Add event listeners for install and update buttons
     marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
@@ -1984,6 +2044,31 @@ async function loadMarketplace() {
                     window.toolboxAPI.showNotification({
                         title: "Installation Failed",
                         body: `Failed to install tool: ${error}`,
+                        type: "error",
+                    });
+                }
+            } else if (action === "update") {
+                target.disabled = true;
+                target.textContent = "Updating...";
+
+                try {
+                    const updatedTool = await window.toolboxAPI.updateTool(toolId);
+
+                    window.toolboxAPI.showNotification({
+                        title: "Tool Updated",
+                        body: `Tool has been updated to v${updatedTool.version}`,
+                        type: "success",
+                    });
+
+                    // Reload marketplace and tools sidebar
+                    await loadMarketplace();
+                    await loadSidebarTools();
+                } catch (error) {
+                    target.disabled = false;
+                    target.textContent = "Update";
+                    window.toolboxAPI.showNotification({
+                        title: "Update Failed",
+                        body: `Failed to update tool: ${error}`,
                         type: "error",
                     });
                 }

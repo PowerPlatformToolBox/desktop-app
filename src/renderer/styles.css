@@ -1240,6 +1240,30 @@ body.light-theme .activity-bar {
     height: 16px;
 }
 
+.tool-item-version-vscode {
+    font-size: 11px;
+    color: #8a8886;
+    margin-bottom: 6px;
+    font-family: monospace;
+}
+
+.tool-update-badge {
+    display: inline-block;
+    font-size: 12px;
+    color: #0078d4;
+    margin-left: 6px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
 /* VSCode-style marketplace list */
 .marketplace-tools-list-vscode {
     display: flex;
@@ -1294,6 +1318,8 @@ body.light-theme .activity-bar {
     align-items: center;
     font-size: 11px;
     color: #8a8886;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .marketplace-item-category-vscode {
@@ -1301,6 +1327,17 @@ body.light-theme .activity-bar {
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 10px;
+}
+
+.marketplace-item-version-vscode {
+    font-size: 11px;
+    color: #605e5c;
+    font-family: monospace;
+}
+
+.marketplace-item-actions-vscode {
+    display: flex;
+    gap: 6px;
 }
 
 .marketplace-item-actions-vscode .btn {

@@ -5,6 +5,7 @@
         "description": "Generate Entity Relationship Diagrams for Dataverse",
         "author": "Power Maverick",
         "category": "Data Management",
+        "version": "1.0.0",
         "readmeUrl": "https://raw.githubusercontent.com/Power-Maverick/DVDT-Tools/main/README.md"
     },
     {
@@ -13,6 +14,7 @@
         "description": "An example tool for Power Platform",
         "author": "Power Platform ToolBox",
         "category": "Development",
+        "version": "0.0.2",
         "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/desktop-app/refs/heads/copilot/move-docs-and-update-configs/examples/html-example/README.md"
     },
     {
@@ -21,6 +23,7 @@
         "description": "An example tool for Power Platform",
         "author": "Power Platform ToolBox",
         "category": "Development",
+        "version": "0.0.2",
         "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/desktop-app/refs/heads/copilot/move-docs-and-update-configs/examples/react-example/README.md"
     },
     {
@@ -29,6 +32,7 @@
         "description": "An example tool for Power Platform",
         "author": "Power Platform ToolBox",
         "category": "Development",
+        "version": "0.0.2",
         "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/desktop-app/refs/heads/copilot/move-docs-and-update-configs/examples/svelte-example/README.md"
     },
     {
@@ -37,6 +41,7 @@
         "description": "An example tool for Power Platform",
         "author": "Power Platform ToolBox",
         "category": "Development",
+        "version": "0.0.2",
         "readmeUrl": "https://raw.githubusercontent.com/PowerPlatform-ToolBox/desktop-app/refs/heads/copilot/move-docs-and-update-configs/examples/vue-example/README.md"
     }
 ]
