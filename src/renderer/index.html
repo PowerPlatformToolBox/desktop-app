@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://raw.githubusercontent.com" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com" />
         <title>PowerPlatform ToolBox</title>
         <link rel="stylesheet" href="styles.css" />
     </head>
@@ -40,7 +40,7 @@
                         <h2 class="sidebar-title">INSTALLED</h2>
                     </div>
                     <div class="sidebar-search">
-                        <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                        <input type="text" id="tools-search-input" class="fluent-input" placeholder="Search installed tools..." />
                     </div>
                     <div class="sidebar-body">
                         <div class="tools-list-vscode" id="sidebar-tools-list">
@@ -53,7 +53,7 @@
                 <div class="sidebar-content" id="sidebar-connections">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">CONNECTIONS</h2>
-                        <button class="btn btn-primary btn-sm" id="sidebar-add-connection-btn">+ Add</button>
+                        <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
                     </div>
                     <div class="sidebar-body">
                         <div class="connections-list-sidebar" id="sidebar-connections-list">
@@ -68,7 +68,7 @@
                         <h2 class="sidebar-title">MARKETPLACE</h2>
                     </div>
                     <div class="sidebar-search">
-                        <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                        <input type="text" id="marketplace-search-input" class="fluent-input" placeholder="Search tools..." />
                     </div>
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-vscode" id="marketplace-tools-list">
@@ -86,7 +86,7 @@
                         <div class="settings-container-sidebar">
                             <div class="setting-group">
                                 <label class="setting-label" for="sidebar-theme-select">Theme</label>
-                                <select id="sidebar-theme-select" class="setting-input">
+                                <select id="sidebar-theme-select" class="fluent-select">
                                     <option value="system">System</option>
                                     <option value="light">Light</option>
                                     <option value="dark">Dark</option>
@@ -95,12 +95,12 @@
                             <div class="setting-group">
                                 <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
                                 <div class="setting-checkbox-group">
-                                    <input type="checkbox" id="sidebar-auto-update-check" class="setting-checkbox" />
+                                    <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
                                     <span class="setting-hint">Automatically check for updates</span>
                                 </div>
                             </div>
                             <div class="setting-group">
-                                <button class="btn btn-primary" id="sidebar-save-settings-btn">Save Settings</button>
+                                <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
                             </div>
                         </div>
                     </div>
@@ -371,9 +371,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="test-connection-btn" style="display: none; margin-right: auto">Test Connection</button>
-                    <button class="btn btn-secondary" id="cancel-connection-btn">Cancel</button>
-                    <button class="btn btn-primary" id="confirm-connection-btn">Add</button>
+                    <button id="test-connection-btn" class="fluent-button fluent-button-secondary" style="display: none; margin-right: auto;">Test Connection</button>
+                    <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
+                    <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Add</button>
                 </div>
             </div>
         </div>
@@ -392,7 +392,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="cancel-connection-select-btn">Cancel</button>
+                    <button id="cancel-connection-select-btn" class="fluent-button fluent-button-secondary">Cancel</button>
                 </div>
             </div>
         </div>
@@ -409,7 +409,7 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="close-device-code-btn">Close</button>
+                    <button id="close-device-code-btn" class="fluent-button fluent-button-secondary">Close</button>
                 </div>
             </div>
         </div>
@@ -427,7 +427,7 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-primary" id="close-auth-error-btn">OK</button>
+                    <button id="close-auth-error-btn" class="fluent-button fluent-button-primary">OK</button>
                 </div>
             </div>
         </div>
@@ -445,7 +445,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" id="cancel-tool-settings-btn">Close</button>
+                    <button id="cancel-tool-settings-btn" class="fluent-button fluent-button-secondary">Close</button>
                 </div>
             </div>
         </div>
@@ -470,8 +470,8 @@
                                 </div>
                             </div>
                             <div class="tool-detail-actions">
-                                <button class="btn btn-primary" id="tool-detail-install-btn" style="display: none;">Install</button>
-                                <span class="tool-installed-badge" id="tool-detail-installed-badge" style="display: none;">Installed</span>
+                                <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" style="display: none;">Install</button>
+                                <span id="tool-detail-installed-badge" class="fluent-badge fluent-badge-success" style="display: none;">Installed</span>
                             </div>
                         </div>
                         <div class="tool-detail-readme">

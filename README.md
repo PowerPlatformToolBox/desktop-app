@@ -94,7 +94,7 @@
 -   **⚙️ Settings Management**:
     -   User settings for the ToolBox application
     -   Individual tool-specific settings
--   **🎨 Modern Interface**: Clean, modern UI that showcases tools and their details
+-   **🎨 Modern Interface**: Built with Microsoft Fluent UI components for a consistent, accessible experience aligned with Power Platform
 -   **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 -   **🔔 Notifications**: Built-in notification system to keep users informed
 -   **🔄 Auto-Updates**: Automatic application updates with user control
@@ -117,9 +117,16 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 
 ### Renderer Process (`src/renderer/`)
 
--   **index.html**: Main application UI
--   **styles.css**: Modern, responsive styling
+-   **index.html**: Main application UI built with Fluent UI Web Components
+-   **styles.css**: Modern, responsive styling with Fluent Design System integration
 -   **renderer.ts**: UI logic and interaction handlers
+
+### UI Design
+
+-   **Fluent UI Web Components**: Microsoft's design system for consistent, accessible UI
+-   **Design Tokens**: Uses `@fluentui/tokens` for colors, spacing, and typography
+-   **Theme Support**: Seamless light/dark theme switching
+-   See [FLUENT_UI_INTEGRATION.md](docs/FLUENT_UI_INTEGRATION.md) for details
 
 ### Types (`src/types/`)
 

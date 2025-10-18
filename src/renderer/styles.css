@@ -116,7 +116,7 @@ body.light-theme .activity-bar {
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: #cccccc;
+    color: white; /* Always white */
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
@@ -135,6 +135,7 @@ body.light-theme .activity-bar {
 
 .activity-icon {
     /* SVG icons don't need font-size, size controlled by width/height */
+    /* Icons inherit white color from parent */
 }
 
 /* Sidebar collapsed state */
@@ -1959,4 +1960,258 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
 /* Make marketplace items clickable */
 .marketplace-item-vscode {
     cursor: pointer;
+}
+
+/* Fluent Design System Styling for Native HTML Elements */
+
+/* Fluent Button Styles */
+.fluent-button {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    outline: none;
+    min-width: 80px;
+    text-align: center;
+}
+
+.fluent-button:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.fluent-button:active {
+    transform: scale(0.98);
+}
+
+.fluent-button:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Primary Button */
+.fluent-button-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.fluent-button-primary:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+.fluent-button-primary:active {
+    background-color: #005a9e;
+    border-color: #005a9e;
+}
+
+/* Secondary Button */
+.fluent-button-secondary {
+    background-color: transparent;
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.fluent-button-secondary:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.fluent-button-secondary:active {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+body.dark-theme .fluent-button-secondary {
+    border-color: #605e5c;
+}
+
+body.dark-theme .fluent-button-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-theme .fluent-button-secondary:active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Fluent Input Styles */
+.fluent-input {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    outline: none;
+    transition: all 0.15s ease-in-out;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.fluent-input:hover {
+    border-color: #b3b3b3;
+}
+
+.fluent-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+body.dark-theme .fluent-input {
+    background-color: #3e3e42;
+    border-color: #3e3e42;
+}
+
+body.dark-theme .fluent-input:hover {
+    border-color: #5a5a5e;
+}
+
+body.dark-theme .fluent-input:focus {
+    border-color: var(--primary-color);
+}
+
+/* Fluent Select Styles */
+.fluent-select {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 6px 28px 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    outline: none;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    width: 100%;
+    appearance: none;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23605e5c" d="M4 6l4 4 4-4z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 12px;
+}
+
+.fluent-select:hover {
+    border-color: #b3b3b3;
+}
+
+.fluent-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+body.dark-theme .fluent-select {
+    background-color: #3e3e42;
+    border-color: #3e3e42;
+    background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23ffffff" d="M4 6l4 4 4-4z"/></svg>');
+}
+
+body.dark-theme .fluent-select:hover {
+    border-color: #5a5a5e;
+}
+
+/* Fluent Checkbox Styles */
+.fluent-checkbox {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    appearance: none;
+    position: relative;
+}
+
+.fluent-checkbox:hover {
+    border-color: #b3b3b3;
+}
+
+.fluent-checkbox:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.fluent-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.fluent-checkbox:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+body.dark-theme .fluent-checkbox {
+    background-color: #3e3e42;
+    border-color: #3e3e42;
+}
+
+body.dark-theme .fluent-checkbox:hover {
+    border-color: #5a5a5e;
+}
+
+/* Fluent Badge Styles */
+.fluent-badge {
+    display: inline-block;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.fluent-badge-success {
+    background-color: #10893e;
+    color: white;
+}
+
+body.dark-theme .fluent-badge-success {
+    background-color: #0e7c3a;
+}
+}
+
+fluent-checkbox {
+    --accent-fill-rest: var(--primary-color);
+    --accent-fill-hover: var(--primary-hover);
+}
+
+fluent-badge {
+    --accent-fill-rest: #107c10;
+}
+
+/* Ensure Fluent UI components fit the layout */
+.sidebar-search fluent-text-field::part(root) {
+    width: 100%;
+}
+
+.setting-group fluent-select::part(root) {
+    width: 100%;
+}
+
+/* Spacing adjustments for Fluent UI components */
+.modal-footer fluent-button {
+    margin-left: 8px;
+}
+
+.modal-footer fluent-button:first-child {
+    margin-left: 0;
+}
+
+.setting-checkbox-group fluent-checkbox {
+    margin-right: 8px;
 }

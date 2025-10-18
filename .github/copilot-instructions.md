@@ -265,6 +265,49 @@ Currently there are no unit tests, integration tests, or test framework. Do not 
 - **@azure/msal-node** (v3.8.0): Microsoft authentication, OAuth flows
 - **TypeScript** (v5.3.0): Compiler, strict mode enabled
 - **shx** (v0.4.0): Cross-platform shell commands in npm scripts
+- **@fluentui/web-components** (v2.6.1): Microsoft Fluent UI web components for modern UI
+- **@fluentui/tokens** (v1.0.0-alpha.22): Fluent UI design tokens (colors, spacing, typography)
+- **@fluentui/svg-icons** (v1.1.312): Fluent UI System Icons (SVG) for consistent iconography
+
+## UI Design Guidelines
+
+### Fluent UI Components
+
+This app uses **Fluent UI Web Components** to align with the Microsoft ecosystem and Power Platform design language.
+
+**ALWAYS use Fluent UI components when building or modifying UI:**
+
+- **Available Components**: The app includes the full Fluent UI Web Components library. Refer to [Fluent UI Web Components documentation](https://aka.ms/fluentui-web-components) for available components.
+- **Common Components**: `fluent-button`, `fluent-text-field`, `fluent-select`, `fluent-checkbox`, `fluent-radio`, `fluent-switch`, `fluent-tabs`, `fluent-dialog`, `fluent-card`, `fluent-badge`, `fluent-progress`, `fluent-menu`, `fluent-tooltip`, etc.
+- **Design Tokens**: Use Fluent UI design tokens from `@fluentui/tokens` for consistent colors, spacing, and typography.
+
+**How to use Fluent UI components:**
+
+1. **In HTML**: Use custom element tags directly
+   ```html
+   <fluent-button appearance="primary">Click me</fluent-button>
+   <fluent-text-field placeholder="Enter text"></fluent-text-field>
+   ```
+
+2. **In TypeScript**: Create elements programmatically
+   ```typescript
+   const button = document.createElement('fluent-button');
+   button.textContent = 'Click me';
+   button.setAttribute('appearance', 'primary');
+   ```
+
+3. **Styling**: Fluent components support CSS custom properties for theming
+   ```css
+   fluent-button {
+       --neutral-fill-rest: var(--primary-color);
+   }
+   ```
+
+**Icons**: When adding icons, prefer using Fluent UI icon SVGs or icon fonts instead of custom icons to maintain consistency with Microsoft's design language.
+
+**Icon Library**: All application icons use Fluent UI System Icons from `@fluentui/svg-icons`. Available icons can be found in `node_modules/@fluentui/svg-icons/icons/`. Icons should use `fill="currentColor"` to inherit color from parent elements.
+
+**Migration**: When modifying existing UI, gradually migrate custom HTML elements to Fluent UI components where appropriate.
 
 ## Trust These Instructions
 

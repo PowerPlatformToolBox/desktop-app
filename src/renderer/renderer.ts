@@ -132,7 +132,7 @@ function loadToolLibrary() {
                     <span class="tool-library-author">Author: ${tool.author}</span>
                 </div>
             </div>
-            <button class="btn btn-primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</button>
+            <button class="fluent-button fluent-button-primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</button>
         </div>
     `,
         )
@@ -1040,10 +1040,10 @@ async function loadConnections() {
                     <div class="connection-actions">
                         ${
                             conn.isActive
-                                ? '<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>'
-                                : '<button class="btn btn-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
+                                ? '<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>'
+                                : '<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
                         }
-                        <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                        <button class="fluent-button fluent-button-secondary" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                     </div>
                 </div>
                 <div class="connection-url">${conn.url}</div>
@@ -1705,11 +1705,11 @@ async function loadSidebarTools() {
             const latestVersion = await window.toolboxAPI.getLatestToolVersion(tool.id);
             const hasUpdate = latestVersion && latestVersion !== tool.version;
             return { ...tool, latestVersion, hasUpdate };
-        })
+        }),
     );
 
     // Setup search
-    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement;
+    const searchInput = document.getElementById("tools-search-input") as any; // Fluent UI text field
     if (searchInput) {
         searchInput.addEventListener("input", () => {
             renderSidebarTools(toolsWithUpdateInfo, searchInput.value);
@@ -1754,8 +1754,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 v${tool.version}${tool.hasUpdate ? ` → v${tool.latestVersion}` : ""}
             </div>
             <div class="tool-item-actions-vscode">
-                ${tool.hasUpdate ? `<button class="btn btn-secondary btn-sm" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
-                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
+                <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
                     <img src="icons/trash.svg" alt="Delete" />
                 </button>
@@ -1898,8 +1898,8 @@ async function loadSidebarConnections() {
                     <div>
                         ${
                             conn.isActive
-                                ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
-                                : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                                ? `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
+                                : `<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
                         }
                     </div>
                     <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
@@ -1955,8 +1955,8 @@ async function loadMarketplace() {
     const installedToolsMap = new Map(installedTools.map((t: any) => [t.id, t]));
 
     // Filter based on search
-    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
-    const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
+    const searchInput = document.getElementById("marketplace-search-input") as any; // Fluent UI text field
+    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
 
     const filteredTools = toolLibrary.filter((tool) => {
         if (!searchTerm) return true;
@@ -1968,7 +1968,7 @@ async function loadMarketplace() {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const hasUpdate = isInstalled && installedTool.version && tool.version && tool.version !== installedTool.version;
-            
+
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
@@ -1986,8 +1986,8 @@ async function loadMarketplace() {
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
                 ${tool.version ? `<span class="marketplace-item-version-vscode">v${tool.version}${hasUpdate ? ` (installed: v${installedTool.version})` : ""}</span>` : ""}
                 <div class="marketplace-item-actions-vscode">
-                    ${!isInstalled ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
-                    ${hasUpdate ? `<button class="btn btn-secondary" data-action="update" data-tool-id="${tool.id}">Update</button>` : ""}
+                    ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
+                    ${hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}">Update</button>` : ""}
                 </div>
             </div>
         </div>
@@ -2210,8 +2210,8 @@ function convertMarkdownToHtml(markdown: string): string {
 }
 
 async function loadSidebarSettings() {
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
 
     if (themeSelect && autoUpdateCheck) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -2221,8 +2221,8 @@ async function loadSidebarSettings() {
 }
 
 async function saveSidebarSettings() {
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as HTMLInputElement;
+    const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
 
     if (!themeSelect || !autoUpdateCheck) return;
 
@@ -2299,6 +2299,18 @@ async function init() {
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
+
+    // Add change listener for theme selector to apply immediately
+    const themeSelect = document.getElementById("sidebar-theme-select");
+    if (themeSelect) {
+        themeSelect.addEventListener("change", async () => {
+            const theme = (themeSelect as any).value;
+            if (theme) {
+                await window.toolboxAPI.updateUserSettings({ theme });
+                applyTheme(theme);
+            }
+        });
     }
 
     // Home screen action buttons
