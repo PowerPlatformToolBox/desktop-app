@@ -71,15 +71,23 @@ npm start
 
 ### Running in Development Mode
 
+The project uses Vite for fast development with Hot Module Replacement (HMR):
+
 ```bash
 npm run dev
 ```
 
+This starts Vite's dev server with Electron, providing instant feedback for renderer process changes.
+
 ### Building
+
+Build the application using Vite:
 
 ```bash
 npm run build
 ```
+
+This compiles both the main and renderer processes using Vite's optimized bundler.
 
 ### Linting
 
@@ -88,6 +96,8 @@ npm run lint
 ```
 
 ### Watching for Changes
+
+For continuous compilation in watch mode:
 
 ```bash
 npm run watch
