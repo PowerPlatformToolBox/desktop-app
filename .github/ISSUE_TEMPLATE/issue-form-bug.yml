@@ -1,6 +1,6 @@
 name: Bug Report
 description: File a bug report.
-title: ""
+title: "[Bug]: "
 labels: ["triage"]
 type: "bug"
 projects: ["PowerPlatformToolBox/1"]
@@ -40,7 +40,7 @@ body:
     attributes:
       label: Relevant log output
       description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-    render: shell
+      render: shell
   - type: checkboxes
     id: terms
     attributes:
