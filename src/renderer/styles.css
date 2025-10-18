@@ -2183,7 +2183,6 @@ body.dark-theme .fluent-checkbox:hover {
 body.dark-theme .fluent-badge-success {
     background-color: #0e7c3a;
 }
-}
 
 fluent-checkbox {
     --accent-fill-rest: var(--primary-color);
