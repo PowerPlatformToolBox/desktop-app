@@ -40,7 +40,7 @@
                         <h2 class="sidebar-title">INSTALLED</h2>
                     </div>
                     <div class="sidebar-search">
-                        <fluent-text-field type="text" id="tools-search-input" placeholder="Search installed tools..." style="width: 100%;"></fluent-text-field>
+                        <input type="text" id="tools-search-input" class="fluent-input" placeholder="Search installed tools..." />
                     </div>
                     <div class="sidebar-body">
                         <div class="tools-list-vscode" id="sidebar-tools-list">
@@ -53,7 +53,7 @@
                 <div class="sidebar-content" id="sidebar-connections">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">CONNECTIONS</h2>
-                        <fluent-button appearance="primary" id="sidebar-add-connection-btn" size="small">+ Add</fluent-button>
+                        <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
                     </div>
                     <div class="sidebar-body">
                         <div class="connections-list-sidebar" id="sidebar-connections-list">
@@ -68,7 +68,7 @@
                         <h2 class="sidebar-title">MARKETPLACE</h2>
                     </div>
                     <div class="sidebar-search">
-                        <fluent-text-field type="text" id="marketplace-search-input" placeholder="Search tools..." style="width: 100%;"></fluent-text-field>
+                        <input type="text" id="marketplace-search-input" class="fluent-input" placeholder="Search tools..." />
                     </div>
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-vscode" id="marketplace-tools-list">
@@ -86,21 +86,21 @@
                         <div class="settings-container-sidebar">
                             <div class="setting-group">
                                 <label class="setting-label" for="sidebar-theme-select">Theme</label>
-                                <fluent-select id="sidebar-theme-select" class="setting-input" style="width: 100%;">
-                                    <fluent-option value="system">System</fluent-option>
-                                    <fluent-option value="light">Light</fluent-option>
-                                    <fluent-option value="dark">Dark</fluent-option>
-                                </fluent-select>
+                                <select id="sidebar-theme-select" class="fluent-select">
+                                    <option value="system">System</option>
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                </select>
                             </div>
                             <div class="setting-group">
                                 <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
                                 <div class="setting-checkbox-group">
-                                    <fluent-checkbox id="sidebar-auto-update-check"></fluent-checkbox>
+                                    <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
                                     <span class="setting-hint">Automatically check for updates</span>
                                 </div>
                             </div>
                             <div class="setting-group">
-                                <fluent-button appearance="primary" id="sidebar-save-settings-btn">Save Settings</fluent-button>
+                                <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
                             </div>
                         </div>
                     </div>
@@ -371,9 +371,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <fluent-button appearance="secondary" id="test-connection-btn" style="display: none; margin-right: auto;">Test Connection</fluent-button>
-                    <fluent-button appearance="secondary" id="cancel-connection-btn">Cancel</fluent-button>
-                    <fluent-button appearance="primary" id="confirm-connection-btn">Add</fluent-button>
+                    <button id="test-connection-btn" class="fluent-button fluent-button-secondary" style="display: none; margin-right: auto;">Test Connection</button>
+                    <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
+                    <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Add</button>
                 </div>
             </div>
         </div>
@@ -392,7 +392,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <fluent-button appearance="secondary" id="cancel-connection-select-btn">Cancel</fluent-button>
+                    <button id="cancel-connection-select-btn" class="fluent-button fluent-button-secondary">Cancel</button>
                 </div>
             </div>
         </div>
@@ -409,7 +409,7 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <fluent-button appearance="secondary" id="close-device-code-btn">Close</fluent-button>
+                    <button id="close-device-code-btn" class="fluent-button fluent-button-secondary">Close</button>
                 </div>
             </div>
         </div>
@@ -427,7 +427,7 @@
                     </p>
                 </div>
                 <div class="modal-footer">
-                    <fluent-button appearance="primary" id="close-auth-error-btn">OK</fluent-button>
+                    <button id="close-auth-error-btn" class="fluent-button fluent-button-primary">OK</button>
                 </div>
             </div>
         </div>
@@ -445,7 +445,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <fluent-button appearance="secondary" id="cancel-tool-settings-btn">Close</fluent-button>
+                    <button id="cancel-tool-settings-btn" class="fluent-button fluent-button-secondary">Close</button>
                 </div>
             </div>
         </div>
@@ -470,8 +470,8 @@
                                 </div>
                             </div>
                             <div class="tool-detail-actions">
-                                <fluent-button appearance="primary" id="tool-detail-install-btn" style="display: none;">Install</fluent-button>
-                                <fluent-badge appearance="success" id="tool-detail-installed-badge" style="display: none;">Installed</fluent-badge>
+                                <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" style="display: none;">Install</button>
+                                <span id="tool-detail-installed-badge" class="fluent-badge fluent-badge-success" style="display: none;">Installed</span>
                             </div>
                         </div>
                         <div class="tool-detail-readme">
@@ -485,7 +485,6 @@
             </div>
         </div>
 
-        <script type="text/javascript" src="vendor/fluent-web-components.js"></script>
         <script type="module" src="renderer.js"></script>
     </body>
 </html>

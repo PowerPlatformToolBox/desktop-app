@@ -4,7 +4,7 @@
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-main && npm run copy-toolboxAPIBridge && npm run copy-assets && npm run copy-vendor",
+    "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-main && npm run copy-toolboxAPIBridge && npm run copy-assets",
     "copy-main": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/",
     "copy-toolboxAPIBridge": "shx cp src/renderer/toolboxAPIBridge.js dist/renderer/",
     "copy-assets": "shx cp src/renderer/tools.json dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/",
@@ -42,7 +42,6 @@
     "@azure/msal-node": "^3.8.0",
     "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
-    "@fluentui/web-components": "^2.6.1",
     "@types/uuid": "^10.0.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
