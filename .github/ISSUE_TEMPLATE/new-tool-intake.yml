@@ -1,0 +1,57 @@
+name: New Tool Intake
+description: Submit a new tool intake into PPTB
+title: "[New Tool]: "
+labels: ["tool intake"]
+type: "task"
+projects: ["PowerPlatformToolBox/1"]
+assignees:
+  - ["Power-Maverick"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Awesome that you are contributing to the community by submitting a new tool!
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details
+      description: How can we get in touch with you if we need more info?
+      placeholder: Email or LinkedIn profile url or Twitter handle or Power Platform Level Up Discord tag name
+    validations:
+      required: true
+  - type: input
+    id: tool-name
+    attributes:
+      label: Name of the tool
+      description: Provide the name as it will appear in PPTB
+      placeholder: awesome-builder
+    validations:
+      required: true
+  - type: input
+    id: npm-package
+    attributes:
+      label: What is the name of the package on `npm`
+      description: If its under an org then provide the name with org prefix. Needs to be a complete name
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Name of the author(s)
+      description: Provide the list of authors in a comma separated fashion
+  - type: checkboxes
+    id: contributing-guidelines
+    attributes:
+      label: Have to read through the CONTRIBUTING GUIDELINES?
+      description: By submitting this tool intake request, you agree to follow our [Contributing Guidelines](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CONTRIBUTING.md). 
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CODE_OF_CONDUCT.md). 
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
