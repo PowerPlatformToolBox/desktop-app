@@ -116,7 +116,7 @@ body.light-theme .activity-bar {
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: #cccccc;
+    color: white; /* Always white */
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
@@ -135,6 +135,7 @@ body.light-theme .activity-bar {
 
 .activity-icon {
     /* SVG icons don't need font-size, size controlled by width/height */
+    /* Icons inherit white color from parent */
 }
 
 /* Sidebar collapsed state */
@@ -1967,6 +1968,24 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
 fluent-button {
     --accent-fill-rest: var(--primary-color);
     --accent-fill-hover: var(--primary-hover);
+}
+
+/* Ensure fluent-button displays properly with appearance */
+fluent-button[appearance="primary"] {
+    --accent-fill-rest: var(--primary-color);
+    --accent-fill-hover: var(--primary-hover);
+    --accent-fill-active: #005a9e;
+}
+
+fluent-button[appearance="secondary"] {
+    --neutral-fill-rest: transparent;
+    --neutral-fill-hover: rgba(0, 0, 0, 0.05);
+    --neutral-stroke-rest: var(--border-color);
+}
+
+body.dark-theme fluent-button[appearance="secondary"] {
+    --neutral-fill-hover: rgba(255, 255, 255, 0.1);
+    --neutral-stroke-rest: #605e5c;
 }
 
 fluent-text-field {

@@ -132,7 +132,7 @@ function loadToolLibrary() {
                     <span class="tool-library-author">Author: ${tool.author}</span>
                 </div>
             </div>
-            <button class="btn btn-primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</button>
+            <fluent-button appearance="primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</fluent-button>
         </div>
     `,
         )
@@ -1040,10 +1040,10 @@ async function loadConnections() {
                     <div class="connection-actions">
                         ${
                             conn.isActive
-                                ? '<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>'
-                                : '<button class="btn btn-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
+                                ? '<fluent-button appearance="secondary" data-action="disconnect">Disconnect</fluent-button>'
+                                : '<fluent-button appearance="primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</fluent-button>'
                         }
-                        <button class="btn btn-danger" data-action="delete" data-connection-id="${conn.id}">Delete</button>
+                        <fluent-button appearance="secondary" data-action="delete" data-connection-id="${conn.id}">Delete</fluent-button>
                     </div>
                 </div>
                 <div class="connection-url">${conn.url}</div>
@@ -1054,7 +1054,7 @@ async function loadConnections() {
             .join("");
 
         // Add event listeners to all connection action buttons
-        connectionsList.querySelectorAll(".connection-actions button").forEach((button) => {
+        connectionsList.querySelectorAll(".connection-actions fluent-button, .connection-actions button").forEach((button) => {
             button.addEventListener("click", (e) => {
                 const target = e.target as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
@@ -1754,8 +1754,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 v${tool.version}${tool.hasUpdate ? ` → v${tool.latestVersion}` : ""}
             </div>
             <div class="tool-item-actions-vscode">
-                ${tool.hasUpdate ? `<button class="btn btn-secondary btn-sm" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
-                <button class="btn btn-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                ${tool.hasUpdate ? `<fluent-button appearance="secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</fluent-button>` : ""}
+                <fluent-button appearance="primary" data-action="launch" data-tool-id="${tool.id}">Launch</fluent-button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
                     <img src="icons/trash.svg" alt="Delete" />
                 </button>
@@ -1769,7 +1769,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
-            if (target.tagName === "BUTTON") return; // Button click will handle
+            if (target.tagName === "BUTTON" || target.tagName === "FLUENT-BUTTON") return; // Button click will handle
 
             const toolId = item.getAttribute("data-tool-id");
             if (toolId) {
@@ -1778,7 +1778,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         });
     });
 
-    toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-actions-vscode button, .tool-item-actions-vscode fluent-button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation();
             const target = e.target as HTMLElement;
@@ -1898,8 +1898,8 @@ async function loadSidebarConnections() {
                     <div>
                         ${
                             conn.isActive
-                                ? `<button class="btn btn-secondary" data-action="disconnect">Disconnect</button>`
-                                : `<button class="btn btn-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                                ? `<fluent-button appearance="secondary" data-action="disconnect">Disconnect</fluent-button>`
+                                : `<fluent-button appearance="primary" data-action="connect" data-connection-id="${conn.id}">Connect</fluent-button>`
                         }
                     </div>
                     <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
@@ -1912,7 +1912,7 @@ async function loadSidebarConnections() {
             .join("");
 
         // Add event listeners
-        connectionsList.querySelectorAll("button").forEach((button) => {
+        connectionsList.querySelectorAll("button, fluent-button").forEach((button) => {
             button.addEventListener("click", async (e) => {
                 const target = e.target as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
@@ -2299,6 +2299,18 @@ async function init() {
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
+
+    // Add change listener for theme selector to apply immediately
+    const themeSelect = document.getElementById("sidebar-theme-select");
+    if (themeSelect) {
+        themeSelect.addEventListener("change", async () => {
+            const theme = (themeSelect as any).value;
+            if (theme) {
+                await window.toolboxAPI.updateUserSettings({ theme });
+                applyTheme(theme);
+            }
+        });
     }
 
     // Home screen action buttons
