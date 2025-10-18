@@ -29,18 +29,18 @@ body:
     validations:
       required: true
   - type: input
-     id: version
-     attributes:
-         label: What version of the PPTB are you using?
-         description: You can find it under under `Help` > `About`.
-     validations:
-         required: true
-   - type: textarea
-     id: logs
-     attributes:
-         label: Relevant log output
-         description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-         render: shell
+    id: version
+    attributes:
+      label: What version of the PPTB are you using?
+      description: You can find it under under `Help` > `About`.
+    validations:
+      required: true
+    - type: textarea
+    id: logs
+    attributes:
+    label: Relevant log output
+    description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+    render: shell
   - type: checkboxes
     id: terms
     attributes:
