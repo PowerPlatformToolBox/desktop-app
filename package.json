@@ -4,8 +4,11 @@
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-static",
-    "copy-static": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/ && shx cp src/renderer/toolboxAPIBridge.js dist/renderer/ && shx cp src/renderer/tools.json dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/ && shx mkdir -p dist/renderer/vendor && shx cp node_modules/@fluentui/web-components/dist/web-components.min.js dist/renderer/vendor/fluent-web-components.js",
+    "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-main && npm run copy-toolboxAPIBridge && npm run copy-assets && npm run copy-vendor",
+    "copy-main": "shx mkdir -p dist/renderer && shx cp src/renderer/index.html dist/renderer/ && shx cp src/renderer/styles.css dist/renderer/",
+    "copy-toolboxAPIBridge": "shx cp src/renderer/toolboxAPIBridge.js dist/renderer/",
+    "copy-assets": "shx cp src/renderer/tools.json dist/renderer/ && shx cp -r src/renderer/icons dist/renderer/",
+    "copy-vendor": "shx mkdir -p dist/renderer/vendor && shx cp node_modules/@fluentui/web-components/dist/web-components.min.js dist/renderer/vendor/fluent-web-components.js",
     "dev": "npm run build && electron .",
     "watch": "tsc --watch",
     "lint": "eslint src --ext .ts",

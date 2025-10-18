@@ -1705,7 +1705,7 @@ async function loadSidebarTools() {
             const latestVersion = await window.toolboxAPI.getLatestToolVersion(tool.id);
             const hasUpdate = latestVersion && latestVersion !== tool.version;
             return { ...tool, latestVersion, hasUpdate };
-        })
+        }),
     );
 
     // Setup search
@@ -1956,7 +1956,7 @@ async function loadMarketplace() {
 
     // Filter based on search
     const searchInput = document.getElementById("marketplace-search-input") as any; // Fluent UI text field
-    const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
+    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
 
     const filteredTools = toolLibrary.filter((tool) => {
         if (!searchTerm) return true;
@@ -1968,7 +1968,7 @@ async function loadMarketplace() {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const hasUpdate = isInstalled && installedTool.version && tool.version && tool.version !== installedTool.version;
-            
+
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
