@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
+    "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
     "@fluentui/web-components": "^2.6.1",
     "@types/uuid": "^10.0.0",

@@ -267,6 +267,7 @@ Currently there are no unit tests, integration tests, or test framework. Do not 
 - **shx** (v0.4.0): Cross-platform shell commands in npm scripts
 - **@fluentui/web-components** (v2.6.1): Microsoft Fluent UI web components for modern UI
 - **@fluentui/tokens** (v1.0.0-alpha.22): Fluent UI design tokens (colors, spacing, typography)
+- **@fluentui/svg-icons** (v1.1.312): Fluent UI System Icons (SVG) for consistent iconography
 
 ## UI Design Guidelines
 
@@ -303,6 +304,8 @@ This app uses **Fluent UI Web Components** to align with the Microsoft ecosystem
    ```
 
 **Icons**: When adding icons, prefer using Fluent UI icon SVGs or icon fonts instead of custom icons to maintain consistency with Microsoft's design language.
+
+**Icon Library**: All application icons use Fluent UI System Icons from `@fluentui/svg-icons`. Available icons can be found in `node_modules/@fluentui/svg-icons/icons/`. Icons should use `fill="currentColor"` to inherit color from parent elements.
 
 **Migration**: When modifying existing UI, gradually migrate custom HTML elements to Fluent UI components where appropriate.
 

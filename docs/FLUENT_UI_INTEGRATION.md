@@ -128,8 +128,54 @@ npm run build
 
 This copies `node_modules/@fluentui/web-components/dist/web-components.min.js` to `dist/renderer/vendor/fluent-web-components.js`.
 
+## Icons
+
+All application icons use **Fluent UI System Icons** from the `@fluentui/svg-icons` package (v1.1.312). These icons maintain consistency with Microsoft's design language and automatically adapt to theme colors.
+
+### Current Icons in Use
+
+- **Tools**: `apps_24_regular.svg` - Represents the installed tools section
+- **Connections**: `plug_connected_24_regular.svg` - Represents Dataverse connections
+- **Marketplace**: `store_microsoft_24_regular.svg` - Represents the tools marketplace
+- **Settings**: `settings_24_regular.svg` - Represents application settings
+- **Delete**: `delete_24_regular.svg` - Used for delete/trash actions
+
+### Adding New Icons
+
+1. Browse available icons in `node_modules/@fluentui/svg-icons/icons/`
+2. Copy the desired SVG file to `src/renderer/icons/`
+3. Ensure the SVG path includes `fill="currentColor"` to inherit theme colors
+4. Reference the icon in your HTML: `<img src="icons/icon-name.svg" />`
+
+Example:
+```bash
+cp node_modules/@fluentui/svg-icons/icons/calendar_24_regular.svg src/renderer/icons/calendar.svg
+# Add fill="currentColor" to the path element
+sed -i 's/<path d="/<path fill="currentColor" d="/g' src/renderer/icons/calendar.svg
+```
+
+Then in HTML:
+```html
+<img src="icons/calendar.svg" alt="Calendar" class="my-icon" />
+```
+
+### Icon Styling
+
+Icons automatically inherit the color from their parent element via `currentColor`:
+
+```css
+.activity-item {
+    color: #cccccc; /* Icon will be this color */
+}
+
+.activity-item:hover {
+    color: white; /* Icon changes to white on hover */
+}
+```
+
 ## Resources
 
 - [Fluent UI Web Components Documentation](https://learn.microsoft.com/en-us/fluent-ui/web-components/)
 - [Fluent UI Design System](https://fluent2.microsoft.design/)
+- [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)
 - [GitHub Repository](https://github.com/microsoft/fluentui/tree/master/packages/web-components)

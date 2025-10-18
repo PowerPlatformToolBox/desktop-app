@@ -1986,8 +1986,8 @@ async function loadMarketplace() {
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
                 ${tool.version ? `<span class="marketplace-item-version-vscode">v${tool.version}${hasUpdate ? ` (installed: v${installedTool.version})` : ""}</span>` : ""}
                 <div class="marketplace-item-actions-vscode">
-                    ${!isInstalled ? `<button class="btn btn-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
-                    ${hasUpdate ? `<button class="btn btn-secondary" data-action="update" data-tool-id="${tool.id}">Update</button>` : ""}
+                    ${!isInstalled ? `<fluent-button appearance="primary" data-action="install" data-tool-id="${tool.id}">Install</fluent-button>` : ""}
+                    ${hasUpdate ? `<fluent-button appearance="secondary" data-action="update" data-tool-id="${tool.id}">Update</fluent-button>` : ""}
                 </div>
             </div>
         </div>
@@ -2000,7 +2000,7 @@ async function loadMarketplace() {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             // Don't open detail if clicking a button
-            if (target.tagName === "BUTTON") return;
+            if (target.tagName === "BUTTON" || target.tagName === "FLUENT-BUTTON") return;
 
             const toolId = item.getAttribute("data-tool-id");
             if (toolId) {
@@ -2014,10 +2014,10 @@ async function loadMarketplace() {
     });
 
     // Add event listeners for install and update buttons
-    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
+    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button, .marketplace-item-actions-vscode fluent-button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
-            const target = e.target as HTMLButtonElement;
+            const target = e.target as any; // Can be HTMLButtonElement or fluent-button
             const action = target.getAttribute("data-action");
             const toolId = target.getAttribute("data-tool-id");
             if (!toolId) return;
