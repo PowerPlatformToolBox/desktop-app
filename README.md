@@ -133,6 +133,13 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 -   Comprehensive TypeScript type definitions for all application entities
 -   Tool contribution points and Tool Host protocol types
 
+### Build System
+
+-   **Vite**: Modern, fast bundler for both main and renderer processes
+-   **TypeScript**: Strict mode enabled for type safety
+-   **Hot Module Replacement (HMR)**: Instant feedback during development
+-   **Optimized Bundling**: Production builds are optimized for size and performance
+
 ## Security Model
 
 -   **Process Isolation**: Each tool runs in a separate Node.js process
@@ -219,16 +226,18 @@ npm start
 
 ### Development
 
-For development with hot-reload:
-
-```bash
-npm run watch
-```
-
-In a separate terminal:
+For development with Vite's built-in hot module replacement (HMR):
 
 ```bash
 npm run dev
+```
+
+This starts the Vite dev server with Electron, providing fast refresh for renderer process changes.
+
+For watch mode (continuous compilation):
+
+```bash
+npm run watch
 ```
 
 ### Linting

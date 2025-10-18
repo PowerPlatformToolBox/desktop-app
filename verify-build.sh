@@ -1,38 +1,44 @@
 #!/bin/bash
 
-echo "Verifying build structure..."
+echo "Verifying Vite build structure..."
 echo ""
 
-# Check main process files
-echo "✓ Main Process Files:"
-test -f dist/main/index.js && echo "  ✓ main/index.js" || echo "  ✗ main/index.js MISSING"
-test -f dist/main/preload.js && echo "  ✓ main/preload.js" || echo "  ✗ main/preload.js MISSING"
-test -f dist/main/settings-manager.js && echo "  ✓ main/settings-manager.js" || echo "  ✗ main/settings-manager.js MISSING"
-test -f dist/main/tool-manager.js && echo "  ✓ main/tool-manager.js" || echo "  ✗ main/tool-manager.js MISSING"
+# Check main process files (bundled by Vite)
+echo "✓ Main Process Files (Vite bundled):"
+test -f dist/main/index.js && echo "  ✓ main/index.js (bundled)" || echo "  ✗ main/index.js MISSING"
+test -f dist/main/preload.js && echo "  ✓ main/preload.js (bundled)" || echo "  ✗ main/preload.js MISSING"
 echo ""
 
-# Check API files
-echo "✓ API Files:"
-test -f dist/api/toolbox-api.js && echo "  ✓ api/toolbox-api.js" || echo "  ✗ api/toolbox-api.js MISSING"
-echo ""
-
-# Check type definitions
-echo "✓ Type Definitions:"
-test -f dist/types/index.js && echo "  ✓ types/index.js" || echo "  ✗ types/index.js MISSING"
-echo ""
-
-# Check renderer files
-echo "✓ Renderer Files:"
+# Check renderer files (bundled by Vite)
+echo "✓ Renderer Files (Vite bundled):"
 test -f dist/renderer/index.html && echo "  ✓ renderer/index.html" || echo "  ✗ renderer/index.html MISSING"
-test -f dist/renderer/styles.css && echo "  ✓ renderer/styles.css" || echo "  ✗ renderer/styles.css MISSING"
-test -f dist/renderer/renderer.js && echo "  ✓ renderer/renderer.js" || echo "  ✗ renderer/renderer.js MISSING"
+test -d dist/renderer/assets && echo "  ✓ renderer/assets/ (CSS & JS bundles)" || echo "  ✗ renderer/assets/ MISSING"
+test -f dist/renderer/toolboxAPIBridge.js && echo "  ✓ renderer/toolboxAPIBridge.js" || echo "  ✗ renderer/toolboxAPIBridge.js MISSING"
+test -f dist/renderer/tools.json && echo "  ✓ renderer/tools.json" || echo "  ✗ renderer/tools.json MISSING"
 echo ""
 
-# Check package.json
+# Check static assets
+echo "✓ Static Assets:"
+test -d dist/renderer/icons && echo "  ✓ renderer/icons/" || echo "  ✗ renderer/icons/ MISSING"
+test -f dist/renderer/icons/tools.svg && echo "  ✓ icons/tools.svg" || echo "  ✗ icons/tools.svg MISSING"
+test -f dist/renderer/icons/connections.svg && echo "  ✓ icons/connections.svg" || echo "  ✗ icons/connections.svg MISSING"
+test -f dist/renderer/icons/marketplace.svg && echo "  ✓ icons/marketplace.svg" || echo "  ✗ icons/marketplace.svg MISSING"
+test -f dist/renderer/icons/settings.svg && echo "  ✓ icons/settings.svg" || echo "  ✗ icons/settings.svg MISSING"
+echo ""
+
+# Check configuration files
 echo "✓ Configuration:"
 test -f package.json && echo "  ✓ package.json" || echo "  ✗ package.json MISSING"
-test -f tsconfig.json && echo "  ✓ tsconfig.json" || echo "  ✗ tsconfig.json MISSING"
-test -f tsconfig.renderer.json && echo "  ✓ tsconfig.renderer.json" || echo "  ✗ tsconfig.renderer.json MISSING"
+test -f vite.config.ts && echo "  ✓ vite.config.ts" || echo "  ✗ vite.config.ts MISSING"
+test -f tsconfig.json && echo "  ✓ tsconfig.json (IDE support)" || echo "  ✗ tsconfig.json MISSING"
+test -f tsconfig.renderer.json && echo "  ✓ tsconfig.renderer.json (IDE support)" || echo "  ✗ tsconfig.renderer.json MISSING"
 echo ""
 
-echo "✓ Build verification complete!"
+# Summary
+echo "----------------------------------------"
+echo "Build verification complete!"
+echo ""
+echo "Note: With Vite, all TypeScript files are bundled into optimized"
+echo "JavaScript bundles in dist/main/ and dist/renderer/assets/"
+echo "Individual .js files for managers, API, and types are no longer"
+echo "generated separately - they're included in the main bundles."
