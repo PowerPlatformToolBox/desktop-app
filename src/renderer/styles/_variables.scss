@@ -1,0 +1,56 @@
+// Color Variables - Light Theme
+$primary-color: #0078d4;
+$primary-hover: #106ebe;
+$secondary-color: #f3f2f1;
+$text-color: #323130;
+$bg-color: #ffffff;
+$sidebar-bg: #f3f2f1;
+$border-color: #edebe9;
+
+// Dark Theme Colors
+$dark-text-color: #f3f2f1;
+$dark-bg-color: #1e1e1e;
+$dark-sidebar-bg: #252526;
+$dark-border-color: #3e3e42;
+$dark-secondary-color: #3e3e42;
+$dark-card-bg: #2d2d30;
+$dark-input-bg: #3e3e42;
+
+// Activity Bar Colors
+$activity-bar-bg: #333333;
+$activity-bar-bg-dark: #2d2d30;
+$activity-bar-bg-light: #2c2c2c;
+
+// Shadows
+$shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+$shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
+
+// Layout
+$app-footer-height: 32px;
+$activity-bar-width: 50px;
+$sidebar-width: 250px;
+
+// Spacing
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// Border Radius
+$border-radius-sm: 2px;
+$border-radius-md: 4px;
+$border-radius-lg: 8px;
+
+// Transitions
+$transition-fast: 0.15s ease;
+$transition-normal: 0.3s ease;
+
+// Font Family
+$font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+
+// Z-Index Layers
+$z-activity-bar: 100;
+$z-sidebar: 50;
+$z-modal: 1000;
+$z-modal-overlay: 999;

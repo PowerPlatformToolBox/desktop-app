@@ -141,8 +141,9 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 -   **Optimized Bundling**: Production builds are optimized for size and performance
 -   **Bundle Analysis**: Visualize bundle composition with built-in analysis tools
 -   **Code Splitting**: Automatic vendor chunk separation for better caching
--   **CSS Preprocessing**: Support for Sass/SCSS, Less, and other preprocessors
+-   **SCSS Modules**: Organized SCSS with variables and mixins for maintainable styles
 -   **ES Modules**: Full ESM migration for better tree-shaking and performance
+-   **CI/CD Monitoring**: Automated bundle size tracking in GitHub Actions
 
 For detailed build optimization information, see [BUILD_OPTIMIZATION.md](docs/BUILD_OPTIMIZATION.md).
 

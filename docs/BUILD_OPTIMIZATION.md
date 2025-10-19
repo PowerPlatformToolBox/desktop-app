@@ -86,42 +86,67 @@ output: {
 },
 ```
 
-## CSS Preprocessing
+## CSS Preprocessing with SCSS
 
-The project supports CSS preprocessing with Sass/SCSS out of the box.
+The project now uses Sass/SCSS for better stylesheet organization and maintainability.
 
-### Using Sass/SCSS
+### Project Structure
 
-1. **Install Sass** (already included as a dev dependency):
+The main stylesheet has been migrated to SCSS with a modular organization:
 
-    ```bash
-    npm install --save-dev sass
-    ```
+```
+src/renderer/
+├── styles.scss              # Main stylesheet (imports partials)
+├── styles/
+│   ├── _variables.scss      # SCSS variables (colors, spacing, etc.)
+│   └── _mixins.scss         # Reusable SCSS mixins
+└── example.scss             # Example SCSS file for reference
+```
 
-2. **Create `.scss` files** in your renderer directory:
+### Using SCSS Features
 
-    ```scss
-    // src/renderer/styles.scss
-    $primary-color: #0078d4;
-    $font-stack: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+The project now leverages SCSS features like:
 
-    body {
-        font-family: $font-stack;
-        color: $primary-color;
+**Variables** (defined in `_variables.scss`):
+```scss
+$primary-color: #0078d4;
+$font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+$spacing-md: 16px;
+```
+
+**Mixins** (defined in `_mixins.scss`):
+```scss
+@use './styles/variables' as *;
+@use './styles/mixins' as *;
+
+.my-component {
+    @include flex-center;
+    padding: $spacing-md;
+    font-family: $font-family;
+}
+```
+
+**Nesting**:
+```scss
+.button {
+    background: $primary-color;
+    
+    &:hover {
+        background: $primary-hover;
     }
-    ```
+    
+    &.disabled {
+        opacity: 0.5;
+    }
+}
+```
 
-3. **Import in HTML or TypeScript**:
+### Adding New Styles
 
-    ```html
-    <!-- In HTML -->
-    <link rel="stylesheet" href="styles.scss" />
-    ```
-
-    ```typescript
-    // In TypeScript
-    import "./styles.scss";
-    ```
+1. **Modify existing files**: Edit `styles.scss` or create new partial files in `styles/`
+2. **Create new partials**: Name with underscore prefix (e.g., `_components.scss`)
+3. **Import partials**: Add `@use './styles/components' as *;` in `styles.scss`
+4. **Use variables and mixins**: Access shared styles across your SCSS files
 
 ### Global SCSS Variables
 
@@ -239,6 +264,63 @@ import * as library from "library";
 -   Split routes/views in renderer process
 -   Lazy-load heavy features
 -   Split by feature or domain
+
+## CI/CD Bundle Size Tracking
+
+The project includes automated bundle size tracking in the CI/CD pipeline to prevent bundle bloat.
+
+### GitHub Actions Workflow
+
+The `bundle-size.yml` workflow runs on:
+-   **Pull Requests** to `main` or `develop` branches
+-   **Pushes** to `main` or `develop` branches
+
+### What It Does
+
+1. **Builds the project** in CI environment
+2. **Analyzes bundle sizes** for all output files
+3. **Generates a report** in the workflow summary
+4. **Comments on PRs** with bundle size comparison
+5. **Uploads bundle analysis** reports as artifacts
+6. **Checks size limits** and warns if exceeded
+
+### Viewing Reports
+
+**In Pull Requests:**
+- The workflow automatically comments with bundle sizes
+- Download artifacts from the "Actions" tab to view detailed analysis
+
+**In Workflow Runs:**
+- Go to Actions → Bundle Size Tracking
+- View the summary for a quick size report
+- Download artifacts for detailed HTML reports
+
+### Size Limits
+
+Current limits configured:
+-   **Main Process**: 1 MB (warning if exceeded)
+-   More limits can be added as needed
+
+### Adding Custom Checks
+
+Edit `.github/workflows/bundle-size.yml` to:
+-   Add more size limit checks
+-   Compare with previous builds
+-   Set up notifications
+-   Fail builds on size regressions
+
+Example:
+```yaml
+- name: Check bundle size limits
+  run: |
+    RENDERER_SIZE=${{ steps.analyze.outputs.renderer_js_size }}
+    RENDERER_LIMIT=524288  # 512 KB limit
+    
+    if [ "$RENDERER_SIZE" -gt "$RENDERER_LIMIT" ]; then
+      echo "::error::Renderer bundle exceeds 512 KB limit!"
+      exit 1
+    fi
+```
 
 ## Build Configuration Reference
 
