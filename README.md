@@ -62,6 +62,8 @@
     -   [Types (`src/types/`)](#types-srctypes)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
+    -   [Sample Tools Repository](#sample-tools-repository)
+    -   [Getting Started with Tool Development](#getting-started-with-tool-development)
     -   [Quick Example](#quick-example)
     -   [Contribution Points (package.json)](#contribution-points-packagejson)
 -   [Getting Started](#getting-started)
@@ -70,9 +72,9 @@
     -   [Development](#development)
     -   [Linting](#linting)
     -   [Packaging](#packaging)
--   [Tool Development](#tool-development-1)
+-   [Developing Custom Tools](#developing-custom-tools)
     -   [Requirements](#requirements)
-    -   [Example Tools](#example-tools)
+    -   [Sample Tools](#sample-tools)
     -   [Installing Tools](#installing-tools)
     -   [Tool Security](#tool-security)
 -   [Dataverse Connections](#dataverse-connections)
@@ -156,7 +158,28 @@ For detailed build optimization information, see [BUILD_OPTIMIZATION.md](docs/BU
 
 ## Tool Development
 
-Tools are npm packages that follow a specific structure. See [TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md) for detailed guide.
+Power Platform Tool Box uses a secure, extensible Tool Host architecture that allows developers to create custom tools as npm packages. Tools run in isolated processes and communicate with the ToolBox through a secure API.
+
+### Sample Tools Repository
+
+Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBox/sample-tools)** for complete, ready-to-use examples demonstrating different frameworks:
+
+-   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/html-sample)** - Basic HTML with TypeScript
+-   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/react-sample)** - React 18 with Vite and TypeScript
+-   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/vue-sample)** - Vue 3 with Composition API
+-   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/svelte-sample)** - Svelte 5 with TypeScript
+
+Each sample demonstrates:
+
+-   ToolBox API integration
+-   Connection management
+-   Event handling
+-   Modern build tooling
+-   Full TypeScript support
+
+### Getting Started with Tool Development
+
+See **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** for the complete guide on creating tools.
 
 ### Quick Example
 
@@ -280,9 +303,9 @@ npm run package
 
 This will create installers for your platform in the `build/` directory.
 
-## Tool Development
+## Developing Custom Tools
 
-Tools are npm packages with specific structure and contribution points.
+Tools are npm packages with specific structure and contribution points that extend the Power Platform Tool Box functionality.
 
 ### Requirements
 
@@ -300,24 +323,25 @@ A tool must:
 3. Export `activate(context)` and `deactivate()` functions
 4. Use the `pptoolbox` API for ToolBox integration
 
-### Example Tools
+### Sample Tools
 
-Multiple framework examples are available in the `examples/` directory:
+Complete working samples are available in the **[@PowerPlatformToolBox/sample-tools](https://github.com/PowerPlatformToolBox/sample-tools)** repository:
 
--   **[example-tool](examples/example-tool/)** - Basic HTML/TypeScript example
--   **[react-example](examples/react-example/)** - React 18 with TypeScript and Vite
--   **[vue-example](examples/vue-example/)** - Vue 3 with Composition API and Vite
--   **[svelte-example](examples/svelte-example/)** - Svelte 5 with TypeScript and Vite
+-   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/html-sample)** - Basic HTML with TypeScript, great for getting started
+-   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/react-sample)** - React 18 with TypeScript and Vite for modern React development
+-   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/vue-sample)** - Vue 3 with Composition API and Vite
+-   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/svelte-sample)** - Svelte 5 with TypeScript and Vite
 
-Each example demonstrates:
+Each sample demonstrates:
 
 -   ToolBox API integration
--   Connection management
--   Event handling
--   Modern build tooling
--   TypeScript support
+-   Connection management and authentication
+-   Event handling and state management
+-   Modern build tooling with Vite
+-   Full TypeScript support
+-   Packaging and publishing
 
-For detailed documentation, see [TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md).
+For detailed documentation, see **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)**.
 
 ### Installing Tools
 
@@ -389,6 +413,7 @@ The ToolBox emits events for various operations:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOL_HOST_ARCHITECTURE.md](docs/TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+-   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
 ## 🔉 Discussions
