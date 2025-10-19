@@ -59,22 +59,22 @@
     -   [Main Process (`src/main/`)](#main-process-srcmain)
     -   [API Layer (`src/api/`)](#api-layer-srcapi)
     -   [Renderer Process (`src/renderer/`)](#renderer-process-srcrenderer)
+    -   [UI Design](#ui-design)
     -   [Types (`src/types/`)](#types-srctypes)
+    -   [Build System](#build-system)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
     -   [Sample Tools Repository](#sample-tools-repository)
     -   [Getting Started with Tool Development](#getting-started-with-tool-development)
     -   [Quick Example](#quick-example)
-    -   [Contribution Points (package.json)](#contribution-points-packagejson)
 -   [Getting Started](#getting-started)
     -   [Prerequisites](#prerequisites)
     -   [Installation](#installation)
     -   [Development](#development)
     -   [Linting](#linting)
+    -   [Bundle Analysis](#bundle-analysis)
     -   [Packaging](#packaging)
--   [Developing Custom Tools](#developing-custom-tools)
-    -   [Requirements](#requirements)
-    -   [Sample Tools](#sample-tools)
+-   [Tools provided by the Tool Box](#tools-provided-by-the-tool-box)
     -   [Installing Tools](#installing-tools)
     -   [Tool Security](#tool-security)
 -   [Dataverse Connections](#dataverse-connections)
@@ -82,9 +82,8 @@
     -   [Enabling Auto-Updates](#enabling-auto-updates)
     -   [Manual Update Check](#manual-update-check)
     -   [Update Process](#update-process)
--   [Event System](#event-system)
 -   [Documentation](#documentation)
--   [🔉 Discussions](#-discussions)
+-   [Discussions](#discussions)
 -   [License](#license)
 -   [Contributing](#contributing)
 
@@ -183,41 +182,28 @@ See **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** for the complete guide o
 
 ### Quick Example
 
-```javascript
-// Tool entry point
-const pptoolbox = require("pptoolbox");
+```typescript
+/// <reference types="@pptb/types" />
 
-function activate(context) {
-    // Register a command
-    const cmd = pptoolbox.commands.registerCommand("myTool.action", async () => {
-        await pptoolbox.window.showInformationMessage("Hello!");
-    });
+// Access the ToolBox API
+const toolbox = window.toolboxAPI;
 
-    context.subscriptions.push(cmd);
-}
+// Get connection context
+const context = await toolbox.getToolContext();
+console.log("Connection URL:", context.connectionUrl);
+console.log("Access Token:", context.accessToken);
 
-function deactivate() {
-    // Cleanup handled automatically
-}
+// Subscribe to events
+toolbox.onToolboxEvent((event, payload) => {
+    console.log("Event:", payload.event, "Data:", payload.data);
+});
 
-module.exports = { activate, deactivate };
-```
-
-### Contribution Points (package.json)
-
-```json
-{
-    "contributes": {
-        "commands": [
-            {
-                "command": "myTool.action",
-                "title": "My Action",
-                "category": "My Tool"
-            }
-        ]
-    },
-    "activationEvents": ["onCommand:myTool.action"]
-}
+// Show notifications
+await toolbox.showNotification({
+    title: "Success",
+    body: "Operation completed successfully",
+    type: "success",
+});
 ```
 
 ## Getting Started
@@ -303,59 +289,23 @@ npm run package
 
 This will create installers for your platform in the `build/` directory.
 
-## Developing Custom Tools
+## Tools provided by the Tool Box
 
-Tools are npm packages with specific structure and contribution points that extend the Power Platform Tool Box functionality.
-
-### Requirements
-
-A tool must:
-
-1. Be published as an npm package
-2. Include proper metadata in `package.json`:
-
-    - `name`: Unique package name (e.g., `@powerplatform/my-tool`)
-    - `version`: Semantic version
-    - `description`: Tool description
-    - `displayName`: Human-readable name (optional)
-    - `author`: Tool author
-
-3. Export `activate(context)` and `deactivate()` functions
-4. Use the `pptoolbox` API for ToolBox integration
-
-### Sample Tools
-
-Complete working samples are available in the **[@PowerPlatformToolBox/sample-tools](https://github.com/PowerPlatformToolBox/sample-tools)** repository:
-
--   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/html-sample)** - Basic HTML with TypeScript, great for getting started
--   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/react-sample)** - React 18 with TypeScript and Vite for modern React development
--   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/vue-sample)** - Vue 3 with Composition API and Vite
--   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/svelte-sample)** - Svelte 5 with TypeScript and Vite
-
-Each sample demonstrates:
-
--   ToolBox API integration
--   Connection management and authentication
--   Event handling and state management
--   Modern build tooling with Vite
--   Full TypeScript support
--   Packaging and publishing
-
-For detailed documentation, see **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)**.
+Tools are npm packages with specific structure that extend the Power Platform Tool Box functionality.
 
 ### Installing Tools
 
 Users can install tools directly from the application:
 
-1. Click "Install Tool" button
-2. Enter the npm package name (e.g., `@powerplatform/example-tool`)
+1. Navigate to the Tool MArketplace within the app
+2. Search for the tool and click on `Install` button on the tool
 3. The tool will be installed, loaded, and activated automatically
 
 ### Tool Security
 
 -   Each tool runs in an isolated Node.js process
 -   Tools communicate with ToolBox via secure IPC protocol
--   Tools only have access to the `pptoolbox` API
+-   Tools only have access to the `Power Platform Tool Box` API
 -   No direct access to file system, Electron, or Node.js APIs
 
 ## Dataverse Connections
@@ -364,11 +314,7 @@ Create connections to Dataverse environments:
 
 1. Navigate to "Connections" tab
 2. Click "Add Connection"
-3. Provide:
-    - Connection name
-    - Environment URL
-    - Client ID (optional)
-    - Tenant ID (optional)
+3. Follow the prompt
 
 ## Auto-Updates
 
@@ -394,20 +340,6 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   Updates are published via GitHub releases
 -   The application checks for updates on startup (if auto-update is enabled)
 
-## Event System
-
-The ToolBox emits events for various operations:
-
--   `tool:loaded` - When a tool is loaded
--   `tool:unloaded` - When a tool is unloaded
--   `tool:activated` - When a tool is activated
--   `tool:deactivated` - When a tool is deactivated
--   `connection:created` - When a connection is created
--   `connection:updated` - When a connection is updated
--   `connection:deleted` - When a connection is deleted
--   `settings:updated` - When settings are updated
--   `notification:shown` - When a notification is shown
-
 ## Documentation
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
@@ -416,7 +348,7 @@ The ToolBox emits events for various operations:
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
-## 🔉 Discussions
+## Discussions
 
 If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatform-ToolBox/desktop-app/discussions).
 

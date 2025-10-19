@@ -6,16 +6,17 @@
   "types": "index.d.ts",
   "keywords": [
     "powerplatform",
+    "pptb",
     "toolbox",
     "types",
     "typescript",
     "dataverse"
   ],
   "author": "Power Platform Tool Box",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/PowerPlatform-ToolBox/desktop-app.git",
-    "directory": "packages/pptb-types"
+    "directory": "packages"
   }
 }
