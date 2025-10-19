@@ -1,8 +1,8 @@
-# PowerPlatform ToolBox Architecture
+# Power Platform Tool Box Architecture
 
 ## Overview
 
-PowerPlatform ToolBox is an Electron-based desktop application built with TypeScript. It follows a modular architecture with clear separation between the main process, renderer process, and API layers.
+Power Platform Tool Box is an Electron-based desktop application built with TypeScript. It follows a modular architecture with clear separation between the main process, renderer process, and API layers.
 
 ## Technology Stack
 
@@ -17,7 +17,7 @@ PowerPlatform ToolBox is an Electron-based desktop application built with TypeSc
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PowerPlatform ToolBox                     │
+│                    Power Platform Tool Box                     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │  ┌──────────────┐         ┌────────────────────────────┐   │
@@ -293,7 +293,7 @@ Application applies new settings
 
 ### Tool Host Architecture
 
-The PowerPlatform ToolBox implements a **VS Code Extension Host-like architecture** for secure tool execution:
+The Power Platform Tool Box implements a **VS Code Extension Host-like architecture** for secure tool execution:
 
 #### Isolated Processes
 

@@ -1,7 +1,7 @@
 {
   "name": "@powerplatform/pptoolbox-types",
   "version": "1.0.0",
-  "description": "TypeScript type definitions for PowerPlatform ToolBox API",
+  "description": "TypeScript type definitions for Power Platform Tool Box API",
   "main": "index.d.ts",
   "types": "index.d.ts",
   "keywords": [
@@ -11,7 +11,7 @@
     "typescript",
     "dataverse"
   ],
-  "author": "PowerPlatform ToolBox",
+  "author": "Power Platform Tool Box",
   "license": "MIT",
   "repository": {
     "type": "git",

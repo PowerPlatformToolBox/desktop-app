@@ -20,7 +20,7 @@
     "electron",
     "toolbox"
   ],
-  "author": "PowerPlatform ToolBox",
+  "author": "Power Platform Tool Box",
   "license": "GPL-3.0",
   "devDependencies": {
     "@types/node": "^20.19.21",

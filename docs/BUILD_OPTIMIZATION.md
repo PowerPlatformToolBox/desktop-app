@@ -1,6 +1,6 @@
 # Build Optimization Guide
 
-This document describes the build optimizations and analysis tools available in PowerPlatform ToolBox.
+This document describes the build optimizations and analysis tools available in Power Platform Tool Box.
 
 ## Bundle Analysis
 
@@ -108,6 +108,7 @@ src/renderer/
 The project now leverages SCSS features like:
 
 **Variables** (defined in `_variables.scss`):
+
 ```scss
 $primary-color: #0078d4;
 $font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -115,9 +116,10 @@ $spacing-md: 16px;
 ```
 
 **Mixins** (defined in `_mixins.scss`):
+
 ```scss
-@use './styles/variables' as *;
-@use './styles/mixins' as *;
+@use "./styles/variables" as *;
+@use "./styles/mixins" as *;
 
 .my-component {
     @include flex-center;
@@ -127,14 +129,15 @@ $spacing-md: 16px;
 ```
 
 **Nesting**:
+
 ```scss
 .button {
     background: $primary-color;
-    
+
     &:hover {
         background: $primary-hover;
     }
-    
+
     &.disabled {
         opacity: 0.5;
     }
@@ -272,6 +275,7 @@ The project includes automated bundle size tracking in the CI/CD pipeline to pre
 ### GitHub Actions Workflow
 
 The `bundle-size.yml` workflow runs on:
+
 -   **Pull Requests** to `main` or `develop` branches
 -   **Pushes** to `main` or `develop` branches
 
@@ -287,39 +291,44 @@ The `bundle-size.yml` workflow runs on:
 ### Viewing Reports
 
 **In Pull Requests:**
-- The workflow automatically comments with bundle sizes
-- Download artifacts from the "Actions" tab to view detailed analysis
+
+-   The workflow automatically comments with bundle sizes
+-   Download artifacts from the "Actions" tab to view detailed analysis
 
 **In Workflow Runs:**
-- Go to Actions → Bundle Size Tracking
-- View the summary for a quick size report
-- Download artifacts for detailed HTML reports
+
+-   Go to Actions → Bundle Size Tracking
+-   View the summary for a quick size report
+-   Download artifacts for detailed HTML reports
 
 ### Size Limits
 
 Current limits configured:
+
 -   **Main Process**: 1 MB (warning if exceeded)
 -   More limits can be added as needed
 
 ### Adding Custom Checks
 
 Edit `.github/workflows/bundle-size.yml` to:
+
 -   Add more size limit checks
 -   Compare with previous builds
 -   Set up notifications
 -   Fail builds on size regressions
 
 Example:
+
 ```yaml
 - name: Check bundle size limits
   run: |
-    RENDERER_SIZE=${{ steps.analyze.outputs.renderer_js_size }}
-    RENDERER_LIMIT=524288  # 512 KB limit
-    
-    if [ "$RENDERER_SIZE" -gt "$RENDERER_LIMIT" ]; then
-      echo "::error::Renderer bundle exceeds 512 KB limit!"
-      exit 1
-    fi
+      RENDERER_SIZE=${{ steps.analyze.outputs.renderer_js_size }}
+      RENDERER_LIMIT=524288  # 512 KB limit
+
+      if [ "$RENDERER_SIZE" -gt "$RENDERER_LIMIT" ]; then
+        echo "::error::Renderer bundle exceeds 512 KB limit!"
+        exit 1
+      fi
 ```
 
 ## Build Configuration Reference
