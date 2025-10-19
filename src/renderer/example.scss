@@ -1,0 +1,85 @@
+// Example SCSS file demonstrating CSS preprocessing capabilities
+// This file is not currently used in the application but serves as a reference
+// for developers who want to use Sass/SCSS for styling
+
+// Variables
+$primary-color: #0078d4;
+$secondary-color: #106ebe;
+$background-color: #f3f2f1;
+$text-color: #323130;
+$border-radius: 4px;
+$spacing-small: 8px;
+$spacing-medium: 16px;
+$spacing-large: 24px;
+
+// Mixins
+@mixin flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@mixin card-shadow {
+    box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132),
+        0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
+}
+
+// Example usage
+.example-button {
+    background-color: $primary-color;
+    color: white;
+    border: none;
+    border-radius: $border-radius;
+    padding: $spacing-small $spacing-medium;
+    cursor: pointer;
+
+    &:hover {
+        background-color: $secondary-color;
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
+}
+
+.example-card {
+    background-color: white;
+    border-radius: $border-radius;
+    padding: $spacing-large;
+    @include card-shadow;
+
+    .card-header {
+        @include flex-center;
+        margin-bottom: $spacing-medium;
+    }
+}
+
+// Responsive design example
+@media (max-width: 768px) {
+    .example-card {
+        padding: $spacing-medium;
+    }
+}
+
+// Nested selectors
+.navigation {
+    background-color: $background-color;
+
+    ul {
+        list-style: none;
+        padding: 0;
+
+        li {
+            padding: $spacing-small;
+
+            a {
+                color: $text-color;
+                text-decoration: none;
+
+                &:hover {
+                    color: $primary-color;
+                }
+            }
+        }
+    }
+}

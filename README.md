@@ -139,6 +139,12 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 -   **TypeScript**: Strict mode enabled for type safety
 -   **Hot Module Replacement (HMR)**: Instant feedback during development
 -   **Optimized Bundling**: Production builds are optimized for size and performance
+-   **Bundle Analysis**: Visualize bundle composition with built-in analysis tools
+-   **Code Splitting**: Automatic vendor chunk separation for better caching
+-   **CSS Preprocessing**: Support for Sass/SCSS, Less, and other preprocessors
+-   **ES Modules**: Full ESM migration for better tree-shaking and performance
+
+For detailed build optimization information, see [BUILD_OPTIMIZATION.md](docs/BUILD_OPTIMIZATION.md).
 
 ## Security Model
 
@@ -247,6 +253,21 @@ Check code quality:
 ```bash
 npm run lint
 ```
+
+### Bundle Analysis
+
+After building, view bundle composition reports:
+
+```bash
+# Build the project first
+npm run build
+
+# View bundle analysis reports (in browser)
+open dist/stats-main.html      # Main process bundle
+open dist/stats-renderer.html  # Renderer process bundle
+```
+
+The reports show module sizes, dependencies, and optimization opportunities. See [BUILD_OPTIMIZATION.md](docs/BUILD_OPTIMIZATION.md) for details.
 
 ### Packaging
 

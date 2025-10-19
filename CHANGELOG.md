@@ -2,6 +2,44 @@
 
 ## Recent Updates (2025-10-18)
 
+### Build Optimizations and ESM Migration
+
+-   **Added Bundle Analysis**
+
+    -   Integrated `rollup-plugin-visualizer` for bundle size analysis
+    -   Generates visual reports for main and renderer processes
+    -   Reports show module sizes (gzipped and brotli compressed)
+    -   Treemap, sunburst, and network visualizations available
+    -   Output files: `dist/stats-main.html` and `dist/stats-renderer.html`
+
+-   **Configured Code Splitting**
+
+    -   Automatic vendor chunk separation for better caching
+    -   Manual chunks configuration for custom split points
+    -   Improved load times and parallel loading
+    -   Better browser caching of vendor dependencies
+
+-   **Added CSS Preprocessing Support**
+
+    -   Integrated Sass/SCSS preprocessor
+    -   Configuration for global SCSS variables and mixins
+    -   Support for Less, Stylus, and PostCSS out of the box
+    -   Preprocessor options configurable in `vite.config.ts`
+
+-   **Full ESM Migration**
+
+    -   Migrated all `require()` calls to ES6 `import` statements
+    -   Improved tree-shaking and bundle optimization
+    -   Better static analysis and type checking
+    -   Future-proof module system aligned with ECMAScript standards
+    -   Refactored `child_process` imports in `toolsManager.ts`
+    -   Refactored file system imports in `vite.config.ts`
+
+-   **Documentation**
+    -   Created comprehensive `docs/BUILD_OPTIMIZATION.md` guide
+    -   Updated README.md with bundle analysis instructions
+    -   Added troubleshooting and optimization tips
+
 ### Build System Migration to Vite
 
 -   **Replaced TypeScript compiler with Vite bundler**

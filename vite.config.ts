@@ -1,7 +1,8 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { defineConfig } from "vite";
 import electron from "vite-plugin-electron/simple";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
     plugins: [
@@ -18,6 +19,15 @@ export default defineConfig({
                             },
                         },
                     },
+                    plugins: [
+                        // Bundle analysis for main process
+                        visualizer({
+                            filename: "dist/stats-main.html",
+                            open: false,
+                            gzipSize: true,
+                            brotliSize: true,
+                        }),
+                    ],
                 },
             },
             preload: {
@@ -47,14 +57,13 @@ export default defineConfig({
 
                 if (existsSync(nestedHtml)) {
                     // Read the HTML content
-                    const fs = require("fs");
-                    let htmlContent = fs.readFileSync(nestedHtml, "utf-8");
+                    let htmlContent = readFileSync(nestedHtml, "utf-8");
 
                     // Fix asset paths from ../../assets/ to ./assets/
                     htmlContent = htmlContent.replace(/\.\.\/\.\.\/assets\//g, "./assets/");
 
                     // Write to target location
-                    fs.writeFileSync(targetHtml, htmlContent);
+                    writeFileSync(targetHtml, htmlContent);
 
                     // Clean up nested directory structure
                     try {
@@ -108,12 +117,39 @@ export default defineConfig({
         outDir: "dist/renderer",
         rollupOptions: {
             input: path.resolve(__dirname, "src/renderer/index.html"),
+            output: {
+                // Configure code splitting
+                manualChunks: (id) => {
+                    // Split vendor dependencies into separate chunk
+                    if (id.includes("node_modules")) {
+                        return "vendor";
+                    }
+                },
+            },
+            plugins: [
+                // Bundle analysis for renderer process
+                visualizer({
+                    filename: "dist/stats-renderer.html",
+                    open: false,
+                    gzipSize: true,
+                    brotliSize: true,
+                }),
+            ],
         },
     },
     // Resolve aliases
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "src"),
+        },
+    },
+    // CSS preprocessing configuration
+    css: {
+        preprocessorOptions: {
+            scss: {
+                // Add global SCSS variables/mixins if needed
+                // additionalData: `@import "@/styles/variables.scss";`
+            },
         },
     },
     // Dev server configuration
