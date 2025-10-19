@@ -1,3 +1,7 @@
+// Import variables and mixins using modern @use syntax
+@use './styles/variables' as *;
+@use './styles/mixins' as *;
+
 :root {
     --primary-color: #0078d4;
     --primary-hover: #106ebe;
@@ -14,25 +18,11 @@
 
 /* Dark theme */
 body.dark-theme {
-    --text-color: #f3f2f1;
-    --bg-color: #1e1e1e;
-    --sidebar-bg: #252526;
-    --border-color: #3e3e42;
-    --secondary-color: #3e3e42;
-}
-
-body.dark-theme .connection-card,
-body.dark-theme .tool-card,
-body.dark-theme .modal-content {
-    background: #2d2d30;
-    color: var(--text-color);
-}
-
-body.dark-theme .setting-input,
-body.dark-theme .modal-input {
-    background: #3e3e42;
-    color: var(--text-color);
-    border-color: #3e3e42;
+    --text-color: #{$dark-text-color};
+    --bg-color: #{$dark-bg-color};
+    --sidebar-bg: #{$dark-sidebar-bg};
+    --border-color: #{$dark-border-color};
+    --secondary-color: #{$dark-secondary-color};
 }
 
 * {
@@ -42,10 +32,36 @@ body.dark-theme .modal-input {
 }
 
 body {
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: $font-family;
     color: var(--text-color);
     background-color: var(--bg-color);
     overflow: hidden;
+
+    &.dark-theme {
+        .connection-card,
+        .tool-card,
+        .modal-content {
+            background: $dark-card-bg;
+            color: var(--text-color);
+        }
+
+        .setting-input,
+        .modal-input {
+            background: $dark-input-bg;
+            color: var(--text-color);
+            border-color: $dark-input-bg;
+        }
+
+        .activity-bar {
+            background-color: $activity-bar-bg-dark;
+        }
+    }
+
+    &.light-theme {
+        .activity-bar {
+            background-color: $activity-bar-bg-light;
+        }
+    }
 }
 
 .app-container {
@@ -55,22 +71,13 @@ body {
 
 /* Activity Bar (VSCode-like) */
 .activity-bar {
-    width: 50px;
-    background-color: #333333;
+    width: $activity-bar-width;
+    background-color: $activity-bar-bg;
     border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
+    @include flex-column;
     position: relative;
-    z-index: 100;
+    z-index: $z-activity-bar;
     height: calc(100% - var(--app-footer-height));
-}
-
-body.dark-theme .activity-bar {
-    background-color: #2d2d30;
-}
-
-body.light-theme .activity-bar {
-    background-color: #2c2c2c;
 }
 
 .activity-bar-header {

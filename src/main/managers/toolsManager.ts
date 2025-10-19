@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
+import { spawn } from "child_process";
 import { Tool } from "../../types";
 
 /**
@@ -109,9 +110,6 @@ export class ToolManager extends EventEmitter {
      * Install a tool via npm
      */
     async installTool(packageName: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { spawn } = require("child_process");
-
         return new Promise((resolve, reject) => {
             const npm = process.platform === "win32" ? "npm.cmd" : "npm";
             const install = spawn(npm, ["install", packageName, "--prefix", this.toolsDirectory]);
@@ -134,9 +132,6 @@ export class ToolManager extends EventEmitter {
      * Uninstall a tool via npm
      */
     async uninstallTool(packageName: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { spawn } = require("child_process");
-
         return new Promise((resolve, reject) => {
             const npm = process.platform === "win32" ? "npm.cmd" : "npm";
             const uninstall = spawn(npm, ["uninstall", packageName, "--prefix", this.toolsDirectory]);
@@ -159,9 +154,6 @@ export class ToolManager extends EventEmitter {
      * Check for the latest version of a package from npm registry
      */
     async getLatestVersion(packageName: string): Promise<string | null> {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { spawn } = require("child_process");
-
         return new Promise((resolve) => {
             const npm = process.platform === "win32" ? "npm.cmd" : "npm";
             const view = spawn(npm, ["view", packageName, "version"]);
@@ -190,9 +182,6 @@ export class ToolManager extends EventEmitter {
      * Update a tool to the latest version
      */
     async updateTool(packageName: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { spawn } = require("child_process");
-
         return new Promise((resolve, reject) => {
             const npm = process.platform === "win32" ? "npm.cmd" : "npm";
             const update = spawn(npm, ["update", packageName, "--prefix", this.toolsDirectory]);

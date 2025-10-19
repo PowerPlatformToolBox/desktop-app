@@ -3,31 +3,36 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com" />
-        <title>PowerPlatform ToolBox</title>
-        <link rel="stylesheet" href="styles.css" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com"
+        />
+        <title>Power Platform Tool Box</title>
+        <link rel="stylesheet" href="styles.scss" />
     </head>
     <body>
         <div class="app-container">
             <!-- Activity Bar (VSCode-like narrow sidebar) -->
             <aside class="activity-bar" id="activity-bar">
                 <div class="activity-bar-header">
-                    <div class="app-icon" title="PowerPlatform ToolBox">PP</div>
+                    <div class="app-icon" title="Power Platform Tool Box">
+                        <img id="app-icon-img" src="icons/dark/app-icon.svg" alt="App Icon" />
+                    </div>
                 </div>
                 <nav class="activity-bar-nav">
                     <button class="activity-item active" data-sidebar="tools" title="Installed Tools">
-                        <img id="tools-icon" src="icons/tools.svg" alt="Tools Icon" class="activity-icon" />
+                        <img id="tools-icon" src="icons/dark/tools.svg" alt="Tools Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" data-sidebar="connections" title="Connection Manager">
-                        <img id="connections-icon" src="icons/connections.svg" alt="Connections Icon" class="activity-icon" />
+                        <img id="connections-icon" src="icons/dark/connections.svg" alt="Connections Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" data-sidebar="marketplace" title="Tools Marketplace">
-                        <img id="marketplace-icon" src="icons/marketplace.svg" alt="Marketplace Icon" class="activity-icon" />
+                        <img id="marketplace-icon" src="icons/dark/marketplace.svg" alt="Marketplace Icon" class="activity-icon" />
                     </button>
                 </nav>
                 <nav class="activity-bar-footer">
                     <button class="activity-item" data-sidebar="settings" title="Settings">
-                        <img id="settings-icon" src="icons/settings.svg" alt="Settings Icon" class="activity-icon" />
+                        <img id="settings-icon" src="icons/dark/settings.svg" alt="Settings Icon" class="activity-icon" />
                     </button>
                 </nav>
             </aside>
@@ -147,7 +152,7 @@
                 <div id="home-view" class="view active">
                     <div class="home-container">
                         <div class="home-header">
-                            <h1 class="home-title">PowerPlatform ToolBox</h1>
+                            <h1 class="home-title">Power Platform Tool Box</h1>
                             <p class="home-subtitle">A universal desktop app for Power Platform tools</p>
                         </div>
 
@@ -164,7 +169,7 @@
                                     </svg>
                                 </div>
                                 <h2 class="section-title">What's New</h2>
-                                <p class="section-description">Latest updates and features in PowerPlatform ToolBox:</p>
+                                <p class="section-description">Latest updates and features in Power Platform Tool Box:</p>
                                 <ul class="feature-list">
                                     <li>🎨 Modern VS Code-inspired interface with activity bar and sidebar</li>
                                     <li>🔧 Install and manage tools from the marketplace</li>
@@ -182,7 +187,7 @@
                                     </svg>
                                 </div>
                                 <h2 class="section-title">Getting Started</h2>
-                                <p class="section-description">Follow these steps to get started with PowerPlatform ToolBox:</p>
+                                <p class="section-description">Follow these steps to get started with Power Platform Tool Box:</p>
                                 <ol class="steps-list">
                                     <li>
                                         <span class="step-icon">📦</span>
@@ -211,7 +216,7 @@
                                     </div>
                                     <div class="action-content">
                                         <h3>Sponsor This Project</h3>
-                                        <p>Support the development of PowerPlatform ToolBox</p>
+                                        <p>Support the development of Power Platform Tool Box</p>
                                     </div>
                                 </a>
 
@@ -371,7 +376,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button id="test-connection-btn" class="fluent-button fluent-button-secondary" style="display: none; margin-right: auto;">Test Connection</button>
+                    <button id="test-connection-btn" class="fluent-button fluent-button-secondary" style="display: none; margin-right: auto">Test Connection</button>
                     <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
                     <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Add</button>
                 </div>
@@ -470,8 +475,8 @@
                                 </div>
                             </div>
                             <div class="tool-detail-actions">
-                                <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" style="display: none;">Install</button>
-                                <span id="tool-detail-installed-badge" class="fluent-badge fluent-badge-success" style="display: none;">Installed</span>
+                                <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" style="display: none">Install</button>
+                                <span id="tool-detail-installed-badge" class="fluent-badge fluent-badge-success" style="display: none">Installed</span>
                             </div>
                         </div>
                         <div class="tool-detail-readme">

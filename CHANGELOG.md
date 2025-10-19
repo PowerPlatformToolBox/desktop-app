@@ -1,6 +1,72 @@
 # Changelog
 
+## Recent Updates (2025-10-19)
+
+### CSS Organization and CI/CD Improvements
+
+-   **Migrated to SCSS with Modular Organization**
+
+    -   Converted `styles.css` (2,216 lines) to `styles.scss`
+    -   Created modular structure with `_variables.scss` and `_mixins.scss`
+    -   Implemented SCSS variables for colors, spacing, typography, and z-index
+    -   Created reusable mixins for flexbox, cards, buttons, and scrollbars
+    -   Utilized SCSS nesting for better code organization
+    -   Leveraged modern `@use` syntax (avoiding deprecated `@import`)
+    -   Updated `index.html` to reference `styles.scss`
+
+-   **Added CI/CD Bundle Size Tracking**
+
+    -   Created GitHub Actions workflow (`bundle-size.yml`)
+    -   Automated bundle size analysis on PRs and pushes
+    -   Automatic PR comments with bundle size reports
+    -   Bundle analysis artifacts uploaded for detailed review
+    -   Configurable size limit checks with warnings
+    -   Prevents bundle bloat through continuous monitoring
+
+-   **Documentation**
+    -   Updated `docs/BUILD_OPTIMIZATION.md` with SCSS organization guide
+    -   Added CI/CD bundle tracking documentation
+    -   Included examples for custom size limit checks
+
 ## Recent Updates (2025-10-18)
+
+### Build Optimizations and ESM Migration
+
+-   **Added Bundle Analysis**
+
+    -   Integrated `rollup-plugin-visualizer` for bundle size analysis
+    -   Generates visual reports for main and renderer processes
+    -   Reports show module sizes (gzipped and brotli compressed)
+    -   Treemap, sunburst, and network visualizations available
+    -   Output files: `dist/stats-main.html` and `dist/stats-renderer.html`
+
+-   **Configured Code Splitting**
+
+    -   Automatic vendor chunk separation for better caching
+    -   Manual chunks configuration for custom split points
+    -   Improved load times and parallel loading
+    -   Better browser caching of vendor dependencies
+
+-   **Added CSS Preprocessing Support**
+
+    -   Integrated Sass/SCSS preprocessor
+    -   Configuration for global SCSS variables and mixins
+    -   Support for Less, Stylus, and PostCSS out of the box
+    -   Preprocessor options configurable in `vite.config.ts`
+
+-   **Full ESM Migration**
+
+    -   Migrated all `require()` calls to ES6 `import` statements
+    -   Improved tree-shaking and bundle optimization
+    -   Better static analysis and type checking
+    -   Future-proof module system aligned with ECMAScript standards
+    -   Refactored `child_process` imports in `toolsManager.ts`
+    -   Refactored file system imports in `vite.config.ts`
+
+-   **Documentation**
+    -   Created comprehensive `docs/BUILD_OPTIMIZATION.md` guide
+    -   Updated README.md with bundle analysis instructions
+    -   Added troubleshooting and optimization tips
 
 ### Build System Migration to Vite
 

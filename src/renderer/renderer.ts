@@ -419,12 +419,6 @@ async function launchTool(toolId: string) {
         // Save session after launching
         saveSession();
 
-        window.toolboxAPI.showNotification({
-            title: "Tool Launched",
-            body: `${tool.name} opened in new tab`,
-            type: "success",
-        });
-
         console.log("Tool launched successfully:", tool.name);
     } catch (error) {
         console.error("Error launching tool:", error);
@@ -1739,8 +1733,10 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     }
 
     toolsList.innerHTML = filteredTools
-        .map(
-            (tool) => `
+        .map((tool) => {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+            return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
                 <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
@@ -1757,12 +1753,12 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                    <img src="icons/trash.svg" alt="Delete" />
+                    <img src="${iconPath}" alt="Delete" />
                 </button>
             </div>
         </div>
-    `,
-        )
+    `;
+        })
         .join("");
 
     // Add event listeners
@@ -1886,29 +1882,31 @@ async function loadSidebarConnections() {
         }
 
         connectionsList.innerHTML = connections
-            .map(
-                (conn: any) => `
-            <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
-                <div class="connection-item-header-vscode">
-                    <div class="connection-item-name-vscode">${conn.name}</div>
-                    <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
-                </div>
-                <div class="connection-item-url-vscode">${conn.url}</div>
-                <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        ${
-                            conn.isActive
-                                ? `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
-                                : `<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                        }
+            .map((conn: any) => {
+                const isDarkTheme = document.body.classList.contains("dark-theme");
+                const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+                return `
+                <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
+                    <div class="connection-item-header-vscode">
+                        <div class="connection-item-name-vscode">${conn.name}</div>
+                        <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
-                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
-                        <img src="icons/trash.svg" alt="Delete" style="width:16px; height:16px;" />
-                    </button>
+                    <div class="connection-item-url-vscode">${conn.url}</div>
+                    <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            ${
+                                conn.isActive
+                                    ? `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
+                                    : `<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
+                            }
+                        </div>
+                        <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
+                            <img src="${iconPath}" alt="Delete" style="width:16px; height:16px;" />
+                        </button>
+                    </div>
                 </div>
-            </div>
-        `,
-            )
+            `;
+            })
             .join("");
 
         // Add event listeners

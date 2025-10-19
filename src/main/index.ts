@@ -2,10 +2,10 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import * as path from "path";
 import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
+import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { ToolManager } from "./managers/toolsManager";
-import { AuthManager } from "./managers/authManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -127,27 +127,27 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("set-active-connection", async (_, id) => {
-            const connection = this.settingsManager.getConnections().find(c => c.id === id);
+            const connection = this.settingsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
-                throw new Error('Connection not found');
+                throw new Error("Connection not found");
             }
 
             // Authenticate based on the authentication type
             try {
                 let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
-                
+
                 switch (connection.authenticationType) {
-                    case 'interactive':
+                    case "interactive":
                         authResult = await this.authManager.authenticateInteractive(connection, this.mainWindow || undefined);
                         break;
-                    case 'clientSecret':
+                    case "clientSecret":
                         authResult = await this.authManager.authenticateClientSecret(connection);
                         break;
-                    case 'usernamePassword':
+                    case "usernamePassword":
                         authResult = await this.authManager.authenticateUsernamePassword(connection);
                         break;
                     default:
-                        throw new Error('Invalid authentication type');
+                        throw new Error("Invalid authentication type");
                 }
 
                 // Set the connection as active with tokens
@@ -426,7 +426,7 @@ class ToolBoxApp {
                 preload: path.join(__dirname, "preload.js"),
                 webviewTag: true, // Enable webview tag
             },
-            title: "PowerPlatform ToolBox",
+            title: "Power Platform Tool Box",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
 
@@ -454,8 +454,8 @@ class ToolBoxApp {
      */
     async initialize(): Promise<void> {
         // Set app user model ID for Windows notifications
-        if (process.platform === 'win32') {
-            app.setAppUserModelId('com.powerplatform.toolbox');
+        if (process.platform === "win32") {
+            app.setAppUserModelId("com.powerplatform.toolbox");
         }
 
         await app.whenReady();

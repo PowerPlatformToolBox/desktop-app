@@ -20,10 +20,10 @@ echo ""
 # Check static assets
 echo "✓ Static Assets:"
 test -d dist/renderer/icons && echo "  ✓ renderer/icons/" || echo "  ✗ renderer/icons/ MISSING"
-test -f dist/renderer/icons/tools.svg && echo "  ✓ icons/tools.svg" || echo "  ✗ icons/tools.svg MISSING"
-test -f dist/renderer/icons/connections.svg && echo "  ✓ icons/connections.svg" || echo "  ✗ icons/connections.svg MISSING"
-test -f dist/renderer/icons/marketplace.svg && echo "  ✓ icons/marketplace.svg" || echo "  ✗ icons/marketplace.svg MISSING"
-test -f dist/renderer/icons/settings.svg && echo "  ✓ icons/settings.svg" || echo "  ✗ icons/settings.svg MISSING"
+test -f dist/renderer/icons/dark/tools.svg && echo "  ✓ icons/dark/tools.svg" || echo "  ✗ icons/dark/tools.svg MISSING"
+test -f dist/renderer/icons/dark/connections.svg && echo "  ✓ icons/dark/connections.svg" || echo "  ✗ icons/dark/connections.svg MISSING"
+test -f dist/renderer/icons/dark/marketplace.svg && echo "  ✓ icons/dark/marketplace.svg" || echo "  ✗ icons/dark/marketplace.svg MISSING"
+test -f dist/renderer/icons/dark/settings.svg && echo "  ✓ icons/dark/settings.svg" || echo "  ✗ icons/dark/settings.svg MISSING"
 echo ""
 
 # Check configuration files

@@ -1,6 +1,6 @@
 # @powerplatform/pptoolbox-types
 
-TypeScript type definitions for PowerPlatform ToolBox API.
+TypeScript type definitions for Power Platform Tool Box API.
 
 ## Installation
 
@@ -20,19 +20,19 @@ const toolbox = window.toolboxAPI;
 
 // Get connection context
 const context = await toolbox.getToolContext();
-console.log('Connection URL:', context.connectionUrl);
-console.log('Access Token:', context.accessToken);
+console.log("Connection URL:", context.connectionUrl);
+console.log("Access Token:", context.accessToken);
 
 // Subscribe to events
 toolbox.onToolboxEvent((event, payload) => {
-  console.log('Event:', payload.event, 'Data:', payload.data);
+    console.log("Event:", payload.event, "Data:", payload.data);
 });
 
 // Show notifications
 await toolbox.showNotification({
-  title: 'Success',
-  body: 'Operation completed successfully',
-  type: 'success'
+    title: "Success",
+    body: "Operation completed successfully",
+    type: "success",
 });
 ```
 
@@ -40,14 +40,14 @@ await toolbox.showNotification({
 
 ```typescript
 toolbox.onToolboxEvent((event, payload) => {
-  switch (payload.event) {
-    case 'connection:updated':
-      console.log('Connection updated:', payload.data);
-      break;
-    case 'tool:loaded':
-      console.log('Tool loaded:', payload.data);
-      break;
-  }
+    switch (payload.event) {
+        case "connection:updated":
+            console.log("Connection updated:", payload.data);
+            break;
+        case "tool:loaded":
+            console.log("Tool loaded:", payload.data);
+            break;
+    }
 });
 ```
 
