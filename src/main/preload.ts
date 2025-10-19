@@ -48,6 +48,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // External URL
     openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
 
+    // Terminal
+    createTerminal: (toolId: string, options: unknown) => ipcRenderer.invoke("create-terminal", toolId, options),
+    executeTerminalCommand: (terminalId: string, command: string) => ipcRenderer.invoke("execute-terminal-command", terminalId, command),
+    closeTerminal: (terminalId: string) => ipcRenderer.invoke("close-terminal", terminalId),
+    getTerminal: (terminalId: string) => ipcRenderer.invoke("get-terminal", terminalId),
+    getToolTerminals: (toolId: string) => ipcRenderer.invoke("get-tool-terminals", toolId),
+    getAllTerminals: () => ipcRenderer.invoke("get-all-terminals"),
+    setTerminalVisibility: (terminalId: string, visible: boolean) => ipcRenderer.invoke("set-terminal-visibility", terminalId, visible),
+
     // Events
     getEventHistory: (limit?: number) => ipcRenderer.invoke("get-event-history", limit),
     onToolboxEvent: (callback: (event: unknown, payload: unknown) => void) => {

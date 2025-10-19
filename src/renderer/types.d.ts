@@ -38,6 +38,14 @@ export interface ToolboxAPI {
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
     openExternal: (url: string) => Promise<void>;
     getEventHistory: (limit?: number) => Promise<any[]>;
+    // Terminal operations
+    createTerminal: (toolId: string, options: any) => Promise<any>;
+    executeTerminalCommand: (terminalId: string, command: string) => Promise<any>;
+    closeTerminal: (terminalId: string) => Promise<void>;
+    getTerminal: (terminalId: string) => Promise<any | undefined>;
+    getToolTerminals: (toolId: string) => Promise<any[]>;
+    getAllTerminals: () => Promise<any[]>;
+    setTerminalVisibility: (terminalId: string, visible: boolean) => Promise<void>;
     onToolboxEvent: (callback: (event: any, payload: any) => void) => void;
     removeToolboxEventListener: (callback: (event: any, payload: any) => void) => void;
     // Auto-update
