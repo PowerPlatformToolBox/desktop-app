@@ -1,8 +1,8 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
+import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 import electron from "vite-plugin-electron/simple";
-import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
     plugins: [
@@ -76,6 +76,8 @@ export default defineConfig({
                 // Create icons directory if it doesn't exist
                 try {
                     mkdirSync("dist/renderer/icons", { recursive: true });
+                    mkdirSync("dist/renderer/icons/light", { recursive: true });
+                    mkdirSync("dist/renderer/icons/dark", { recursive: true });
                 } catch (e) {
                     // Directory already exists
                 }
@@ -95,14 +97,28 @@ export default defineConfig({
                 });
 
                 // Copy entire icons directory
-                const iconsSourceDir = "src/renderer/icons";
-                const iconsTargetDir = "dist/renderer/icons";
+                const iconsLightSourceDir = "src/renderer/icons/light";
+                const iconsLightTargetDir = "dist/renderer/icons/light";
                 try {
-                    if (existsSync(iconsSourceDir)) {
-                        const iconFiles = readdirSync(iconsSourceDir);
+                    if (existsSync(iconsLightSourceDir)) {
+                        const iconFiles = readdirSync(iconsLightSourceDir);
                         iconFiles.forEach((file: string) => {
-                            const sourcePath = path.join(iconsSourceDir, file);
-                            const targetPath = path.join(iconsTargetDir, file);
+                            const sourcePath = path.join(iconsLightSourceDir, file);
+                            const targetPath = path.join(iconsLightTargetDir, file);
+                            copyFileSync(sourcePath, targetPath);
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Failed to copy icons directory:`, e);
+                }
+                const iconsDarkSourceDir = "src/renderer/icons/dark";
+                const iconsDarkTargetDir = "dist/renderer/icons/dark";
+                try {
+                    if (existsSync(iconsDarkSourceDir)) {
+                        const iconFiles = readdirSync(iconsDarkSourceDir);
+                        iconFiles.forEach((file: string) => {
+                            const sourcePath = path.join(iconsDarkSourceDir, file);
+                            const targetPath = path.join(iconsDarkTargetDir, file);
                             copyFileSync(sourcePath, targetPath);
                         });
                     }

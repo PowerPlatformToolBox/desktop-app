@@ -17,6 +17,7 @@
 ## 🔄 Build Process Transformation
 
 ### Before: Multiple Build Steps
+
 ```bash
 # Old package.json scripts
 "build": "tsc && tsc -p tsconfig.renderer.json && npm run copy-main && npm run copy-toolboxAPIBridge && npm run copy-assets"
@@ -27,13 +28,15 @@
 ```
 
 **Issues:**
-- 4 separate compilation/copy commands
-- No hot module replacement
-- Slow incremental builds
-- Manual asset management
-- Required `shx` for cross-platform compatibility
+
+-   4 separate compilation/copy commands
+-   No hot module replacement
+-   Slow incremental builds
+-   Manual asset management
+-   Required `shx` for cross-platform compatibility
 
 ### After: Single Optimized Command
+
 ```bash
 # New package.json scripts
 "build": "vite build"
@@ -41,11 +44,12 @@
 ```
 
 **Benefits:**
-- Single command handles everything
-- Built-in HMR for instant updates
-- Fast esbuild-powered transforms
-- Automatic asset optimization
-- No extra dependencies needed
+
+-   Single command handles everything
+-   Built-in HMR for instant updates
+-   Fast esbuild-powered transforms
+-   Automatic asset optimization
+-   No extra dependencies needed
 
 ## 📁 Output Structure (Unchanged)
 
@@ -60,10 +64,10 @@ dist/
     │   ├── index-[hash].js    (41.90 kB)
     │   └── index-[hash].css   (29.38 kB)
     ├── icons/
-    │   ├── tools.svg
-    │   ├── connections.svg
-    │   ├── marketplace.svg
-    │   └── settings.svg
+    │   ├── dark/tools.svg
+    │   ├── dark/connections.svg
+    │   ├── dark/marketplace.svg
+    │   └── dark/settings.svg
     ├── toolboxAPIBridge.js
     └── tools.json
 ```
@@ -105,23 +109,26 @@ export default defineConfig({
 ### Key Features
 
 1. **Multi-Process Bundling**
-   - Main, preload, and renderer each optimized separately
-   - Proper externalization of Electron and Node.js modules
-   - Tree-shaking removes unused code
+
+    - Main, preload, and renderer each optimized separately
+    - Proper externalization of Electron and Node.js modules
+    - Tree-shaking removes unused code
 
 2. **Development Experience**
-   - Hot Module Replacement for renderer process
-   - Fast rebuild with esbuild transforms
-   - Clear error messages with source maps
+
+    - Hot Module Replacement for renderer process
+    - Fast rebuild with esbuild transforms
+    - Clear error messages with source maps
 
 3. **Production Optimization**
-   - Minification and compression
-   - Content-hashed file names for caching
-   - Automatic code splitting
+    - Minification and compression
+    - Content-hashed file names for caching
+    - Automatic code splitting
 
 ## 🐛 Bug Fixes
 
 ### CSS Syntax Error
+
 **File**: `src/renderer/styles.css`
 **Line**: 2186
 **Issue**: Extra closing brace
@@ -130,18 +137,21 @@ export default defineConfig({
 ## 📚 Documentation Updates
 
 ### New Documents
-- ✅ `VITE_MIGRATION.md` - Comprehensive migration guide
-- ✅ `VITE_INTEGRATION_SUMMARY.md` - Implementation details
+
+-   ✅ `VITE_MIGRATION.md` - Comprehensive migration guide
+-   ✅ `VITE_INTEGRATION_SUMMARY.md` - Implementation details
 
 ### Updated Documents
-- ✅ `README.md` - New development workflow
-- ✅ `CONTRIBUTING.md` - Updated build instructions
-- ✅ `CHANGELOG.md` - Migration entry
-- ✅ `verify-build.sh` - New verification logic
+
+-   ✅ `README.md` - New development workflow
+-   ✅ `CONTRIBUTING.md` - Updated build instructions
+-   ✅ `CHANGELOG.md` - Migration entry
+-   ✅ `verify-build.sh` - New verification logic
 
 ## 🔍 Quality Assurance
 
 ### Build Verification
+
 ```bash
 $ npm run build
 vite v7.1.10 building for production...
@@ -160,10 +170,10 @@ $ bash verify-build.sh
 
 ✓ Static Assets:
   ✓ renderer/icons/
-  ✓ icons/tools.svg
-  ✓ icons/connections.svg
-  ✓ icons/marketplace.svg
-  ✓ icons/settings.svg
+  ✓ icons/dark/tools.svg
+  ✓ icons/dark/connections.svg
+  ✓ icons/dark/marketplace.svg
+  ✓ icons/dark/settings.svg
 
 ✓ Configuration:
   ✓ package.json
@@ -175,13 +185,16 @@ Build verification complete!
 ```
 
 ### Linting Results
+
 ```bash
 $ npm run lint
 ✖ 62 problems (0 errors, 62 warnings)
 ```
+
 Same as before - all warnings are intentional `@typescript-eslint/no-explicit-any` warnings.
 
 ### Packaging Test
+
 ```bash
 $ npm run package -- --dir
 ✓ Packaging successful
@@ -192,53 +205,58 @@ $ npm run package -- --dir
 ## 📦 Dependencies
 
 ### Added
+
 ```json
 {
-  "vite": "^7.1.10",
-  "vite-plugin-electron": "^0.29.0",
-  "vite-plugin-electron-renderer": "^0.14.6"
+    "vite": "^7.1.10",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
 }
 ```
 
 ### Removed
+
 ```json
 {
-  "shx": "^0.4.0"  // No longer needed
+    "shx": "^0.4.0" // No longer needed
 }
 ```
 
 ## ✅ Checklist
 
-- [x] Vite integration complete
-- [x] Build system working correctly
-- [x] All tests passing
-- [x] Documentation updated
-- [x] Packaging verified
-- [x] Performance improved
-- [x] Backward compatible
-- [x] No breaking changes
+-   [x] Vite integration complete
+-   [x] Build system working correctly
+-   [x] All tests passing
+-   [x] Documentation updated
+-   [x] Packaging verified
+-   [x] Performance improved
+-   [x] Backward compatible
+-   [x] No breaking changes
 
 ## 🚀 Migration Impact
 
 ### For Contributors
-- **Simpler workflow**: Single `npm run dev` command
-- **Faster feedback**: Instant HMR updates
-- **Better DX**: Clear error messages
-- **Less config**: One file instead of many scripts
+
+-   **Simpler workflow**: Single `npm run dev` command
+-   **Faster feedback**: Instant HMR updates
+-   **Better DX**: Clear error messages
+-   **Less config**: One file instead of many scripts
 
 ### For Users
-- **Faster builds**: Shorter CI/CD times
-- **Smaller bundles**: Better performance
-- **No changes**: Same functionality
-- **Better updates**: Faster release cycles
+
+-   **Faster builds**: Shorter CI/CD times
+-   **Smaller bundles**: Better performance
+-   **No changes**: Same functionality
+-   **Better updates**: Faster release cycles
 
 ## 🎯 Conclusion
 
 The Vite migration is **complete and successful**. The build system is now:
-- ✅ **50-80% faster** in all scenarios
-- ✅ **Simpler** with fewer scripts and dependencies
-- ✅ **More modern** using industry-standard tooling
-- ✅ **Fully compatible** with existing workflow
-- ✅ **Well documented** for easy adoption
+
+-   ✅ **50-80% faster** in all scenarios
+-   ✅ **Simpler** with fewer scripts and dependencies
+-   ✅ **More modern** using industry-standard tooling
+-   ✅ **Fully compatible** with existing workflow
+-   ✅ **Well documented** for easy adoption
 
 Ready for merge! 🎉
