@@ -6,6 +6,11 @@ on:
   push:
     branches: [main, develop]
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   bundle-size:
     runs-on: ubuntu-latest
