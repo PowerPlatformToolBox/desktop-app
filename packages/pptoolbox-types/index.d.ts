@@ -27,7 +27,7 @@ declare namespace ToolBox {
     /**
      * Event types that can be emitted by the ToolBox
      */
-    export type ToolBoxEvent = "tool:loaded" | "tool:unloaded" | "connection:created" | "connection:updated" | "connection:deleted" | "settings:updated" | "notification:shown";
+    export type ToolBoxEvent = "tool:loaded" | "tool:unloaded" | "connection:created" | "connection:updated" | "connection:deleted" | "settings:updated" | "notification:shown" | "terminal:created" | "terminal:closed" | "terminal:output" | "terminal:command:completed" | "terminal:error";
 
     /**
      * Event payload for ToolBox events
@@ -63,6 +63,40 @@ declare namespace ToolBox {
         description: string;
         author: string;
         icon?: string;
+    }
+
+    /**
+     * Terminal configuration options
+     */
+    export interface TerminalOptions {
+        name: string;
+        shell?: string;
+        cwd?: string;
+        env?: Record<string, string>;
+    }
+
+    /**
+     * Terminal instance
+     */
+    export interface Terminal {
+        id: string;
+        name: string;
+        toolId: string;
+        shell: string;
+        cwd: string;
+        isVisible: boolean;
+        createdAt: string;
+    }
+
+    /**
+     * Terminal command execution result
+     */
+    export interface TerminalCommandResult {
+        terminalId: string;
+        commandId: string;
+        output?: string;
+        exitCode?: number;
+        error?: string;
     }
 
     /**
@@ -106,6 +140,15 @@ declare namespace ToolBox {
 
         // File operations
         saveFile: (defaultPath: string, content: any) => Promise<string | null>;
+
+        // Terminal operations
+        createTerminal: (toolId: string, options: TerminalOptions) => Promise<Terminal>;
+        executeTerminalCommand: (terminalId: string, command: string) => Promise<TerminalCommandResult>;
+        closeTerminal: (terminalId: string) => Promise<void>;
+        getTerminal: (terminalId: string) => Promise<Terminal | undefined>;
+        getToolTerminals: (toolId: string) => Promise<Terminal[]>;
+        getAllTerminals: () => Promise<Terminal[]>;
+        setTerminalVisibility: (terminalId: string, visible: boolean) => Promise<void>;
 
         // Events
         getEventHistory: (limit?: number) => Promise<ToolBoxEventPayload[]>;

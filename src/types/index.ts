@@ -82,6 +82,11 @@ export enum ToolBoxEvent {
   CONNECTION_DELETED = 'connection:deleted',
   SETTINGS_UPDATED = 'settings:updated',
   NOTIFICATION_SHOWN = 'notification:shown',
+  TERMINAL_CREATED = 'terminal:created',
+  TERMINAL_CLOSED = 'terminal:closed',
+  TERMINAL_OUTPUT = 'terminal:output',
+  TERMINAL_COMMAND_COMPLETED = 'terminal:command:completed',
+  TERMINAL_ERROR = 'terminal:error',
 }
 
 /**
@@ -100,4 +105,49 @@ export interface ToolContext {
   toolId: string;
   connectionUrl: string | null;
   accessToken: string | null;
+}
+
+/**
+ * Terminal configuration options
+ */
+export interface TerminalOptions {
+  name: string;
+  shell?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
+/**
+ * Terminal instance
+ */
+export interface Terminal {
+  id: string;
+  name: string;
+  toolId: string;
+  shell: string;
+  cwd: string;
+  isVisible: boolean;
+  createdAt: string;
+}
+
+/**
+ * Terminal command execution result
+ */
+export interface TerminalCommandResult {
+  terminalId: string;
+  commandId: string;
+  output?: string;
+  exitCode?: number;
+  error?: string;
+}
+
+/**
+ * Terminal event types
+ */
+export enum TerminalEvent {
+  TERMINAL_CREATED = 'terminal:created',
+  TERMINAL_CLOSED = 'terminal:closed',
+  TERMINAL_OUTPUT = 'terminal:output',
+  TERMINAL_COMMAND_COMPLETED = 'terminal:command:completed',
+  TERMINAL_ERROR = 'terminal:error',
 }

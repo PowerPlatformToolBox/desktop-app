@@ -139,12 +139,38 @@
                             <!-- Secondary panel for split view -->
                         </div>
                     </div>
+                    <!-- Terminal Panel -->
+                    <div class="terminal-panel" id="terminal-panel" style="display: none">
+                        <div class="terminal-panel-header">
+                            <div class="terminal-tabs" id="terminal-tabs">
+                                <!-- Terminal tabs will be dynamically added here -->
+                            </div>
+                            <div class="terminal-panel-controls">
+                                <button class="btn-icon" id="terminal-panel-close" title="Hide terminal">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                        <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="terminal-panel-content" id="terminal-panel-content">
+                            <!-- Terminal outputs will be dynamically added here -->
+                        </div>
+                    </div>
+                    <div class="terminal-resize-handle" id="terminal-resize-handle" style="display: none"></div>
                     <div class="tool-panel-footer" id="tool-panel-footer">
                         <div class="footer-connection-info" id="footer-connection-info">
                             <span class="footer-label">Connection:</span>
                             <span class="footer-value" id="footer-connection-name">Not Connected</span>
                             <button class="footer-link-btn" id="footer-change-connection-btn" style="display: none">Change</button>
                         </div>
+                        <button class="footer-link-btn" id="footer-toggle-terminal-btn" title="Toggle terminal">
+                            <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                <path d="M1.5 2.5h13v11h-13v-11zm1 1v9h11v-9h-11z"/>
+                                <path d="M3 5h1v1H3V5zm2 0h1v1H5V5zm-2 2h1v1H3V7zm2 0h1v1H5V7z"/>
+                            </svg>
+                            Terminal
+                        </button>
                     </div>
                 </div>
 

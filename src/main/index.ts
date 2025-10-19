@@ -6,6 +6,7 @@ import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { ToolManager } from "./managers/toolsManager";
+import { TerminalManager } from "./managers/terminalManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -14,6 +15,7 @@ class ToolBoxApp {
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
+    private terminalManager: TerminalManager;
 
     constructor() {
         this.settingsManager = new SettingsManager();
@@ -21,6 +23,7 @@ class ToolBoxApp {
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
+        this.terminalManager = new TerminalManager();
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -48,6 +51,11 @@ class ToolBoxApp {
             ToolBoxEvent.CONNECTION_DELETED,
             ToolBoxEvent.SETTINGS_UPDATED,
             ToolBoxEvent.NOTIFICATION_SHOWN,
+            ToolBoxEvent.TERMINAL_CREATED,
+            ToolBoxEvent.TERMINAL_CLOSED,
+            ToolBoxEvent.TERMINAL_OUTPUT,
+            ToolBoxEvent.TERMINAL_COMMAND_COMPLETED,
+            ToolBoxEvent.TERMINAL_ERROR,
         ];
 
         eventTypes.forEach((eventType) => {
@@ -56,6 +64,27 @@ class ToolBoxApp {
                     this.mainWindow.webContents.send("toolbox-event", payload);
                 }
             });
+        });
+
+        // Listen to terminal manager events
+        this.terminalManager.on("terminal:created", (terminal) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_CREATED, terminal);
+        });
+
+        this.terminalManager.on("terminal:closed", (data) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_CLOSED, data);
+        });
+
+        this.terminalManager.on("terminal:output", (data) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_OUTPUT, data);
+        });
+
+        this.terminalManager.on("terminal:command:completed", (result) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_COMMAND_COMPLETED, result);
+        });
+
+        this.terminalManager.on("terminal:error", (data) => {
+            this.api.emitEvent(ToolBoxEvent.TERMINAL_ERROR, data);
         });
 
         // Listen to auto-update events
@@ -261,6 +290,35 @@ class ToolBoxApp {
         // Open external URL handler
         ipcMain.handle("open-external", async (_, url) => {
             await shell.openExternal(url);
+        });
+
+        // Terminal handlers
+        ipcMain.handle("create-terminal", async (_, toolId, options) => {
+            return await this.terminalManager.createTerminal(toolId, options);
+        });
+
+        ipcMain.handle("execute-terminal-command", async (_, terminalId, command) => {
+            return await this.terminalManager.executeCommand(terminalId, command);
+        });
+
+        ipcMain.handle("close-terminal", (_, terminalId) => {
+            this.terminalManager.closeTerminal(terminalId);
+        });
+
+        ipcMain.handle("get-terminal", (_, terminalId) => {
+            return this.terminalManager.getTerminal(terminalId);
+        });
+
+        ipcMain.handle("get-tool-terminals", (_, toolId) => {
+            return this.terminalManager.getToolTerminals(toolId);
+        });
+
+        ipcMain.handle("get-all-terminals", () => {
+            return this.terminalManager.getAllTerminals();
+        });
+
+        ipcMain.handle("set-terminal-visibility", (_, terminalId, visible) => {
+            this.terminalManager.setTerminalVisibility(terminalId, visible);
         });
 
         // Auto-update handlers

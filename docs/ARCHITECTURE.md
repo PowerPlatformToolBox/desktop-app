@@ -513,3 +513,45 @@ See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for:
 -   API documentation
 -   Example implementations
 -   Publishing guidelines
+
+## Terminal Integration
+
+The Terminal feature allows tools to create and manage their own terminal instances for executing commands. This is implemented through:
+
+### Terminal Manager
+
+The `TerminalManager` (in `src/main/managers/terminalManager.ts`) provides:
+
+-   **Terminal Creation**: Tools can create named terminals with custom shell preferences
+-   **Command Execution**: Execute shell commands and receive output
+-   **Shell Selection**: Tools specify preferred shell with automatic fallback to system default
+-   **Event System**: Real-time events for terminal output, completion, and errors
+-   **Lifecycle Management**: Proper cleanup and resource management
+
+### API Integration
+
+Terminal functionality is exposed through multiple layers:
+
+1. **Main Process**: Terminal IPC handlers in `src/main/index.ts`
+2. **Preload Bridge**: Secure API exposure in `src/main/preload.ts`
+3. **Renderer Bridge**: iframe-safe API bridge in `src/renderer/toolboxAPIBridge.js`
+4. **Type Definitions**: TypeScript types in `packages/pptoolbox-types/index.d.ts`
+
+### UI Components
+
+Terminal UI includes:
+
+-   **Terminal Panel**: Resizable bottom panel for terminal output
+-   **Terminal Tabs**: Multiple terminals can run simultaneously
+-   **Output Display**: Real-time command output with scrolling
+-   **Show/Hide Controls**: Users can toggle terminal visibility
+
+### Usage
+
+See [TERMINAL_USAGE.md](TERMINAL_USAGE.md) for:
+
+-   Creating terminals
+-   Executing commands
+-   Handling events
+-   Platform-specific considerations
+-   Complete examples

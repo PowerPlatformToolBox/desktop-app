@@ -105,6 +105,15 @@
         // File operations
         saveFile: function(defaultPath, content) { return callParentAPI('saveFile', defaultPath, content); },
 
+        // Terminal operations
+        createTerminal: function(toolId, options) { return callParentAPI('createTerminal', toolId, options); },
+        executeTerminalCommand: function(terminalId, command) { return callParentAPI('executeTerminalCommand', terminalId, command); },
+        closeTerminal: function(terminalId) { return callParentAPI('closeTerminal', terminalId); },
+        getTerminal: function(terminalId) { return callParentAPI('getTerminal', terminalId); },
+        getToolTerminals: function(toolId) { return callParentAPI('getToolTerminals', toolId); },
+        getAllTerminals: function() { return callParentAPI('getAllTerminals'); },
+        setTerminalVisibility: function(terminalId, visible) { return callParentAPI('setTerminalVisibility', terminalId, visible); },
+
         // Events
         getEventHistory: function(limit) { return callParentAPI('getEventHistory', limit); },
         onToolboxEvent: function(callback) {

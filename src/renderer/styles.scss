@@ -2221,3 +2221,178 @@ fluent-badge {
 .setting-checkbox-group fluent-checkbox {
     margin-right: 8px;
 }
+
+/* ===== Terminal Panel Styles ===== */
+.terminal-panel {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--panel-background);
+    border-top: 1px solid var(--border-color);
+    height: 250px;
+    min-height: 100px;
+    max-height: 80vh;
+}
+
+.terminal-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    background-color: var(--panel-background);
+    border-bottom: 1px solid var(--border-color);
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.terminal-tabs {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 3px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+.terminal-tab:hover {
+    background-color: var(--hover-background);
+    color: var(--text-color);
+}
+
+.terminal-tab.active {
+    background-color: var(--panel-background-active);
+    color: var(--text-color);
+}
+
+.terminal-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.terminal-tab-close:hover {
+    background-color: var(--hover-background);
+    color: var(--text-color);
+}
+
+.terminal-panel-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.terminal-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    background-color: var(--panel-background);
+    color: var(--text-color);
+}
+
+.terminal-output {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+}
+
+.terminal-output.active {
+    display: flex;
+}
+
+.terminal-output-content {
+    flex: 1;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 4px;
+}
+
+.terminal-output-line {
+    margin: 0;
+    padding: 0;
+}
+
+.terminal-resize-handle {
+    height: 4px;
+    background-color: var(--border-color);
+    cursor: ns-resize;
+    position: relative;
+}
+
+.terminal-resize-handle:hover {
+    background-color: var(--primary-color);
+}
+
+/* Footer terminal button */
+#footer-toggle-terminal-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    padding: 4px 8px;
+}
+
+#footer-toggle-terminal-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Dark theme specific */
+body.dark-theme .terminal-panel {
+    background-color: #1e1e1e;
+    border-top-color: #2d2d2d;
+}
+
+body.dark-theme .terminal-panel-header {
+    background-color: #252526;
+    border-bottom-color: #2d2d2d;
+}
+
+body.dark-theme .terminal-panel-content {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+body.dark-theme .terminal-output-content {
+    color: #cccccc;
+}
+
+body.dark-theme .terminal-tab {
+    color: #969696;
+}
+
+body.dark-theme .terminal-tab:hover {
+    background-color: #2a2d2e;
+    color: #cccccc;
+}
+
+body.dark-theme .terminal-tab.active {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
