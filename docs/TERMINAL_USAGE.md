@@ -217,6 +217,8 @@ initTerminal();
 - Default shell: Value of `$SHELL` environment variable (usually `/bin/bash`)
 - Alternative shells: `/bin/sh`, `/bin/zsh`, `/bin/fish`
 - Use `\n` for line endings in commands
+- **Shell initialization**: Shells are started with `-l -i` flags to load both login profiles (`.bash_profile`, `.zprofile`) and interactive profiles (`.bashrc`, `.zshrc`)
+- This ensures prompt themes like Oh-My-Posh and Starship are properly initialized
 
 ## Troubleshooting
 
@@ -228,6 +230,31 @@ Commands have a 5-second timeout. If your command takes longer, it will still re
 
 ### Output encoding issues
 Terminal output is captured as UTF-8. If you're seeing encoding issues, ensure your shell and commands are using UTF-8 encoding.
+
+### Oh-My-Posh or prompt themes not rendering correctly
+
+If you're using Oh-My-Posh, Starship, or other prompt themes and they're not rendering correctly in the Power Platform Tool Box terminal:
+
+1. **Verify the prompt engine is installed and accessible**: Run `which oh-my-posh` (Unix) or `Get-Command oh-my-posh` (PowerShell) in your regular terminal
+2. **Check your shell profile is being loaded**: The terminal manager starts shells with `-l -i` flags (Unix) to load both login and interactive profiles
+3. **Ensure Nerd Fonts are installed**: Prompt themes require Nerd Fonts for proper icon rendering
+4. **Verify environment variables**: The terminal automatically sets `TERM=xterm-256color` and `COLORTERM=truecolor` for proper color support
+5. **Add debug logging**: Add echo/Write-Host statements to your shell profile to verify it's being loaded
+
+For complete setup instructions, see **[Terminal Setup Guide](./terminal-setup.md)** which includes:
+- Oh-My-Posh installation and configuration
+- Nerd Font setup
+- Shell profile configuration
+- Common issues and solutions
+- Debug techniques
+
+### Environment Variables
+
+The terminal manager automatically sets these environment variables for proper rendering:
+- **`TERM`**: Set to `xterm-256color` for 256-color support
+- **`COLORTERM`**: Set to `truecolor` for full RGB color support
+
+These can be verified by running `echo $TERM` and `echo $COLORTERM` (Unix) or `$env:TERM` and `$env:COLORTERM` (PowerShell) in your terminal.
 
 ## API Reference
 

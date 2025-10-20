@@ -345,6 +345,8 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOL_HOST_ARCHITECTURE.md](docs/TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+-   **[TERMINAL_USAGE.md](docs/TERMINAL_USAGE.md)** - Terminal API usage guide for tool developers
+-   **[TERMINAL_SETUP.md](docs/terminal-setup.md)** - Terminal setup guide for Oh-My-Posh, Starship, and other prompt themes
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
