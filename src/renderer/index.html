@@ -118,7 +118,12 @@
                                     <option value="'JetBrains Mono', 'Consolas', monospace">JetBrains Mono</option>
                                     <option value="'Fira Code', 'Consolas', monospace">Fira Code</option>
                                     <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
+                                    <option value="custom">Custom Font...</option>
                                 </select>
+                                <div id="custom-font-input-container" style="display: none; margin-top: 8px;">
+                                    <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
+                                    <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
+                                </div>
                                 <span class="setting-hint">Choose a font for the terminal. Install the font on your system first. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
                             </div>
                             <div class="setting-group">

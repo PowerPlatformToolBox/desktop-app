@@ -2231,15 +2231,35 @@ async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const customFontContainer = document.getElementById("custom-font-input-container");
 
     if (themeSelect && autoUpdateCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
-        terminalFontSelect.value = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
+        
+        const terminalFont = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
+        
+        // Check if the font is a predefined option
+        const options = Array.from(terminalFontSelect.options) as HTMLOptionElement[];
+        const matchingOption = options.find(opt => opt.value === terminalFont);
+        
+        if (matchingOption) {
+            terminalFontSelect.value = terminalFont;
+        } else {
+            // Custom font - set dropdown to "custom" and populate input
+            terminalFontSelect.value = "custom";
+            if (customFontInput) {
+                customFontInput.value = terminalFont;
+            }
+            if (customFontContainer) {
+                customFontContainer.style.display = "block";
+            }
+        }
         
         // Apply current terminal font
-        applyTerminalFont(settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace");
+        applyTerminalFont(terminalFont);
     }
 }
 
@@ -2247,13 +2267,21 @@ async function saveSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
 
     if (!themeSelect || !autoUpdateCheck || !terminalFontSelect) return;
+
+    let terminalFont = terminalFontSelect.value;
+    
+    // If custom option is selected, use the custom input value
+    if (terminalFont === "custom" && customFontInput) {
+        terminalFont = customFontInput.value.trim() || "'Consolas', 'Monaco', 'Courier New', monospace";
+    }
 
     const settings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
-        terminalFont: terminalFontSelect.value,
+        terminalFont: terminalFont,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
@@ -2586,14 +2614,52 @@ async function init() {
         });
     }
 
-    // Add change listener for terminal font selector to apply immediately
+    // Add change listener for terminal font selector to apply immediately and show/hide custom input
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const customFontContainer = document.getElementById("custom-font-input-container");
+    
     if (terminalFontSelect) {
         terminalFontSelect.addEventListener("change", async () => {
             const terminalFont = (terminalFontSelect as any).value;
-            if (terminalFont) {
+            
+            // Show/hide custom input based on selection
+            if (customFontContainer) {
+                if (terminalFont === "custom") {
+                    customFontContainer.style.display = "block";
+                    // Apply custom font if available
+                    if (customFontInput && customFontInput.value.trim()) {
+                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
+                        applyTerminalFont(customFontInput.value.trim());
+                    }
+                } else {
+                    customFontContainer.style.display = "none";
+                    // Apply selected preset font
+                    await window.toolboxAPI.updateUserSettings({ terminalFont });
+                    applyTerminalFont(terminalFont);
+                }
+            } else if (terminalFont && terminalFont !== "custom") {
+                // Fallback if container not found
                 await window.toolboxAPI.updateUserSettings({ terminalFont });
                 applyTerminalFont(terminalFont);
+            }
+        });
+    }
+    
+    // Add input listener for custom font to apply on blur or Enter key
+    if (customFontInput) {
+        const applyCustomFont = async () => {
+            const customFont = customFontInput.value.trim();
+            if (customFont) {
+                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
+                applyTerminalFont(customFont);
+            }
+        };
+        
+        customFontInput.addEventListener("blur", applyCustomFont);
+        customFontInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                applyCustomFont();
             }
         });
     }

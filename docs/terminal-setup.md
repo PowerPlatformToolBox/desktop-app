@@ -215,14 +215,23 @@ The application includes a built-in terminal font selector:
 2. Find the **Terminal Font** dropdown
 3. Select your preferred font:
    - **Consolas / Monaco (Default)**: Standard monospace fonts available on most systems
-   - **JetBrains Mono**: Clean and readable, great for coding
-   - **Fira Code**: Popular font with ligature support
-   - **Cascadia Code**: Microsoft's modern monospace font
-   - **MesloLGS Nerd Font**: Recommended by Oh-My-Posh
+   - **MesloLGS Nerd Font (Recommended)**: Tested with Oh-My-Posh
    - **FiraCode Nerd Font**: Fira Code with Nerd Font icons
    - **JetBrains Mono Nerd Font**: JetBrains Mono with Nerd Font icons
+   - **Other Nerd Font variants**: Cascadia, Hack, Ubuntu Mono, Source Code Pro
+   - **Custom Font...**: Enter your own font family CSS value
 4. The font will be applied immediately to all terminal instances
 5. Click **Save Settings** to persist your choice
+
+**Using Custom Fonts**:
+- Select "Custom Font..." from the dropdown
+- Enter the font family CSS value in the text field that appears
+- Examples:
+  - `'My Custom Nerd Font', monospace`
+  - `'Comic Sans MS', 'Courier New', monospace`
+  - `'Fantasque Sans Mono', 'Consolas', monospace`
+- Press Enter or click outside the field to apply
+- The value must be valid CSS font-family syntax with fallbacks
 
 **Note**: The selected font must be installed on your system first. Nerd Font variants include special icons required by Oh-My-Posh and similar themes.
 
