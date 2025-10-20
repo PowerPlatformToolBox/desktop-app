@@ -29,6 +29,7 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   language: string;
   autoUpdate: boolean;
+  terminalFont: string;
   lastUsedTools: string[];
   connections: DataverseConnection[];
   installedTools: string[]; // List of installed tool package names

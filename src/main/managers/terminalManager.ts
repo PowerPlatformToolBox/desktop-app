@@ -193,7 +193,21 @@ class TerminalInstance extends EventEmitter {
      */
     private startShellProcess(env?: Record<string, string>): void {
         const shellArgs = this.getShellArgs();
-        const processEnv = { ...process.env, ...env };
+        
+        // Ensure critical environment variables are set for proper shell initialization
+        const processEnv = { 
+            ...process.env, 
+            ...env,
+            // Ensure TERM is set for proper terminal emulation (needed for Oh-My-Posh and colors)
+            TERM: process.env.TERM || 'xterm-256color',
+            // Ensure COLORTERM is set to indicate true color support
+            COLORTERM: process.env.COLORTERM || 'truecolor',
+        };
+
+        // Log shell startup for debugging (can be removed in production)
+        console.log(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(' ')}`);
+        console.log(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
+        console.log(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
 
         this.process = spawn(this.terminal.shell, shellArgs, {
             cwd: this.terminal.cwd,
@@ -253,8 +267,10 @@ class TerminalInstance extends EventEmitter {
             }
             return ["/Q"]; // Quiet mode for cmd
         } else {
-            // Unix-like shells
-            return ["-i"]; // Interactive mode
+            // Unix-like shells - use both login and interactive modes
+            // -l loads the login profile (e.g., .bash_profile, .zprofile)
+            // -i makes it interactive (loads .bashrc, .zshrc)
+            return ["-l", "-i"]; // Login + Interactive mode to load all profiles
         }
     }
 

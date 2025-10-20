@@ -15,6 +15,7 @@ export class SettingsManager {
         theme: 'system',
         language: 'en',
         autoUpdate: true,
+        terminalFont: "'Consolas', 'Monaco', 'Courier New', monospace",
         lastUsedTools: [],
         connections: [],
         installedTools: [],

@@ -1,6 +1,17 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="types.d.ts" />
 
+import AnsiToHtml from 'ansi-to-html';
+
+// Create ANSI to HTML converter instance
+const ansiConverter = new AnsiToHtml({
+    fg: '#CCCCCC',
+    bg: '#1E1E1E',
+    newline: false,
+    escapeXML: true,
+    stream: false
+});
+
 // Tab management for multiple tools
 interface OpenTool {
     id: string;
@@ -1453,6 +1464,19 @@ function applyTheme(theme: string) {
     }
 }
 
+function applyTerminalFont(fontFamily: string) {
+    const terminalPanelContent = document.getElementById("terminal-panel-content");
+    if (terminalPanelContent) {
+        terminalPanelContent.style.fontFamily = fontFamily;
+    }
+    
+    // Also apply to any existing terminal output elements
+    const terminalOutputElements = document.querySelectorAll(".terminal-output-content");
+    terminalOutputElements.forEach((element) => {
+        (element as HTMLElement).style.fontFamily = fontFamily;
+    });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
@@ -2206,27 +2230,63 @@ function convertMarkdownToHtml(markdown: string): string {
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const customFontContainer = document.getElementById("custom-font-input-container");
 
-    if (themeSelect && autoUpdateCheck) {
+    if (themeSelect && autoUpdateCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
+        
+        const terminalFont = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
+        
+        // Check if the font is a predefined option
+        const options = Array.from(terminalFontSelect.options) as HTMLOptionElement[];
+        const matchingOption = options.find(opt => opt.value === terminalFont);
+        
+        if (matchingOption) {
+            terminalFontSelect.value = terminalFont;
+        } else {
+            // Custom font - set dropdown to "custom" and populate input
+            terminalFontSelect.value = "custom";
+            if (customFontInput) {
+                customFontInput.value = terminalFont;
+            }
+            if (customFontContainer) {
+                customFontContainer.style.display = "block";
+            }
+        }
+        
+        // Apply current terminal font
+        applyTerminalFont(terminalFont);
     }
 }
 
 async function saveSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
 
-    if (!themeSelect || !autoUpdateCheck) return;
+    if (!themeSelect || !autoUpdateCheck || !terminalFontSelect) return;
+
+    let terminalFont = terminalFontSelect.value;
+    
+    // If custom option is selected, use the custom input value
+    if (terminalFont === "custom" && customFontInput) {
+        terminalFont = customFontInput.value.trim() || "'Consolas', 'Monaco', 'Courier New', monospace";
+    }
 
     const settings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
+        terminalFont: terminalFont,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
     applyTheme(settings.theme);
+    applyTerminalFont(settings.terminalFont);
 
     await window.toolboxAPI.showNotification({
         title: "Settings Saved",
@@ -2446,7 +2506,11 @@ function appendTerminalOutput(terminalId: string, output: string) {
     const terminal = openTerminals.get(terminalId);
     if (!terminal) return;
 
-    terminal.outputElement.textContent += output;
+    // Convert ANSI escape codes to HTML
+    const htmlOutput = ansiConverter.toHtml(output);
+    
+    // Append HTML content (using insertAdjacentHTML to preserve formatting)
+    terminal.outputElement.insertAdjacentHTML('beforeend', htmlOutput);
 
     // Auto-scroll to bottom
     terminal.outputElement.scrollTop = terminal.outputElement.scrollHeight;
@@ -2550,6 +2614,56 @@ async function init() {
         });
     }
 
+    // Add change listener for terminal font selector to apply immediately and show/hide custom input
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const customFontContainer = document.getElementById("custom-font-input-container");
+    
+    if (terminalFontSelect) {
+        terminalFontSelect.addEventListener("change", async () => {
+            const terminalFont = (terminalFontSelect as any).value;
+            
+            // Show/hide custom input based on selection
+            if (customFontContainer) {
+                if (terminalFont === "custom") {
+                    customFontContainer.style.display = "block";
+                    // Apply custom font if available
+                    if (customFontInput && customFontInput.value.trim()) {
+                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
+                        applyTerminalFont(customFontInput.value.trim());
+                    }
+                } else {
+                    customFontContainer.style.display = "none";
+                    // Apply selected preset font
+                    await window.toolboxAPI.updateUserSettings({ terminalFont });
+                    applyTerminalFont(terminalFont);
+                }
+            } else if (terminalFont && terminalFont !== "custom") {
+                // Fallback if container not found
+                await window.toolboxAPI.updateUserSettings({ terminalFont });
+                applyTerminalFont(terminalFont);
+            }
+        });
+    }
+    
+    // Add input listener for custom font to apply on blur or Enter key
+    if (customFontInput) {
+        const applyCustomFont = async () => {
+            const customFont = customFontInput.value.trim();
+            if (customFont) {
+                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
+                applyTerminalFont(customFont);
+            }
+        };
+        
+        customFontInput.addEventListener("blur", applyCustomFont);
+        customFontInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                applyCustomFont();
+            }
+        });
+    }
+
     // Home screen action buttons
     const sponsorBtn = document.getElementById("sponsor-btn");
     if (sponsorBtn) {
@@ -2564,6 +2678,15 @@ async function init() {
         githubBtn.addEventListener("click", (e) => {
             e.preventDefault();
             window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+        });
+    }
+
+    // Font help link
+    const fontHelpLink = document.getElementById("font-help-link");
+    if (fontHelpLink) {
+        fontHelpLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration");
         });
     }
 
@@ -2721,6 +2844,7 @@ async function init() {
     // Load and apply theme settings on startup
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
+    applyTerminalFont(settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace");
 
     // Load tools library from JSON
     await loadToolsLibrary();
