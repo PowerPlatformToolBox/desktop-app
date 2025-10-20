@@ -116,7 +116,7 @@ export class ToolManager extends EventEmitter {
             // Use --dir to specify installation directory
             // --no-optional to skip optional dependencies and save space
             // --prod to install only production dependencies
-            const install = spawn(pnpm, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional"]);
+            const install = spawn(pnpm, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
 
             install.on("close", (code: number) => {
                 if (code !== 0) {
