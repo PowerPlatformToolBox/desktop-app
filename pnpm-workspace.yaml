@@ -1,0 +1,8 @@
+packages:
+  - .
+  - packages/*
+
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - electron
+  - esbuild

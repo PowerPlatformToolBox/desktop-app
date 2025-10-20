@@ -107,16 +107,20 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Install a tool via npm
+     * Install a tool via pnpm
+     * Each tool is installed in its own isolated directory under toolsDirectory
      */
     async installTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-            const install = spawn(npm, ["install", packageName, "--prefix", this.toolsDirectory]);
+            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+            // Use --dir to specify installation directory
+            // --no-optional to skip optional dependencies and save space
+            // --prod to install only production dependencies
+            const install = spawn(pnpm, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional"]);
 
             install.on("close", (code: number) => {
                 if (code !== 0) {
-                    reject(new Error(`npm install failed with code ${code}`));
+                    reject(new Error(`pnpm install failed with code ${code}`));
                 } else {
                     resolve();
                 }
@@ -129,16 +133,16 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool via npm
+     * Uninstall a tool via pnpm
      */
     async uninstallTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-            const uninstall = spawn(npm, ["uninstall", packageName, "--prefix", this.toolsDirectory]);
+            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+            const uninstall = spawn(pnpm, ["remove", packageName, "--dir", this.toolsDirectory]);
 
             uninstall.on("close", (code: number) => {
                 if (code !== 0) {
-                    reject(new Error(`npm uninstall failed with code ${code}`));
+                    reject(new Error(`pnpm uninstall failed with code ${code}`));
                 } else {
                     resolve();
                 }
@@ -155,8 +159,8 @@ export class ToolManager extends EventEmitter {
      */
     async getLatestVersion(packageName: string): Promise<string | null> {
         return new Promise((resolve) => {
-            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-            const view = spawn(npm, ["view", packageName, "version"]);
+            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+            const view = spawn(pnpm, ["view", packageName, "version"]);
 
             let output = "";
             
@@ -183,12 +187,12 @@ export class ToolManager extends EventEmitter {
      */
     async updateTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-            const update = spawn(npm, ["update", packageName, "--prefix", this.toolsDirectory]);
+            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+            const update = spawn(pnpm, ["update", packageName, "--dir", this.toolsDirectory]);
 
             update.on("close", (code: number) => {
                 if (code !== 0) {
-                    reject(new Error(`npm update failed with code ${code}`));
+                    reject(new Error(`pnpm update failed with code ${code}`));
                 } else {
                     resolve();
                 }
