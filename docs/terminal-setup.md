@@ -224,7 +224,27 @@ The application includes a built-in terminal font selector:
 4. The font will be applied immediately to all terminal instances
 5. Click **Save Settings** to persist your choice
 
-**Note**: The selected font must be installed on your system. Nerd Font variants include special icons required by Oh-My-Posh and similar themes.
+**Note**: The selected font must be installed on your system first. Nerd Font variants include special icons required by Oh-My-Posh and similar themes.
+
+**Verifying Font Installation**:
+
+If you see squares with question marks (�) instead of icons after selecting a Nerd Font:
+
+1. **Check if the font is actually installed on your system**:
+   - Windows: Settings → Fonts, search for the font name
+   - macOS: Font Book app, search for "Nerd Font"
+   - Linux: Run `fc-list | grep -i "nerd"` in terminal
+
+2. **Download and install the font**:
+   - Visit [Nerd Fonts Downloads](https://www.nerdfonts.com/font-downloads)
+   - Download MesloLGS NF (recommended) or your preferred Nerd Font
+   - Install all font files (.ttf or .otf) from the downloaded zip
+   - Restart Power Platform Tool Box after installing fonts
+
+3. **Select the font in Settings**:
+   - The font dropdown includes multiple name variations as fallbacks
+   - If one Nerd Font doesn't work, try another from the list
+   - "MesloLGS Nerd Font (Recommended)" is tested with Oh-My-Posh
 
 ### Recommended Nerd Fonts
 
@@ -238,9 +258,23 @@ The application includes a built-in terminal font selector:
 ### Issue: Prompt shows squares or question marks instead of icons
 
 **Solution**: 
-- Install a Nerd Font
-- Configure your terminal application to use the Nerd Font
-- Verify the font supports the icons your theme uses
+- **Install a Nerd Font on your system**: Download from [Nerd Fonts](https://www.nerdfonts.com/) and install
+  - Windows: Right-click the font file → Install
+  - macOS: Double-click the font file → Install Font
+  - Linux: Copy to `~/.local/share/fonts/` or `/usr/share/fonts/` and run `fc-cache -fv`
+- **Select the Nerd Font in Power Platform Tool Box**:
+  - Go to Settings → Terminal Font
+  - Choose a Nerd Font option (e.g., "MesloLGS Nerd Font (Recommended)")
+  - The font name must exactly match the installed font family name
+- **Verify font installation**: 
+  - Windows: Check in Settings → Fonts
+  - macOS: Open Font Book app
+  - Linux: Run `fc-list | grep -i "nerd"`
+- **Common font name variations**:
+  - Some Nerd Fonts use "NF" suffix: `MesloLGS NF`
+  - Others use full "Nerd Font": `MesloLGS Nerd Font`
+  - The font dropdown includes common variations as fallbacks
+- **If icons still don't show**: The selected font may not be installed. Try a different Nerd Font or verify installation
 
 ### Issue: No colors in prompt
 

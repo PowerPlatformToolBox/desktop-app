@@ -2615,6 +2615,15 @@ async function init() {
         });
     }
 
+    // Font help link
+    const fontHelpLink = document.getElementById("font-help-link");
+    if (fontHelpLink) {
+        fontHelpLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration");
+        });
+    }
+
     const bugsFeaturesBtn = document.getElementById("bugs-features-btn");
     if (bugsFeaturesBtn) {
         bugsFeaturesBtn.addEventListener("click", (e) => {
