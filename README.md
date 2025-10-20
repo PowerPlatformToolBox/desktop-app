@@ -82,6 +82,8 @@
     -   [Enabling Auto-Updates](#enabling-auto-updates)
     -   [Manual Update Check](#manual-update-check)
     -   [Update Process](#update-process)
+-   [Troubleshooting](#troubleshooting)
+    -   [Electron won't start](#electron-wont-start)
 -   [Documentation](#documentation)
 -   [Discussions](#discussions)
 -   [License](#license)
@@ -349,6 +351,18 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   You control when to install updates
 -   Updates are published via GitHub releases
 -   The application checks for updates on startup (if auto-update is enabled)
+
+## Troubleshooting
+
+### Electron won't start
+
+Getting the following error `throw new Error('Electron failed to install correctly, please delete node_modules/electron and try installing again');`
+
+Manually trigger Electron's install script
+
+```bash
+node node_modules/electron/install.js
+```
 
 ## Documentation
 
