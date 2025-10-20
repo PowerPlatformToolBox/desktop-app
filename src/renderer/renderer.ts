@@ -2602,6 +2602,72 @@ async function init() {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
     }
 
+    // Sidebar install package button (Debug section)
+    const sidebarInstallPackageBtn = document.getElementById("sidebar-install-package-btn");
+    if (sidebarInstallPackageBtn) {
+        sidebarInstallPackageBtn.addEventListener("click", async () => {
+            const packageNameInput = document.getElementById("sidebar-package-name-input") as HTMLInputElement;
+            if (!packageNameInput) return;
+
+            const packageName = packageNameInput.value.trim();
+            if (!packageName) {
+                await window.toolboxAPI.showNotification({
+                    title: "Invalid Package Name",
+                    body: "Please enter a valid npm package name.",
+                    type: "error",
+                });
+                return;
+            }
+
+            // Disable button and show loading state
+            sidebarInstallPackageBtn.textContent = "Installing...";
+            sidebarInstallPackageBtn.setAttribute("disabled", "true");
+
+            try {
+                // Install the package
+                const tool = await window.toolboxAPI.installTool(packageName);
+
+                // Show success notification
+                await window.toolboxAPI.showNotification({
+                    title: "Tool Installed",
+                    body: `${tool.name || packageName} has been installed successfully.`,
+                    type: "success",
+                });
+
+                // Clear the input
+                packageNameInput.value = "";
+
+                // Refresh the tools list
+                await loadSidebarTools();
+
+                // Switch to tools sidebar to show the newly installed tool
+                switchSidebar("tools");
+            } catch (error) {
+                // Show error notification
+                await window.toolboxAPI.showNotification({
+                    title: "Installation Failed",
+                    body: `Failed to install ${packageName}: ${(error as Error).message}`,
+                    type: "error",
+                });
+            } finally {
+                // Re-enable button
+                sidebarInstallPackageBtn.textContent = "Install Package";
+                sidebarInstallPackageBtn.removeAttribute("disabled");
+            }
+        });
+    }
+
+    // Allow Enter key to trigger install in the package name input
+    const packageNameInput = document.getElementById("sidebar-package-name-input");
+    if (packageNameInput) {
+        packageNameInput.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sidebarInstallPackageBtn?.click();
+            }
+        });
+    }
+
     // Add change listener for theme selector to apply immediately
     const themeSelect = document.getElementById("sidebar-theme-select");
     if (themeSelect) {

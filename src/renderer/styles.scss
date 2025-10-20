@@ -389,6 +389,72 @@ body {
     gap: 16px;
 }
 
+/* Debug Sidebar */
+.debug-container-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 8px 0;
+}
+
+.debug-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.debug-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.debug-section-description {
+    font-size: 13px;
+    color: var(--text-secondary-color);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.debug-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.debug-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.debug-hint {
+    font-size: 11px;
+    color: var(--text-secondary-color);
+    font-style: italic;
+}
+
+.debug-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.debug-info-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0 0;
+}
+
+.debug-info-list li {
+    font-size: 13px;
+    color: var(--text-secondary-color);
+    line-height: 1.6;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
 .btn-sm {
     padding: 6px 12px;
     font-size: 12px;
