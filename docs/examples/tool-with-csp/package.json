@@ -1,0 +1,25 @@
+{
+    "name": "@power-maverick/tool-erd-generator",
+    "version": "1.0.0",
+    "displayName": "Dataverse ERD Generator",
+    "description": "Generate Entity Relationship Diagrams from Dataverse metadata with external API calls",
+    "main": "dist/index.js",
+    "author": "Power Maverick",
+    "keywords": ["powerplatform", "dataverse", "erd", "toolbox"],
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "csp": {
+        "connect-src": ["https://*.dynamics.com", "https://*.crm*.dynamics.com"],
+        "script-src": ["https://cdn.jsdelivr.net"],
+        "style-src": ["'unsafe-inline'"]
+    },
+    "scripts": {
+        "build": "vite build"
+    },
+    "devDependencies": {
+        "@pptb/types": "latest",
+        "typescript": "^5.0.0",
+        "vite": "^5.0.0"
+    }
+}
