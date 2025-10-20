@@ -1453,6 +1453,19 @@ function applyTheme(theme: string) {
     }
 }
 
+function applyTerminalFont(fontFamily: string) {
+    const terminalPanelContent = document.getElementById("terminal-panel-content");
+    if (terminalPanelContent) {
+        terminalPanelContent.style.fontFamily = fontFamily;
+    }
+    
+    // Also apply to any existing terminal output elements
+    const terminalOutputElements = document.querySelectorAll(".terminal-output-content");
+    terminalOutputElements.forEach((element) => {
+        (element as HTMLElement).style.fontFamily = fontFamily;
+    });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
@@ -2206,27 +2219,35 @@ function convertMarkdownToHtml(markdown: string): string {
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
 
-    if (themeSelect && autoUpdateCheck) {
+    if (themeSelect && autoUpdateCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
+        terminalFontSelect.value = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
+        
+        // Apply current terminal font
+        applyTerminalFont(settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace");
     }
 }
 
 async function saveSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
 
-    if (!themeSelect || !autoUpdateCheck) return;
+    if (!themeSelect || !autoUpdateCheck || !terminalFontSelect) return;
 
     const settings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
+        terminalFont: terminalFontSelect.value,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
     applyTheme(settings.theme);
+    applyTerminalFont(settings.terminalFont);
 
     await window.toolboxAPI.showNotification({
         title: "Settings Saved",
@@ -2550,6 +2571,18 @@ async function init() {
         });
     }
 
+    // Add change listener for terminal font selector to apply immediately
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
+    if (terminalFontSelect) {
+        terminalFontSelect.addEventListener("change", async () => {
+            const terminalFont = (terminalFontSelect as any).value;
+            if (terminalFont) {
+                await window.toolboxAPI.updateUserSettings({ terminalFont });
+                applyTerminalFont(terminalFont);
+            }
+        });
+    }
+
     // Home screen action buttons
     const sponsorBtn = document.getElementById("sponsor-btn");
     if (sponsorBtn) {
@@ -2721,6 +2754,7 @@ async function init() {
     // Load and apply theme settings on startup
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
+    applyTerminalFont(settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace");
 
     // Load tools library from JSON
     await loadToolsLibrary();

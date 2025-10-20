@@ -248,6 +248,17 @@ For complete setup instructions, see **[Terminal Setup Guide](./terminal-setup.m
 - Common issues and solutions
 - Debug techniques
 
+### Terminal Font Setting
+
+Power Platform Tool Box includes a built-in terminal font selector in the Settings sidebar:
+- Navigate to **Settings** (gear icon in Activity Bar)
+- Select your preferred font from the **Terminal Font** dropdown
+- Choose from popular monospace fonts or Nerd Font variants
+- Changes are applied immediately to all terminal instances
+- Nerd Fonts (e.g., MesloLGS NF, FiraCode Nerd Font) are recommended for Oh-My-Posh
+
+See [Terminal Setup Guide](./terminal-setup.md) for more details on font installation and configuration.
+
 ### Environment Variables
 
 The terminal manager automatically sets these environment variables for proper rendering:

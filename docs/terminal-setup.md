@@ -192,8 +192,27 @@ source ~/powerlevel10k/powerlevel10k.zsh-theme
 For proper rendering of icons and special characters, ensure:
 
 1. **System Font Installation**: Install a Nerd Font on your system
-2. **Application Font Setting**: Configure Power Platform Tool Box or your OS to use the Nerd Font
+2. **Application Font Setting**: Configure the terminal font in Power Platform Tool Box settings (Settings → Terminal Font)
 3. **Font Fallback**: Some themes work better with specific fonts - test different Nerd Fonts if you see rendering issues
+
+### Setting Terminal Font in Power Platform Tool Box
+
+The application includes a built-in terminal font selector:
+
+1. Open the **Settings** sidebar (click the gear icon in the Activity Bar)
+2. Find the **Terminal Font** dropdown
+3. Select your preferred font:
+   - **Consolas / Monaco (Default)**: Standard monospace fonts available on most systems
+   - **JetBrains Mono**: Clean and readable, great for coding
+   - **Fira Code**: Popular font with ligature support
+   - **Cascadia Code**: Microsoft's modern monospace font
+   - **MesloLGS Nerd Font**: Recommended by Oh-My-Posh
+   - **FiraCode Nerd Font**: Fira Code with Nerd Font icons
+   - **JetBrains Mono Nerd Font**: JetBrains Mono with Nerd Font icons
+4. The font will be applied immediately to all terminal instances
+5. Click **Save Settings** to persist your choice
+
+**Note**: The selected font must be installed on your system. Nerd Font variants include special icons required by Oh-My-Posh and similar themes.
 
 ### Recommended Nerd Fonts
 
