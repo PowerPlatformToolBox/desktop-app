@@ -14,37 +14,37 @@
 ### Prerequisites
 
 -   Node.js 18 or higher (currently tested with v20.19.5)
--   npm 10.8.2 or higher
+-   pnpm 10.18.3 or higher (package manager)
 
 ### Installation & Build Sequence
 
 **ALWAYS run these commands in this exact order for a clean build:**
 
 ```bash
-npm install          # Install dependencies (~28s)
-npm run lint         # Lint code (optional but recommended before build)
-npm run build        # Build the application (~2-3s)
+pnpm install         # Install dependencies (~40s with pnpm)
+pnpm run lint        # Lint code (optional but recommended before build)
+pnpm run build       # Build the application (~2-3s)
 ```
 
 ### Available Commands
 
--   **`npm install`** - Install all dependencies. Takes ~28s on first install. ALWAYS run before building after cloning or pulling.
--   **`npm run build`** - Complete build process. Runs TypeScript compilation (main + renderer) then copies static files to `dist/`. Takes 2-3 seconds.
--   **`npm run lint`** - Run ESLint on all TypeScript files. Will show warnings for `any` types but should have 0 errors.
--   **`npm run watch`** - Watch mode for TypeScript compilation. Useful for development. Only watches main process files, not renderer.
--   **`npm run dev`** - Build and run the application with Electron. Requires display/GUI environment.
--   **`npm start`** - Start the application with Electron (requires prior build). Requires display/GUI environment.
--   **`npm run package`** - Build and create distributable packages (Windows NSIS, macOS DMG, Linux AppImage). Outputs to `build/` directory.
+-   **`pnpm install`** - Install all dependencies. Takes ~40s on first install. ALWAYS run before building after cloning or pulling.
+-   **`pnpm run build`** - Complete build process. Uses Vite to compile main, renderer, and preload processes. Takes 2-5 seconds.
+-   **`pnpm run lint`** - Run ESLint on all TypeScript files. Will show warnings for `any` types but should have 0 errors.
+-   **`pnpm run watch`** - Watch mode for TypeScript compilation. Useful for development. Only watches main process files, not renderer.
+-   **`pnpm run dev`** - Build and run the application with Electron. Requires display/GUI environment.
+-   **`pnpm start`** - Start the application with Electron (requires prior build). Requires display/GUI environment.
+-   **`pnpm run package`** - Build and create distributable packages (Windows NSIS, macOS DMG, Linux AppImage). Outputs to `build/` directory.
 
 ### Build Process Details
 
-The build process is composed of three sequential steps:
+The build process uses Vite and is composed of three parallel builds:
 
-1. **Main Process Compilation**: `tsc` compiles `src/main/`, `src/api/`, `src/types/` → `dist/`
-2. **Renderer Process Compilation**: `tsc -p tsconfig.renderer.json` compiles `src/renderer/` → `dist/renderer/`
-3. **Static File Copy**: Copies HTML, CSS, JS, JSON, and icons from `src/renderer/` to `dist/renderer/`
+1. **Renderer Process Build**: Vite bundles `src/renderer/` → `dist/renderer/` with assets and static files
+2. **Main Process Build**: Vite bundles `src/main/` → `dist/main/index.js` with all managers and dependencies
+3. **Preload Script Build**: Vite bundles `src/main/preload.ts` → `dist/main/preload.js`
 
-**Important**: The build outputs to `dist/` which is gitignored. Always run `npm run build` after code changes.
+**Important**: The build outputs to `dist/` which is gitignored. Always run `pnpm run build` after code changes.
 
 ### Build Verification
 
@@ -60,11 +60,11 @@ bash verify-build.sh
 
 1. **TypeScript Version Warning**: ESLint shows a warning about TypeScript 5.9.3 not being officially supported (expects <5.4.0). This is non-blocking - build and lint still work correctly.
 
-2. **Electron Sandbox Error**: Running `npm start` or `npm run dev` without a display shows a SUID sandbox error. This is expected in headless environments and can be ignored.
+2. **Electron Sandbox Error**: Running `pnpm start` or `pnpm run dev` without a display shows a SUID sandbox error. This is expected in headless environments and can be ignored.
 
 3. **Linting Warnings**: Linting produces ~55 warnings about `any` types. These are intentional and set to "warn" level in `.eslintrc.js`. Zero errors is the passing criteria.
 
-4. **npm audit vulnerabilities**: Shows 5 vulnerabilities (4 low, 1 moderate) in dev dependencies. These are in deprecated transitive dependencies and don't affect the build.
+4. **pnpm Build Scripts Warning**: On first install, pnpm may show a warning about ignored build scripts for @parcel/watcher, electron, and esbuild. This is expected and can be safely ignored or approved with `pnpm rebuild`.
 
 ## Project Structure
 
@@ -82,8 +82,11 @@ CONTRIBUTING.md         # Contributor guidelines
 LICENSE                 # GPL-3.0 license
 README.md               # Main documentation (363 lines)
 package.json            # Main package file with scripts
-package-lock.json       # Locked dependencies
+pnpm-lock.yaml          # pnpm lockfile for reproducible installs
+pnpm-workspace.yaml     # pnpm workspace configuration
+.npmrc                  # pnpm configuration (tool isolation, disk optimization)
 tsconfig.json           # TypeScript config for main process
+vite.config.ts          # Vite build configuration
 tsconfig.renderer.json  # TypeScript config for renderer (extends main)
 verify-build.sh         # Build verification script
 ```
@@ -208,22 +211,24 @@ Tools are npm packages that:
 3. Use the injected `pptoolbox` API
 4. Run in isolated Node.js child processes
 
+**Tool Installation**: Tools are installed using pnpm with the `--dir` flag to install them in an isolated directory (`app.getPath("userData")/tools`). Each tool gets its own `node_modules` folder to prevent dependency conflicts between tools.
+
 ## Validation & Testing
 
 ### Pre-Commit Validation
 
 There are no automated GitHub Actions workflows yet. Manual validation steps:
 
-1. **Lint**: `npm run lint` - Must complete with 0 errors (warnings OK)
-2. **Build**: `npm run build` - Must complete successfully and create `dist/` directory
+1. **Lint**: `pnpm run lint` - Must complete with 0 errors (warnings OK)
+2. **Build**: `pnpm run build` - Must complete successfully and create `dist/` directory
 3. **Verify Build**: `bash verify-build.sh` - Check output structure (note: script has outdated paths but is informational)
 
 ### Manual Testing
 
 Since there's no test framework yet, validate changes by:
 
-1. Building successfully: `npm run build`
-2. Running the app (if you have a display): `npm run dev`
+1. Building successfully: `pnpm run build`
+2. Running the app (if you have a display): `pnpm run dev`
 3. Testing affected functionality manually in the UI
 4. Checking console for errors
 
@@ -236,8 +241,8 @@ Currently there are no unit tests, integration tests, or test framework. Do not 
 ### Making Code Changes
 
 1. Make your changes to TypeScript files
-2. Run `npm run lint` to check for issues
-3. Run `npm run build` to compile
+2. Run `pnpm run lint` to check for issues
+3. Run `pnpm run build` to compile
 4. Test manually if possible or verify build succeeds
 
 ### Adding a New Manager
@@ -259,29 +264,31 @@ Currently there are no unit tests, integration tests, or test framework. Do not 
 ### Updating Dependencies
 
 1. Update `package.json`
-2. Run `npm install`
-3. Run `npm run build` to verify compatibility
+2. Run `pnpm install`
+3. Run `pnpm run build` to verify compatibility
 4. Test the application
 
 ## Important Notes
 
--   **ALWAYS run `npm install` after pulling changes** that modify `package.json` or `package-lock.json`
--   **ALWAYS run `npm run build` before running the app** with `npm start` or `npm run dev`
+-   **ALWAYS use pnpm** - This project uses pnpm as the package manager for better dependency management and disk space optimization
+-   **ALWAYS run `pnpm install` after pulling changes** that modify `package.json` or `pnpm-lock.yaml`
+-   **ALWAYS run `pnpm run build` before running the app** with `pnpm start` or `pnpm run dev`
 -   **DO NOT commit `dist/` or `build/` directories** - they are gitignored
--   **DO NOT commit `node_modules/`** - it's gitignored
+-   **DO NOT commit `node_modules/` or `.pnpm-store/`** - they're gitignored
+-   **DO NOT use npm or yarn commands** - always use pnpm to maintain consistency
 -   **Check lint before committing**: While warnings are OK, ensure no new errors are introduced
 -   **Follow existing code style**: 4-space tabs, double quotes, semicolons (per .prettierrc.json)
 -   **Update documentation** if you change architecture or add new features
 
 ## Dependencies to Be Aware Of
 
+-   **pnpm** (v10.18.3): Package manager with content-addressable store and symlinks for disk space optimization
 -   **electron** (v28): Main framework, breaking changes between major versions
--   **electron-store** (v8.1.0): Settings persistence, schema-based
+-   **electron-store** (v8.2.0): Settings persistence, schema-based
 -   **electron-updater** (v6.6.2): Auto-update system, requires GitHub releases
 -   **@azure/msal-node** (v3.8.0): Microsoft authentication, OAuth flows
--   **TypeScript** (v5.3.0): Compiler, strict mode enabled
--   **shx** (v0.4.0): Cross-platform shell commands in npm scripts
--   **@fluentui/web-components** (v2.6.1): Microsoft Fluent UI web components for modern UI
+-   **TypeScript** (v5.9.3): Compiler, strict mode enabled
+-   **vite** (v7.1.11): Build tool and dev server, replaces webpack
 -   **@fluentui/tokens** (v1.0.0-alpha.22): Fluent UI design tokens (colors, spacing, typography)
 -   **@fluentui/svg-icons** (v1.1.312): Fluent UI System Icons (SVG) for consistent iconography
 
