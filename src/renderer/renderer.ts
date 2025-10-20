@@ -2638,7 +2638,7 @@ async function init() {
                 packageNameInput.value = "";
 
                 // Refresh the tools list
-                await loadInstalledTools();
+                await loadSidebarTools();
 
                 // Switch to tools sidebar to show the newly installed tool
                 switchSidebar("tools");
