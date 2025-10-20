@@ -37,7 +37,7 @@ Feature suggestions are welcome! Please create an issue describing:
     - For refactoring: `refactor/<description>` (e.g., `refactor/tool-manager`)
     - For chores/maintenance: `chore/<description>` (e.g., `chore/update-dependencies`)
 3. Make your changes
-4. Run tests and linting: `npm run lint && npm run build`
+4. Run tests and linting: `pnpm run lint && pnpm run build`
 5. Commit your changes with a descriptive message following conventional commits format
 6. Push to your fork: `git push origin <branch-name>`
 7. Create a pull request with a clear title and description:
@@ -55,22 +55,28 @@ git clone https://github.com/PowerPlatform-ToolBox/desktop-app.git
 cd desktop-app
 ```
 
-2. Install dependencies:
+2. Install pnpm (if not already installed):
 
 ```bash
-npm install
+npm install -g pnpm
 ```
 
-3. Build the application:
+3. Install dependencies:
 
 ```bash
-npm run build
+pnpm install
 ```
 
-4. Run the application:
+4. Build the application:
 
 ```bash
-npm start
+pnpm run build
+```
+
+5. Run the application:
+
+```bash
+pnpm start
 ```
 
 ## Development Workflow
@@ -80,7 +86,7 @@ npm start
 The project uses Vite for fast development with Hot Module Replacement (HMR):
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 This starts Vite's dev server with Electron, providing instant feedback for renderer process changes.
@@ -90,7 +96,7 @@ This starts Vite's dev server with Electron, providing instant feedback for rend
 Build the application using Vite:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 This compiles both the main and renderer processes using Vite's optimized bundler.
@@ -98,7 +104,7 @@ This compiles both the main and renderer processes using Vite's optimized bundle
 ### Linting
 
 ```bash
-npm run lint
+pnpm run lint
 ```
 
 ### Watching for Changes
@@ -106,14 +112,25 @@ npm run lint
 For continuous compilation in watch mode:
 
 ```bash
-npm run watch
+pnpm run watch
 ```
 
 In a separate terminal:
 
 ```bash
-npm start
+pnpm start
 ```
+
+## Package Manager
+
+This project uses **pnpm** as the package manager. pnpm provides:
+
+-   **Fast installations**: Uses a content-addressable file system with symlinks
+-   **Disk space efficiency**: Packages are stored once globally and linked to projects
+-   **Strict dependency resolution**: Prevents phantom dependencies and ensures reproducible builds
+-   **Tool isolation**: Each tool installed by the application gets its own isolated node_modules
+
+**Important**: Always use `pnpm` commands instead of `npm` or `yarn` to maintain consistency with the project's configuration.
 
 ## Project Structure
 

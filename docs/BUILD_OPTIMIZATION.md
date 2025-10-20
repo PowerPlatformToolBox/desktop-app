@@ -8,7 +8,7 @@ The project includes bundle analysis to help visualize and optimize the size of 
 
 ### How to Use
 
-After running a production build with `npm run build`, two HTML reports are generated:
+After running a production build with `pnpm run build`, two HTML reports are generated:
 
 -   **`dist/stats-main.html`** - Bundle analysis for the main Electron process
 -   **`dist/stats-renderer.html`** - Bundle analysis for the renderer process

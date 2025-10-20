@@ -134,6 +134,10 @@ dist
 !.yarn/sdks
 !.yarn/versions
 
+# pnpm
+.pnpm-store/
+.pnpm-debug.log
+
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
