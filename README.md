@@ -211,7 +211,7 @@ await toolbox.showNotification({
 ### Prerequisites
 
 -   Node.js 18 or higher
--   npm or yarn
+-   pnpm 10 or higher (recommended package manager)
 
 ### Installation
 
@@ -222,22 +222,28 @@ git clone https://github.com/PowerPlatform-ToolBox/desktop-app.git
 cd desktop-app
 ```
 
-2. Install dependencies:
+2. Install pnpm (if not already installed):
 
 ```bash
-npm install
+npm install -g pnpm
 ```
 
-3. Build the application:
+3. Install dependencies:
 
 ```bash
-npm run build
+pnpm install
 ```
 
-4. Run the application:
+4. Build the application:
 
 ```bash
-npm start
+pnpm run build
+```
+
+5. Run the application:
+
+```bash
+pnpm start
 ```
 
 ### Development
@@ -245,7 +251,7 @@ npm start
 For development with Vite's built-in hot module replacement (HMR):
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 This starts the Vite dev server with Electron, providing fast refresh for renderer process changes.
@@ -253,7 +259,7 @@ This starts the Vite dev server with Electron, providing fast refresh for render
 For watch mode (continuous compilation):
 
 ```bash
-npm run watch
+pnpm run watch
 ```
 
 ### Linting
@@ -261,7 +267,7 @@ npm run watch
 Check code quality:
 
 ```bash
-npm run lint
+pnpm run lint
 ```
 
 ### Bundle Analysis
@@ -270,7 +276,7 @@ After building, view bundle composition reports:
 
 ```bash
 # Build the project first
-npm run build
+pnpm run build
 
 # View bundle analysis reports (in browser)
 open dist/stats-main.html      # Main process bundle
@@ -284,14 +290,18 @@ The reports show module sizes, dependencies, and optimization opportunities. See
 Build distributable packages:
 
 ```bash
-npm run package
+pnpm run package
 ```
 
 This will create installers for your platform in the `build/` directory.
 
 ## Tools provided by the Tool Box
 
-Tools are npm packages with specific structure that extend the Power Platform Tool Box functionality.
+Tools are npm packages with specific structure that extend the Power Platform Tool Box functionality. The Tool Box uses pnpm to install tools, which provides:
+
+-   **Isolated installations**: Each tool is installed in its own isolated folder to avoid dependency conflicts
+-   **Disk space optimization**: pnpm uses a content-addressable store with symlinks, significantly reducing disk space usage
+-   **Fast installations**: Packages are cached globally and reused across projects
 
 ### Installing Tools
 

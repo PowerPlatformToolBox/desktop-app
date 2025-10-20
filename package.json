@@ -9,11 +9,12 @@
     "watch": "vite build --watch",
     "lint": "eslint src --ext .ts",
     "start": "electron .",
-    "package": "npm run build && electron-builder",
+    "package": "pnpm run build && electron-builder",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"
   },
+  "packageManager": "pnpm@10.18.3",
   "keywords": [
     "powerplatform",
     "dataverse",
