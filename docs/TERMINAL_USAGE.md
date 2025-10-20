@@ -259,6 +259,17 @@ Power Platform Tool Box includes a built-in terminal font selector in the Settin
 
 See [Terminal Setup Guide](./terminal-setup.md) for more details on font installation and configuration.
 
+### ANSI Color Support
+
+The terminal fully supports ANSI escape codes for colors and formatting:
+- **True Color Support**: 24-bit RGB colors via `\x1b[38;2;R;G;Bm` sequences
+- **256 Color Palette**: Standard terminal colors
+- **Text Formatting**: Bold, italic, underline, etc.
+- **Background Colors**: Full color support for backgrounds
+- Oh-My-Posh themes render with proper colors and icons
+
+The terminal automatically converts ANSI escape codes to properly colored HTML output.
+
 ### Environment Variables
 
 The terminal manager automatically sets these environment variables for proper rendering:

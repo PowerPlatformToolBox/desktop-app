@@ -1,6 +1,17 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="types.d.ts" />
 
+import AnsiToHtml from 'ansi-to-html';
+
+// Create ANSI to HTML converter instance
+const ansiConverter = new AnsiToHtml({
+    fg: '#CCCCCC',
+    bg: '#1E1E1E',
+    newline: false,
+    escapeXML: true,
+    stream: false
+});
+
 // Tab management for multiple tools
 interface OpenTool {
     id: string;
@@ -2467,7 +2478,11 @@ function appendTerminalOutput(terminalId: string, output: string) {
     const terminal = openTerminals.get(terminalId);
     if (!terminal) return;
 
-    terminal.outputElement.textContent += output;
+    // Convert ANSI escape codes to HTML
+    const htmlOutput = ansiConverter.toHtml(output);
+    
+    // Append HTML content (using insertAdjacentHTML to preserve formatting)
+    terminal.outputElement.insertAdjacentHTML('beforeend', htmlOutput);
 
     // Auto-scroll to bottom
     terminal.outputElement.scrollTop = terminal.outputElement.scrollHeight;

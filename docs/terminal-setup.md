@@ -18,6 +18,18 @@ The terminal manager automatically sets these environment variables to ensure pr
 
 These settings enable proper rendering of themes, prompts, and color schemes like Oh-My-Posh.
 
+## ANSI Color Support
+
+The Power Platform Tool Box terminal includes full ANSI escape code support:
+
+- **True Color (24-bit RGB)**: Supports modern prompt themes with millions of colors
+- **256 Color Palette**: Standard extended terminal colors
+- **Text Formatting**: Bold, italic, underline, strikethrough, dim, and more
+- **Background Colors**: Full color support for text backgrounds
+- **Automatic Rendering**: ANSI codes are automatically converted to properly colored HTML
+
+This means Oh-My-Posh themes, Starship prompts, and other terminal customizations will display correctly with all their colors, icons, and formatting.
+
 ## Oh-My-Posh Setup
 
 [Oh-My-Posh](https://ohmyposh.dev/) is a popular prompt theme engine that works across multiple shells. Here's how to set it up for use with Power Platform Tool Box.
