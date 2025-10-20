@@ -29,6 +29,9 @@
                     <button class="activity-item" data-sidebar="marketplace" title="Tools Marketplace">
                         <img id="marketplace-icon" src="icons/dark/marketplace.svg" alt="Marketplace Icon" class="activity-icon" />
                     </button>
+                    <button class="activity-item" data-sidebar="debug" title="Debug / Install by Package">
+                        <img id="debug-icon" src="icons/dark/debug.svg" alt="Debug Icon" class="activity-icon" />
+                    </button>
                 </nav>
                 <nav class="activity-bar-footer">
                     <button class="activity-item" data-sidebar="settings" title="Settings">
@@ -78,6 +81,46 @@
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-vscode" id="marketplace-tools-list">
                             <!-- Marketplace tools will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debug Sidebar -->
+                <div class="sidebar-content" id="sidebar-debug">
+                    <div class="sidebar-header">
+                        <h2 class="sidebar-title">DEBUG</h2>
+                    </div>
+                    <div class="sidebar-body">
+                        <div class="debug-container-sidebar">
+                            <div class="debug-section">
+                                <h3 class="debug-section-title">Install Tool by Package Name</h3>
+                                <p class="debug-section-description">Enter an npm package name to install a custom tool directly from the npm registry.</p>
+                                <div class="debug-input-group">
+                                    <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
+                                    <input 
+                                        type="text" 
+                                        id="sidebar-package-name-input" 
+                                        class="fluent-input" 
+                                        placeholder="e.g., @powerplatform/tool-example"
+                                    />
+                                    <span class="debug-hint">Enter the full npm package name including scope (if applicable)</span>
+                                </div>
+                                <div class="debug-actions">
+                                    <button id="sidebar-install-package-btn" class="fluent-button fluent-button-primary">Install Package</button>
+                                </div>
+                            </div>
+                            <div class="debug-section">
+                                <h3 class="debug-section-title">About This Feature</h3>
+                                <p class="debug-section-description">
+                                    This feature is designed for tool developers to quickly test and install their tools without publishing to the marketplace.
+                                </p>
+                                <ul class="debug-info-list">
+                                    <li>📦 Install any npm package that follows the toolbox tool format</li>
+                                    <li>🧪 Perfect for testing tools during development</li>
+                                    <li>🔄 Package must be published to npm (or a private registry)</li>
+                                    <li>⚠️ Use with caution - only install trusted packages</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
