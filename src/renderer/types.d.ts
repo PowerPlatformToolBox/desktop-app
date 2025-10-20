@@ -29,6 +29,7 @@ export interface ToolboxAPI {
     uninstallTool: (packageName: string, toolId: string) => Promise<void>;
     getToolWebviewHtml: (packageName: string) => Promise<string | null>;
     getToolContext: (packageName: string, connectionUrl?: string, accessToken?: string) => Promise<ToolContext>;
+    getToolCSP: (toolId: string) => Promise<string | null>;
     getLatestToolVersion: (packageName: string) => Promise<string | null>;
     updateTool: (packageName: string) => Promise<any>;
     getToolSettings: (toolId: string) => Promise<any>;

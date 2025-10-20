@@ -49,6 +49,7 @@ export class ToolManager extends EventEmitter {
                 description: packageJson.description || "",
                 author: packageJson.author || "Unknown",
                 icon: packageJson.icon,
+                csp: packageJson.csp,
             };
 
             this.tools.set(tool.id, tool);
@@ -251,5 +252,50 @@ export class ToolManager extends EventEmitter {
             accessToken: accessToken || null,
             toolId: packageName,
         };
+    }
+
+    /**
+     * Generate a merged CSP string for a tool
+     * Merges default CSP with tool-specific CSP requirements
+     */
+    getToolCSP(tool: Tool): string {
+        // Default CSP configuration for all tools
+        const defaultCSP: Record<string, string[]> = {
+            'default-src': ["'self'"],
+            'script-src': ["'self'", "'unsafe-inline'"],
+            'style-src': ["'self'", "'unsafe-inline'"],
+            'connect-src': ["'self'"],
+            'img-src': ["'self'", "data:", "https:"],
+            'font-src': ["'self'", "data:"],
+        };
+
+        // Merge tool CSP with default CSP
+        const mergedCSP: Record<string, string[]> = { ...defaultCSP };
+        
+        if (tool.csp) {
+            for (const [directive, sources] of Object.entries(tool.csp)) {
+                if (sources && Array.isArray(sources)) {
+                    if (mergedCSP[directive]) {
+                        // Merge sources, avoiding duplicates
+                        const existingSources = new Set(mergedCSP[directive]);
+                        for (const source of sources) {
+                            existingSources.add(source);
+                        }
+                        mergedCSP[directive] = Array.from(existingSources);
+                    } else {
+                        // Add new directive
+                        mergedCSP[directive] = sources;
+                    }
+                }
+            }
+        }
+
+        // Build CSP string
+        const cspParts: string[] = [];
+        for (const [directive, sources] of Object.entries(mergedCSP)) {
+            cspParts.push(`${directive} ${sources.join(' ')}`);
+        }
+
+        return cspParts.join('; ');
     }
 }

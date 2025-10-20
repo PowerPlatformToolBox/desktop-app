@@ -263,6 +263,9 @@ async function launchTool(toolId: string) {
         // Get tool context separately for postMessage
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
 
+        // Get tool CSP configuration
+        const toolCSP = await window.toolboxAPI.getToolCSP(tool.id);
+
         // Hide all views (including home view)
         document.querySelectorAll(".view").forEach((view) => {
             view.classList.remove("active");
@@ -360,10 +363,26 @@ async function launchTool(toolId: string) {
         toolIframe.style.width = "100%";
         toolIframe.style.height = "100%";
         toolIframe.style.border = "none";
-        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        // Allow more capabilities for tools, CSP will provide security
+        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-modals");
 
         // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
+
+        // Inject CSP meta tag if tool has CSP configuration
+        if (toolCSP) {
+            const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${toolCSP}">`;
+            
+            // Inject CSP meta tag in the head section
+            if (injectedHtml.includes("</head>")) {
+                injectedHtml = injectedHtml.replace("</head>", cspMetaTag + "</head>");
+            } else if (injectedHtml.includes("<head>")) {
+                injectedHtml = injectedHtml.replace("<head>", "<head>" + cspMetaTag);
+            } else {
+                // If no head tag, add one
+                injectedHtml = `<!DOCTYPE html><html><head>${cspMetaTag}</head><body>` + injectedHtml + `</body></html>`;
+            }
+        }
 
         // Get the absolute path to the bridge script
         // The main renderer runs from dist/renderer/, so we use that as base
@@ -2186,6 +2205,40 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
         } else {
             readmeContent.innerHTML = '<p class="loading-text">No README available</p>';
         }
+    }
+
+    // Display CSP configuration if tool has it
+    const cspSection = document.getElementById("tool-detail-csp-section");
+    const cspContent = document.getElementById("tool-detail-csp-content");
+    
+    if (isInstalled && cspSection && cspContent) {
+        // Get the actual loaded tool to access CSP
+        const loadedTool = await window.toolboxAPI.getTool(tool.id);
+        
+        if (loadedTool && loadedTool.csp) {
+            cspSection.style.display = "block";
+            
+            // Format CSP for display
+            let cspHtml = '<div class="csp-directives">';
+            for (const [directive, sources] of Object.entries(loadedTool.csp)) {
+                if (sources && Array.isArray(sources) && sources.length > 0) {
+                    cspHtml += `
+                        <div class="csp-directive">
+                            <strong>${directive}:</strong>
+                            <ul>
+                                ${sources.map(source => `<li><code>${source}</code></li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+            }
+            cspHtml += '</div>';
+            cspContent.innerHTML = cspHtml;
+        } else {
+            cspSection.style.display = "none";
+        }
+    } else if (cspSection) {
+        cspSection.style.display = "none";
     }
 
     openModal("tool-detail-modal");
