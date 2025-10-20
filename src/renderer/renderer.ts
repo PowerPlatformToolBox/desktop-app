@@ -1965,7 +1965,6 @@ async function loadMarketplace() {
         .map((tool) => {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
-            const hasUpdate = isInstalled && installedTool.version && tool.version && tool.version !== installedTool.version;
 
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
@@ -1974,7 +1973,6 @@ async function loadMarketplace() {
                     <div class="marketplace-item-name-vscode">
                         ${tool.name}
                         ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
-                        ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                     </div>
                     <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
@@ -1982,10 +1980,8 @@ async function loadMarketplace() {
             <div class="marketplace-item-description-vscode">${tool.description}</div>
             <div class="marketplace-item-footer-vscode">
                 <span class="marketplace-item-category-vscode">${tool.category}</span>
-                ${tool.version ? `<span class="marketplace-item-version-vscode">v${tool.version}${hasUpdate ? ` (installed: v${installedTool.version})` : ""}</span>` : ""}
                 <div class="marketplace-item-actions-vscode">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
-                    ${hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}">Update</button>` : ""}
                 </div>
             </div>
         </div>
