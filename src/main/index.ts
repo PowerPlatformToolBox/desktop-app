@@ -258,11 +258,6 @@ class ToolBoxApp {
             return this.toolManager.getToolContext(packageName, connectionUrl, accessToken);
         });
 
-        ipcMain.handle("get-tool-csp", (_, toolId) => {
-            const tool = this.toolManager.getTool(toolId);
-            return tool ? this.toolManager.getToolCSP(tool) : null;
-        });
-
         // Tool settings handlers
         ipcMain.handle("get-tool-settings", (_, toolId) => {
             return this.settingsManager.getToolSettings(toolId);

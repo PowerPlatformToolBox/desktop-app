@@ -3,24 +3,6 @@
  */
 
 /**
- * Content Security Policy configuration for a tool
- */
-export interface ToolCSPConfig {
-  'default-src'?: string[];
-  'script-src'?: string[];
-  'style-src'?: string[];
-  'connect-src'?: string[];
-  'img-src'?: string[];
-  'font-src'?: string[];
-  'frame-src'?: string[];
-  'media-src'?: string[];
-  'object-src'?: string[];
-  'worker-src'?: string[];
-  'base-uri'?: string[];
-  'form-action'?: string[];
-}
-
-/**
  * Represents a tool that can be loaded into the ToolBox
  */
 export interface Tool {
@@ -31,7 +13,6 @@ export interface Tool {
   author: string;
   icon?: string;
   settings?: ToolSettings;
-  csp?: ToolCSPConfig;
 }
 
 /**

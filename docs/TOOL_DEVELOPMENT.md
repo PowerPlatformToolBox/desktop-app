@@ -43,76 +43,6 @@ my-tool/
 }
 ```
 
-#### Content Security Policy (CSP) Configuration
-
-If your tool needs to make API calls to external services or load resources from specific domains, you can specify Content Security Policy requirements in your `package.json`:
-
-```json
-{
-    "name": "@powerplatform/my-tool",
-    "version": "1.0.0",
-    "displayName": "My Tool",
-    "description": "Description of what your tool does",
-    "main": "index.js",
-    "author": "Your Name",
-    "keywords": ["powerplatform", "dataverse", "toolbox"],
-    "engines": {
-        "node": ">=16.0.0"
-    },
-    "csp": {
-        "connect-src": ["https://*.dynamics.com", "https://*.crm*.dynamics.com"],
-        "script-src": ["https://cdn.jsdelivr.net"],
-        "style-src": ["'unsafe-inline'"]
-    }
-}
-```
-
-**Available CSP Directives:**
-
--   `default-src`: Default policy for fetching resources
--   `script-src`: Valid sources for JavaScript
--   `style-src`: Valid sources for CSS stylesheets
--   `connect-src`: Valid sources for fetch, XMLHttpRequest, WebSocket, etc.
--   `img-src`: Valid sources for images
--   `font-src`: Valid sources for fonts
--   `frame-src`: Valid sources for nested browsing contexts (iframes)
--   `media-src`: Valid sources for audio and video
--   `object-src`: Valid sources for `<object>`, `<embed>`, and `<applet>`
--   `worker-src`: Valid sources for Worker, SharedWorker, or ServiceWorker
--   `base-uri`: Valid URLs for the `<base>` element
--   `form-action`: Valid endpoints for form submissions
-
-**Default CSP (applied to all tools):**
-
-```
-default-src 'self';
-script-src 'self' 'unsafe-inline';
-style-src 'self' 'unsafe-inline';
-connect-src 'self';
-img-src 'self' data: https:;
-font-src 'self' data:;
-```
-
-**How CSP Merging Works:**
-
--   Your tool's CSP directives are merged with the default CSP
--   If you specify a directive, your sources are added to (not replacing) the default
--   This ensures baseline security while allowing your tool's specific requirements
--   Example: If you add `"connect-src": ["https://api.example.com"]`, the final policy will be `connect-src 'self' https://api.example.com`
-
-**CSP Display:**
-
--   Users can see your tool's CSP requirements in the tool details page
--   This provides transparency about what external resources your tool accesses
--   Helps users make informed decisions about tool installation
-
-**Best Practices:**
-
--   Only request CSP permissions your tool actually needs
--   Be as specific as possible with domain names (avoid wildcards when possible)
--   Document why your tool needs specific CSP permissions in your README
--   Test your tool with the CSP configuration before publishing
-
 ### 3. Implement Your Tool
 
 #### 3.1 Install `@pptb/types`
@@ -166,14 +96,6 @@ The `Power Platform Tool Box` module provides access to ToolBox functionality.
 -   Tools only have access to the `Power Platform Tool Box` API
 -   No direct access to Electron APIs or Node.js fs module
 -   File operations go through secure dialogs
-
-### Content Security Policy
-
--   Tools can specify CSP requirements in their `package.json`
--   PPTB merges tool-specific CSP with secure defaults
--   CSP provides an additional security layer for iframe-based tool execution
--   External resource access is controlled by tool-declared CSP directives
--   Users can review CSP requirements in the tool details page
 
 ### Message Validation
 
