@@ -34,8 +34,26 @@ window.addEventListener("message", async (event) => {
         const { messageId, method, args } = event.data;
 
         try {
+            // Handle nested API methods (e.g., "connections.getActiveConnection")
+            const methodParts = method.split('.');
+            let target: any = window.toolboxAPI;
+            
+            // Navigate through nested objects
+            for (let i = 0; i < methodParts.length - 1; i++) {
+                target = target[methodParts[i]];
+                if (!target) {
+                    throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+                }
+            }
+            
+            // Get the actual method
+            const finalMethod = methodParts[methodParts.length - 1];
+            if (typeof target[finalMethod] !== 'function') {
+                throw new Error(`API method not found: ${method}`);
+            }
+
             // Call the actual toolboxAPI method
-            const result = await (window.toolboxAPI as any)[method](...(args || []));
+            const result = await target[finalMethod](...(args || []));
 
             // Send response back to iframe
             event.source?.postMessage(

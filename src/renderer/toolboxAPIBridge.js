@@ -3,6 +3,12 @@
  * 
  * This script runs in tool iframes and exposes window.toolboxAPI
  * by proxying all calls to the parent window using postMessage.
+ * 
+ * SECURITY NOTE: Tools have LIMITED access to PPTB functionality
+ * - No direct access to settings
+ * - No direct access to connection management (except getActiveConnection)
+ * - No access to auto-update functionality
+ * - Context-aware APIs (tool ID determined automatically)
  */
 
 (function() {
@@ -60,109 +66,99 @@
         });
     }
 
-    // Create the toolboxAPI proxy object
+    // Create the toolboxAPI proxy object with organized structure
     window.toolboxAPI = {
-        // Settings
-        getUserSettings: function() { return callParentAPI('getUserSettings'); },
-        updateUserSettings: function(settings) { return callParentAPI('updateUserSettings', settings); },
-        getSetting: function(key) { return callParentAPI('getSetting', key); },
-        setSetting: function(key, value) { return callParentAPI('setSetting', key, value); },
-
-        // Connections
-        addConnection: function(connection) { return callParentAPI('addConnection', connection); },
-        updateConnection: function(id, updates) { return callParentAPI('updateConnection', id, updates); },
-        deleteConnection: function(id) { return callParentAPI('deleteConnection', id); },
-        getConnections: function() { return callParentAPI('getConnections'); },
-        setActiveConnection: function(id) { return callParentAPI('setActiveConnection', id); },
-        getActiveConnection: function() { return callParentAPI('getActiveConnection'); },
-        disconnectConnection: function() { return callParentAPI('disconnectConnection'); },
-
-        // Tools
-        getAllTools: function() { return callParentAPI('getAllTools'); },
-        getTool: function(toolId) { return callParentAPI('getTool', toolId); },
-        loadTool: function(packageName) { return callParentAPI('loadTool', packageName); },
-        unloadTool: function(toolId) { return callParentAPI('unloadTool', toolId); },
-        installTool: function(packageName) { return callParentAPI('installTool', packageName); },
-        uninstallTool: function(packageName, toolId) { return callParentAPI('uninstallTool', packageName, toolId); },
-        getToolWebviewHtml: function(packageName, connectionUrl, accessToken) { 
-            return callParentAPI('getToolWebviewHtml', packageName, connectionUrl, accessToken); 
+        // Connection namespace - only getActiveConnection exposed
+        connections: {
+            getActiveConnection: function() { return callParentAPI('connections.getActiveConnection'); }
         },
+
+        // Utils namespace - utility functions
+        utils: {
+            showNotification: function(options) { return callParentAPI('utils.showNotification', options); },
+            copyToClipboard: function(text) { return callParentAPI('utils.copyToClipboard', text); },
+            saveFile: function(defaultPath, content) { return callParentAPI('utils.saveFile', defaultPath, content); },
+            getCurrentTheme: function() { return callParentAPI('utils.getCurrentTheme'); }
+        },
+
+        // Context API - get tool's own context (context-aware)
         getToolContext: function() { 
             // Return the stored context that was injected via postMessage
-            return Promise.resolve(window.TOOLBOX_CONTEXT || { toolId: null, connectionUrl: null, accessToken: null });
+            // Note: accessToken is no longer included here (stored securely)
+            return Promise.resolve(window.TOOLBOX_CONTEXT || { toolId: null, connectionUrl: null });
         },
 
-        // Tool Settings
-        getToolSettings: function(toolId) { return callParentAPI('getToolSettings', toolId); },
-        updateToolSettings: function(toolId, settings) { return callParentAPI('updateToolSettings', toolId, settings); },
-
-        // Notifications
-        showNotification: function(options) { return callParentAPI('showNotification', options); },
-
-        // Clipboard
-        copyToClipboard: function(text) { return callParentAPI('copyToClipboard', text); },
-
-        // File operations
-        saveFile: function(defaultPath, content) { return callParentAPI('saveFile', defaultPath, content); },
-
-        // Terminal operations
-        createTerminal: function(toolId, options) { return callParentAPI('createTerminal', toolId, options); },
-        executeTerminalCommand: function(terminalId, command) { return callParentAPI('executeTerminalCommand', terminalId, command); },
-        closeTerminal: function(terminalId) { return callParentAPI('closeTerminal', terminalId); },
-        getTerminal: function(terminalId) { return callParentAPI('getTerminal', terminalId); },
-        getToolTerminals: function(toolId) { return callParentAPI('getToolTerminals', toolId); },
-        getAllTerminals: function() { return callParentAPI('getAllTerminals'); },
-        setTerminalVisibility: function(terminalId, visible) { return callParentAPI('setTerminalVisibility', terminalId, visible); },
-
-        // Events
-        getEventHistory: function(limit) { return callParentAPI('getEventHistory', limit); },
-        onToolboxEvent: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'TOOLBOX_EVENT') {
-                    callback(event, event.data.payload);
-                }
-            });
-        },
-        removeToolboxEventListener: function(callback) {
-            // Cleanup would go here
+        // Terminal operations - context-aware (tool ID determined automatically)
+        terminal: {
+            create: function(options) { return callParentAPI('terminal.create', options); },
+            execute: function(terminalId, command) { return callParentAPI('terminal.execute', terminalId, command); },
+            close: function(terminalId) { return callParentAPI('terminal.close', terminalId); },
+            get: function(terminalId) { return callParentAPI('terminal.get', terminalId); },
+            list: function() { return callParentAPI('terminal.list'); }, // Returns terminals for this tool only
+            setVisibility: function(terminalId, visible) { return callParentAPI('terminal.setVisibility', terminalId, visible); }
         },
 
-        // Auto-update
-        checkForUpdates: function() { return callParentAPI('checkForUpdates'); },
-        downloadUpdate: function() { return callParentAPI('downloadUpdate'); },
-        quitAndInstall: function() { return callParentAPI('quitAndInstall'); },
-        getAppVersion: function() { return callParentAPI('getAppVersion'); },
-        onUpdateChecking: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_CHECKING') callback();
-            });
-        },
-        onUpdateAvailable: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_AVAILABLE') callback(event.data.info);
-            });
-        },
-        onUpdateNotAvailable: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_NOT_AVAILABLE') callback();
-            });
-        },
-        onUpdateDownloadProgress: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_DOWNLOAD_PROGRESS') callback(event.data.progress);
-            });
-        },
-        onUpdateDownloaded: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_DOWNLOADED') callback(event.data.info);
-            });
-        },
-        onUpdateError: function(callback) {
-            window.addEventListener('message', function(event) {
-                if (event.data.type === 'UPDATE_ERROR') callback(event.data.error);
-            });
+        // Events - tool-specific
+        events: {
+            getHistory: function(limit) { return callParentAPI('events.getHistory', limit); }, // Tool-specific history
+            on: function(callback) {
+                window.addEventListener('message', function(event) {
+                    if (event.data.type === 'TOOLBOX_EVENT') {
+                        // Filter out settings:updated events
+                        if (event.data.payload && event.data.payload.event !== 'settings:updated') {
+                            callback(event, event.data.payload);
+                        }
+                    }
+                });
+            },
+            off: function(callback) {
+                // Cleanup would go here
+            }
         }
     };
 
-    console.log('ToolBox API bridge loaded in webview');
+    // Create Dataverse API (similar to Dataverse Service Client)
+    window.dataverseAPI = {
+        // CRUD operations
+        create: function(entityLogicalName, record) {
+            return callParentAPI('dataverse.create', entityLogicalName, record);
+        },
+        retrieve: function(entityLogicalName, id, columns) {
+            return callParentAPI('dataverse.retrieve', entityLogicalName, id, columns);
+        },
+        update: function(entityLogicalName, id, record) {
+            return callParentAPI('dataverse.update', entityLogicalName, id, record);
+        },
+        delete: function(entityLogicalName, id) {
+            return callParentAPI('dataverse.delete', entityLogicalName, id);
+        },
+
+        // Retrieve multiple with FetchXML
+        retrieveMultiple: function(fetchXml) {
+            return callParentAPI('dataverse.retrieveMultiple', fetchXml);
+        },
+
+        // Execute message
+        execute: function(request) {
+            return callParentAPI('dataverse.execute', request);
+        },
+
+        // Helper: Retrieve by FetchXML
+        fetchXmlQuery: function(fetchXml) {
+            return callParentAPI('dataverse.fetchXmlQuery', fetchXml);
+        },
+
+        // Get metadata
+        getEntityMetadata: function(entityLogicalName) {
+            return callParentAPI('dataverse.getEntityMetadata', entityLogicalName);
+        },
+
+        // Get all entities metadata
+        getAllEntitiesMetadata: function() {
+            return callParentAPI('dataverse.getAllEntitiesMetadata');
+        }
+    };
+
+    console.log('ToolBox API bridge loaded in webview - Organized & Secured');
+    console.log('Available APIs: toolboxAPI, dataverseAPI');
 })();

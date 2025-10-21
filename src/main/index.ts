@@ -282,6 +282,12 @@ class ToolBoxApp {
             return await this.api.saveFile(defaultPath, content);
         });
 
+        // Get current theme handler
+        ipcMain.handle("get-current-theme", () => {
+            const settings = this.settingsManager.getUserSettings();
+            return settings.theme || "system";
+        });
+
         // Event history handler
         ipcMain.handle("get-event-history", (_, limit) => {
             return this.api.getEventHistory(limit);
