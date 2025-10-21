@@ -254,8 +254,8 @@ class ToolBoxApp {
             return this.toolManager.getToolWebviewHtml(packageName);
         });
 
-        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl, accessToken) => {
-            return this.toolManager.getToolContext(packageName, connectionUrl, accessToken);
+        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl) => {
+            return this.toolManager.getToolContext(packageName, connectionUrl);
         });
 
         // Tool settings handlers

@@ -1,14 +1,29 @@
 import Store from 'electron-store';
 import { DataverseConnection, ToolSettings, UserSettings } from '../../types';
+import { EncryptionManager } from './encryptionManager';
 
 /**
- * Manages user settings using electron-store
+ * Sensitive fields that should be encrypted in DataverseConnection objects
+ */
+const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = [
+  'clientId',
+  'clientSecret',
+  'accessToken',
+  'refreshToken',
+  'password',
+];
+
+/**
+ * Manages user settings using electron-store with encryption for sensitive data
  */
 export class SettingsManager {
   private store: Store<UserSettings>;
   private toolSettingsStore: Store<{ [toolId: string]: ToolSettings }>;
+  private encryptionManager: EncryptionManager;
 
   constructor() {
+    this.encryptionManager = new EncryptionManager();
+    
     this.store = new Store<UserSettings>({
       name: 'user-settings',
       defaults: {
@@ -26,6 +41,52 @@ export class SettingsManager {
       name: 'tool-settings',
       defaults: {},
     });
+
+    // Migrate existing connections to encrypted storage if needed
+    this.migrateConnectionsToEncrypted();
+  }
+
+  /**
+   * Migrate existing plain-text connections to encrypted storage
+   * This is safe to call multiple times - it will only encrypt unencrypted data
+   */
+  private migrateConnectionsToEncrypted(): void {
+    const connections = this.store.get('connections');
+    let needsMigration = false;
+
+    // Check if any connection has unencrypted sensitive data
+    // We can detect this by checking if encryption is available and the data looks like plain text
+    if (this.encryptionManager.isEncryptionAvailable()) {
+      for (const conn of connections) {
+        // If clientSecret exists and looks like plain text (not base64), it needs migration
+        if (conn.clientSecret && !this.isLikelyEncrypted(conn.clientSecret)) {
+          needsMigration = true;
+          break;
+        }
+        if (conn.accessToken && !this.isLikelyEncrypted(conn.accessToken)) {
+          needsMigration = true;
+          break;
+        }
+      }
+    }
+
+    if (needsMigration) {
+      console.log('Migrating connections to encrypted storage...');
+      const encryptedConnections = connections.map(conn => 
+        this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS)
+      );
+      this.store.set('connections', encryptedConnections);
+      console.log('Connection migration complete');
+    }
+  }
+
+  /**
+   * Check if a string is likely to be encrypted (base64 encoded)
+   */
+  private isLikelyEncrypted(value: string): boolean {
+    // Base64 strings are typically much longer and contain only certain characters
+    // This is a heuristic, not perfect, but good enough for migration detection
+    return /^[A-Za-z0-9+/]+=*$/.test(value) && value.length > 100;
   }
 
   /**
@@ -59,7 +120,7 @@ export class SettingsManager {
   }
 
   /**
-   * Add a Dataverse connection
+   * Add a Dataverse connection with encrypted sensitive fields
    */
   addConnection(connection: DataverseConnection): void {
     const connections = this.store.get('connections');
@@ -69,18 +130,31 @@ export class SettingsManager {
       connections.forEach(c => c.isActive = false);
       connection.isActive = true;
     }
-    connections.push(connection);
+    
+    // Encrypt sensitive fields before storing
+    const encryptedConnection = this.encryptionManager.encryptFields(
+      connection, 
+      SENSITIVE_CONNECTION_FIELDS
+    );
+    
+    connections.push(encryptedConnection);
     this.store.set('connections', connections);
   }
 
   /**
-   * Update a Dataverse connection
+   * Update a Dataverse connection with encryption for sensitive fields
    */
   updateConnection(id: string, updates: Partial<DataverseConnection>): void {
     const connections = this.store.get('connections');
     const index = connections.findIndex(c => c.id === id);
     if (index !== -1) {
-      connections[index] = { ...connections[index], ...updates };
+      // Encrypt any sensitive fields in the updates
+      const encryptedUpdates = this.encryptionManager.encryptFields(
+        updates as DataverseConnection, 
+        SENSITIVE_CONNECTION_FIELDS
+      );
+      
+      connections[index] = { ...connections[index], ...encryptedUpdates };
       this.store.set('connections', connections);
     }
   }
@@ -95,15 +169,19 @@ export class SettingsManager {
   }
 
   /**
-   * Get all connections
+   * Get all connections with decrypted sensitive fields
    */
   getConnections(): DataverseConnection[] {
     const connections = this.store.get('connections');
-    return connections;
+    
+    // Decrypt sensitive fields for each connection
+    return connections.map(conn => 
+      this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS)
+    );
   }
 
   /**
-   * Set active connection (only one can be active at a time)
+   * Set active connection (only one can be active at a time) with encrypted tokens
    */
   setActiveConnection(id: string, authTokens?: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
     const connections = this.store.get('connections');
@@ -112,8 +190,11 @@ export class SettingsManager {
       if (c.isActive) {
         c.lastUsedAt = new Date().toISOString();
         if (authTokens) {
-          c.accessToken = authTokens.accessToken;
-          c.refreshToken = authTokens.refreshToken;
+          // Encrypt tokens before storing
+          c.accessToken = this.encryptionManager.encrypt(authTokens.accessToken);
+          c.refreshToken = authTokens.refreshToken 
+            ? this.encryptionManager.encrypt(authTokens.refreshToken)
+            : undefined;
           c.tokenExpiry = authTokens.expiresOn.toISOString();
         }
       }
@@ -122,11 +203,18 @@ export class SettingsManager {
   }
 
   /**
-   * Get the currently active connection
+   * Get the currently active connection with decrypted sensitive fields
    */
   getActiveConnection(): DataverseConnection | null {
     const connections = this.store.get('connections');
-    return connections.find(c => c.isActive) || null;
+    const activeConnection = connections.find(c => c.isActive);
+    
+    if (!activeConnection) {
+      return null;
+    }
+    
+    // Decrypt sensitive fields
+    return this.encryptionManager.decryptFields(activeConnection, SENSITIVE_CONNECTION_FIELDS);
   }
 
   /**

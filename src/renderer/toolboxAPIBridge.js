@@ -23,9 +23,14 @@
     // Store pending promises for IPC calls
     const pendingCalls = new Map();
 
-    // Listen for responses from parent window
+    // Store the current tool ID (auto-detected from context message)
+    let currentToolId = null;
+
+    // Listen for responses from parent window and context messages
     window.addEventListener('message', function(event) {
         const data = event.data;
+        
+        // Handle API responses
         if (data.type === 'TOOLBOX_API_RESPONSE') {
             const pending = pendingCalls.get(data.messageId);
             if (pending) {
@@ -35,6 +40,16 @@
                     pending.resolve(data.result);
                 }
                 pendingCalls.delete(data.messageId);
+            }
+        }
+        
+        // Handle context initialization - auto-detect and store tool ID
+        if (data.type === 'TOOLBOX_CONTEXT') {
+            window.TOOLBOX_CONTEXT = data.data;
+            // Auto-detect and store tool ID for context-aware API calls
+            if (data.data && data.data.toolId) {
+                currentToolId = data.data.toolId;
+                console.log('ToolBox: Auto-detected tool ID:', currentToolId);
             }
         }
     });
@@ -84,29 +99,50 @@
         // Context API - get tool's own context (context-aware)
         getToolContext: function() { 
             // Return the stored context that was injected via postMessage
-            // Note: accessToken is no longer included here (stored securely)
+            // NOTE: accessToken is NOT included for security reasons
+            // Tools must use secure backend APIs (dataverseAPI) instead of direct token access
             return Promise.resolve(window.TOOLBOX_CONTEXT || { toolId: null, connectionUrl: null });
         },
 
         // Terminal operations - context-aware (tool ID determined automatically)
         terminal: {
-            create: function(options) { return callParentAPI('terminal.create', options); },
+            // Create terminal - auto-detects tool ID and uses tool name if no name provided
+            create: function(options) { 
+                // Auto-inject tool ID for context-aware operation
+                const optionsWithToolId = {
+                    ...options,
+                    _toolId: currentToolId
+                };
+                return callParentAPI('terminal.create', optionsWithToolId); 
+            },
             execute: function(terminalId, command) { return callParentAPI('terminal.execute', terminalId, command); },
             close: function(terminalId) { return callParentAPI('terminal.close', terminalId); },
             get: function(terminalId) { return callParentAPI('terminal.get', terminalId); },
-            list: function() { return callParentAPI('terminal.list'); }, // Returns terminals for this tool only
+            // List terminals - returns only terminals for this tool (context-aware)
+            list: function() { 
+                return callParentAPI('terminal.list', currentToolId); 
+            },
             setVisibility: function(terminalId, visible) { return callParentAPI('terminal.setVisibility', terminalId, visible); }
         },
 
-        // Events - tool-specific
+        // Events - tool-specific (filtered to current tool)
         events: {
-            getHistory: function(limit) { return callParentAPI('events.getHistory', limit); }, // Tool-specific history
+            // Get event history - returns only events for this tool (context-aware)
+            getHistory: function(limit) { 
+                return callParentAPI('events.getHistory', currentToolId, limit); 
+            },
+            // Listen to events - automatically filtered to this tool's events
             on: function(callback) {
                 window.addEventListener('message', function(event) {
                     if (event.data.type === 'TOOLBOX_EVENT') {
-                        // Filter out settings:updated events
-                        if (event.data.payload && event.data.payload.event !== 'settings:updated') {
-                            callback(event, event.data.payload);
+                        const payload = event.data.payload;
+                        
+                        // Filter events to only those relevant to this tool
+                        if (payload && payload.event !== 'settings:updated') {
+                            // Check if event is tool-specific and matches current tool
+                            if (isEventRelevantToTool(payload, currentToolId)) {
+                                callback(event, payload);
+                            }
                         }
                     }
                 });
@@ -115,6 +151,31 @@
                 // Cleanup would go here
             }
         }
+    };
+
+    /**
+     * Check if an event is relevant to the current tool
+     * Terminal and tool-specific events should only go to the relevant tool
+     */
+    function isEventRelevantToTool(payload, toolId) {
+        if (!toolId) return true; // If no tool ID yet, allow all events
+        
+        const event = payload.event;
+        const data = payload.data;
+        
+        // Terminal events - only show if terminal belongs to this tool
+        if (event.startsWith('terminal:')) {
+            return data && data.toolId === toolId;
+        }
+        
+        // Tool events - only show if about this tool
+        if (event === 'tool:loaded' || event === 'tool:unloaded') {
+            return data && data.id === toolId;
+        }
+        
+        // Connection and notification events are global - show to all tools
+        return true;
+    }
     };
 
     // Create Dataverse API (similar to Dataverse Service Client)
