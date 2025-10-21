@@ -176,7 +176,6 @@
         // Connection and notification events are global - show to all tools
         return true;
     }
-    };
 
     // Create Dataverse API (similar to Dataverse Service Client)
     window.dataverseAPI = {
