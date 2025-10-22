@@ -2,6 +2,7 @@ import * as https from 'https';
 import { DataverseConnection } from '../../types';
 import { ConnectionsManager } from './connectionsManager';
 import { AuthManager } from './authManager';
+import { DATAVERSE_API_VERSION } from '../constants';
 
 /**
  * Dataverse API response type
@@ -101,7 +102,7 @@ export class DataverseManager {
      */
     async create(entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/v9.2/${entityLogicalName}`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}`;
 
         const response = await this.makeHttpRequest(url, 'POST', accessToken, record);
         
@@ -125,7 +126,7 @@ export class DataverseManager {
     ): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         
-        let url = `${connection.url}/api/data/v9.2/${entityLogicalName}(${id})`;
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
         if (columns && columns.length > 0) {
             url += `?$select=${columns.join(',')}`;
         }
@@ -139,7 +140,7 @@ export class DataverseManager {
      */
     async update(entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/v9.2/${entityLogicalName}(${id})`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
 
         await this.makeHttpRequest(url, 'PATCH', accessToken, record);
     }
@@ -149,7 +150,7 @@ export class DataverseManager {
      */
     async delete(entityLogicalName: string, id: string): Promise<void> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/v9.2/${entityLogicalName}(${id})`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
 
         await this.makeHttpRequest(url, 'DELETE', accessToken);
     }
@@ -170,7 +171,7 @@ export class DataverseManager {
         }
         const entityName = entityMatch[1];
         
-        const url = `${connection.url}/api/data/v9.2/${entityName}?fetchXml=${encodedFetchXml}`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityName}?fetchXml=${encodedFetchXml}`;
 
         const response = await this.makeHttpRequest(url, 'GET', accessToken);
         return response.data as FetchXmlResult;
@@ -195,7 +196,7 @@ export class DataverseManager {
     }): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         
-        let url = `${connection.url}/api/data/v9.2/`;
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
         
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
@@ -228,7 +229,7 @@ export class DataverseManager {
      */
     async getEntityMetadata(entityLogicalName: string): Promise<EntityMetadata> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/v9.2/EntityDefinitions(LogicalName='${entityLogicalName}')`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')`;
 
         const response = await this.makeHttpRequest(url, 'GET', accessToken);
         return response.data as EntityMetadata;
@@ -239,7 +240,7 @@ export class DataverseManager {
      */
     async getAllEntitiesMetadata(): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/v9.2/EntityDefinitions?$select=LogicalName,DisplayName,MetadataId`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=LogicalName,DisplayName,MetadataId`;
 
         const response = await this.makeHttpRequest(url, 'GET', accessToken);
         return response.data as { value: EntityMetadata[] };
@@ -339,7 +340,7 @@ export class DataverseManager {
 
     /**
      * Extract GUID from OData entity URL
-     * Example: https://org.crm.dynamics.com/api/data/v9.2/contacts(guid) -> guid
+     * Example: https://org.crm.dynamics.com/api/data/${DATAVERSE_API_VERSION}/contacts(guid) -> guid
      */
     private extractIdFromUrl(url: string): string {
         const match = url.match(/\(([a-f0-9-]+)\)/i);

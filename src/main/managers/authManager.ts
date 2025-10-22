@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 import { PublicClientApplication, LogLevel } from '@azure/msal-node';
 import { DataverseConnection } from '../../types';
 import * as https from 'https';
+import { DATAVERSE_API_VERSION } from '../constants';
 
 /**
  * Manages authentication for Power Platform connections
@@ -223,7 +224,7 @@ export class AuthManager {
       }
 
       // Make a simple API call to verify the connection
-      const whoAmIUrl = `${connection.url}/api/data/v9.2/WhoAmI`;
+      const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
       const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
       const data = JSON.parse(response);
 
