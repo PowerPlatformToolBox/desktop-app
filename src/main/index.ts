@@ -8,6 +8,7 @@ import { SettingsManager } from "./managers/settingsManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { ToolManager } from "./managers/toolsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { DataverseManager } from "./managers/dataverseManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -18,6 +19,7 @@ class ToolBoxApp {
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
+    private dataverseManager: DataverseManager;
 
     constructor() {
         this.settingsManager = new SettingsManager();
@@ -27,6 +29,7 @@ class ToolBoxApp {
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
+        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -345,6 +348,87 @@ class ToolBoxApp {
 
         ipcMain.handle("get-app-version", () => {
             return this.autoUpdateManager.getCurrentVersion();
+        });
+
+        // Dataverse API handlers
+        ipcMain.handle("dataverse.create", async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+            try {
+                return await this.dataverseManager.create(entityLogicalName, record);
+            } catch (error) {
+                throw new Error(`Dataverse create failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.retrieve", async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+            try {
+                return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
+            } catch (error) {
+                throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.update", async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+            try {
+                await this.dataverseManager.update(entityLogicalName, id, record);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse update failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.delete", async (_, entityLogicalName: string, id: string) => {
+            try {
+                await this.dataverseManager.delete(entityLogicalName, id);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.retrieveMultiple", async (_, fetchXml: string) => {
+            try {
+                return await this.dataverseManager.retrieveMultiple(fetchXml);
+            } catch (error) {
+                throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.execute", async (_, request: {
+            entityName?: string;
+            entityId?: string;
+            operationName: string;
+            operationType: 'action' | 'function';
+            parameters?: Record<string, unknown>;
+        }) => {
+            try {
+                return await this.dataverseManager.execute(request);
+            } catch (error) {
+                throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.fetchXmlQuery", async (_, fetchXml: string) => {
+            try {
+                return await this.dataverseManager.fetchXmlQuery(fetchXml);
+            } catch (error) {
+                throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string) => {
+            try {
+                return await this.dataverseManager.getEntityMetadata(entityLogicalName);
+            } catch (error) {
+                throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getAllEntitiesMetadata", async () => {
+            try {
+                return await this.dataverseManager.getAllEntitiesMetadata();
+            } catch (error) {
+                throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+            }
         });
     }
 
