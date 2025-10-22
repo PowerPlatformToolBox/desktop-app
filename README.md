@@ -55,6 +55,7 @@
 </h3> -->
 
 -   [Features](#features)
+-   [📋 Comprehensive Features Overview](#-comprehensive-features-overview)
 -   [Architecture](#architecture)
     -   [Main Process (`src/main/`)](#main-process-srcmain)
     -   [API Layer (`src/api/`)](#api-layer-srcapi)
@@ -101,6 +102,24 @@
 -   **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
 -   **🔔 Notifications**: Built-in notification system to keep users informed
 -   **🔄 Auto-Updates**: Automatic application updates with user control
+
+## 📋 Comprehensive Features Overview
+
+For a **complete, detailed overview** of all features, maturity assessment, known limitations, security considerations, and future roadmap, see:
+
+**👉 [FEATURES_OVERVIEW.md](docs/FEATURES_OVERVIEW.md)**
+
+This comprehensive document includes:
+
+-   **Feature Maturity Matrix** - Production readiness of each feature
+-   **Known Limitations** - Current platform and technical constraints
+-   **Security Considerations** - Threat model and security recommendations
+-   **Performance Characteristics** - Benchmarks and optimization tips
+-   **Future Enhancements** - Detailed roadmap for upcoming features
+-   **Known Issues** - Current issues and workarounds
+-   **Maturity Assessment** - Overall platform maturity and adoption recommendations
+
+Perfect for understanding the platform's capabilities and planning your adoption strategy.
 
 ## Architecture
 
