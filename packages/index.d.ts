@@ -7,11 +7,11 @@
 declare namespace ToolBox {
     /**
      * Tool context containing connection information
+     * NOTE: accessToken is NOT included for security - tools must use secure backend APIs
      */
     export interface ToolContext {
         toolId: string | null;
         connectionUrl: string | null;
-        accessToken: string | null;
     }
 
     /**

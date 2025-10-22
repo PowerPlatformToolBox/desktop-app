@@ -5,12 +5,14 @@ import { ToolBoxEvent } from "../types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
+import { ConnectionsManager } from "./managers/connectionsManager";
 import { ToolManager } from "./managers/toolsManager";
 import { TerminalManager } from "./managers/terminalManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
@@ -19,6 +21,7 @@ class ToolBoxApp {
 
     constructor() {
         this.settingsManager = new SettingsManager();
+        this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
@@ -137,26 +140,26 @@ class ToolBoxApp {
 
         // Connection handlers
         ipcMain.handle("add-connection", (_, connection) => {
-            this.settingsManager.addConnection(connection);
+            this.connectionsManager.addConnection(connection);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
         });
 
         ipcMain.handle("update-connection", (_, id, updates) => {
-            this.settingsManager.updateConnection(id, updates);
+            this.connectionsManager.updateConnection(id, updates);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
         });
 
         ipcMain.handle("delete-connection", (_, id) => {
-            this.settingsManager.deleteConnection(id);
+            this.connectionsManager.deleteConnection(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
         });
 
         ipcMain.handle("get-connections", () => {
-            return this.settingsManager.getConnections();
+            return this.connectionsManager.getConnections();
         });
 
         ipcMain.handle("set-active-connection", async (_, id) => {
-            const connection = this.settingsManager.getConnections().find((c) => c.id === id);
+            const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
                 throw new Error("Connection not found");
             }
@@ -180,7 +183,7 @@ class ToolBoxApp {
                 }
 
                 // Set the connection as active with tokens
-                this.settingsManager.setActiveConnection(id, {
+                this.connectionsManager.setActiveConnection(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -203,11 +206,11 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("get-active-connection", () => {
-            return this.settingsManager.getActiveConnection();
+            return this.connectionsManager.getActiveConnection();
         });
 
         ipcMain.handle("disconnect-connection", () => {
-            this.settingsManager.disconnectActiveConnection();
+            this.connectionsManager.disconnectActiveConnection();
         });
 
         // Tool handlers
