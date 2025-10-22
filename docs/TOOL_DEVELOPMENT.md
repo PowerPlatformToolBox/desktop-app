@@ -1084,6 +1084,158 @@ Check the main ToolBox logs for tool host process information.
 ## Support and Resources
 
 -   **Documentation**: https://github.com/PowerPlatform-ToolBox/desktop-app
--   **Sample Tool**: https://github.com/PowerPlatformToolBox/sample-tools
+-   **Sample Tools**: https://github.com/PowerPlatformToolBox/sample-tools
 -   **Issues**: https://github.com/PowerPlatform-ToolBox/desktop-app/issues
 -   **Discussions**: https://github.com/PowerPlatform-ToolBox/desktop-app/discussions
+
+## Feature Summary
+
+Power Platform Tool Box provides a comprehensive platform for building tools with the following capabilities:
+
+### Core Features
+
+#### 1. **Organized ToolBox API**
+- **Connections**: Read-only access to active Dataverse connection
+- **Utils**: Notifications, clipboard, file operations, theme detection
+- **Terminal**: Context-aware terminal creation and management
+- **Events**: Tool-specific event subscriptions and history
+
+#### 2. **Complete Dataverse API**
+- **CRUD Operations**: Full create, retrieve, update, delete support
+- **FetchXML Queries**: Complex queries with filters, joins, and aggregation
+- **Metadata**: Entity and attribute metadata retrieval
+- **Actions/Functions**: Execute bound and unbound operations
+- **Automatic Authentication**: Token management and refresh handled automatically
+
+#### 3. **Security & Isolation**
+- **Webview Sandboxing**: Each tool runs in isolated iframe
+- **Secure Communication**: Validated postMessage protocol
+- **No Token Exposure**: Access tokens never exposed to tools
+- **Context-Aware**: Tool ID automatically determined
+
+#### 4. **Developer Experience**
+- **Full TypeScript Support**: Complete type definitions via `@pptb/types`
+- **IntelliSense**: Rich code completion and type checking
+- **Error Handling**: Detailed error messages and validation
+- **Event-Driven**: Subscribe to platform and connection events
+
+#### 5. **Platform Integration**
+- **Connection Management**: Automatic connection context
+- **Theme Support**: Light/dark theme detection
+- **Notifications**: System-level notifications
+- **File Operations**: Secure file save dialogs
+- **Clipboard**: System clipboard integration
+
+### API Capabilities
+
+#### ToolBox API (`window.toolboxAPI`)
+
+**Connections**
+- Get active connection details (read-only for security)
+
+**Utilities**
+- Show notifications with different types and durations
+- Copy text to system clipboard
+- Save files with native dialogs
+- Get current UI theme
+
+**Terminal**
+- Create terminals with custom shell, working directory, and environment
+- Execute commands and capture output
+- List and manage terminals (scoped to tool)
+- Control terminal visibility
+
+**Events**
+- Subscribe to platform events (connection changes, terminal events, etc.)
+- Get event history
+- Tool-specific filtering
+
+#### Dataverse API (`window.dataverseAPI`)
+
+**CRUD**
+- Create records with all fields
+- Retrieve records with column selection
+- Update existing records
+- Delete records
+
+**Queries**
+- FetchXML queries with full OData support
+- Complex filters and conditions
+- Linked entities (joins)
+- Aggregation and grouping
+- Sorting and pagination
+
+**Metadata**
+- Get entity metadata (display names, attributes, etc.)
+- List all entities
+- Explore entity structure
+
+**Advanced**
+- Execute WhoAmI and other functions
+- Run custom actions (global and bound)
+- Full OData v4.0 support
+
+### Supported Frameworks
+
+Tools can be built with any web framework:
+- Plain HTML/CSS/JavaScript
+- TypeScript
+- React
+- Vue
+- Svelte
+- Angular
+- Any other web framework
+
+### What Tools Can Do
+
+✅ Query and manipulate Dataverse data
+✅ Create rich interactive UIs
+✅ Run terminal commands
+✅ Save and export data
+✅ Show notifications to users
+✅ React to connection changes
+✅ Access entity metadata
+✅ Execute custom actions
+
+### What Tools Cannot Do
+
+❌ Access raw access tokens (security)
+❌ Manage user settings (platform responsibility)
+❌ Install/uninstall other tools
+❌ Access Electron APIs directly
+❌ Access Node.js filesystem directly
+❌ Modify platform configuration
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         Power Platform Tool Box          │
+│  ┌────────────────────────────────────┐ │
+│  │   Tool (iframe - sandboxed)        │ │
+│  │                                    │ │
+│  │   window.toolboxAPI                │ │
+│  │   window.dataverseAPI              │ │
+│  │                                    │ │
+│  │   Your HTML/CSS/JS                 │ │
+│  └────────────────────────────────────┘ │
+│              ↕ postMessage               │
+│  ┌────────────────────────────────────┐ │
+│  │   toolboxAPIBridge.js              │ │
+│  └────────────────────────────────────┘ │
+│              ↕ IPC                      │
+│  ┌────────────────────────────────────┐ │
+│  │   Main Process                     │ │
+│  │   - DataverseManager               │ │
+│  │   - TerminalManager                │ │
+│  │   - ConnectionsManager             │ │
+│  │   - AuthManager                    │ │
+│  └────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+This architecture ensures:
+- **Security**: Tools cannot access sensitive data
+- **Isolation**: Tools cannot interfere with each other
+- **Stability**: Tool errors don't crash the platform
+- **Simplicity**: Clean APIs with clear boundaries
