@@ -242,13 +242,13 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Get tool context (connection URL and access token) for a tool
+     * Get tool context (connection URL and tool ID) for a tool
      * This is passed to the renderer for postMessage to iframe
+     * NOTE: accessToken is NOT included for security - tools must use secure APIs
      */
-    getToolContext(packageName: string, connectionUrl?: string, accessToken?: string): any {
+    getToolContext(packageName: string, connectionUrl?: string): any {
         return {
             connectionUrl: connectionUrl || null,
-            accessToken: accessToken || null,
             toolId: packageName,
         };
     }

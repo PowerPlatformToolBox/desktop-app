@@ -101,11 +101,11 @@ export interface ToolBoxEventPayload {
 
 /**
  * Tool context provided to tools running in webviews
+ * NOTE: accessToken is NOT included for security - tools must use secure backend APIs
  */
 export interface ToolContext {
   toolId: string;
   connectionUrl: string | null;
-  accessToken: string | null;
 }
 
 /**

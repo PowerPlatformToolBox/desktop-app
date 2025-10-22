@@ -34,26 +34,81 @@ window.addEventListener("message", async (event) => {
         const { messageId, method, args } = event.data;
 
         try {
-            // Handle nested API methods (e.g., "connections.getActiveConnection")
-            const methodParts = method.split('.');
-            let target: any = window.toolboxAPI;
+            let result;
             
-            // Navigate through nested objects
-            for (let i = 0; i < methodParts.length - 1; i++) {
-                target = target[methodParts[i]];
-                if (!target) {
-                    throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+            // Handle context-aware terminal operations
+            if (method === 'terminal.create') {
+                // Extract _toolId from options (injected by bridge)
+                const options = args && args[0];
+                const toolId = options?._toolId;
+                
+                if (!toolId) {
+                    throw new Error('Tool ID not available - ensure tool context is initialized');
                 }
-            }
-            
-            // Get the actual method
-            const finalMethod = methodParts[methodParts.length - 1];
-            if (typeof target[finalMethod] !== 'function') {
-                throw new Error(`API method not found: ${method}`);
-            }
+                
+                // Get tool info to use tool name as terminal name if not provided
+                const tool = await window.toolboxAPI.getTool(toolId);
+                const terminalName = options.name || (tool ? tool.name : toolId);
+                
+                // Remove _toolId before passing to actual API
+                const cleanOptions = { ...options };
+                delete cleanOptions._toolId;
+                cleanOptions.name = terminalName;
+                
+                result = await window.toolboxAPI.createTerminal(toolId, cleanOptions);
+            } else if (method === 'terminal.list') {
+                // Get toolId from first arg (injected by bridge)
+                const toolId = args && args[0];
+                if (!toolId) {
+                    throw new Error('Tool ID not available');
+                }
+                result = await window.toolboxAPI.getToolTerminals(toolId);
+            } else if (method === 'events.getHistory') {
+                // Get toolId and limit from args (injected by bridge)
+                const toolId = args && args[0];
+                const limit = args && args[1];
+                
+                // Get event history and filter to tool-specific events
+                const allEvents = await window.toolboxAPI.getEventHistory(limit);
+                result = allEvents.filter((eventPayload: any) => {
+                    const event = eventPayload.event;
+                    const data = eventPayload.data;
+                    
+                    // Terminal events - only include if terminal belongs to this tool
+                    if (event.startsWith('terminal:')) {
+                        return data && data.toolId === toolId;
+                    }
+                    
+                    // Tool events - only include if about this tool
+                    if (event === 'tool:loaded' || event === 'tool:unloaded') {
+                        return data && data.id === toolId;
+                    }
+                    
+                    // Connection and notification events are global
+                    return true;
+                });
+            } else {
+                // Handle regular API methods
+                const methodParts = method.split('.');
+                let target: any = window.toolboxAPI;
+                
+                // Navigate through nested objects
+                for (let i = 0; i < methodParts.length - 1; i++) {
+                    target = target[methodParts[i]];
+                    if (!target) {
+                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+                    }
+                }
+                
+                // Get the actual method
+                const finalMethod = methodParts[methodParts.length - 1];
+                if (typeof target[finalMethod] !== 'function') {
+                    throw new Error(`API method not found: ${method}`);
+                }
 
-            // Call the actual toolboxAPI method
-            const result = await target[finalMethod](...(args || []));
+                // Call the actual toolboxAPI method
+                result = await target[finalMethod](...(args || []));
+            }
 
             // Send response back to iframe
             event.source?.postMessage(
@@ -273,13 +328,13 @@ async function launchTool(toolId: string) {
         // Get active connection for passing to tool
         const activeConnection = await window.toolboxAPI.getActiveConnection();
         const connectionUrl = activeConnection?.url;
-        const accessToken = activeConnection?.accessToken; // This would come from auth flow
+        // NOTE: accessToken is NOT passed to tools for security reasons
 
         // Get tool HTML without context injection (to avoid CSP issues)
         const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
 
-        // Get tool context separately for postMessage
-        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl, accessToken);
+        // Get tool context separately for postMessage (without accessToken)
+        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl);
 
         // Hide all views (including home view)
         document.querySelectorAll(".view").forEach((view) => {

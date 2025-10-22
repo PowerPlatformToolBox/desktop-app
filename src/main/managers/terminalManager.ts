@@ -66,17 +66,19 @@ export class TerminalManager extends EventEmitter {
         const instance = new TerminalInstance(terminal, options.env);
         this.terminals.set(terminalId, instance);
 
-        // Forward terminal events
+        // Forward terminal events with toolId for proper filtering
         instance.on("output", (data) => {
-            this.emit("terminal:output", { terminalId, data });
+            this.emit("terminal:output", { terminalId, toolId, data });
         });
 
         instance.on("error", (error) => {
-            this.emit("terminal:error", { terminalId, error });
+            this.emit("terminal:error", { terminalId, toolId, error });
         });
 
         instance.on("command:completed", (result) => {
-            this.emit("terminal:command:completed", result);
+            // Add toolId to result if not already present
+            const resultWithToolId = { ...result, toolId };
+            this.emit("terminal:command:completed", resultWithToolId);
         });
 
         this.emit("terminal:created", terminal);
@@ -101,9 +103,10 @@ export class TerminalManager extends EventEmitter {
     closeTerminal(terminalId: string): void {
         const instance = this.terminals.get(terminalId);
         if (instance) {
+            const toolId = instance.terminal.toolId;
             instance.close();
             this.terminals.delete(terminalId);
-            this.emit("terminal:closed", { terminalId });
+            this.emit("terminal:closed", { terminalId, toolId });
         }
     }
 
