@@ -106,4 +106,32 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onShowAuthErrorDialog: (callback: (message: string) => void) => {
         ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
     },
+
+    // Dataverse API - Can be called by tools via message routing
+    dataverse: {
+        create: (entityLogicalName: string, record: Record<string, unknown>) => 
+            ipcRenderer.invoke("dataverse.create", entityLogicalName, record),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => 
+            ipcRenderer.invoke("dataverse.retrieve", entityLogicalName, id, columns),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => 
+            ipcRenderer.invoke("dataverse.update", entityLogicalName, id, record),
+        delete: (entityLogicalName: string, id: string) => 
+            ipcRenderer.invoke("dataverse.delete", entityLogicalName, id),
+        retrieveMultiple: (fetchXml: string) => 
+            ipcRenderer.invoke("dataverse.retrieveMultiple", fetchXml),
+        execute: (request: {
+            entityName?: string;
+            entityId?: string;
+            operationName: string;
+            operationType: 'action' | 'function';
+            parameters?: Record<string, unknown>;
+        }) => 
+            ipcRenderer.invoke("dataverse.execute", request),
+        fetchXmlQuery: (fetchXml: string) => 
+            ipcRenderer.invoke("dataverse.fetchXmlQuery", fetchXml),
+        getEntityMetadata: (entityLogicalName: string) => 
+            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName),
+        getAllEntitiesMetadata: () => 
+            ipcRenderer.invoke("dataverse.getAllEntitiesMetadata"),
+    },
 });
