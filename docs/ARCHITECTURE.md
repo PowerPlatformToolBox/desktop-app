@@ -103,6 +103,18 @@ The main process is the entry point of the Electron application and manages the 
     -   MSAL integration for secure authentication
     -   Token refresh and caching
 
+##### `dataverseManager.ts`
+
+-   **Purpose**: Manage Dataverse Web API operations
+-   **Responsibilities**:
+    -   CRUD operations (create, retrieve, update, delete)
+    -   FetchXML query execution
+    -   Entity metadata retrieval
+    -   Execute actions and functions
+    -   Automatic token management and refresh
+    -   HTTP client for Dataverse Web API
+    -   OData v4.0 compliant requests
+
 ##### `autoUpdateManager.ts`
 
 -   **Purpose**: Manage application auto-updates
@@ -435,6 +447,7 @@ desktop-app/
 │   │       ├── settingsManager.ts   # Settings management
 │   │       ├── toolsManager.ts      # Tool lifecycle
 │   │       ├── authManager.ts       # Authentication
+│   │       ├── dataverseManager.ts  # Dataverse API operations
 │   │       └── autoUpdateManager.ts # Auto-updates
 │   ├── renderer/
 │   │   ├── index.html               # UI structure
