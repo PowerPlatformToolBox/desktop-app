@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
 import { Tool } from "../../types";
+import { app } from "electron";
 
 /**
  * Manages tool plugins loaded from npm packages
@@ -11,11 +12,53 @@ import { Tool } from "../../types";
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
+    private pnpmPath: string;
 
     constructor(toolsDirectory: string) {
         super();
         this.toolsDirectory = toolsDirectory;
+        this.pnpmPath = this.resolvePnpmPath();
         this.ensureToolsDirectory();
+    }
+
+    /**
+     * Resolve the path to the bundled pnpm executable
+     * This ensures pnpm works in both development and production (packaged app)
+     */
+    private resolvePnpmPath(): string {
+        // In development: app.isPackaged is false, __dirname is src/main/managers
+        // In production: app.isPackaged is true, __dirname is app.asar/dist/main/managers or similar
+        
+        const isWindows = process.platform === "win32";
+        const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
+        
+        // Try to find pnpm in the bundled node_modules
+        // When packaged, node_modules is included in the app resources
+        let pnpmPath: string;
+        
+        if (app.isPackaged) {
+            // In packaged app, resources are in app.asar or app.asar.unpacked
+            // node_modules should be in the resources directory
+            const resourcesPath = process.resourcesPath;
+            pnpmPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
+            
+            // If not found in app directory, try app.asar.unpacked
+            if (!fs.existsSync(pnpmPath)) {
+                pnpmPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+            }
+        } else {
+            // In development, use node_modules from project root
+            pnpmPath = path.join(__dirname, "..", "..", "..", "node_modules", ".bin", pnpmBin);
+        }
+        
+        // Fallback to system pnpm if bundled version not found
+        if (!fs.existsSync(pnpmPath)) {
+            console.warn(`Bundled pnpm not found at ${pnpmPath}, falling back to system pnpm`);
+            return pnpmBin; // This will search PATH
+        }
+        
+        console.log(`Using pnpm at: ${pnpmPath}`);
+        return pnpmPath;
     }
 
     /**
@@ -112,11 +155,10 @@ export class ToolManager extends EventEmitter {
      */
     async installTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
             // Use --dir to specify installation directory
             // --no-optional to skip optional dependencies and save space
             // --prod to install only production dependencies
-            const install = spawn(pnpm, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
+            const install = spawn(this.pnpmPath, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
 
             install.on("close", (code: number) => {
                 if (code !== 0) {
@@ -137,8 +179,7 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-            const uninstall = spawn(pnpm, ["remove", packageName, "--dir", this.toolsDirectory]);
+            const uninstall = spawn(this.pnpmPath, ["remove", packageName, "--dir", this.toolsDirectory]);
 
             uninstall.on("close", (code: number) => {
                 if (code !== 0) {
@@ -159,8 +200,7 @@ export class ToolManager extends EventEmitter {
      */
     async getLatestVersion(packageName: string): Promise<string | null> {
         return new Promise((resolve) => {
-            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-            const view = spawn(pnpm, ["view", packageName, "version"]);
+            const view = spawn(this.pnpmPath, ["view", packageName, "version"]);
 
             let output = "";
             
@@ -187,8 +227,7 @@ export class ToolManager extends EventEmitter {
      */
     async updateTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-            const update = spawn(pnpm, ["update", packageName, "--dir", this.toolsDirectory]);
+            const update = spawn(this.pnpmPath, ["update", packageName, "--dir", this.toolsDirectory]);
 
             update.on("close", (code: number) => {
                 if (code !== 0) {
