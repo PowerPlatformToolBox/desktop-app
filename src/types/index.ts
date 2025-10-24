@@ -116,6 +116,7 @@ export interface TerminalOptions {
   shell?: string;
   cwd?: string;
   env?: Record<string, string>;
+  visible?: boolean; // Whether terminal should be visible initially (default: true)
 }
 
 /**
