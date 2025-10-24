@@ -24,16 +24,16 @@ export class ToolManager extends EventEmitter {
     /**
      * Resolve the path to the bundled pnpm executable
      * This ensures pnpm works in both development and production (packaged app)
+     * Returns an array: [executable, args...] to handle different execution methods
      */
     private resolvePnpmPath(): string {
         // In development: app.isPackaged is false, __dirname is src/main/managers
         // In production: app.isPackaged is true, __dirname is app.asar/dist/main
         
         const isWindows = process.platform === "win32";
-        const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
         
-        // Try to find pnpm in the bundled node_modules
-        let pnpmPath: string;
+        // Try to find pnpm.cjs (the actual pnpm script) to execute with node
+        let pnpmCjsPath: string;
         
         if (app.isPackaged) {
             // In packaged app, pnpm is unpacked to app.asar.unpacked/node_modules
@@ -41,25 +41,43 @@ export class ToolManager extends EventEmitter {
             const resourcesPath = process.resourcesPath;
             
             // Try app.asar.unpacked first (where unpacked dependencies go)
-            pnpmPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+            // We look for pnpm.cjs directly instead of the wrapper script
+            pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "pnpm", "bin", "pnpm.cjs");
             
             // Fallback to checking if node_modules is outside asar
-            if (!fs.existsSync(pnpmPath)) {
-                pnpmPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
+            if (!fs.existsSync(pnpmCjsPath)) {
+                pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", "pnpm", "bin", "pnpm.cjs");
+            }
+            
+            // Another fallback: try the .bin symlink
+            if (!fs.existsSync(pnpmCjsPath)) {
+                const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
+                pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+                
+                if (!fs.existsSync(pnpmCjsPath)) {
+                    pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
+                }
             }
         } else {
-            // In development, use node_modules from project root
-            pnpmPath = path.join(__dirname, "..", "..", "..", "node_modules", ".bin", pnpmBin);
+            // In development, try to find pnpm.cjs directly
+            pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", "pnpm", "bin", "pnpm.cjs");
+            
+            // Fallback to .bin wrapper
+            if (!fs.existsSync(pnpmCjsPath)) {
+                const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
+                pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", ".bin", pnpmBin);
+            }
         }
         
         // Fallback to system pnpm if bundled version not found
-        if (!fs.existsSync(pnpmPath)) {
-            console.warn(`Bundled pnpm not found at ${pnpmPath}, falling back to system pnpm`);
+        if (!fs.existsSync(pnpmCjsPath)) {
+            console.warn(`Bundled pnpm not found at ${pnpmCjsPath}, falling back to system pnpm`);
+            const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
             return pnpmBin; // This will search PATH
         }
         
-        console.log(`Using pnpm at: ${pnpmPath}`);
-        return pnpmPath;
+        console.log(`Using pnpm at: ${pnpmCjsPath}`);
+        return pnpmCjsPath;
     }
 
     /**
@@ -151,6 +169,19 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Spawn pnpm with the correct executable and arguments
+     * Handles both .cjs files (run with node) and native executables
+     */
+    private spawnPnpm(args: string[]): ReturnType<typeof spawn> {
+        // If pnpmPath ends with .cjs, we need to run it with node
+        if (this.pnpmPath.endsWith(".cjs")) {
+            return spawn(process.execPath, [this.pnpmPath, ...args]);
+        }
+        // Otherwise, execute directly (wrapper script or system pnpm)
+        return spawn(this.pnpmPath, args);
+    }
+
+    /**
      * Install a tool via pnpm
      * Each tool is installed in its own isolated directory under toolsDirectory
      */
@@ -159,7 +190,7 @@ export class ToolManager extends EventEmitter {
             // Use --dir to specify installation directory
             // --no-optional to skip optional dependencies and save space
             // --prod to install only production dependencies
-            const install = spawn(this.pnpmPath, ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
+            const install = this.spawnPnpm(["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
 
             install.on("close", (code: number) => {
                 if (code !== 0) {
@@ -180,7 +211,7 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const uninstall = spawn(this.pnpmPath, ["remove", packageName, "--dir", this.toolsDirectory]);
+            const uninstall = this.spawnPnpm(["remove", packageName, "--dir", this.toolsDirectory]);
 
             uninstall.on("close", (code: number) => {
                 if (code !== 0) {
@@ -201,7 +232,7 @@ export class ToolManager extends EventEmitter {
      */
     async getLatestVersion(packageName: string): Promise<string | null> {
         return new Promise((resolve) => {
-            const view = spawn(this.pnpmPath, ["view", packageName, "version"]);
+            const view = this.spawnPnpm(["view", packageName, "version"]);
 
             let output = "";
             
@@ -228,7 +259,7 @@ export class ToolManager extends EventEmitter {
      */
     async updateTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const update = spawn(this.pnpmPath, ["update", packageName, "--dir", this.toolsDirectory]);
+            const update = this.spawnPnpm(["update", packageName, "--dir", this.toolsDirectory]);
 
             update.on("close", (code: number) => {
                 if (code !== 0) {
