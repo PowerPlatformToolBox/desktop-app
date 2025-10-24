@@ -55,21 +55,21 @@ window.addEventListener("message", async (event) => {
                 delete cleanOptions._toolId;
                 cleanOptions.name = terminalName;
                 
-                result = await window.toolboxAPI.createTerminal(toolId, cleanOptions);
+                result = await window.toolboxAPI.terminal.create(toolId, cleanOptions);
             } else if (method === 'terminal.list') {
                 // Get toolId from first arg (injected by bridge)
                 const toolId = args && args[0];
                 if (!toolId) {
                     throw new Error('Tool ID not available');
                 }
-                result = await window.toolboxAPI.getToolTerminals(toolId);
+                result = await window.toolboxAPI.terminal.list(toolId);
             } else if (method === 'events.getHistory') {
                 // Get toolId and limit from args (injected by bridge)
                 const toolId = args && args[0];
                 const limit = args && args[1];
                 
                 // Get event history and filter to tool-specific events
-                const allEvents = await window.toolboxAPI.getEventHistory(limit);
+                const allEvents = await window.toolboxAPI.events.getHistory(limit);
                 result = allEvents.filter((eventPayload: any) => {
                     const event = eventPayload.event;
                     const data = eventPayload.data;
@@ -88,73 +88,26 @@ window.addEventListener("message", async (event) => {
                     return true;
                 });
             } else {
-                // Map namespaced API calls from iframe to the actual API structure
-                // The iframe exposes organized namespaces (connections.*, utils.*, etc.)
-                // Most methods in renderer are flat, but dataverse is nested
-                
-                // Split the method to get namespace and function
+                // Handle regular API methods
                 const methodParts = method.split('.');
+                let target: any = window.toolboxAPI;
                 
-                // Special handling for known API namespaces
-                if (methodParts[0] === 'connections' && methodParts[1] === 'getActiveConnection') {
-                    result = await window.toolboxAPI.getActiveConnection();
-                } else if (methodParts[0] === 'utils') {
-                    // Utils methods are flat on toolboxAPI
-                    const utilsMethodMap: Record<string, string> = {
-                        'showNotification': 'showNotification',
-                        'copyToClipboard': 'copyToClipboard',
-                        'saveFile': 'saveFile',
-                    };
-                    const mappedMethod = utilsMethodMap[methodParts[1]];
-                    if (mappedMethod && typeof (window.toolboxAPI as any)[mappedMethod] === 'function') {
-                        result = await (window.toolboxAPI as any)[mappedMethod](...(args || []));
-                    } else if (methodParts[1] === 'getCurrentTheme') {
-                        // getCurrentTheme is not implemented yet, return 'light' as default
-                        console.warn('getCurrentTheme is not yet implemented, returning "light"');
-                        result = 'light';
-                    } else {
-                        throw new Error(`API method not found: ${method}`);
+                // Navigate through nested objects
+                for (let i = 0; i < methodParts.length - 1; i++) {
+                    target = target[methodParts[i]];
+                    if (!target) {
+                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
                     }
-                } else if (methodParts[0] === 'terminal') {
-                    // Terminal methods are flat on toolboxAPI but with different names
-                    const terminalMethodMap: Record<string, string> = {
-                        'execute': 'executeTerminalCommand',
-                        'close': 'closeTerminal',
-                        'get': 'getTerminal',
-                        'setVisibility': 'setTerminalVisibility',
-                    };
-                    const mappedMethod = terminalMethodMap[methodParts[1]];
-                    if (mappedMethod && typeof (window.toolboxAPI as any)[mappedMethod] === 'function') {
-                        result = await (window.toolboxAPI as any)[mappedMethod](...(args || []));
-                    } else {
-                        throw new Error(`API method not found: ${method}`);
-                    }
-                } else if (methodParts[0] === 'dataverse') {
-                    // Dataverse methods are nested under window.toolboxAPI.dataverse
-                    const dataverseMethod = methodParts[1];
-                    if ((window.toolboxAPI as any).dataverse && typeof (window.toolboxAPI as any).dataverse[dataverseMethod] === 'function') {
-                        result = await (window.toolboxAPI as any).dataverse[dataverseMethod](...(args || []));
-                    } else {
-                        throw new Error(`API method not found: ${method}`);
-                    }
-                } else {
-                    // Fallback: try to navigate through nested objects for other APIs
-                    let target: any = window.toolboxAPI;
-                    
-                    for (let i = 0; i < methodParts.length - 1; i++) {
-                        target = target[methodParts[i]];
-                        if (!target) {
-                            throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
-                        }
-                    }
-                    
-                    const finalMethod = methodParts[methodParts.length - 1];
-                    if (typeof target[finalMethod] !== 'function') {
-                        throw new Error(`API method not found: ${method}`);
-                    }
-
-                    result = await target[finalMethod](...(args || []));
                 }
+                
+                // Get the actual method
+                const finalMethod = methodParts[methodParts.length - 1];
+                if (typeof target[finalMethod] !== 'function') {
+                    throw new Error(`API method not found: ${method}`);
+                }
+
+                // Call the actual toolboxAPI method
+                result = await target[finalMethod](...(args || []));
             }
 
             // Send response back to iframe
@@ -222,7 +175,7 @@ async function updateFooterConnection() {
     if (!footerConnectionName) return;
 
     try {
-        const activeConn = await window.toolboxAPI.getActiveConnection();
+        const activeConn = await window.toolboxAPI.connections.getActiveConnection();
 
         if (activeConn) {
             footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
@@ -285,7 +238,7 @@ function loadToolLibrary() {
 async function installToolFromLibrary(packageName: string, toolName: string) {
     console.log("installToolFromLibrary called:", packageName, toolName);
     if (!packageName) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Invalid Package",
             body: "Please select a valid tool to install.",
             type: "error",
@@ -294,7 +247,7 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
     }
 
     try {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Installing Tool",
             body: `Installing ${toolName}...`,
             type: "info",
@@ -302,7 +255,7 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
 
         await window.toolboxAPI.installTool(packageName);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Tool Installed",
             body: `${toolName} has been installed successfully.`,
             type: "success",
@@ -311,7 +264,7 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
         closeModal("install-tool-modal");
         await loadTools();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Installation Failed",
             body: `Failed to install ${toolName}: ${(error as Error).message}`,
             type: "error",
@@ -335,7 +288,7 @@ async function uninstallTool(toolId: string) {
         const tool = await window.toolboxAPI.getTool(toolId);
         await window.toolboxAPI.uninstallTool(tool.id, toolId);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Tool Uninstalled",
             body: `${tool.name} has been uninstalled.`,
             type: "success",
@@ -343,7 +296,7 @@ async function uninstallTool(toolId: string) {
 
         await loadTools();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Uninstall Failed",
             body: `Failed to uninstall tool: ${(error as Error).message}`,
             type: "error",
@@ -364,7 +317,7 @@ async function launchTool(toolId: string) {
         // Load the tool
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
-            window.toolboxAPI.showNotification({
+            window.toolboxAPI.utils.showNotification({
                 title: "Tool Launch Failed",
                 body: `Tool ${toolId} not found`,
                 type: "error",
@@ -373,7 +326,7 @@ async function launchTool(toolId: string) {
         }
 
         // Get active connection for passing to tool
-        const activeConnection = await window.toolboxAPI.getActiveConnection();
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
         const connectionUrl = activeConnection?.url;
         // NOTE: accessToken is NOT passed to tools for security reasons
 
@@ -553,7 +506,7 @@ async function launchTool(toolId: string) {
         console.log("Tool launched successfully:", tool.name);
     } catch (error) {
         console.error("Error launching tool:", error);
-        window.toolboxAPI.showNotification({
+        window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,
             type: "error",
@@ -672,7 +625,7 @@ function closeTool(toolId: string) {
 
     // Check if tab is pinned
     if (openTool.isPinned) {
-        window.toolboxAPI.showNotification({
+        window.toolboxAPI.utils.showNotification({
             title: "Cannot Close Pinned Tab",
             body: "Unpin the tab before closing it",
             type: "warning",
@@ -880,7 +833,7 @@ async function updateConnectionSelector() {
     if (!selector) return;
 
     try {
-        const connections = await window.toolboxAPI.getConnections();
+        const connections = await window.toolboxAPI.connections.getAll();
 
         // Clear and repopulate
         selector.innerHTML = '<option value="">No Connection</option>';
@@ -963,7 +916,7 @@ function toggleSplitView() {
             setSecondaryTool(secondaryId);
         }
 
-        window.toolboxAPI.showNotification({
+        window.toolboxAPI.utils.showNotification({
             title: "Split View Enabled",
             body: "Click on tabs to switch between primary and secondary panel",
             type: "success",
@@ -1083,7 +1036,7 @@ async function toolSettings(toolId: string) {
         // Get the tool and its current settings
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
-            window.toolboxAPI.showNotification({
+            window.toolboxAPI.utils.showNotification({
                 title: "Tool Not Found",
                 body: `Tool ${toolId} not found`,
                 type: "error",
@@ -1121,7 +1074,7 @@ async function toolSettings(toolId: string) {
         console.log("Tool settings opened for:", tool.name);
     } catch (error) {
         console.error("Error opening tool settings:", error);
-        window.toolboxAPI.showNotification({
+        window.toolboxAPI.utils.showNotification({
             title: "Settings Error",
             body: `Failed to open tool settings: ${error}`,
             type: "error",
@@ -1139,7 +1092,7 @@ async function loadConnections() {
     }
 
     try {
-        const connections = await window.toolboxAPI.getConnections();
+        const connections = await window.toolboxAPI.connections.getAll();
         console.log("Loaded connections:", connections);
 
         if (connections.length === 0) {
@@ -1224,8 +1177,8 @@ function updateFooterConnectionStatus(connection: any | null) {
 
 async function connectToConnection(id: string) {
     try {
-        await window.toolboxAPI.setActiveConnection(id);
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.connections.setActive(id);
+        await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
             type: "success",
@@ -1234,7 +1187,7 @@ async function connectToConnection(id: string) {
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Connection Failed",
             body: (error as Error).message,
             type: "error",
@@ -1247,8 +1200,8 @@ async function connectToConnection(id: string) {
 
 async function disconnectConnection() {
     try {
-        await window.toolboxAPI.disconnectConnection();
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.connections.disconnect();
+        await window.toolboxAPI.utils.showNotification({
             title: "Disconnected",
             body: "Disconnected from environment.",
             type: "info",
@@ -1257,7 +1210,7 @@ async function disconnectConnection() {
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Disconnect Failed",
             body: (error as Error).message,
             type: "error",
@@ -1280,7 +1233,7 @@ async function addConnection() {
     // Check if all elements exist
     if (!nameInput || !urlInput || !environmentSelect || !authTypeSelect) {
         console.error("Connection form elements not found");
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Error",
             body: "Connection form not properly initialized.",
             type: "error",
@@ -1294,7 +1247,7 @@ async function addConnection() {
     const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
 
     if (!name || !url) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Invalid Input",
             body: "Please provide both connection name and URL.",
             type: "error",
@@ -1305,7 +1258,7 @@ async function addConnection() {
     // Validate based on authentication type
     if (authenticationType === "clientSecret") {
         if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Invalid Input",
                 body: "Client ID, Client Secret, and Tenant ID are required for Client ID/Secret authentication.",
                 type: "error",
@@ -1314,7 +1267,7 @@ async function addConnection() {
         }
     } else if (authenticationType === "usernamePassword") {
         if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Invalid Input",
                 body: "Username and Password are required for Username/Password authentication.",
                 type: "error",
@@ -1352,9 +1305,9 @@ async function addConnection() {
 
     try {
         console.log("Adding connection:", { ...connection, password: connection.password ? "***" : undefined, clientSecret: connection.clientSecret ? "***" : undefined });
-        await window.toolboxAPI.addConnection(connection);
+        await window.toolboxAPI.connections.add(connection);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Connection Added",
             body: `Connection "${name}" has been added.`,
             type: "success",
@@ -1379,7 +1332,7 @@ async function addConnection() {
         await loadConnections();
     } catch (error) {
         console.error("Error adding connection:", error);
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Failed to Add Connection",
             body: (error as Error).message,
             type: "error",
@@ -1406,7 +1359,7 @@ async function testConnection() {
     const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
 
     if (!url) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Invalid Input",
             body: "Please provide an environment URL.",
             type: "error",
@@ -1427,7 +1380,7 @@ async function testConnection() {
     // Add authentication-specific fields
     if (authenticationType === "clientSecret") {
         if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Invalid Input",
                 body: "Client ID, Client Secret, and Tenant ID are required for testing Client ID/Secret authentication.",
                 type: "error",
@@ -1439,7 +1392,7 @@ async function testConnection() {
         testConn.tenantId = tenantIdInput.value.trim();
     } else if (authenticationType === "usernamePassword") {
         if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Invalid Input",
                 body: "Username and Password are required for testing Username/Password authentication.",
                 type: "error",
@@ -1462,23 +1415,23 @@ async function testConnection() {
     testBtn.textContent = "Testing...";
 
     try {
-        const result = await window.toolboxAPI.testConnection(testConn);
+        const result = await window.toolboxAPI.connections.test(testConn);
 
         if (result.success) {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Connection Successful",
                 body: "Successfully connected to the environment!",
                 type: "success",
             });
         } else {
-            await window.toolboxAPI.showNotification({
+            await window.toolboxAPI.utils.showNotification({
                 title: "Connection Failed",
                 body: result.error || "Failed to connect to the environment.",
                 type: "error",
             });
         }
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Connection Test Failed",
             body: (error as Error).message,
             type: "error",
@@ -1525,9 +1478,9 @@ async function deleteConnection(id: string) {
 
     try {
         console.log("Calling window.toolboxAPI.deleteConnection");
-        await window.toolboxAPI.deleteConnection(id);
+        await window.toolboxAPI.connections.delete(id);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Connection Deleted",
             body: "The connection has been deleted.",
             type: "success",
@@ -1536,7 +1489,7 @@ async function deleteConnection(id: string) {
         await loadConnections();
     } catch (error) {
         console.error("Error deleting connection:", error);
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Failed to Delete Connection",
             body: (error as Error).message,
             type: "error",
@@ -1612,7 +1565,7 @@ async function saveSettings() {
     // Apply theme immediately
     applyTheme(settings.theme);
 
-    await window.toolboxAPI.showNotification({
+    await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
         body: "Your settings have been saved.",
         type: "success",
@@ -1953,7 +1906,7 @@ async function uninstallToolFromSidebar(toolId: string) {
 
         await window.toolboxAPI.uninstallTool(tool.id, toolId);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Tool Uninstalled",
             body: `${tool.name} has been uninstalled.`,
             type: "success",
@@ -1965,7 +1918,7 @@ async function uninstallToolFromSidebar(toolId: string) {
         // Reload marketplace to update installed status
         await loadMarketplace();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Uninstall Failed",
             body: `Failed to uninstall tool: ${(error as Error).message}`,
             type: "error",
@@ -1980,7 +1933,7 @@ async function updateToolFromSidebar(toolId: string) {
             throw new Error("Tool not found");
         }
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Updating Tool",
             body: `Updating ${tool.name}...`,
             type: "info",
@@ -1988,7 +1941,7 @@ async function updateToolFromSidebar(toolId: string) {
 
         const updatedTool = await window.toolboxAPI.updateTool(tool.id);
 
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Tool Updated",
             body: `${tool.name} has been updated to v${updatedTool.version}.`,
             type: "success",
@@ -2000,7 +1953,7 @@ async function updateToolFromSidebar(toolId: string) {
         // Reload marketplace to update version display
         await loadMarketplace();
     } catch (error) {
-        await window.toolboxAPI.showNotification({
+        await window.toolboxAPI.utils.showNotification({
             title: "Update Failed",
             body: `Failed to update tool: ${(error as Error).message}`,
             type: "error",
@@ -2013,7 +1966,7 @@ async function loadSidebarConnections() {
     if (!connectionsList) return;
 
     try {
-        const connections = await window.toolboxAPI.getConnections();
+        const connections = await window.toolboxAPI.connections.getAll();
 
         if (connections.length === 0) {
             connectionsList.innerHTML = `
@@ -2076,7 +2029,7 @@ async function loadSidebarConnections() {
                     await disconnectConnection();
                 } else if (action === "delete" && connectionId) {
                     if (confirm("Are you sure you want to delete this connection?")) {
-                        await window.toolboxAPI.deleteConnection(connectionId);
+                        await window.toolboxAPI.connections.delete(connectionId);
                         loadSidebarConnections();
                         updateFooterConnection();
                     }
@@ -2167,7 +2120,7 @@ async function loadMarketplace() {
                 try {
                     await window.toolboxAPI.installTool(toolId);
 
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Tool Installed",
                         body: `Tool has been installed successfully`,
                         type: "success",
@@ -2179,7 +2132,7 @@ async function loadMarketplace() {
                 } catch (error) {
                     target.disabled = false;
                     target.textContent = "Install";
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Installation Failed",
                         body: `Failed to install tool: ${error}`,
                         type: "error",
@@ -2192,7 +2145,7 @@ async function loadMarketplace() {
                 try {
                     const updatedTool = await window.toolboxAPI.updateTool(toolId);
 
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Tool Updated",
                         body: `Tool has been updated to v${updatedTool.version}`,
                         type: "success",
@@ -2204,7 +2157,7 @@ async function loadMarketplace() {
                 } catch (error) {
                     target.disabled = false;
                     target.textContent = "Update";
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Update Failed",
                         body: `Failed to update tool: ${error}`,
                         type: "error",
@@ -2265,7 +2218,7 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
                 try {
                     await window.toolboxAPI.installTool(tool.id);
 
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Tool Installed",
                         body: `${tool.name} has been installed successfully`,
                         type: "success",
@@ -2278,7 +2231,7 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
                 } catch (error) {
                     newInstallBtn.disabled = false;
                     newInstallBtn.textContent = "Install";
-                    window.toolboxAPI.showNotification({
+                    window.toolboxAPI.utils.showNotification({
                         title: "Installation Failed",
                         body: `Failed to install tool: ${error}`,
                         type: "error",
@@ -2408,7 +2361,7 @@ async function saveSidebarSettings() {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont);
 
-    await window.toolboxAPI.showNotification({
+    await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
         body: "Your settings have been saved.",
         type: "success",
@@ -2731,7 +2684,7 @@ async function init() {
 
             const packageName = packageNameInput.value.trim();
             if (!packageName) {
-                await window.toolboxAPI.showNotification({
+                await window.toolboxAPI.utils.showNotification({
                     title: "Invalid Package Name",
                     body: "Please enter a valid npm package name.",
                     type: "error",
@@ -2748,7 +2701,7 @@ async function init() {
                 const tool = await window.toolboxAPI.installTool(packageName);
 
                 // Show success notification
-                await window.toolboxAPI.showNotification({
+                await window.toolboxAPI.utils.showNotification({
                     title: "Tool Installed",
                     body: `${tool.name || packageName} has been installed successfully.`,
                     type: "success",
@@ -2764,7 +2717,7 @@ async function init() {
                 switchSidebar("tools");
             } catch (error) {
                 // Show error notification
-                await window.toolboxAPI.showNotification({
+                await window.toolboxAPI.utils.showNotification({
                     title: "Installation Failed",
                     body: `Failed to install ${packageName}: ${(error as Error).message}`,
                     type: "error",
