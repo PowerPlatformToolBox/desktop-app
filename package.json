@@ -19,7 +19,10 @@
     "powerplatform",
     "dataverse",
     "electron",
-    "toolbox"
+    "toolbox",
+    "powerplatformtoolbox",
+    "pptb",
+    "powerapps"
   ],
   "author": "Power Platform Tool Box",
   "license": "GPL-3.0",
