@@ -88,26 +88,73 @@ window.addEventListener("message", async (event) => {
                     return true;
                 });
             } else {
-                // Handle regular API methods
+                // Map namespaced API calls from iframe to the actual API structure
+                // The iframe exposes organized namespaces (connections.*, utils.*, etc.)
+                // Most methods in renderer are flat, but dataverse is nested
+                
+                // Split the method to get namespace and function
                 const methodParts = method.split('.');
-                let target: any = window.toolboxAPI;
                 
-                // Navigate through nested objects
-                for (let i = 0; i < methodParts.length - 1; i++) {
-                    target = target[methodParts[i]];
-                    if (!target) {
-                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+                // Special handling for known API namespaces
+                if (methodParts[0] === 'connections' && methodParts[1] === 'getActiveConnection') {
+                    result = await window.toolboxAPI.getActiveConnection();
+                } else if (methodParts[0] === 'utils') {
+                    // Utils methods are flat on toolboxAPI
+                    const utilsMethodMap: Record<string, string> = {
+                        'showNotification': 'showNotification',
+                        'copyToClipboard': 'copyToClipboard',
+                        'saveFile': 'saveFile',
+                    };
+                    const mappedMethod = utilsMethodMap[methodParts[1]];
+                    if (mappedMethod && typeof (window.toolboxAPI as any)[mappedMethod] === 'function') {
+                        result = await (window.toolboxAPI as any)[mappedMethod](...(args || []));
+                    } else if (methodParts[1] === 'getCurrentTheme') {
+                        // getCurrentTheme is not implemented yet, return 'light' as default
+                        console.warn('getCurrentTheme is not yet implemented, returning "light"');
+                        result = 'light';
+                    } else {
+                        throw new Error(`API method not found: ${method}`);
                     }
-                }
-                
-                // Get the actual method
-                const finalMethod = methodParts[methodParts.length - 1];
-                if (typeof target[finalMethod] !== 'function') {
-                    throw new Error(`API method not found: ${method}`);
-                }
+                } else if (methodParts[0] === 'terminal') {
+                    // Terminal methods are flat on toolboxAPI but with different names
+                    const terminalMethodMap: Record<string, string> = {
+                        'execute': 'executeTerminalCommand',
+                        'close': 'closeTerminal',
+                        'get': 'getTerminal',
+                        'setVisibility': 'setTerminalVisibility',
+                    };
+                    const mappedMethod = terminalMethodMap[methodParts[1]];
+                    if (mappedMethod && typeof (window.toolboxAPI as any)[mappedMethod] === 'function') {
+                        result = await (window.toolboxAPI as any)[mappedMethod](...(args || []));
+                    } else {
+                        throw new Error(`API method not found: ${method}`);
+                    }
+                } else if (methodParts[0] === 'dataverse') {
+                    // Dataverse methods are nested under window.toolboxAPI.dataverse
+                    const dataverseMethod = methodParts[1];
+                    if ((window.toolboxAPI as any).dataverse && typeof (window.toolboxAPI as any).dataverse[dataverseMethod] === 'function') {
+                        result = await (window.toolboxAPI as any).dataverse[dataverseMethod](...(args || []));
+                    } else {
+                        throw new Error(`API method not found: ${method}`);
+                    }
+                } else {
+                    // Fallback: try to navigate through nested objects for other APIs
+                    let target: any = window.toolboxAPI;
+                    
+                    for (let i = 0; i < methodParts.length - 1; i++) {
+                        target = target[methodParts[i]];
+                        if (!target) {
+                            throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+                        }
+                    }
+                    
+                    const finalMethod = methodParts[methodParts.length - 1];
+                    if (typeof target[finalMethod] !== 'function') {
+                        throw new Error(`API method not found: ${method}`);
+                    }
 
-                // Call the actual toolboxAPI method
-                result = await target[finalMethod](...(args || []));
+                    result = await target[finalMethod](...(args || []));
+                }
             }
 
             // Send response back to iframe
