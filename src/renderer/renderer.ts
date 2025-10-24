@@ -3024,7 +3024,7 @@ async function init() {
     });
 
     // Listen for toolbox events and react to them
-    window.toolboxAPI.onToolboxEvent((event: any, payload: any) => {
+    window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
 
         // Reload connections when connection events occur
