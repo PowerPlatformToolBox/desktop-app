@@ -156,6 +156,42 @@ export class DataverseManager {
     }
 
     /**
+     * Convert entity logical name to entity set name (pluralization)
+     * Handles common Dataverse entity pluralization rules
+     */
+    private getEntitySetName(entityLogicalName: string): string {
+        // Common irregular plurals in Dataverse
+        const irregularPlurals: Record<string, string> = {
+            'opportunity': 'opportunities',
+            'territory': 'territories',
+            'currency': 'currencies',
+            'businessunit': 'businessunits',
+            'systemuser': 'systemusers',
+        };
+
+        const lowerName = entityLogicalName.toLowerCase();
+        
+        // Check for irregular plurals
+        if (irregularPlurals[lowerName]) {
+            return irregularPlurals[lowerName];
+        }
+
+        // Handle entities ending in 'y' (e.g., opportunity -> opportunities)
+        if (lowerName.endsWith('y') && lowerName.length > 1 && !'aeiou'.includes(lowerName[lowerName.length - 2])) {
+            return lowerName.slice(0, -1) + 'ies';
+        }
+
+        // Handle entities ending in 's', 'x', 'z', 'ch', 'sh' (add 'es')
+        if (lowerName.endsWith('s') || lowerName.endsWith('x') || lowerName.endsWith('z') || 
+            lowerName.endsWith('ch') || lowerName.endsWith('sh')) {
+            return lowerName + 'es';
+        }
+
+        // Default: add 's'
+        return lowerName + 's';
+    }
+
+    /**
      * Execute a FetchXML query
      */
     async fetchXmlQuery(fetchXml: string): Promise<FetchXmlResult> {
@@ -171,7 +207,10 @@ export class DataverseManager {
         }
         const entityName = entityMatch[1];
         
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityName}?fetchXml=${encodedFetchXml}`;
+        // Convert entity name to entity set name (pluralized)
+        const entitySetName = this.getEntitySetName(entityName);
+        
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
 
         const response = await this.makeHttpRequest(url, 'GET', accessToken);
         return response.data as FetchXmlResult;
