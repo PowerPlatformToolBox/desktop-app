@@ -102,7 +102,8 @@ export class DataverseManager {
      */
     async create(entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}`;
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, record);
 
@@ -121,8 +122,9 @@ export class DataverseManager {
      */
     async retrieve(entityLogicalName: string, id: string, columns?: string[]): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const entitySetName = this.getEntitySetName(entityLogicalName);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
         if (columns && columns.length > 0) {
             url += `?$select=${columns.join(",")}`;
         }
@@ -136,7 +138,8 @@ export class DataverseManager {
      */
     async update(entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
 
         await this.makeHttpRequest(url, "PATCH", accessToken, record);
     }
@@ -146,7 +149,8 @@ export class DataverseManager {
      */
     async delete(entityLogicalName: string, id: string): Promise<void> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
@@ -234,8 +238,9 @@ export class DataverseManager {
 
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
-            // Bound operation
-            url += `${request.entityName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
+            // Bound operation - use entity set name
+            const entitySetName = this.getEntitySetName(request.entityName);
+            url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
         } else {
             // Unbound operation
             url += request.operationName;
