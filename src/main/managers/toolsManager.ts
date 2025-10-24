@@ -27,24 +27,25 @@ export class ToolManager extends EventEmitter {
      */
     private resolvePnpmPath(): string {
         // In development: app.isPackaged is false, __dirname is src/main/managers
-        // In production: app.isPackaged is true, __dirname is app.asar/dist/main/managers or similar
+        // In production: app.isPackaged is true, __dirname is app.asar/dist/main
         
         const isWindows = process.platform === "win32";
         const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
         
         // Try to find pnpm in the bundled node_modules
-        // When packaged, node_modules is included in the app resources
         let pnpmPath: string;
         
         if (app.isPackaged) {
-            // In packaged app, resources are in app.asar or app.asar.unpacked
-            // node_modules should be in the resources directory
+            // In packaged app, pnpm is unpacked to app.asar.unpacked/node_modules
+            // process.resourcesPath points to the resources directory
             const resourcesPath = process.resourcesPath;
-            pnpmPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
             
-            // If not found in app directory, try app.asar.unpacked
+            // Try app.asar.unpacked first (where unpacked dependencies go)
+            pnpmPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+            
+            // Fallback to checking if node_modules is outside asar
             if (!fs.existsSync(pnpmPath)) {
-                pnpmPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+                pnpmPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
             }
         } else {
             // In development, use node_modules from project root
