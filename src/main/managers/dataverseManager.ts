@@ -1,8 +1,8 @@
-import * as https from 'https';
-import { DataverseConnection } from '../../types';
-import { ConnectionsManager } from './connectionsManager';
-import { AuthManager } from './authManager';
-import { DATAVERSE_API_VERSION } from '../constants';
+import * as https from "https";
+import { DataverseConnection } from "../../types";
+import { DATAVERSE_API_VERSION } from "../constants";
+import { AuthManager } from "./authManager";
+import { ConnectionsManager } from "./connectionsManager";
 
 /**
  * Dataverse API response type
@@ -26,8 +26,8 @@ interface DataverseError {
  */
 interface FetchXmlResult {
     value: Record<string, unknown>[];
-    '@odata.context'?: string;
-    '@Microsoft.Dynamics.CRM.fetchxmlpagingcookie'?: string;
+    "@odata.context"?: string;
+    "@Microsoft.Dynamics.CRM.fetchxmlpagingcookie"?: string;
 }
 
 /**
@@ -62,18 +62,18 @@ export class DataverseManager {
     private async getActiveConnectionWithToken(): Promise<{ connection: DataverseConnection; accessToken: string }> {
         const connection = this.connectionsManager.getActiveConnection();
         if (!connection) {
-            throw new Error('No active connection. Please connect to a Dataverse environment first.');
+            throw new Error("No active connection. Please connect to a Dataverse environment first.");
         }
 
         if (!connection.accessToken) {
-            throw new Error('No access token found. Please reconnect to the environment.');
+            throw new Error("No access token found. Please reconnect to the environment.");
         }
 
         // Check if token is expired
         if (connection.tokenExpiry) {
             const expiryDate = new Date(connection.tokenExpiry);
             const now = new Date();
-            
+
             // Refresh if token expires in the next 5 minutes
             if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
                 if (connection.refreshToken) {
@@ -89,7 +89,7 @@ export class DataverseManager {
                         throw new Error(`Failed to refresh token: ${(error as Error).message}`);
                     }
                 } else {
-                    throw new Error('Access token expired and no refresh token available. Please reconnect.');
+                    throw new Error("Access token expired and no refresh token available. Please reconnect.");
                 }
             }
         }
@@ -104,14 +104,14 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}`;
 
-        const response = await this.makeHttpRequest(url, 'POST', accessToken, record);
-        
+        const response = await this.makeHttpRequest(url, "POST", accessToken, record);
+
         // Extract the ID from the OData-EntityId header or response
         const responseData = response.data as DataverseResponse;
-        const entityId = response.headers['odata-entityid'] || responseData[`${entityLogicalName}id`] as string;
-        
+        const entityId = response.headers["odata-entityid"] || (responseData[`${entityLogicalName}id`] as string);
+
         return {
-            id: entityId ? this.extractIdFromUrl(entityId as string) : '',
+            id: entityId ? this.extractIdFromUrl(entityId as string) : "",
             ...responseData,
         };
     }
@@ -119,19 +119,15 @@ export class DataverseManager {
     /**
      * Retrieve a record from Dataverse
      */
-    async retrieve(
-        entityLogicalName: string,
-        id: string,
-        columns?: string[]
-    ): Promise<Record<string, unknown>> {
+    async retrieve(entityLogicalName: string, id: string, columns?: string[]): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        
+
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
         if (columns && columns.length > 0) {
-            url += `?$select=${columns.join(',')}`;
+            url += `?$select=${columns.join(",")}`;
         }
 
-        const response = await this.makeHttpRequest(url, 'GET', accessToken);
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as Record<string, unknown>;
     }
 
@@ -142,7 +138,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
 
-        await this.makeHttpRequest(url, 'PATCH', accessToken, record);
+        await this.makeHttpRequest(url, "PATCH", accessToken, record);
     }
 
     /**
@@ -152,7 +148,42 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityLogicalName}(${id})`;
 
-        await this.makeHttpRequest(url, 'DELETE', accessToken);
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    /**
+     * Convert entity logical name to entity set name (pluralization)
+     * Handles common Dataverse entity pluralization rules
+     */
+    private getEntitySetName(entityLogicalName: string): string {
+        // Common irregular plurals in Dataverse
+        const irregularPlurals: Record<string, string> = {
+            opportunity: "opportunities",
+            territory: "territories",
+            currency: "currencies",
+            businessunit: "businessunits",
+            systemuser: "systemusers",
+        };
+
+        const lowerName = entityLogicalName.toLowerCase();
+
+        // Check for irregular plurals
+        if (irregularPlurals[lowerName]) {
+            return irregularPlurals[lowerName];
+        }
+
+        // Handle entities ending in 'y' (e.g., opportunity -> opportunities)
+        if (lowerName.endsWith("y") && lowerName.length > 1 && !"aeiou".includes(lowerName[lowerName.length - 2])) {
+            return lowerName.slice(0, -1) + "ies";
+        }
+
+        // Handle entities ending in 's', 'x', 'z', 'ch', 'sh' (add 'es')
+        if (lowerName.endsWith("s") || lowerName.endsWith("x") || lowerName.endsWith("z") || lowerName.endsWith("ch") || lowerName.endsWith("sh")) {
+            return lowerName + "es";
+        }
+
+        // Default: add 's'
+        return lowerName + "s";
     }
 
     /**
@@ -160,20 +191,23 @@ export class DataverseManager {
      */
     async fetchXmlQuery(fetchXml: string): Promise<FetchXmlResult> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        
+
         // Encode the FetchXML for URL
         const encodedFetchXml = encodeURIComponent(fetchXml);
-        
+
         // Extract entity name from FetchXML
         const entityMatch = fetchXml.match(/<entity\s+name=["']([^"']+)["']/i);
         if (!entityMatch) {
-            throw new Error('Invalid FetchXML: Could not determine entity name');
+            throw new Error("Invalid FetchXML: Could not determine entity name");
         }
         const entityName = entityMatch[1];
-        
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entityName}?fetchXml=${encodedFetchXml}`;
 
-        const response = await this.makeHttpRequest(url, 'GET', accessToken);
+        // Convert entity name to entity set name (pluralized)
+        const entitySetName = this.getEntitySetName(entityName);
+
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
+
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as FetchXmlResult;
     }
 
@@ -191,13 +225,13 @@ export class DataverseManager {
         entityName?: string;
         entityId?: string;
         operationName: string;
-        operationType: 'action' | 'function';
+        operationType: "action" | "function";
         parameters?: Record<string, unknown>;
     }): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        
+
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
-        
+
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
             // Bound operation
@@ -207,10 +241,10 @@ export class DataverseManager {
             url += request.operationName;
         }
 
-        const method = request.operationType === 'function' ? 'GET' : 'POST';
-        
+        const method = request.operationType === "function" ? "GET" : "POST";
+
         // For functions, parameters go in the URL
-        if (request.operationType === 'function' && request.parameters) {
+        if (request.operationType === "function" && request.parameters) {
             const params = new URLSearchParams();
             Object.entries(request.parameters).forEach(([key, value]) => {
                 params.append(key, JSON.stringify(value));
@@ -218,9 +252,9 @@ export class DataverseManager {
             url += `?${params.toString()}`;
         }
 
-        const body = request.operationType === 'action' ? request.parameters : undefined;
+        const body = request.operationType === "action" ? request.parameters : undefined;
         const response = await this.makeHttpRequest(url, method, accessToken, body);
-        
+
         return response.data as Record<string, unknown>;
     }
 
@@ -231,7 +265,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')`;
 
-        const response = await this.makeHttpRequest(url, 'GET', accessToken);
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as EntityMetadata;
     }
 
@@ -242,55 +276,47 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=LogicalName,DisplayName,MetadataId`;
 
-        const response = await this.makeHttpRequest(url, 'GET', accessToken);
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
 
     /**
      * Make an HTTP request to Dataverse Web API
      */
-    private makeHttpRequest(
-        url: string,
-        method: string,
-        accessToken: string,
-        body?: Record<string, unknown>
-    ): Promise<{ data: unknown; headers: Record<string, string> }> {
+    private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
-            
+
             const options: https.RequestOptions = {
                 hostname: urlObj.hostname,
                 port: 443,
                 path: urlObj.pathname + urlObj.search,
                 method: method,
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': 'application/json',
-                    'OData-MaxVersion': '4.0',
-                    'OData-Version': '4.0',
-                    'Content-Type': 'application/json; charset=utf-8',
-                    'Prefer': 'return=representation', // Return created/updated entity data
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: "application/json",
+                    "OData-MaxVersion": "4.0",
+                    "OData-Version": "4.0",
+                    "Content-Type": "application/json; charset=utf-8",
+                    Prefer: "return=representation", // Return created/updated entity data
+                    "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
                 },
             };
 
-            if (bodyData) {
-                options.headers!['Content-Length'] = Buffer.byteLength(bodyData);
-            }
-
             const req = https.request(options, (res) => {
-                let data = '';
+                let data = "";
 
-                res.on('data', (chunk) => {
+                res.on("data", (chunk) => {
                     data += chunk;
                 });
 
-                res.on('end', () => {
+                res.on("end", () => {
                     // Collect response headers
                     const responseHeaders: Record<string, string> = {};
                     if (res.headers) {
                         Object.entries(res.headers).forEach(([key, value]) => {
-                            if (typeof value === 'string') {
+                            if (typeof value === "string") {
                                 responseHeaders[key.toLowerCase()] = value;
                             } else if (Array.isArray(value)) {
                                 responseHeaders[key.toLowerCase()] = value[0];
@@ -327,7 +353,7 @@ export class DataverseManager {
                 });
             });
 
-            req.on('error', (error) => {
+            req.on("error", (error) => {
                 reject(new Error(`Request failed: ${error.message}`));
             });
 

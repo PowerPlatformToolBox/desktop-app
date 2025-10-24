@@ -53,13 +53,16 @@ export class TerminalManager extends EventEmitter {
 
         const cwd = options.cwd || process.cwd();
 
+        // Default to visible unless explicitly set to false
+        const isVisible = options.visible !== undefined ? options.visible : true;
+
         const terminal: Terminal = {
             id: terminalId,
             name: options.name,
             toolId,
             shell,
             cwd,
-            isVisible: false,
+            isVisible,
             createdAt: new Date().toISOString(),
         };
 

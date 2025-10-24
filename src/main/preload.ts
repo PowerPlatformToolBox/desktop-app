@@ -11,15 +11,17 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getSetting: (key: string) => ipcRenderer.invoke("get-setting", key),
     setSetting: (key: string, value: unknown) => ipcRenderer.invoke("set-setting", key, value),
 
-    // Connections - Only for PPTB UI
-    addConnection: (connection: unknown) => ipcRenderer.invoke("add-connection", connection),
-    updateConnection: (id: string, updates: unknown) => ipcRenderer.invoke("update-connection", id, updates),
-    deleteConnection: (id: string) => ipcRenderer.invoke("delete-connection", id),
-    getConnections: () => ipcRenderer.invoke("get-connections"),
-    setActiveConnection: (id: string) => ipcRenderer.invoke("set-active-connection", id),
-    getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
-    disconnectConnection: () => ipcRenderer.invoke("disconnect-connection"),
-    testConnection: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
+    // Connections namespace - organized like in the iframe
+    connections: {
+        add: (connection: unknown) => ipcRenderer.invoke("add-connection", connection),
+        update: (id: string, updates: unknown) => ipcRenderer.invoke("update-connection", id, updates),
+        delete: (id: string) => ipcRenderer.invoke("delete-connection", id),
+        getAll: () => ipcRenderer.invoke("get-connections"),
+        setActive: (id: string) => ipcRenderer.invoke("set-active-connection", id),
+        getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
+        disconnect: () => ipcRenderer.invoke("disconnect-connection"),
+        test: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
+    },
 
     // Tools - Only for PPTB UI
     getAllTools: () => ipcRenderer.invoke("get-all-tools"),
@@ -37,34 +39,37 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
     updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke("update-tool-settings", toolId, settings),
 
-    // Notifications - Only for PPTB UI
-    showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),
-
-    // Clipboard - Only for PPTB UI
-    copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
-
-    // File operations - Only for PPTB UI
-    saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
+    // Utils namespace - organized like in the iframe
+    utils: {
+        showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),
+        copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
+        saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
+        getCurrentTheme: () => Promise.resolve('light' as const), // Stub for now
+    },
 
     // External URL - Only for PPTB UI
     openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
 
-    // Terminal - Only for PPTB UI
-    createTerminal: (toolId: string, options: unknown) => ipcRenderer.invoke("create-terminal", toolId, options),
-    executeTerminalCommand: (terminalId: string, command: string) => ipcRenderer.invoke("execute-terminal-command", terminalId, command),
-    closeTerminal: (terminalId: string) => ipcRenderer.invoke("close-terminal", terminalId),
-    getTerminal: (terminalId: string) => ipcRenderer.invoke("get-terminal", terminalId),
-    getToolTerminals: (toolId: string) => ipcRenderer.invoke("get-tool-terminals", toolId),
-    getAllTerminals: () => ipcRenderer.invoke("get-all-terminals"),
-    setTerminalVisibility: (terminalId: string, visible: boolean) => ipcRenderer.invoke("set-terminal-visibility", terminalId, visible),
-
-    // Events - Only for PPTB UI
-    getEventHistory: (limit?: number) => ipcRenderer.invoke("get-event-history", limit),
-    onToolboxEvent: (callback: (event: unknown, payload: unknown) => void) => {
-        ipcRenderer.on("toolbox-event", callback);
+    // Terminal namespace - organized like in the iframe
+    terminal: {
+        create: (toolId: string, options: unknown) => ipcRenderer.invoke("create-terminal", toolId, options),
+        execute: (terminalId: string, command: string) => ipcRenderer.invoke("execute-terminal-command", terminalId, command),
+        close: (terminalId: string) => ipcRenderer.invoke("close-terminal", terminalId),
+        get: (terminalId: string) => ipcRenderer.invoke("get-terminal", terminalId),
+        list: (toolId: string) => ipcRenderer.invoke("get-tool-terminals", toolId),
+        listAll: () => ipcRenderer.invoke("get-all-terminals"),
+        setVisibility: (terminalId: string, visible: boolean) => ipcRenderer.invoke("set-terminal-visibility", terminalId, visible),
     },
-    removeToolboxEventListener: (callback: (event: unknown, payload: unknown) => void) => {
-        ipcRenderer.removeListener("toolbox-event", callback);
+
+    // Events namespace - organized like in the iframe
+    events: {
+        getHistory: (limit?: number) => ipcRenderer.invoke("get-event-history", limit),
+        on: (callback: (event: unknown, payload: unknown) => void) => {
+            ipcRenderer.on("toolbox-event", callback);
+        },
+        off: (callback: (event: unknown, payload: unknown) => void) => {
+            ipcRenderer.removeListener("toolbox-event", callback);
+        },
     },
 
     // Auto-update - Only for PPTB UI
