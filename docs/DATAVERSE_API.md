@@ -41,6 +41,7 @@ The main backend implementation that handles HTTP communication with Dataverse.
 - Automatic token expiry checking and refresh
 - Proper error handling and response parsing
 - Support for all standard Dataverse operations
+- Automatic entity set name conversion (pluralization)
 
 **Dependencies:**
 - `ConnectionsManager` - For active connection and token retrieval
@@ -85,6 +86,18 @@ window.dataverseAPI = {
     // ... other methods
 }
 ```
+
+## Entity Naming Convention
+
+The Dataverse Web API uses **entity set names** (plural forms) in URLs, but tools should use **entity logical names** (singular forms) when calling the API methods. The DataverseManager automatically handles the conversion.
+
+**Examples:**
+- `account` → `accounts`
+- `contact` → `contacts`
+- `opportunity` → `opportunities`
+- `territory` → `territories`
+
+This conversion is handled automatically by the `getEntitySetName()` method, which implements common English pluralization rules and handles irregular plurals specific to Dataverse entities.
 
 ## API Reference
 
@@ -452,6 +465,15 @@ See `docs/examples/dataverse-api-example.html` for interactive examples of all o
 **Problem**: "Invalid FetchXML: Could not determine entity name"
 
 **Solution**: Ensure your FetchXML has a valid `<entity name="...">` element.
+
+### Resource Not Found Errors
+
+**Problem**: "Resource not found for the segment 'account'" or similar errors
+
+**Solution**: This error occurs when the entity set name is incorrect. The DataverseManager automatically converts entity logical names (singular) to entity set names (plural), so this should not occur in normal usage. If you see this error:
+1. Ensure you're passing the entity logical name (e.g., 'account', not 'accounts')
+2. Check that the entity exists in your Dataverse environment
+3. Verify your connection has proper permissions to access the entity
 
 ## Future Enhancements
 
