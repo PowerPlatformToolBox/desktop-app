@@ -1,15 +1,15 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="types.d.ts" />
 
-import AnsiToHtml from 'ansi-to-html';
+import AnsiToHtml from "ansi-to-html";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml({
-    fg: '#CCCCCC',
-    bg: '#1E1E1E',
+    fg: "#CCCCCC",
+    bg: "#1E1E1E",
     newline: false,
     escapeXML: true,
-    stream: false
+    stream: false,
 });
 
 // Tab management for multiple tools
@@ -35,74 +35,74 @@ window.addEventListener("message", async (event) => {
 
         try {
             let result;
-            
+
             // Handle context-aware terminal operations
-            if (method === 'terminal.create') {
+            if (method === "terminal.create") {
                 // Extract _toolId from options (injected by bridge)
                 const options = args && args[0];
                 const toolId = options?._toolId;
-                
+
                 if (!toolId) {
-                    throw new Error('Tool ID not available - ensure tool context is initialized');
+                    throw new Error("Tool ID not available - ensure tool context is initialized");
                 }
-                
+
                 // Get tool info to use tool name as terminal name if not provided
                 const tool = await window.toolboxAPI.getTool(toolId);
                 const terminalName = options.name || (tool ? tool.name : toolId);
-                
+
                 // Remove _toolId before passing to actual API
                 const cleanOptions = { ...options };
                 delete cleanOptions._toolId;
                 cleanOptions.name = terminalName;
-                
+
                 result = await window.toolboxAPI.terminal.create(toolId, cleanOptions);
-            } else if (method === 'terminal.list') {
+            } else if (method === "terminal.list") {
                 // Get toolId from first arg (injected by bridge)
                 const toolId = args && args[0];
                 if (!toolId) {
-                    throw new Error('Tool ID not available');
+                    throw new Error("Tool ID not available");
                 }
                 result = await window.toolboxAPI.terminal.list(toolId);
-            } else if (method === 'events.getHistory') {
+            } else if (method === "events.getHistory") {
                 // Get toolId and limit from args (injected by bridge)
                 const toolId = args && args[0];
                 const limit = args && args[1];
-                
+
                 // Get event history and filter to tool-specific events
                 const allEvents = await window.toolboxAPI.events.getHistory(limit);
                 result = allEvents.filter((eventPayload: any) => {
                     const event = eventPayload.event;
                     const data = eventPayload.data;
-                    
+
                     // Terminal events - only include if terminal belongs to this tool
-                    if (event.startsWith('terminal:')) {
+                    if (event.startsWith("terminal:")) {
                         return data && data.toolId === toolId;
                     }
-                    
+
                     // Tool events - only include if about this tool
-                    if (event === 'tool:loaded' || event === 'tool:unloaded') {
+                    if (event === "tool:loaded" || event === "tool:unloaded") {
                         return data && data.id === toolId;
                     }
-                    
+
                     // Connection and notification events are global
                     return true;
                 });
             } else {
                 // Handle regular API methods
-                const methodParts = method.split('.');
+                const methodParts = method.split(".");
                 let target: any = window.toolboxAPI;
-                
+
                 // Navigate through nested objects
                 for (let i = 0; i < methodParts.length - 1; i++) {
                     target = target[methodParts[i]];
                     if (!target) {
-                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join('.')}`);
+                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join(".")}`);
                     }
                 }
-                
+
                 // Get the actual method
                 const finalMethod = methodParts[methodParts.length - 1];
-                if (typeof target[finalMethod] !== 'function') {
+                if (typeof target[finalMethod] !== "function") {
                     throw new Error(`API method not found: ${method}`);
                 }
 
@@ -1542,7 +1542,7 @@ function applyTerminalFont(fontFamily: string) {
     if (terminalPanelContent) {
         terminalPanelContent.style.fontFamily = fontFamily;
     }
-    
+
     // Also apply to any existing terminal output elements
     const terminalOutputElements = document.querySelectorAll(".terminal-output-content");
     terminalOutputElements.forEach((element) => {
@@ -2311,13 +2311,13 @@ async function loadSidebarSettings() {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
-        
+
         const terminalFont = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
-        
+
         // Check if the font is a predefined option
         const options = Array.from(terminalFontSelect.options) as HTMLOptionElement[];
-        const matchingOption = options.find(opt => opt.value === terminalFont);
-        
+        const matchingOption = options.find((opt) => opt.value === terminalFont);
+
         if (matchingOption) {
             terminalFontSelect.value = terminalFont;
         } else {
@@ -2330,7 +2330,7 @@ async function loadSidebarSettings() {
                 customFontContainer.style.display = "block";
             }
         }
-        
+
         // Apply current terminal font
         applyTerminalFont(terminalFont);
     }
@@ -2345,7 +2345,7 @@ async function saveSidebarSettings() {
     if (!themeSelect || !autoUpdateCheck || !terminalFontSelect) return;
 
     let terminalFont = terminalFontSelect.value;
-    
+
     // If custom option is selected, use the custom input value
     if (terminalFont === "custom" && customFontInput) {
         terminalFont = customFontInput.value.trim() || "'Consolas', 'Monaco', 'Courier New', monospace";
@@ -2489,7 +2489,7 @@ function createTerminalTab(terminal: any) {
     closeBtn.innerHTML = "×";
     closeBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        await window.toolboxAPI.closeTerminal(terminal.id);
+        await window.toolboxAPI.terminal.close(terminal.id);
     });
     tabElement.appendChild(closeBtn);
 
@@ -2581,9 +2581,9 @@ function appendTerminalOutput(terminalId: string, output: string) {
 
     // Convert ANSI escape codes to HTML
     const htmlOutput = ansiConverter.toHtml(output);
-    
+
     // Append HTML content (using insertAdjacentHTML to preserve formatting)
-    terminal.outputElement.insertAdjacentHTML('beforeend', htmlOutput);
+    terminal.outputElement.insertAdjacentHTML("beforeend", htmlOutput);
 
     // Auto-scroll to bottom
     terminal.outputElement.scrollTop = terminal.outputElement.scrollHeight;
@@ -2757,11 +2757,11 @@ async function init() {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
-    
+
     if (terminalFontSelect) {
         terminalFontSelect.addEventListener("change", async () => {
             const terminalFont = (terminalFontSelect as any).value;
-            
+
             // Show/hide custom input based on selection
             if (customFontContainer) {
                 if (terminalFont === "custom") {
@@ -2784,7 +2784,7 @@ async function init() {
             }
         });
     }
-    
+
     // Add input listener for custom font to apply on blur or Enter key
     if (customFontInput) {
         const applyCustomFont = async () => {
@@ -2794,7 +2794,7 @@ async function init() {
                 applyTerminalFont(customFont);
             }
         };
-        
+
         customFontInput.addEventListener("blur", applyCustomFont);
         customFontInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") {
