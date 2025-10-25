@@ -219,7 +219,7 @@ async function onEntitySelected(): Promise<void> {
 
     } catch (error) {
         console.error('Error loading attributes:', error);
-        attributesContainer.innerHTML = `<div class="error-message">Error: ${(error as Error).message}</div>`;
+        attributesContainer.innerHTML = `<div class="error-message">Error: ${escapeHtml((error as Error).message)}</div>`;
     }
 }
 
@@ -384,7 +384,7 @@ async function executeQuery(): Promise<void> {
         console.error('Query execution error:', error);
         resultsContainer.innerHTML = `
             <div class="error-message">
-                <strong>Query Error:</strong> ${(error as Error).message}
+                <strong>Query Error:</strong> ${escapeHtml((error as Error).message)}
             </div>
         `;
         await window.toolboxAPI.utils.showNotification({
