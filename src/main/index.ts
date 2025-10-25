@@ -5,25 +5,31 @@ import { ToolBoxEvent } from "../types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { SettingsManager } from "./managers/settingsManager";
+import { ConnectionsManager } from "./managers/connectionsManager";
 import { ToolManager } from "./managers/toolsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { DataverseManager } from "./managers/dataverseManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
+    private dataverseManager: DataverseManager;
 
     constructor() {
         this.settingsManager = new SettingsManager();
+        this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
+        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -137,26 +143,26 @@ class ToolBoxApp {
 
         // Connection handlers
         ipcMain.handle("add-connection", (_, connection) => {
-            this.settingsManager.addConnection(connection);
+            this.connectionsManager.addConnection(connection);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
         });
 
         ipcMain.handle("update-connection", (_, id, updates) => {
-            this.settingsManager.updateConnection(id, updates);
+            this.connectionsManager.updateConnection(id, updates);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
         });
 
         ipcMain.handle("delete-connection", (_, id) => {
-            this.settingsManager.deleteConnection(id);
+            this.connectionsManager.deleteConnection(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
         });
 
         ipcMain.handle("get-connections", () => {
-            return this.settingsManager.getConnections();
+            return this.connectionsManager.getConnections();
         });
 
         ipcMain.handle("set-active-connection", async (_, id) => {
-            const connection = this.settingsManager.getConnections().find((c) => c.id === id);
+            const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
                 throw new Error("Connection not found");
             }
@@ -180,7 +186,7 @@ class ToolBoxApp {
                 }
 
                 // Set the connection as active with tokens
-                this.settingsManager.setActiveConnection(id, {
+                this.connectionsManager.setActiveConnection(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -203,11 +209,11 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("get-active-connection", () => {
-            return this.settingsManager.getActiveConnection();
+            return this.connectionsManager.getActiveConnection();
         });
 
         ipcMain.handle("disconnect-connection", () => {
-            this.settingsManager.disconnectActiveConnection();
+            this.connectionsManager.disconnectActiveConnection();
         });
 
         // Tool handlers
@@ -254,8 +260,8 @@ class ToolBoxApp {
             return this.toolManager.getToolWebviewHtml(packageName);
         });
 
-        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl, accessToken) => {
-            return this.toolManager.getToolContext(packageName, connectionUrl, accessToken);
+        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl) => {
+            return this.toolManager.getToolContext(packageName, connectionUrl);
         });
 
         // Tool settings handlers
@@ -280,6 +286,12 @@ class ToolBoxApp {
         // Save file handler
         ipcMain.handle("save-file", async (_, defaultPath, content) => {
             return await this.api.saveFile(defaultPath, content);
+        });
+
+        // Get current theme handler
+        ipcMain.handle("get-current-theme", () => {
+            const settings = this.settingsManager.getUserSettings();
+            return settings.theme || "system";
         });
 
         // Event history handler
@@ -336,6 +348,87 @@ class ToolBoxApp {
 
         ipcMain.handle("get-app-version", () => {
             return this.autoUpdateManager.getCurrentVersion();
+        });
+
+        // Dataverse API handlers
+        ipcMain.handle("dataverse.create", async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+            try {
+                return await this.dataverseManager.create(entityLogicalName, record);
+            } catch (error) {
+                throw new Error(`Dataverse create failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.retrieve", async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+            try {
+                return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
+            } catch (error) {
+                throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.update", async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+            try {
+                await this.dataverseManager.update(entityLogicalName, id, record);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse update failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.delete", async (_, entityLogicalName: string, id: string) => {
+            try {
+                await this.dataverseManager.delete(entityLogicalName, id);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.retrieveMultiple", async (_, fetchXml: string) => {
+            try {
+                return await this.dataverseManager.retrieveMultiple(fetchXml);
+            } catch (error) {
+                throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.execute", async (_, request: {
+            entityName?: string;
+            entityId?: string;
+            operationName: string;
+            operationType: 'action' | 'function';
+            parameters?: Record<string, unknown>;
+        }) => {
+            try {
+                return await this.dataverseManager.execute(request);
+            } catch (error) {
+                throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.fetchXmlQuery", async (_, fetchXml: string) => {
+            try {
+                return await this.dataverseManager.fetchXmlQuery(fetchXml);
+            } catch (error) {
+                throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string) => {
+            try {
+                return await this.dataverseManager.getEntityMetadata(entityLogicalName);
+            } catch (error) {
+                throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getAllEntitiesMetadata", async () => {
+            try {
+                return await this.dataverseManager.getAllEntitiesMetadata();
+            } catch (error) {
+                throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+            }
         });
     }
 

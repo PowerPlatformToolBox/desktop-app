@@ -1,8 +1,9 @@
 import Store from 'electron-store';
-import { DataverseConnection, ToolSettings, UserSettings } from '../../types';
+import { ToolSettings, UserSettings } from '../../types';
 
 /**
  * Manages user settings using electron-store
+ * Note: Connection management has been moved to ConnectionsManager
  */
 export class SettingsManager {
   private store: Store<UserSettings>;
@@ -17,7 +18,7 @@ export class SettingsManager {
         autoUpdate: true,
         terminalFont: "'Consolas', 'Monaco', 'Courier New', monospace",
         lastUsedTools: [],
-        connections: [],
+        connections: [], // Kept for backwards compatibility, but use ConnectionsManager instead
         installedTools: [],
       },
     });
@@ -56,86 +57,6 @@ export class SettingsManager {
    */
   setSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): void {
     this.store.set(key, value);
-  }
-
-  /**
-   * Add a Dataverse connection
-   */
-  addConnection(connection: DataverseConnection): void {
-    const connections = this.store.get('connections');
-    // If this is the first connection or marked as active, make it active
-    if (connections.length === 0 || connection.isActive) {
-      // Deactivate all other connections
-      connections.forEach(c => c.isActive = false);
-      connection.isActive = true;
-    }
-    connections.push(connection);
-    this.store.set('connections', connections);
-  }
-
-  /**
-   * Update a Dataverse connection
-   */
-  updateConnection(id: string, updates: Partial<DataverseConnection>): void {
-    const connections = this.store.get('connections');
-    const index = connections.findIndex(c => c.id === id);
-    if (index !== -1) {
-      connections[index] = { ...connections[index], ...updates };
-      this.store.set('connections', connections);
-    }
-  }
-
-  /**
-   * Delete a Dataverse connection
-   */
-  deleteConnection(id: string): void {
-    const connections = this.store.get('connections');
-    const filtered = connections.filter(c => c.id !== id);
-    this.store.set('connections', filtered);
-  }
-
-  /**
-   * Get all connections
-   */
-  getConnections(): DataverseConnection[] {
-    const connections = this.store.get('connections');
-    return connections;
-  }
-
-  /**
-   * Set active connection (only one can be active at a time)
-   */
-  setActiveConnection(id: string, authTokens?: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
-    const connections = this.store.get('connections');
-    connections.forEach(c => {
-      c.isActive = c.id === id;
-      if (c.isActive) {
-        c.lastUsedAt = new Date().toISOString();
-        if (authTokens) {
-          c.accessToken = authTokens.accessToken;
-          c.refreshToken = authTokens.refreshToken;
-          c.tokenExpiry = authTokens.expiresOn.toISOString();
-        }
-      }
-    });
-    this.store.set('connections', connections);
-  }
-
-  /**
-   * Get the currently active connection
-   */
-  getActiveConnection(): DataverseConnection | null {
-    const connections = this.store.get('connections');
-    return connections.find(c => c.isActive) || null;
-  }
-
-  /**
-   * Disconnect (deactivate) the current connection
-   */
-  disconnectActiveConnection(): void {
-    const connections = this.store.get('connections');
-    connections.forEach(c => c.isActive = false);
-    this.store.set('connections', connections);
   }
 
   /**
