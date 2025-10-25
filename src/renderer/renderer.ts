@@ -833,7 +833,7 @@ async function updateConnectionSelector() {
     if (!selector) return;
 
     try {
-        const connections = await window.toolboxAPI.connections.getConnections();
+        const connections = await window.toolboxAPI.connections.getAll();
 
         // Clear and repopulate
         selector.innerHTML = '<option value="">No Connection</option>';
@@ -1177,7 +1177,7 @@ function updateFooterConnectionStatus(connection: any | null) {
 
 async function connectToConnection(id: string) {
     try {
-        await window.toolboxAPI.connections.setActiveConnection(id);
+        await window.toolboxAPI.connections.setActive(id);
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
@@ -1200,7 +1200,7 @@ async function connectToConnection(id: string) {
 
 async function disconnectConnection() {
     try {
-        await window.toolboxAPI.connections.disconnectConnection();
+        await window.toolboxAPI.connections.disconnect();
         await window.toolboxAPI.utils.showNotification({
             title: "Disconnected",
             body: "Disconnected from environment.",
