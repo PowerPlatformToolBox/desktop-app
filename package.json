@@ -59,12 +59,10 @@
     "files": [
       "dist/**/*",
       "assets/**/*",
-      "package.json",
-      "!node_modules",
-      "node_modules/pnpm/**/*"
+      "package.json"
     ],
     "asarUnpack": [
-      "node_modules/pnpm/**/*"
+      "**/node_modules/pnpm/**"
     ],
     "publish": {
       "provider": "github",

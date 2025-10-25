@@ -5,6 +5,10 @@ import { spawn } from "child_process";
 import { Tool } from "../../types";
 import { app } from "electron";
 
+// Import pnpm to ensure electron-builder includes it as a dependency
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unused-vars
+const _pnpmPackageJson = require("pnpm/package.json");
+
 /**
  * Manages tool plugins loaded from npm packages
  * Tools are HTML-first and loaded directly into webviews
@@ -34,10 +38,28 @@ export class ToolManager extends EventEmitter {
         console.log(`[ToolManager] __dirname: ${__dirname}`);
         console.log(`[ToolManager] process.resourcesPath: ${process.resourcesPath}`);
         
-        // Try to find pnpm.cjs (the actual pnpm script) to execute with node
+        // Try using require.resolve to find pnpm package
         let pnpmCjsPath: string;
         const attemptedPaths: string[] = [];
         
+        try {
+            // Try to resolve pnpm package using Node's module resolution
+            const pnpmPackagePath = require.resolve("pnpm/package.json");
+            const pnpmDir = path.dirname(pnpmPackagePath);
+            pnpmCjsPath = path.join(pnpmDir, "bin", "pnpm.cjs");
+            console.log(`[ToolManager] require.resolve found pnpm at: ${pnpmCjsPath}`);
+            
+            if (fs.existsSync(pnpmCjsPath)) {
+                console.log(`[ToolManager] Successfully resolved pnpm via require.resolve at: ${pnpmCjsPath}`);
+                return pnpmCjsPath;
+            } else {
+                console.log(`[ToolManager] pnpm.cjs not found at resolved path: ${pnpmCjsPath}`);
+            }
+        } catch (err) {
+            console.log(`[ToolManager] require.resolve failed: ${err}`);
+        }
+        
+        // Fallback to manual path resolution
         if (app.isPackaged) {
             // In packaged app, pnpm is unpacked to app.asar.unpacked/node_modules
             const resourcesPath = process.resourcesPath;
