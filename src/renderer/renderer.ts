@@ -1200,7 +1200,7 @@ async function connectToConnection(id: string) {
 
 async function disconnectConnection() {
     try {
-        await window.toolboxAPI.connections.disconnect();
+        await window.toolboxAPI.connections.disconnectConnection();
         await window.toolboxAPI.utils.showNotification({
             title: "Disconnected",
             body: "Disconnected from environment.",
