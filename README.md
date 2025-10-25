@@ -386,6 +386,9 @@ node node_modules/electron/install.js
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
+-   **[PORTING_XTB_TOOLS.md](docs/PORTING_XTB_TOOLS.md)** - Comprehensive guide for porting XrmToolBox tools to PPTB
+-   **[PORTING_QUICK_START.md](docs/PORTING_QUICK_START.md)** - Quick reference for XTB tool porting
+-   **[FetchXML Builder Sample](examples/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
 ## Discussions
