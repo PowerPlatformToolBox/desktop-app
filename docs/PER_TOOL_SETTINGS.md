@@ -217,8 +217,8 @@ const theme = await toolboxAPI.settings.getSetting('theme');
 ## Examples
 
 See the comprehensive examples:
-- [Settings API Example (HTML)](./docs/examples/settings-api-example.html) - Interactive example with UI
-- [Context-Aware Tool Example (JS)](./docs/examples/context-aware-tool-example.js) - Complete tool example including settings
+- [Settings API Example (HTML)](./examples/settings-api-example.html) - Interactive example with UI
+- [Context-Aware Tool Example (JS)](./examples/context-aware-tool-example.js) - Complete tool example including settings
 
 ## TypeScript Support
 
@@ -267,6 +267,6 @@ await toolboxAPI.settings.setSetting('theme', 'dark');
 
 ## Related Documentation
 
-- [Tool Development Guide](./docs/TOOL_DEVELOPMENT.md) - Complete guide to developing tools
-- [API Reference](./packages/toolboxAPI.d.ts) - Full TypeScript API definitions
-- [Architecture Documentation](./docs/ARCHITECTURE.md) - System architecture overview
+- [Tool Development Guide](./TOOL_DEVELOPMENT.md) - Complete guide to developing tools
+- [API Reference](../packages/toolboxAPI.d.ts) - Full TypeScript API definitions
+- [Architecture Documentation](./ARCHITECTURE.md) - System architecture overview
