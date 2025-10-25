@@ -10,6 +10,14 @@ import { DATAVERSE_API_VERSION } from '../constants';
  */
 export class AuthManager {
   private msalApp: PublicClientApplication | null = null;
+  private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
 
   constructor() {
     // MSAL will be initialized on-demand for interactive auth
@@ -169,15 +177,7 @@ export class AuthManager {
    * Escape HTML special characters to prevent XSS
    */
   private escapeHtml(text: string): string {
-    const htmlEscapeMap: { [key: string]: string } = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#x27;',
-      '/': '&#x2F;',
-    };
-    return text.replace(/[&<>"'/]/g, (char) => htmlEscapeMap[char] || char);
+    return text.replace(/[&<>"'/]/g, (char) => AuthManager.HTML_ESCAPE_MAP[char]);
   }
 
   /**
