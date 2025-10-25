@@ -60,11 +60,15 @@ export class AuthManager {
 
       const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
-      // Open the authorization URL in the default browser
+      // Start local HTTP server to listen for the redirect with authorization code
+      // This creates a promise that will resolve when the auth code is received
+      const authCodePromise = this.listenForAuthCode(redirectUri);
+
+      // Open the authorization URL in the default browser after server is ready
       await shell.openExternal(authCodeUrl);
 
-      // Start local HTTP server to listen for the redirect with authorization code
-      const authCode = await this.listenForAuthCode(redirectUri);
+      // Wait for the authorization code
+      const authCode = await authCodePromise;
 
       // Exchange authorization code for tokens
       const tokenRequest = {
