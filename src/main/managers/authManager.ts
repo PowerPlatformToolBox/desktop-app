@@ -100,12 +100,14 @@ export class AuthManager {
         const errorDescription = reqUrl.searchParams.get('error_description');
 
         if (error) {
+          // Escape HTML to prevent XSS
+          const safeError = this.escapeHtml(errorDescription || error || 'Unknown error');
           res.writeHead(400, { 'Content-Type': 'text/html' });
           res.end(`
             <html>
               <body style="font-family: system-ui; text-align: center; padding: 50px;">
                 <h1 style="color: #d13438;">Authentication Failed</h1>
-                <p>${errorDescription || error}</p>
+                <p>${safeError}</p>
                 <p>You can close this window and return to the application.</p>
               </body>
             </html>
@@ -161,6 +163,21 @@ export class AuthManager {
         reject(new Error('Authentication timeout - no response received within 5 minutes'));
       }, 5 * 60 * 1000);
     });
+  }
+
+  /**
+   * Escape HTML special characters to prevent XSS
+   */
+  private escapeHtml(text: string): string {
+    const htmlEscapeMap: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#x27;',
+      '/': '&#x2F;',
+    };
+    return text.replace(/[&<>"'/]/g, (char) => htmlEscapeMap[char] || char);
   }
 
   /**
