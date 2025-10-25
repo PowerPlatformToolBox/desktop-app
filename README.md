@@ -345,6 +345,30 @@ Create connections to Dataverse environments:
 2. Click "Add Connection"
 3. Follow the prompt
 
+## Releases & Downloads
+
+Power Platform Tool Box releases are published on GitHub:
+
+-   **Stable Releases**: Published when PRs are merged to the `main` branch
+-   **Nightly Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
+
+### Download Latest Release
+
+Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/releases) to download:
+
+-   **Windows**: `.exe` installer
+-   **macOS**: `.dmg` installer
+-   **Linux**: `.AppImage` installer
+
+### Release Workflows
+
+The project includes automated GitHub Actions workflows:
+
+-   **Nightly Dev Build**: Runs daily at midnight UTC, creates pre-releases for testing
+-   **Release Build**: Triggers on PR merge to main, creates stable releases
+
+For more details, see [Workflows Documentation](docs/WORKFLOWS.md).
+
 ## Auto-Updates
 
 The application supports automatic updates to keep your ToolBox up to date:
@@ -385,6 +409,7 @@ node node_modules/electron/install.js
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+-   **[WORKFLOWS.md](docs/WORKFLOWS.md)** - GitHub Actions workflows for builds and releases
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
