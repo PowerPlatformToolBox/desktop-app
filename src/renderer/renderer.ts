@@ -833,7 +833,7 @@ async function updateConnectionSelector() {
     if (!selector) return;
 
     try {
-        const connections = await window.toolboxAPI.connections.getAll();
+        const connections = await window.toolboxAPI.connections.getConnections();
 
         // Clear and repopulate
         selector.innerHTML = '<option value="">No Connection</option>';
