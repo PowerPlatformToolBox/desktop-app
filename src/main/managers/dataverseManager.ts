@@ -298,10 +298,15 @@ export class DataverseManager {
      * @param selectColumns - Optional array of column names to select
      */
     async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
+        if (!relatedPath || !relatedPath.trim()) {
+            throw new Error("relatedPath parameter cannot be empty");
+        }
+
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         // Encode individual path segments but preserve forward slashes for URL structure
-        const encodedPath = relatedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        // Filter out empty segments to prevent double slashes
+        const encodedPath = relatedPath.split('/').filter(segment => segment.length > 0).map(segment => encodeURIComponent(segment)).join('/');
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
         
         if (selectColumns && selectColumns.length > 0) {
