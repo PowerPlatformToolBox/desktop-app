@@ -1,7 +1,8 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, shell } from 'electron';
 import { PublicClientApplication, LogLevel } from '@azure/msal-node';
 import { DataverseConnection } from '../../types';
 import * as https from 'https';
+import * as http from 'http';
 import { DATAVERSE_API_VERSION } from '../constants';
 
 /**
@@ -9,6 +10,14 @@ import { DATAVERSE_API_VERSION } from '../constants';
  */
 export class AuthManager {
   private msalApp: PublicClientApplication | null = null;
+  private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
 
   constructor() {
     // MSAL will be initialized on-demand for interactive auth
@@ -38,7 +47,7 @@ export class AuthManager {
   }
 
   /**
-   * Authenticate using interactive Microsoft login
+   * Authenticate using interactive Microsoft login with Authorization Code Flow
    */
   async authenticateInteractive(
     connection: DataverseConnection,
@@ -48,33 +57,36 @@ export class AuthManager {
     this.msalApp = this.initializeMsal(clientId);
 
     const scopes = [`${connection.url}/.default`];
+    const redirectUri = 'http://localhost:8080';
 
     try {
-      // For interactive authentication, we'll use device code flow which is simpler
-      // and doesn't require a browser window redirect
-      const deviceCodeRequest = {
+      // Create authorization URL
+      const authCodeUrlParameters = {
         scopes: scopes,
-        deviceCodeCallback: (response: any) => {
-          // Show the device code to the user in a modal dialog
-          console.log('Device Code:', response.message);
-          this.showDeviceCodeDialog(response.message, parentWindow);
-        },
+        redirectUri: redirectUri,
       };
 
-      const response: any = await (this.msalApp as any).acquireTokenByDeviceCode(deviceCodeRequest);
+      const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
-      // Close the device code dialog when authentication is complete
-      parentWindow?.webContents.send('close-device-code-dialog');
+      // Start local HTTP server and wait for it to be ready, then open browser
+      const authCode = await this.listenForAuthCode(redirectUri, authCodeUrl);
+
+      // Exchange authorization code for tokens
+      const tokenRequest = {
+        code: authCode,
+        scopes: scopes,
+        redirectUri: redirectUri,
+      };
+
+      const response = await this.msalApp.acquireTokenByCode(tokenRequest);
 
       return {
         accessToken: response.accessToken,
-        refreshToken: response.account?.homeAccountId, // Store account ID for token refresh
+        refreshToken: response.refreshToken || response.account?.homeAccountId,
         expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
       };
     } catch (error) {
       console.error('Interactive authentication failed:', error);
-      // Close the device code dialog on error
-      parentWindow?.webContents.send('close-device-code-dialog');
       // Show error in a modal dialog
       this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
       throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -82,12 +94,90 @@ export class AuthManager {
   }
 
   /**
-   * Show device code dialog to the user
+   * Start a local HTTP server to listen for OAuth redirect and extract authorization code
    */
-  private showDeviceCodeDialog(message: string, parentWindow?: BrowserWindow): void {
-    if (parentWindow) {
-      parentWindow.webContents.send('show-device-code-dialog', message);
-    }
+  private listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(redirectUri);
+      const port = parseInt(url.port) || 8080;
+
+      const server = http.createServer((req, res) => {
+        const reqUrl = new URL(req.url || '', `http://localhost:${port}`);
+        const code = reqUrl.searchParams.get('code');
+        const error = reqUrl.searchParams.get('error');
+        const errorDescription = reqUrl.searchParams.get('error_description');
+
+        if (error) {
+          // Escape HTML to prevent XSS
+          const safeError = this.escapeHtml(errorDescription || error || 'Unknown error');
+          res.writeHead(400, { 'Content-Type': 'text/html' });
+          res.end(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #d13438;">Authentication Failed</h1>
+                <p>${safeError}</p>
+                <p>You can close this window and return to the application.</p>
+              </body>
+            </html>
+          `);
+          server.close();
+          reject(new Error(errorDescription || error));
+          return;
+        }
+
+        if (code) {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #107c10;">Authentication Successful!</h1>
+                <p>You can close this window and return to the application.</p>
+                <script>window.close();</script>
+              </body>
+            </html>
+          `);
+          server.close();
+          resolve(code);
+          return;
+        }
+
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end(`
+          <html>
+            <body style="font-family: system-ui; text-align: center; padding: 50px;">
+              <h1>Invalid Request</h1>
+              <p>No authorization code received.</p>
+            </body>
+          </html>
+        `);
+      });
+
+      server.listen(port, 'localhost', () => {
+        console.log(`Listening for OAuth redirect on ${redirectUri}`);
+        // Server is ready, now open the browser
+        shell.openExternal(authCodeUrl).catch((err) => {
+          server.close();
+          reject(new Error(`Failed to open browser: ${err.message}`));
+        });
+      });
+
+      server.on('error', (err) => {
+        reject(new Error(`Failed to start local server: ${err.message}`));
+      });
+
+      // Set a timeout of 5 minutes for authentication
+      setTimeout(() => {
+        server.close();
+        reject(new Error('Authentication timeout - no response received within 5 minutes'));
+      }, 5 * 60 * 1000);
+    });
+  }
+
+  /**
+   * Escape HTML special characters to prevent XSS
+   */
+  private escapeHtml(text: string): string {
+    return text.replace(/[&<>"'/]/g, (char) => AuthManager.HTML_ESCAPE_MAP[char]);
   }
 
   /**
