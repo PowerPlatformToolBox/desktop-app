@@ -1,0 +1,39 @@
+{
+    "name": "pptb-fetchxml-builder-sample",
+    "version": "1.0.0",
+    "displayName": "FetchXML Builder Sample",
+    "description": "A sample FetchXML Builder tool for Power Platform Tool Box - demonstrates porting from XrmToolBox",
+    "main": "index.html",
+    "author": "Power Platform Tool Box",
+    "keywords": [
+        "powerplatform",
+        "dataverse",
+        "toolbox",
+        "pptb",
+        "fetchxml",
+        "query",
+        "builder"
+    ],
+    "license": "GPL-3.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/PowerPlatform-ToolBox/desktop-app.git",
+        "directory": "examples/fetchxmlbuilder-sample"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "build": "tsc && npm run copy-files",
+        "copy-files": "shx cp src/index.html dist/ && shx cp src/styles.css dist/",
+        "watch": "tsc --watch"
+    },
+    "devDependencies": {
+        "@pptb/types": "file:../../packages",
+        "typescript": "^5.0.0",
+        "shx": "^0.3.4"
+    },
+    "files": [
+        "dist"
+    ]
+}

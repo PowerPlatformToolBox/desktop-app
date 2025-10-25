@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FetchXML Builder Sample</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🔍 FetchXML Builder</h1>
+            <p class="subtitle">Build, test, and execute FetchXML queries visually</p>
+        </header>
+
+        <!-- Connection Status -->
+        <section class="card">
+            <div class="card-header">
+                <h2>🔗 Connection Status</h2>
+            </div>
+            <div id="connection-info" class="card-content">
+                <div class="loading">Checking connection...</div>
+            </div>
+        </section>
+
+        <!-- Query Builder Section -->
+        <div class="main-layout">
+            <!-- Left Panel - Query Builder -->
+            <div class="left-panel">
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📝 Query Builder</h2>
+                    </div>
+                    <div class="card-content">
+                        <!-- Entity Selection -->
+                        <div class="form-group">
+                            <label for="entity-select">Select Entity:</label>
+                            <select id="entity-select" class="form-control">
+                                <option value="">-- Select an entity --</option>
+                            </select>
+                            <button id="load-entities-btn" class="btn btn-secondary btn-sm">Load Entities</button>
+                        </div>
+
+                        <!-- Attribute Selection -->
+                        <div class="form-group">
+                            <label for="attributes-list">Select Attributes:</label>
+                            <div id="attributes-container" class="attributes-container">
+                                <p class="text-muted">Select an entity first</p>
+                            </div>
+                        </div>
+
+                        <!-- Filter Section -->
+                        <div class="form-group">
+                            <label>Filters:</label>
+                            <div id="filters-container" class="filters-container">
+                                <p class="text-muted">No filters added</p>
+                            </div>
+                            <button id="add-filter-btn" class="btn btn-secondary btn-sm" disabled>+ Add Filter</button>
+                        </div>
+
+                        <!-- Top Records -->
+                        <div class="form-group">
+                            <label for="top-count">Top Records:</label>
+                            <input type="number" id="top-count" class="form-control" value="10" min="1" max="5000">
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="button-group">
+                            <button id="generate-fetchxml-btn" class="btn btn-primary" disabled>Generate FetchXML</button>
+                            <button id="execute-query-btn" class="btn btn-success" disabled>Execute Query</button>
+                            <button id="clear-query-btn" class="btn btn-secondary">Clear</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Panel - FetchXML & Results -->
+            <div class="right-panel">
+                <!-- FetchXML Display -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📄 FetchXML</h2>
+                        <button id="copy-fetchxml-btn" class="btn btn-sm btn-secondary" disabled>Copy</button>
+                    </div>
+                    <div class="card-content">
+                        <textarea id="fetchxml-display" class="fetchxml-textarea" readonly placeholder="FetchXML will appear here..."></textarea>
+                    </div>
+                </section>
+
+                <!-- Query Results -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📊 Results</h2>
+                        <span id="result-count" class="result-count"></span>
+                    </div>
+                    <div class="card-content">
+                        <div id="results-container" class="results-container">
+                            <p class="text-muted">Execute a query to see results</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
