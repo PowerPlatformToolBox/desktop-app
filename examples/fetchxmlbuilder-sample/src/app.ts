@@ -54,7 +54,7 @@ const resultCount = document.getElementById('result-count')!;
 async function init(): Promise<void> {
     try {
         // Check connection
-        currentConnection = await window.toolboxAPI.connections.get();
+        currentConnection = await window.toolboxAPI.connections.getActiveConnection();
         
         if (!currentConnection) {
             connectionInfo.innerHTML = `
@@ -92,8 +92,8 @@ async function init(): Promise<void> {
  * Display connection information
  */
 function displayConnectionInfo(): void {
-    const url = currentConnection.connectionUrl || 'Unknown';
-    const name = currentConnection.connectionName || 'Unnamed Connection';
+    const url = currentConnection.url || 'Unknown';
+    const name = currentConnection.name || 'Unnamed Connection';
     
     connectionInfo.innerHTML = `
         <div class="status-connected">✓ Connected</div>
@@ -127,15 +127,15 @@ async function loadEntities(): Promise<void> {
         loadEntitiesBtn.textContent = 'Loading...';
         loadEntitiesBtn.setAttribute('disabled', 'true');
 
-        // Get all entities (EntityDefinitions)
-        const response = await window.dataverseAPI.retrieveMultiple(
-            'EntityDefinition',
-            ['LogicalName', 'DisplayName'],
-            `IsValidForAdvancedFind eq true and IsCustomizable/Value eq true`,
-            'LogicalName'
-        );
+        // Get all entities using getAllEntitiesMetadata
+        const response = await window.dataverseAPI.getAllEntitiesMetadata();
 
-        availableEntities = response.data as unknown as EntityMetadata[];
+        // Filter to only valid entities
+        availableEntities = response.value.filter(entity => 
+            entity.LogicalName && 
+            // Basic filtering - you may want to add more criteria
+            !entity.LogicalName.startsWith('msdyn_')
+        ) as unknown as EntityMetadata[];
         
         // Populate entity dropdown
         entitySelect.innerHTML = '<option value="">-- Select an entity --</option>';
@@ -183,13 +183,12 @@ async function onEntitySelected(): Promise<void> {
 
     try {
         // Load attributes for selected entity
-        const response = await window.dataverseAPI.getEntityMetadata(selectedEntity);
-        const metadata = response.data as EntityMetadata;
+        const metadata = await window.dataverseAPI.getEntityMetadata(selectedEntity);
         
         // Display attributes as checkboxes
         attributesContainer.innerHTML = '';
         if (metadata.Attributes && metadata.Attributes.length > 0) {
-            metadata.Attributes.forEach(attr => {
+            (metadata.Attributes as AttributeMetadata[]).forEach(attr => {
                 const displayName = attr.DisplayName?.UserLocalizedLabel?.Label || attr.LogicalName;
                 const div = document.createElement('div');
                 div.className = 'attribute-item';
@@ -369,8 +368,8 @@ async function executeQuery(): Promise<void> {
         executeQueryBtn.textContent = 'Executing...';
         executeQueryBtn.setAttribute('disabled', 'true');
 
-        const response = await window.dataverseAPI.fetchXml(currentFetchXml);
-        const records = response.data;
+        const response = await window.dataverseAPI.fetchXmlQuery(currentFetchXml);
+        const records = response.value;
 
         // Display results
         displayResults(records);
