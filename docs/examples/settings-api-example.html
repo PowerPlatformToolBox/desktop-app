@@ -222,10 +222,18 @@ await toolboxAPI.settings.setSetting('recentFiles', [
     </div>
 
     <script>
+        // Helper function to escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Helper function to display output
         function displayOutput(elementId, message, isError = false) {
             const element = document.getElementById(elementId);
-            element.innerHTML = `<span class="${isError ? 'error' : 'success'}">${message}</span>`;
+            const escapedMessage = escapeHtml(message);
+            element.innerHTML = `<span class="${isError ? 'error' : 'success'}">${escapedMessage}</span>`;
         }
 
         // Save a single setting
