@@ -266,9 +266,13 @@ export class DataverseManager {
     /**
      * Get metadata for a specific entity
      */
-    async getEntityMetadata(entityLogicalName: string): Promise<EntityMetadata> {
+    async getEntityMetadata(entityLogicalName: string, selectColumns?: string[]): Promise<EntityMetadata> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')`;
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')`;
+        
+        if (selectColumns && selectColumns.length > 0) {
+            url += `?$select=${selectColumns.join(",")}`;
+        }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as EntityMetadata;
@@ -283,6 +287,40 @@ export class DataverseManager {
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
+    }
+
+    /**
+     * Get related metadata for a specific entity (attributes, relationships, etc.)
+     * @param entityLogicalName - Logical name of the entity
+     * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships')
+     * @param selectColumns - Optional array of column names to select
+     */
+    async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
+        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')/${relatedPath}`;
+        
+        if (selectColumns && selectColumns.length > 0) {
+            url += `?$select=${selectColumns.join(",")}`;
+        }
+
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        return response.data as Record<string, unknown>;
+    }
+
+    /**
+     * Get solutions from the environment
+     * @param selectColumns - Required array of column names to select
+     */
+    async getSolutions(selectColumns: string[]): Promise<{ value: Record<string, unknown>[] }> {
+        if (!selectColumns || selectColumns.length === 0) {
+            throw new Error("selectColumns parameter is required and must contain at least one column");
+        }
+
+        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${selectColumns.join(",")}`;
+
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        return response.data as { value: Record<string, unknown>[] };
     }
 
     /**
