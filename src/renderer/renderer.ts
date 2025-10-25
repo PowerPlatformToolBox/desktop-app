@@ -1177,7 +1177,7 @@ function updateFooterConnectionStatus(connection: any | null) {
 
 async function connectToConnection(id: string) {
     try {
-        await window.toolboxAPI.connections.setActive(id);
+        await window.toolboxAPI.connections.setActiveConnection(id);
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
