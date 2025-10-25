@@ -3,7 +3,6 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
 import { Tool } from "../../types";
-import { app } from "electron";
 
 /**
  * Manages tool plugins loaded from npm packages
@@ -12,92 +11,54 @@ import { app } from "electron";
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
-    private pnpmPath: string;
 
     constructor(toolsDirectory: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.pnpmPath = this.resolvePnpmPath();
         this.ensureToolsDirectory();
     }
 
     /**
-     * Resolve the path to the bundled pnpm executable
-     * This ensures pnpm works in both development and production (packaged app)
+     * Check if a package manager is available globally
      */
-    private resolvePnpmPath(): string {
-        const isWindows = process.platform === "win32";
-        
-        console.log(`[ToolManager] Resolving pnpm path...`);
-        console.log(`[ToolManager] app.isPackaged: ${app.isPackaged}`);
-        console.log(`[ToolManager] process.platform: ${process.platform}`);
-        console.log(`[ToolManager] __dirname: ${__dirname}`);
-        console.log(`[ToolManager] process.resourcesPath: ${process.resourcesPath}`);
-        
-        let pnpmCjsPath: string;
-        const attemptedPaths: string[] = [];
-        
-        if (app.isPackaged) {
-            // In packaged app, pnpm should be in app.asar.unpacked/node_modules
-            const resourcesPath = process.resourcesPath;
+    private async checkPackageManager(command: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const isWindows = process.platform === "win32";
+            const cmd = isWindows ? `${command}.cmd` : command;
             
-            // Try app.asar.unpacked first (where unpacked dependencies go)
-            pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "pnpm", "bin", "pnpm.cjs");
-            attemptedPaths.push(pnpmCjsPath);
-            console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
+            const check = spawn(cmd, ["--version"], { shell: true });
             
-            if (!fs.existsSync(pnpmCjsPath)) {
-                pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", "pnpm", "bin", "pnpm.cjs");
-                attemptedPaths.push(pnpmCjsPath);
-                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-            }
+            check.on("close", (code: number) => {
+                resolve(code === 0);
+            });
             
-            // Try looking in asar itself (might be readable even if not executable)
-            if (!fs.existsSync(pnpmCjsPath)) {
-                pnpmCjsPath = path.join(resourcesPath, "app.asar", "node_modules", "pnpm", "bin", "pnpm.cjs");
-                attemptedPaths.push(pnpmCjsPath);
-                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-            }
-            
-            // Try the .bin symlink as fallback
-            if (!fs.existsSync(pnpmCjsPath)) {
-                const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
-                pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
-                attemptedPaths.push(pnpmCjsPath);
-                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-                
-                if (!fs.existsSync(pnpmCjsPath)) {
-                    pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
-                    attemptedPaths.push(pnpmCjsPath);
-                    console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-                }
-            }
-        } else {
-            // In development, try to find pnpm.cjs directly
-            pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", "pnpm", "bin", "pnpm.cjs");
-            attemptedPaths.push(pnpmCjsPath);
-            console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-            
-            // Fallback to .bin wrapper
-            if (!fs.existsSync(pnpmCjsPath)) {
-                const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
-                pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", ".bin", pnpmBin);
-                attemptedPaths.push(pnpmCjsPath);
-                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
-            }
+            check.on("error", () => {
+                resolve(false);
+            });
+        });
+    }
+
+    /**
+     * Get the available package manager (pnpm or npm)
+     * Returns null if neither is available
+     */
+    private async getAvailablePackageManager(): Promise<{ command: string; name: string } | null> {
+        // Check for pnpm first (preferred)
+        const hasPnpm = await this.checkPackageManager("pnpm");
+        if (hasPnpm) {
+            console.log(`[ToolManager] Found pnpm globally installed`);
+            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
         }
         
-        // Fallback to system pnpm if bundled version not found
-        if (!fs.existsSync(pnpmCjsPath)) {
-            console.error(`[ToolManager] Bundled pnpm not found! Attempted paths:`);
-            attemptedPaths.forEach(p => console.error(`  - ${p}`));
-            console.error(`[ToolManager] Falling back to system pnpm (this will likely fail)`);
-            const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
-            return pnpmBin; // This will search PATH
+        // Fallback to npm
+        const hasNpm = await this.checkPackageManager("npm");
+        if (hasNpm) {
+            console.log(`[ToolManager] Found npm globally installed`);
+            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
         }
         
-        console.log(`[ToolManager] Successfully resolved pnpm at: ${pnpmCjsPath}`);
-        return pnpmCjsPath;
+        console.error(`[ToolManager] Neither pnpm nor npm found globally installed`);
+        return null;
     }
 
     /**
@@ -189,66 +150,107 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Spawn pnpm with the correct executable and arguments
-     * Handles both .cjs files (run with node) and native executables
-     */
-    private spawnPnpm(args: string[]): ReturnType<typeof spawn> {
-        // If pnpmPath ends with .cjs, we need to run it with node
-        if (this.pnpmPath.endsWith(".cjs")) {
-            console.log(`[ToolManager] Spawning pnpm with Node.js: ${process.execPath} ${this.pnpmPath} ${args.join(" ")}`);
-            return spawn(process.execPath, [this.pnpmPath, ...args]);
-        }
-        // Otherwise, execute directly (wrapper script or system pnpm)
-        console.log(`[ToolManager] Spawning pnpm directly: ${this.pnpmPath} ${args.join(" ")}`);
-        return spawn(this.pnpmPath, args);
-    }
-
-    /**
-     * Install a tool via pnpm
+     * Install a tool using available package manager (pnpm or npm)
      * Each tool is installed in its own isolated directory under toolsDirectory
      */
     async installTool(packageName: string): Promise<void> {
+        const pkgManager = await this.getAvailablePackageManager();
+        
+        if (!pkgManager) {
+            const instructions = this.getInstallInstructions();
+            throw new Error(`No package manager found. Please install pnpm or npm globally:\n\n${instructions}`);
+        }
+        
         return new Promise((resolve, reject) => {
-            console.log(`[ToolManager] Installing tool: ${packageName}`);
-            // Use --dir to specify installation directory
-            // --no-optional to skip optional dependencies and save space
-            // --prod to install only production dependencies
-            const install = this.spawnPnpm(["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
+            console.log(`[ToolManager] Installing tool: ${packageName} using ${pkgManager.name}`);
+            
+            // Build command based on package manager
+            const args = pkgManager.name === "pnpm" 
+                ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
+                : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
+            
+            const install = spawn(pkgManager.command, args, { shell: true });
+
+            let stderr = "";
 
             install.stdout?.on("data", (data: Buffer) => {
-                console.log(`[ToolManager] pnpm stdout: ${data.toString()}`);
+                const output = data.toString();
+                console.log(`[ToolManager] ${pkgManager.name} stdout: ${output}`);
             });
 
             install.stderr?.on("data", (data: Buffer) => {
-                console.error(`[ToolManager] pnpm stderr: ${data.toString()}`);
+                const output = data.toString();
+                stderr += output;
+                console.error(`[ToolManager] ${pkgManager.name} stderr: ${output}`);
             });
 
             install.on("close", (code: number) => {
-                console.log(`[ToolManager] pnpm process closed with code: ${code}`);
+                console.log(`[ToolManager] ${pkgManager.name} process closed with code: ${code}`);
                 if (code !== 0) {
-                    reject(new Error(`pnpm install failed with code ${code}`));
+                    reject(new Error(`Tool installation failed with code ${code}${stderr ? `\n${stderr}` : ""}`));
                 } else {
                     resolve();
                 }
             });
 
             install.on("error", (err: Error) => {
-                console.error(`[ToolManager] pnpm process error:`, err);
-                reject(err);
+                console.error(`[ToolManager] ${pkgManager.name} process error:`, err);
+                if (err.message.includes("ENOENT")) {
+                    const instructions = this.getInstallInstructions();
+                    reject(new Error(`${pkgManager.name} command not found. Please install it globally:\n\n${instructions}`));
+                } else {
+                    reject(err);
+                }
             });
         });
     }
+    
+    /**
+     * Get installation instructions for package managers
+     */
+    private getInstallInstructions(): string {
+        const platform = process.platform;
+        let instructions = "To install a package manager, choose one of the following:\n\n";
+        
+        instructions += "**Install pnpm (recommended):**\n";
+        if (platform === "win32") {
+            instructions += "  • Using npm: npm install -g pnpm\n";
+            instructions += "  • Using PowerShell: iwr https://get.pnpm.io/install.ps1 -useb | iex\n";
+        } else if (platform === "darwin") {
+            instructions += "  • Using npm: npm install -g pnpm\n";
+            instructions += "  • Using Homebrew: brew install pnpm\n";
+            instructions += "  • Using curl: curl -fsSL https://get.pnpm.io/install.sh | sh -\n";
+        } else {
+            instructions += "  • Using npm: npm install -g pnpm\n";
+            instructions += "  • Using curl: curl -fsSL https://get.pnpm.io/install.sh | sh -\n";
+        }
+        
+        instructions += "\n**Or use npm (comes with Node.js):**\n";
+        instructions += "  • Download from: https://nodejs.org/\n";
+        
+        return instructions;
+    }
 
     /**
-     * Uninstall a tool via pnpm
+     * Uninstall a tool using available package manager
      */
     async uninstallTool(packageName: string): Promise<void> {
+        const pkgManager = await this.getAvailablePackageManager();
+        
+        if (!pkgManager) {
+            throw new Error("No package manager found. Cannot uninstall tool.");
+        }
+        
         return new Promise((resolve, reject) => {
-            const uninstall = this.spawnPnpm(["remove", packageName, "--dir", this.toolsDirectory]);
+            const args = pkgManager.name === "pnpm"
+                ? ["remove", packageName, "--dir", this.toolsDirectory]
+                : ["uninstall", packageName, "--prefix", this.toolsDirectory];
+            
+            const uninstall = spawn(pkgManager.command, args, { shell: true });
 
             uninstall.on("close", (code: number) => {
                 if (code !== 0) {
-                    reject(new Error(`pnpm uninstall failed with code ${code}`));
+                    reject(new Error(`Tool uninstallation failed with code ${code}`));
                 } else {
                     resolve();
                 }
@@ -264,8 +266,14 @@ export class ToolManager extends EventEmitter {
      * Check for the latest version of a package from npm registry
      */
     async getLatestVersion(packageName: string): Promise<string | null> {
+        const pkgManager = await this.getAvailablePackageManager();
+        
+        if (!pkgManager) {
+            return null;
+        }
+        
         return new Promise((resolve) => {
-            const view = this.spawnPnpm(["view", packageName, "version"]);
+            const view = spawn(pkgManager.command, ["view", packageName, "version"], { shell: true });
 
             let output = "";
             
@@ -291,12 +299,22 @@ export class ToolManager extends EventEmitter {
      * Update a tool to the latest version
      */
     async updateTool(packageName: string): Promise<void> {
+        const pkgManager = await this.getAvailablePackageManager();
+        
+        if (!pkgManager) {
+            throw new Error("No package manager found. Cannot update tool.");
+        }
+        
         return new Promise((resolve, reject) => {
-            const update = this.spawnPnpm(["update", packageName, "--dir", this.toolsDirectory]);
+            const args = pkgManager.name === "pnpm"
+                ? ["update", packageName, "--dir", this.toolsDirectory]
+                : ["update", packageName, "--prefix", this.toolsDirectory];
+            
+            const update = spawn(pkgManager.command, args, { shell: true });
 
             update.on("close", (code: number) => {
                 if (code !== 0) {
-                    reject(new Error(`pnpm update failed with code ${code}`));
+                    reject(new Error(`Tool update failed with code ${code}`));
                 } else {
                     resolve();
                 }
