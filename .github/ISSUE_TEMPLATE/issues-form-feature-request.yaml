@@ -3,6 +3,7 @@ description: Suggest an idea for this project
 title: "[Feature]: "
 type: "feature"
 labels: [triage]
+projects: ["PowerPlatformToolBox/1"]
 assignees:
     - Power-Maverick
 body:
@@ -38,11 +39,3 @@ body:
           label: Relevant log output
           description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
           render: shell
-    - type: checkboxes
-      id: terms
-      attributes:
-          label: Code of Conduct
-          description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CODE_OF_CONDUCT.md). 
-          options:
-            - label: I agree to follow this project's Code of Conduct
-              required: true
