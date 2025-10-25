@@ -267,6 +267,10 @@ export class DataverseManager {
      * Get metadata for a specific entity
      */
     async getEntityMetadata(entityLogicalName: string, selectColumns?: string[]): Promise<EntityMetadata> {
+        if (!entityLogicalName || !entityLogicalName.trim()) {
+            throw new Error("entityLogicalName parameter cannot be empty");
+        }
+
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')`;
@@ -298,6 +302,9 @@ export class DataverseManager {
      * @param selectColumns - Optional array of column names to select
      */
     async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
+        if (!entityLogicalName || !entityLogicalName.trim()) {
+            throw new Error("entityLogicalName parameter cannot be empty");
+        }
         if (!relatedPath || !relatedPath.trim()) {
             throw new Error("relatedPath parameter cannot be empty");
         }
@@ -305,8 +312,8 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         // Encode individual path segments but preserve forward slashes for URL structure
-        // Filter out empty segments to prevent double slashes
-        const encodedPath = relatedPath.split('/').filter(segment => segment.length > 0).map(segment => encodeURIComponent(segment)).join('/');
+        // Filter out empty or whitespace-only segments to prevent double slashes
+        const encodedPath = relatedPath.split('/').filter(segment => segment.trim().length > 0).map(segment => encodeURIComponent(segment)).join('/');
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
         
         if (selectColumns && selectColumns.length > 0) {
