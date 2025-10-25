@@ -300,7 +300,8 @@ export class DataverseManager {
     async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
-        const encodedPath = encodeURIComponent(relatedPath);
+        // Encode individual path segments but preserve forward slashes for URL structure
+        const encodedPath = relatedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
         
         if (selectColumns && selectColumns.length > 0) {
