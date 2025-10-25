@@ -60,15 +60,8 @@ export class AuthManager {
 
       const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
-      // Start local HTTP server to listen for the redirect with authorization code
-      // This creates a promise that will resolve when the auth code is received
-      const authCodePromise = this.listenForAuthCode(redirectUri);
-
-      // Open the authorization URL in the default browser after server is ready
-      await shell.openExternal(authCodeUrl);
-
-      // Wait for the authorization code
-      const authCode = await authCodePromise;
+      // Start local HTTP server and wait for it to be ready, then open browser
+      const authCode = await this.listenForAuthCode(redirectUri, authCodeUrl);
 
       // Exchange authorization code for tokens
       const tokenRequest = {
@@ -95,7 +88,7 @@ export class AuthManager {
   /**
    * Start a local HTTP server to listen for OAuth redirect and extract authorization code
    */
-  private listenForAuthCode(redirectUri: string): Promise<string> {
+  private listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const url = new URL(redirectUri);
       const port = parseInt(url.port) || 8080;
@@ -151,6 +144,11 @@ export class AuthManager {
 
       server.listen(port, 'localhost', () => {
         console.log(`Listening for OAuth redirect on ${redirectUri}`);
+        // Server is ready, now open the browser
+        shell.openExternal(authCodeUrl).catch((err) => {
+          server.close();
+          reject(new Error(`Failed to open browser: ${err.message}`));
+        });
       });
 
       server.on('error', (err) => {
