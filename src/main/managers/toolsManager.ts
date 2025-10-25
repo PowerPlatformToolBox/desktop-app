@@ -24,59 +24,80 @@ export class ToolManager extends EventEmitter {
     /**
      * Resolve the path to the bundled pnpm executable
      * This ensures pnpm works in both development and production (packaged app)
-     * Returns an array: [executable, args...] to handle different execution methods
      */
     private resolvePnpmPath(): string {
-        // In development: app.isPackaged is false, __dirname is src/main/managers
-        // In production: app.isPackaged is true, __dirname is app.asar/dist/main
-        
         const isWindows = process.platform === "win32";
+        
+        console.log(`[ToolManager] Resolving pnpm path...`);
+        console.log(`[ToolManager] app.isPackaged: ${app.isPackaged}`);
+        console.log(`[ToolManager] process.platform: ${process.platform}`);
+        console.log(`[ToolManager] __dirname: ${__dirname}`);
+        console.log(`[ToolManager] process.resourcesPath: ${process.resourcesPath}`);
         
         // Try to find pnpm.cjs (the actual pnpm script) to execute with node
         let pnpmCjsPath: string;
+        const attemptedPaths: string[] = [];
         
         if (app.isPackaged) {
             // In packaged app, pnpm is unpacked to app.asar.unpacked/node_modules
-            // process.resourcesPath points to the resources directory
             const resourcesPath = process.resourcesPath;
             
             // Try app.asar.unpacked first (where unpacked dependencies go)
-            // We look for pnpm.cjs directly instead of the wrapper script
             pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "pnpm", "bin", "pnpm.cjs");
+            attemptedPaths.push(pnpmCjsPath);
+            console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
             
-            // Fallback to checking if node_modules is outside asar
             if (!fs.existsSync(pnpmCjsPath)) {
                 pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", "pnpm", "bin", "pnpm.cjs");
+                attemptedPaths.push(pnpmCjsPath);
+                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
+            }
+            
+            // Try looking in asar itself
+            if (!fs.existsSync(pnpmCjsPath)) {
+                pnpmCjsPath = path.join(resourcesPath, "app.asar", "node_modules", "pnpm", "bin", "pnpm.cjs");
+                attemptedPaths.push(pnpmCjsPath);
+                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
             }
             
             // Another fallback: try the .bin symlink
             if (!fs.existsSync(pnpmCjsPath)) {
                 const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
                 pnpmCjsPath = path.join(resourcesPath, "app.asar.unpacked", "node_modules", ".bin", pnpmBin);
+                attemptedPaths.push(pnpmCjsPath);
+                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
                 
                 if (!fs.existsSync(pnpmCjsPath)) {
                     pnpmCjsPath = path.join(resourcesPath, "app", "node_modules", ".bin", pnpmBin);
+                    attemptedPaths.push(pnpmCjsPath);
+                    console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
                 }
             }
         } else {
             // In development, try to find pnpm.cjs directly
             pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", "pnpm", "bin", "pnpm.cjs");
+            attemptedPaths.push(pnpmCjsPath);
+            console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
             
             // Fallback to .bin wrapper
             if (!fs.existsSync(pnpmCjsPath)) {
                 const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
                 pnpmCjsPath = path.join(__dirname, "..", "..", "..", "node_modules", ".bin", pnpmBin);
+                attemptedPaths.push(pnpmCjsPath);
+                console.log(`[ToolManager] Checking: ${pnpmCjsPath} - exists: ${fs.existsSync(pnpmCjsPath)}`);
             }
         }
         
         // Fallback to system pnpm if bundled version not found
         if (!fs.existsSync(pnpmCjsPath)) {
-            console.warn(`Bundled pnpm not found at ${pnpmCjsPath}, falling back to system pnpm`);
+            console.error(`[ToolManager] Bundled pnpm not found! Attempted paths:`);
+            attemptedPaths.forEach(p => console.error(`  - ${p}`));
+            console.error(`[ToolManager] Falling back to system pnpm (this will likely fail)`);
             const pnpmBin = isWindows ? "pnpm.cmd" : "pnpm";
             return pnpmBin; // This will search PATH
         }
         
-        console.log(`Using pnpm at: ${pnpmCjsPath}`);
+        console.log(`[ToolManager] Successfully resolved pnpm at: ${pnpmCjsPath}`);
         return pnpmCjsPath;
     }
 
@@ -175,9 +196,11 @@ export class ToolManager extends EventEmitter {
     private spawnPnpm(args: string[]): ReturnType<typeof spawn> {
         // If pnpmPath ends with .cjs, we need to run it with node
         if (this.pnpmPath.endsWith(".cjs")) {
+            console.log(`[ToolManager] Spawning pnpm with Node.js: ${process.execPath} ${this.pnpmPath} ${args.join(" ")}`);
             return spawn(process.execPath, [this.pnpmPath, ...args]);
         }
         // Otherwise, execute directly (wrapper script or system pnpm)
+        console.log(`[ToolManager] Spawning pnpm directly: ${this.pnpmPath} ${args.join(" ")}`);
         return spawn(this.pnpmPath, args);
     }
 
@@ -187,12 +210,22 @@ export class ToolManager extends EventEmitter {
      */
     async installTool(packageName: string): Promise<void> {
         return new Promise((resolve, reject) => {
+            console.log(`[ToolManager] Installing tool: ${packageName}`);
             // Use --dir to specify installation directory
             // --no-optional to skip optional dependencies and save space
             // --prod to install only production dependencies
             const install = this.spawnPnpm(["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]);
 
+            install.stdout?.on("data", (data: Buffer) => {
+                console.log(`[ToolManager] pnpm stdout: ${data.toString()}`);
+            });
+
+            install.stderr?.on("data", (data: Buffer) => {
+                console.error(`[ToolManager] pnpm stderr: ${data.toString()}`);
+            });
+
             install.on("close", (code: number) => {
+                console.log(`[ToolManager] pnpm process closed with code: ${code}`);
                 if (code !== 0) {
                     reject(new Error(`pnpm install failed with code ${code}`));
                 } else {
@@ -201,6 +234,7 @@ export class ToolManager extends EventEmitter {
             });
 
             install.on("error", (err: Error) => {
+                console.error(`[ToolManager] pnpm process error:`, err);
                 reject(err);
             });
         });

@@ -60,6 +60,7 @@
       "dist/**/*",
       "assets/**/*",
       "package.json",
+      "!node_modules",
       "node_modules/pnpm/**/*"
     ],
     "asarUnpack": [
