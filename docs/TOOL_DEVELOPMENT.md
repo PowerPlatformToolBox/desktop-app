@@ -17,6 +17,7 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
         -   [ToolBox API](#toolbox-api)
             -   [Working with Connections](#working-with-connections)
             -   [Using Utilities](#using-utilities)
+            -   [Settings Storage](#settings-storage)
             -   [Terminal Operations](#terminal-operations)
             -   [Event Handling](#event-handling)
         -   [Dataverse API](#dataverse-api)
@@ -87,6 +88,7 @@ Organized into namespaces:
 
 -   **connections** - Get active Dataverse connection (read-only)
 -   **utils** - Notifications, clipboard, file operations, theme
+-   **settings** - Tool-specific settings storage (context-aware)
 -   **terminal** - Create and manage terminals (context-aware)
 -   **events** - Subscribe to platform events (tool-specific)
 
@@ -324,6 +326,59 @@ if (filePath) {
 // Get current theme and adjust UI
 const theme = await toolboxAPI.utils.getCurrentTheme();
 document.body.classList.add(`theme-${theme}`);
+```
+
+#### Settings Storage
+
+```typescript
+// Save individual settings
+await toolboxAPI.settings.setSetting("theme", "dark");
+await toolboxAPI.settings.setSetting("autoRefresh", true);
+await toolboxAPI.settings.setSetting("refreshInterval", 5000);
+await toolboxAPI.settings.setSetting("userPreferences", {
+    showWelcome: false,
+    defaultView: "grid",
+});
+
+// Get individual settings
+const theme = await toolboxAPI.settings.getSetting("theme");
+const autoRefresh = await toolboxAPI.settings.getSetting("autoRefresh");
+console.log("Theme:", theme); // 'dark'
+console.log("Auto-refresh:", autoRefresh); // true
+
+// Get all settings
+const allSettings = await toolboxAPI.settings.getSettings();
+console.log("All settings:", allSettings);
+// Returns: { theme: 'dark', autoRefresh: true, refreshInterval: 5000, ... }
+
+// Update multiple settings at once
+await toolboxAPI.settings.setSettings({
+    theme: "light",
+    autoRefresh: false,
+    refreshInterval: 10000,
+    lastSync: new Date().toISOString(),
+});
+
+// Check if a setting exists
+const value = await toolboxAPI.settings.getSetting("nonExistentKey");
+if (value === undefined) {
+    console.log("Setting does not exist - use defaults");
+}
+
+// Example: Load settings on startup
+async function loadUserSettings() {
+    const settings = await toolboxAPI.settings.getSettings();
+
+    // Apply settings with defaults
+    const theme = settings.theme || "light";
+    const autoRefresh = settings.autoRefresh ?? true;
+    const refreshInterval = settings.refreshInterval || 5000;
+
+    applyTheme(theme);
+    if (autoRefresh) {
+        startAutoRefresh(refreshInterval);
+    }
+}
 ```
 
 #### Terminal Operations
@@ -1183,6 +1238,14 @@ Power Platform Tool Box provides a comprehensive platform for building tools wit
 -   Copy text to system clipboard
 -   Save files with native dialogs
 -   Get current UI theme
+
+**Settings**
+
+-   Store tool-specific settings (persistent across app restarts)
+-   Get all settings or individual settings by key
+-   Set individual settings or bulk update
+-   Context-aware (automatically scoped to the tool)
+-   Supports any JSON-serializable value (strings, numbers, booleans, objects, arrays)
 
 **Terminal**
 
