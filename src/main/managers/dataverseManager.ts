@@ -268,10 +268,12 @@ export class DataverseManager {
      */
     async getEntityMetadata(entityLogicalName: string, selectColumns?: string[]): Promise<EntityMetadata> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')`;
+        const encodedLogicalName = encodeURIComponent(entityLogicalName);
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')`;
         
         if (selectColumns && selectColumns.length > 0) {
-            url += `?$select=${selectColumns.join(",")}`;
+            const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+            url += `?$select=${encodedColumns}`;
         }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
@@ -297,10 +299,13 @@ export class DataverseManager {
      */
     async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${entityLogicalName}')/${relatedPath}`;
+        const encodedLogicalName = encodeURIComponent(entityLogicalName);
+        const encodedPath = encodeURIComponent(relatedPath);
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
         
         if (selectColumns && selectColumns.length > 0) {
-            url += `?$select=${selectColumns.join(",")}`;
+            const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+            url += `?$select=${encodedColumns}`;
         }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
@@ -317,7 +322,8 @@ export class DataverseManager {
         }
 
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${selectColumns.join(",")}`;
+        const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: Record<string, unknown>[] };
