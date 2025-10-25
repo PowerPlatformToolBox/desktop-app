@@ -1,7 +1,9 @@
 name: Feature Request
 description: Suggest an idea for this project
 title: "[Feature]: "
+type: "feature"
 labels: [triage]
+projects: ["PowerPlatformToolBox/1"]
 assignees:
     - Power-Maverick
 body:

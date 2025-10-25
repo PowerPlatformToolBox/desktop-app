@@ -54,8 +54,8 @@
   <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/discussions/categories/q-a">Support</a>
 </h3> -->
 
--   [Features](#features)
--   [📋 Comprehensive Features Overview](#-comprehensive-features-overview)
+-   [Features Overview](#features-overview)
+-   [Comprehensive Features Overview](#comprehensive-features-overview)
 -   [Architecture](#architecture)
     -   [Main Process (`src/main/`)](#main-process-srcmain)
     -   [API Layer (`src/api/`)](#api-layer-srcapi)
@@ -68,7 +68,7 @@
     -   [Sample Tools Repository](#sample-tools-repository)
     -   [Getting Started with Tool Development](#getting-started-with-tool-development)
     -   [Quick Example](#quick-example)
--   [Getting Started](#getting-started)
+-   [Getting Started with ToolBox development](#getting-started-with-toolbox-development)
     -   [Prerequisites](#prerequisites)
     -   [Installation](#installation)
     -   [Development](#development)
@@ -90,7 +90,7 @@
 -   [License](#license)
 -   [Contributing](#contributing)
 
-## Features
+## Features Overview
 
 -   **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
 -   **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
@@ -103,7 +103,7 @@
 -   **🔔 Notifications**: Built-in notification system to keep users informed
 -   **🔄 Auto-Updates**: Automatic application updates with user control
 
-## 📋 Comprehensive Features Overview
+## Comprehensive Features Overview
 
 For a **complete, detailed overview** of all features, maturity assessment, known limitations, security considerations, and future roadmap, see:
 
@@ -167,8 +167,6 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 -   **ES Modules**: Full ESM migration for better tree-shaking and performance
 -   **CI/CD Monitoring**: Automated bundle size tracking in GitHub Actions
 
-For detailed build optimization information, see [BUILD_OPTIMIZATION.md](docs/BUILD_OPTIMIZATION.md).
-
 ## Security Model
 
 -   **Process Isolation**: Each tool runs in a separate Node.js process
@@ -184,10 +182,10 @@ Power Platform Tool Box uses a secure, extensible Tool Host architecture that al
 
 Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBox/sample-tools)** for complete, ready-to-use examples demonstrating different frameworks:
 
--   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/html-sample)** - Basic HTML with TypeScript
--   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/react-sample)** - React 18 with Vite and TypeScript
--   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/vue-sample)** - Vue 3 with Composition API
--   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/svelte-sample)** - Svelte 5 with TypeScript
+-   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/html-sample)** - Basic HTML with TypeScript
+-   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/react-sample)** - React 18 with Vite and TypeScript
+-   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/vue-sample)** - Vue 3 with Composition API
+-   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/svelte-sample)** - Svelte 5 with TypeScript
 
 Each sample demonstrates:
 
@@ -227,7 +225,7 @@ await toolbox.showNotification({
 });
 ```
 
-## Getting Started
+## Getting Started with ToolBox development
 
 ### Prerequisites
 
@@ -386,10 +384,7 @@ node node_modules/electron/install.js
 ## Documentation
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
--   **[TOOL_HOST_ARCHITECTURE.md](docs/TOOL_HOST_ARCHITECTURE.md)** - Detailed Tool Host architecture
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
--   **[TERMINAL_USAGE.md](docs/TERMINAL_USAGE.md)** - Terminal API usage guide for tool developers
--   **[TERMINAL_SETUP.md](docs/terminal-setup.md)** - Terminal setup guide for Oh-My-Posh, Starship, and other prompt themes
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 -   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
 
