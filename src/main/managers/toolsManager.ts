@@ -2,20 +2,31 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
-import { Tool } from "../../types";
+import { Tool, ToolManifest } from "../../types";
+import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
- * Manages tool plugins loaded from npm packages
+ * Manages tool plugins - supports both registry-based and legacy npm-based tools
  * Tools are HTML-first and loaded directly into webviews
  */
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
+    private registryManager: ToolRegistryManager;
 
-    constructor(toolsDirectory: string) {
+    constructor(toolsDirectory: string, registryUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
+        this.registryManager = new ToolRegistryManager(toolsDirectory, registryUrl);
         this.ensureToolsDirectory();
+        
+        // Forward registry events
+        this.registryManager.on('tool:installed', (manifest) => {
+            this.emit('tool:installed', manifest);
+        });
+        this.registryManager.on('tool:uninstalled', (toolId) => {
+            this.emit('tool:uninstalled', toolId);
+        });
     }
 
     /**
@@ -71,35 +82,83 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Load a tool from an npm package
+     * Load a tool from registry manifest or npm package
      * Loads tool metadata for webview rendering
      */
-    async loadTool(packageName: string): Promise<Tool> {
+    async loadTool(packageNameOrId: string): Promise<Tool> {
         try {
-            const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
-            const packageJsonPath = path.join(toolPath, "package.json");
-
-            if (!fs.existsSync(packageJsonPath)) {
-                throw new Error(`Tool package not found: ${packageName}`);
+            // First try to load from registry manifest
+            const manifest = await this.registryManager.getInstalledManifest(packageNameOrId);
+            if (manifest) {
+                return this.loadToolFromManifest(manifest);
             }
 
-            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-
-            const tool: Tool = {
-                id: packageJson.name,
-                name: packageJson.displayName || packageJson.name,
-                version: packageJson.version,
-                description: packageJson.description || "",
-                author: packageJson.author || "Unknown",
-                icon: packageJson.icon,
-            };
-
-            this.tools.set(tool.id, tool);
-            this.emit("tool:loaded", tool);
-
-            return tool;
+            // Fallback to npm package (legacy support)
+            return await this.loadToolFromNpm(packageNameOrId);
         } catch (error) {
-            throw new Error(`Failed to load tool ${packageName}: ${(error as Error).message}`);
+            throw new Error(`Failed to load tool ${packageNameOrId}: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Load tool from registry manifest
+     */
+    private loadToolFromManifest(manifest: ToolManifest): Tool {
+        const tool: Tool = {
+            id: manifest.id,
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description,
+            author: manifest.author,
+            icon: manifest.icon,
+        };
+
+        this.tools.set(tool.id, tool);
+        this.emit("tool:loaded", tool);
+
+        return tool;
+    }
+
+    /**
+     * Load tool from npm package (legacy)
+     */
+    private async loadToolFromNpm(packageName: string): Promise<Tool> {
+        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+        const packageJsonPath = path.join(toolPath, "package.json");
+
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error(`Tool package not found: ${packageName}`);
+        }
+
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+
+        const tool: Tool = {
+            id: packageJson.name,
+            name: packageJson.displayName || packageJson.name,
+            version: packageJson.version,
+            description: packageJson.description || "",
+            author: packageJson.author || "Unknown",
+            icon: packageJson.icon,
+        };
+
+        this.tools.set(tool.id, tool);
+        this.emit("tool:loaded", tool);
+
+        return tool;
+    }
+
+    /**
+     * Load all installed tools from registry and npm
+     */
+    async loadAllInstalledTools(): Promise<void> {
+        // Load registry-based tools
+        const registryTools = await this.registryManager.getInstalledTools();
+        for (const manifest of registryTools) {
+            try {
+                await this.loadTool(manifest.id);
+            } catch (error) {
+                console.error(`Failed to load registry tool ${manifest.id}:`, error);
+            }
         }
     }
 
@@ -137,7 +196,7 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Load all installed tools from a list of package names
+     * Load all installed tools from a list of package names (legacy npm support)
      */
     async loadInstalledTools(packageNames: string[]): Promise<void> {
         for (const packageName of packageNames) {
@@ -150,10 +209,48 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Install a tool using available package manager (pnpm or npm)
-     * Each tool is installed in its own isolated directory under toolsDirectory
+     * Install a tool from the registry (new primary method)
      */
-    async installTool(packageName: string): Promise<void> {
+    async installToolFromRegistry(toolId: string): Promise<ToolManifest> {
+        console.log(`[ToolManager] Installing tool from registry: ${toolId}`);
+        const manifest = await this.registryManager.installTool(toolId);
+        return manifest;
+    }
+
+    /**
+     * Fetch available tools from registry
+     */
+    async fetchAvailableTools() {
+        return await this.registryManager.fetchRegistry();
+    }
+
+    /**
+     * Check for tool updates
+     */
+    async checkForUpdates(toolId: string) {
+        return await this.registryManager.checkForUpdates(toolId);
+    }
+
+    /**
+     * Uninstall a tool (works for both registry and npm tools)
+     */
+    async uninstallTool(toolId: string): Promise<void> {
+        // Check if it's a registry tool
+        const manifest = await this.registryManager.getInstalledManifest(toolId);
+        if (manifest) {
+            await this.registryManager.uninstallTool(toolId);
+            return;
+        }
+
+        // Fallback to npm-based uninstall (legacy)
+        await this.uninstallToolLegacy(toolId);
+    }
+
+    /**
+     * Install a tool using package manager (legacy - deprecated)
+     * @deprecated Use installToolFromRegistry instead
+     */
+    async installToolLegacy(packageName: string): Promise<void> {
         const pkgManager = await this.getAvailablePackageManager();
         
         if (!pkgManager) {
@@ -232,9 +329,10 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool using available package manager
+     * Uninstall a tool using package manager (legacy - deprecated)
+     * @deprecated Use uninstallTool (which handles both registry and npm)
      */
-    async uninstallTool(packageName: string): Promise<void> {
+    private async uninstallToolLegacy(packageName: string): Promise<void> {
         const pkgManager = await this.getAvailablePackageManager();
         
         if (!pkgManager) {

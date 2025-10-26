@@ -16,6 +16,39 @@ export interface Tool {
 }
 
 /**
+ * Tool registry entry - metadata from the registry
+ */
+export interface ToolRegistryEntry {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  icon?: string;
+  downloadUrl: string;
+  checksum?: string;
+  size?: number;
+  publishedAt: string;
+  tags?: string[];
+}
+
+/**
+ * Tool manifest - stored locally after installation
+ */
+export interface ToolManifest {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  icon?: string;
+  installPath: string;
+  installedAt: string;
+  source: 'registry' | 'npm' | 'local'; // Track installation source
+  sourceUrl?: string;
+}
+
+/**
  * Tool-specific settings
  */
 export interface ToolSettings {
