@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "updatedAt": "2024-01-15T10:00:00Z",
+  "description": "Power Platform Tool Box - Official Tool Registry",
+  "tools": [
+    {
+      "id": "example-tool",
+      "name": "Example Tool",
+      "description": "An example tool demonstrating the registry format",
+      "author": "Power Platform Tool Box Team",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/PowerPlatformToolBox/example-tool/releases/download/v1.0.0/example-tool-1.0.0.tar.gz",
+      "icon": "icon.png",
+      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 50000,
+      "publishedAt": "2024-01-15T10:00:00Z",
+      "tags": ["example", "sample"],
+      "minToolboxVersion": "1.0.0",
+      "repository": "https://github.com/PowerPlatformToolBox/example-tool",
+      "homepage": "https://github.com/PowerPlatformToolBox/example-tool",
+      "license": "MIT"
+    }
+  ]
+}

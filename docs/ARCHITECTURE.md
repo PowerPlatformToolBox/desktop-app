@@ -106,11 +106,25 @@ The main process is the entry point of the Electron application and manages the 
 -   **Purpose**: Manage external tools
 -   **Responsibilities**:
     -   Load/unload tools
-    -   Install/uninstall tools via pnpm
+    -   Install tools from registry (primary method)
+    -   Install/uninstall tools via npm/pnpm (legacy, deprecated)
     -   Track loaded tools
     -   Parse contribution points from package.json
     -   Emit tool lifecycle events
     -   Provide tool context (without exposing access tokens)
+    -   Manage tool manifests and metadata
+
+##### `toolRegistryManager.ts`
+
+-   **Purpose**: Manage tool registry and downloads
+-   **Responsibilities**:
+    -   Fetch tool registry from server (VS Code marketplace style)
+    -   Download tools as pre-built archives via HTTP/HTTPS
+    -   Extract and cache tools locally
+    -   Manage tool manifests (installation tracking)
+    -   Check for tool updates
+    -   Handle tool versioning
+    -   No npm/pnpm dependency required
 
 ##### `authManager.ts`
 

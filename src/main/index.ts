@@ -233,8 +233,27 @@ class ToolBoxApp {
             this.toolManager.unloadTool(toolId);
         });
 
+        // Registry-based tool installation (new primary method)
+        ipcMain.handle("install-tool-from-registry", async (_, toolId) => {
+            const manifest = await this.toolManager.installToolFromRegistry(toolId);
+            const tool = await this.toolManager.loadTool(toolId);
+            this.settingsManager.addInstalledTool(toolId);
+            return { manifest, tool };
+        });
+
+        // Fetch available tools from registry
+        ipcMain.handle("fetch-registry-tools", async () => {
+            return await this.toolManager.fetchAvailableTools();
+        });
+
+        // Check for tool updates
+        ipcMain.handle("check-tool-updates", async (_, toolId) => {
+            return await this.toolManager.checkForUpdates(toolId);
+        });
+
+        // Legacy npm-based installation (deprecated)
         ipcMain.handle("install-tool", async (_, packageName) => {
-            await this.toolManager.installTool(packageName);
+            await this.toolManager.installToolLegacy(packageName);
             const tool = await this.toolManager.loadTool(packageName);
             this.settingsManager.addInstalledTool(packageName);
             return tool;
