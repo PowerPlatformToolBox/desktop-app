@@ -133,17 +133,40 @@ window.addEventListener("message", async (event) => {
     }
 });
 
-// Tool library will be loaded from tools.json
+// Tool library will be loaded from the registry
 let toolLibrary: any[] = [];
 
-// Load tools.json
+// Load tools from registry
 async function loadToolsLibrary() {
     try {
-        const response = await fetch("tools.json");
-        toolLibrary = await response.json();
+        // Fetch tools from registry
+        const registryTools = await window.toolboxAPI.fetchRegistryTools();
+        
+        // Map registry tools to the format expected by the UI
+        toolLibrary = registryTools.map((tool: any) => ({
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+            author: tool.author,
+            category: tool.tags?.[0] || "Tools", // Use first tag as category
+            version: tool.version,
+            icon: tool.icon,
+            downloadUrl: tool.downloadUrl,
+            tags: tool.tags || []
+        }));
+        
+        console.log(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
-        console.error("Failed to load tools.json:", error);
-        toolLibrary = [];
+        console.error("Failed to load tools from registry:", error);
+        // Fallback to tools.json if registry fetch fails
+        try {
+            const response = await fetch("tools.json");
+            toolLibrary = await response.json();
+            console.log("Loaded tools from local tools.json as fallback");
+        } catch (fallbackError) {
+            console.error("Failed to load tools.json fallback:", fallbackError);
+            toolLibrary = [];
+        }
     }
 }
 
@@ -2118,7 +2141,8 @@ async function loadMarketplace() {
                 target.textContent = "Installing...";
 
                 try {
-                    await window.toolboxAPI.installTool(toolId);
+                    // Use registry-based installation
+                    await window.toolboxAPI.installToolFromRegistry(toolId);
 
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Installed",

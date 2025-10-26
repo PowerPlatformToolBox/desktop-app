@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getLatestToolVersion: (packageName: string) => ipcRenderer.invoke("get-latest-tool-version", packageName),
     updateTool: (packageName: string) => ipcRenderer.invoke("update-tool", packageName),
 
+    // Registry-based tools (new primary method)
+    fetchRegistryTools: () => ipcRenderer.invoke("fetch-registry-tools"),
+    installToolFromRegistry: (toolId: string) => ipcRenderer.invoke("install-tool-from-registry", toolId),
+    checkToolUpdates: (toolId: string) => ipcRenderer.invoke("check-tool-updates", toolId),
+
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
     updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke("update-tool-settings", toolId, settings),
