@@ -158,15 +158,8 @@ async function loadToolsLibrary() {
         console.log(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
         console.error("Failed to load tools from registry:", error);
-        // Fallback to tools.json if registry fetch fails
-        try {
-            const response = await fetch("tools.json");
-            toolLibrary = await response.json();
-            console.log("Loaded tools from local tools.json as fallback");
-        } catch (fallbackError) {
-            console.error("Failed to load tools.json fallback:", fallbackError);
-            toolLibrary = [];
-        }
+        toolLibrary = [];
+        // Error will be shown in the marketplace UI
     }
 }
 
@@ -2068,6 +2061,17 @@ async function loadMarketplace() {
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
 
+    // Check if toolLibrary is empty (failed to load from registry)
+    if (!toolLibrary || toolLibrary.length === 0) {
+        marketplaceList.innerHTML = `
+            <div class="empty-state">
+                <p>Unable to load tools from registry.</p>
+                <p class="empty-state-hint">Please check your internet connection and try again.</p>
+            </div>
+        `;
+        return;
+    }
+
     // Get installed tools
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map(installedTools.map((t: any) => [t.id, t]));
@@ -2080,6 +2084,17 @@ async function loadMarketplace() {
         if (!searchTerm) return true;
         return tool.name.toLowerCase().includes(searchTerm) || tool.description.toLowerCase().includes(searchTerm) || tool.category.toLowerCase().includes(searchTerm);
     });
+
+    // Show empty state if no tools match the search
+    if (filteredTools.length === 0) {
+        marketplaceList.innerHTML = `
+            <div class="empty-state">
+                <p>No tools found.</p>
+                <p class="empty-state-hint">${searchTerm ? 'Try a different search term.' : 'Check back later for new tools.'}</p>
+            </div>
+        `;
+        return;
+    }
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
