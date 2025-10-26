@@ -134,9 +134,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke("dataverse.execute", request),
         fetchXmlQuery: (fetchXml: string) => 
             ipcRenderer.invoke("dataverse.fetchXmlQuery", fetchXml),
-        getEntityMetadata: (entityLogicalName: string) => 
-            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName),
+        getEntityMetadata: (entityLogicalName: string, selectColumns?: string[]) => 
+            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName, selectColumns),
         getAllEntitiesMetadata: () => 
             ipcRenderer.invoke("dataverse.getAllEntitiesMetadata"),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => 
+            ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
+        getSolutions: (selectColumns: string[]) => 
+            ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
     },
 });

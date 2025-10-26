@@ -205,14 +205,20 @@ declare namespace DataverseAPI {
          * Get metadata for a specific entity
          *
          * @param entityLogicalName - Logical name of the entity
+         * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
          * @returns Object containing entity metadata
          *
          * @example
          * const metadata = await dataverseAPI.getEntityMetadata('account');
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
          * console.log('Attributes:', metadata.Attributes?.length);
+         * 
+         * @example
+         * // Get only specific metadata columns
+         * const metadata = await dataverseAPI.getEntityMetadata('account', ['LogicalName', 'DisplayName']);
+         * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
          */
-        getEntityMetadata: (entityLogicalName: string) => Promise<EntityMetadata>;
+        getEntityMetadata: (entityLogicalName: string, selectColumns?: string[]) => Promise<EntityMetadata>;
 
         /**
          * Get metadata for all entities
@@ -227,6 +233,59 @@ declare namespace DataverseAPI {
          * });
          */
         getAllEntitiesMetadata: () => Promise<EntityMetadataCollection>;
+
+        /**
+         * Get related metadata for a specific entity (attributes, relationships, etc.)
+         *
+         * @param entityLogicalName - Logical name of the entity
+         * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships', 'ManyToManyRelationships', 'Keys')
+         * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @returns Object containing the related metadata
+         *
+         * @example
+         * // Get all attributes for an entity
+         * const attributes = await dataverseAPI.getEntityRelatedMetadata('account', 'Attributes');
+         * console.log('Attributes:', attributes.value);
+         *
+         * @example
+         * // Get specific attributes with select
+         * const attributes = await dataverseAPI.getEntityRelatedMetadata(
+         *     'account',
+         *     'Attributes',
+         *     ['LogicalName', 'DisplayName', 'AttributeType']
+         * );
+         * console.log('Filtered attributes:', attributes.value);
+         *
+         * @example
+         * // Get one-to-many relationships
+         * const relationships = await dataverseAPI.getEntityRelatedMetadata(
+         *     'account',
+         *     'OneToManyRelationships'
+         * );
+         * console.log('One-to-many relationships:', relationships.value);
+         */
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => Promise<Record<string, unknown>>;
+
+        /**
+         * Get solutions from the environment
+         *
+         * @param selectColumns - Required array of column names to retrieve (must contain at least one column)
+         * @returns Object with value array containing solutions
+         *
+         * @example
+         * const solutions = await dataverseAPI.getSolutions([
+         *     'solutionid',
+         *     'uniquename',
+         *     'friendlyname',
+         *     'version',
+         *     'ismanaged'
+         * ]);
+         * console.log(`Total solutions: ${solutions.value.length}`);
+         * solutions.value.forEach(solution => {
+         *     console.log(`${solution.friendlyname} (${solution.uniquename}) - v${solution.version}`);
+         * });
+         */
+        getSolutions: (selectColumns: string[]) => Promise<{ value: Record<string, unknown>[] }>;
     }
 }
 
