@@ -5,7 +5,8 @@ This is a quick reference for developers looking to port XrmToolBox (XTB) tools 
 ## 📚 Full Documentation
 
 For complete details, see:
-- **[PORTING_XTB_TOOLS.md](./PORTING_XTB_TOOLS.md)** - Comprehensive porting guide
+- **[PORTING_XTB_TOOLS.md](./PORTING_XTB_TOOLS.md)** - Comprehensive porting guide (recommended approach)
+- **[PORTING_DLL_TO_WASM.md](./PORTING_DLL_TO_WASM.md)** - Minimal-effort porting using WebAssembly/Blazor to reuse .NET DLLs
 - **[ADR_PORTING_STRATEGY.md](./ADR_PORTING_STRATEGY.md)** - Technical decision rationale
 - **[Sample Tool: FetchXML Builder](../examples/fetchxmlbuilder-sample/)** - Working example
 
@@ -20,9 +21,11 @@ For complete details, see:
 - ✅ Native web performance
 - ✅ Easier to maintain and debug
 
-### Alternative Approaches NOT Recommended
+### Alternative Approaches
 
-❌ **Blazor WASM** - Too large (3-8MB), slow, poor integration  
+❌ **Blazor WASM** - Too large (3-8MB), slow, poor integration
+- See **[PORTING_DLL_TO_WASM.md](./PORTING_DLL_TO_WASM.md)** if you need to reuse .NET DLLs with minimal effort
+
 ❌ **Hybrid Port** - Similar effort to full rewrite, carries legacy patterns
 
 ## 📋 Porting Checklist

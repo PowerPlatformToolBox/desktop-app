@@ -49,6 +49,8 @@ This guide provides comprehensive information on porting existing XrmToolBox (XT
 
 ## Porting Strategies
 
+This guide focuses on the **recommended approach** (Full Rewrite in TypeScript/HTML). For the alternative minimal-effort approach using WebAssembly to reuse existing .NET DLLs, see **[PORTING_DLL_TO_WASM.md](./PORTING_DLL_TO_WASM.md)**.
+
 ### Strategy 1: Web Assembly (WASM) with Blazor
 
 **Approach**: Use Blazor WebAssembly to run existing .NET code in the browser.
@@ -68,6 +70,8 @@ This guide provides comprehensive information on porting existing XrmToolBox (XT
 - Poor integration with PPTB's JavaScript-based APIs
 
 **Verdict**: ❌ **NOT RECOMMENDED** for PPTB tools due to architectural mismatch and poor performance.
+
+> 📖 **Want to use WASM anyway?** See the complete step-by-step guide: **[PORTING_DLL_TO_WASM.md](./PORTING_DLL_TO_WASM.md)** - This guide shows how to reuse existing .NET DLLs with Blazor WASM for minimal-effort porting when you have complex business logic to preserve.
 
 ### Strategy 2: Full Rewrite in TypeScript/HTML
 
