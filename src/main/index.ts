@@ -415,9 +415,9 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string) => {
+        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName);
+                return await this.dataverseManager.getEntityMetadata(entityLogicalName, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
             }
@@ -428,6 +428,22 @@ class ToolBoxApp {
                 return await this.dataverseManager.getAllEntitiesMetadata();
             } catch (error) {
                 throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getEntityRelatedMetadata", async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
+            try {
+                return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
+            } catch (error) {
+                throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getSolutions", async (_, selectColumns: string[]) => {
+            try {
+                return await this.dataverseManager.getSolutions(selectColumns);
+            } catch (error) {
+                throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
             }
         });
     }
