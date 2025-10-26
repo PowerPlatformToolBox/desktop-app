@@ -87,6 +87,40 @@ window.addEventListener("message", async (event) => {
                     // Connection and notification events are global
                     return true;
                 });
+            } else if (method === "settings.getSettings") {
+                // Get toolId from first arg (injected by bridge)
+                const toolId = args && args[0];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                result = await window.api.invoke("tool-settings-get-all", toolId);
+            } else if (method === "settings.getSetting") {
+                // Get toolId and key from args (injected by bridge)
+                const toolId = args && args[0];
+                const key = args && args[1];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                result = await window.api.invoke("tool-settings-get", toolId, key);
+            } else if (method === "settings.setSetting") {
+                // Get toolId, key, and value from args (injected by bridge)
+                const toolId = args && args[0];
+                const key = args && args[1];
+                const value = args && args[2];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                await window.api.invoke("tool-settings-set", toolId, key, value);
+                result = undefined; // void return
+            } else if (method === "settings.setSettings") {
+                // Get toolId and settings from args (injected by bridge)
+                const toolId = args && args[0];
+                const settings = args && args[1];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                await window.api.invoke("tool-settings-set-all", toolId, settings);
+                result = undefined; // void return
             } else {
                 // Handle regular API methods
                 const methodParts = method.split(".");
