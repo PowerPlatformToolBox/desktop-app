@@ -75,10 +75,6 @@
     "mac": {
       "target": "dmg",
       "icon": "icons/icon.icns"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "icons/icon256x256.png"
     }
   }
 }
