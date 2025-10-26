@@ -251,28 +251,17 @@ class ToolBoxApp {
             return await this.toolManager.checkForUpdates(toolId);
         });
 
-        // Legacy npm-based installation (deprecated)
+        // Debug mode only - npm-based installation for tool developers
         ipcMain.handle("install-tool", async (_, packageName) => {
-            await this.toolManager.installToolLegacy(packageName);
-            const tool = await this.toolManager.loadTool(packageName);
+            await this.toolManager.installToolForDebug(packageName);
+            // For debug mode, we don't load from manifest since it's npm-based
             this.settingsManager.addInstalledTool(packageName);
-            return tool;
         });
 
         ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
             this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
-        });
-
-        ipcMain.handle("get-latest-tool-version", async (_, packageName) => {
-            return await this.toolManager.getLatestVersion(packageName);
-        });
-
-        ipcMain.handle("update-tool", async (_, packageName) => {
-            await this.toolManager.updateTool(packageName);
-            const tool = await this.toolManager.loadTool(packageName);
-            return tool;
         });
 
         ipcMain.handle("get-tool-webview-html", (_, packageName) => {

@@ -6,6 +6,7 @@ import * as http from "http";
 import { createWriteStream } from "fs";
 import { pipeline } from "stream/promises";
 import { ToolRegistryEntry, ToolManifest } from "../../types";
+import { TOOL_REGISTRY_URL } from "../constants";
 
 /**
  * Manages tool installation from a registry (marketplace)
@@ -19,8 +20,8 @@ export class ToolRegistryManager extends EventEmitter {
     constructor(toolsDirectory: string, registryUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        // Default registry URL - can be overridden via settings
-        this.registryUrl = registryUrl || "https://raw.githubusercontent.com/PowerPlatformToolBox/tool-registry/main/registry.json";
+        // Default registry URL from constants - can be overridden via settings
+        this.registryUrl = registryUrl || TOOL_REGISTRY_URL;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
         this.ensureToolsDirectory();
     }

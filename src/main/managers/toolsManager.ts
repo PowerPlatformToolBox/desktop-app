@@ -6,8 +6,9 @@ import { Tool, ToolManifest } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
- * Manages tool plugins - supports both registry-based and legacy npm-based tools
+ * Manages tool plugins using registry-based installation
  * Tools are HTML-first and loaded directly into webviews
+ * Note: Legacy npm installation is only available for debug mode
  */
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
@@ -30,49 +31,6 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Check if a package manager is available globally
-     */
-    private async checkPackageManager(command: string): Promise<boolean> {
-        return new Promise((resolve) => {
-            const isWindows = process.platform === "win32";
-            const cmd = isWindows ? `${command}.cmd` : command;
-            
-            const check = spawn(cmd, ["--version"], { shell: true });
-            
-            check.on("close", (code: number) => {
-                resolve(code === 0);
-            });
-            
-            check.on("error", () => {
-                resolve(false);
-            });
-        });
-    }
-
-    /**
-     * Get the available package manager (pnpm or npm)
-     * Returns null if neither is available
-     */
-    private async getAvailablePackageManager(): Promise<{ command: string; name: string } | null> {
-        // Check for pnpm first (preferred)
-        const hasPnpm = await this.checkPackageManager("pnpm");
-        if (hasPnpm) {
-            console.log(`[ToolManager] Found pnpm globally installed`);
-            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
-        }
-        
-        // Fallback to npm
-        const hasNpm = await this.checkPackageManager("npm");
-        if (hasNpm) {
-            console.log(`[ToolManager] Found npm globally installed`);
-            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
-        }
-        
-        console.error(`[ToolManager] Neither pnpm nor npm found globally installed`);
-        return null;
-    }
-
-    /**
      * Ensure the tools directory exists
      */
     private ensureToolsDirectory(): void {
@@ -82,21 +40,19 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Load a tool from registry manifest or npm package
+     * Load a tool from registry manifest
      * Loads tool metadata for webview rendering
      */
-    async loadTool(packageNameOrId: string): Promise<Tool> {
+    async loadTool(toolId: string): Promise<Tool> {
         try {
-            // First try to load from registry manifest
-            const manifest = await this.registryManager.getInstalledManifest(packageNameOrId);
-            if (manifest) {
-                return this.loadToolFromManifest(manifest);
+            // Load from registry manifest
+            const manifest = await this.registryManager.getInstalledManifest(toolId);
+            if (!manifest) {
+                throw new Error(`Tool ${toolId} not found in registry`);
             }
-
-            // Fallback to npm package (legacy support)
-            return await this.loadToolFromNpm(packageNameOrId);
+            return this.loadToolFromManifest(manifest);
         } catch (error) {
-            throw new Error(`Failed to load tool ${packageNameOrId}: ${(error as Error).message}`);
+            throw new Error(`Failed to load tool ${toolId}: ${(error as Error).message}`);
         }
     }
 
@@ -120,35 +76,7 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Load tool from npm package (legacy)
-     */
-    private async loadToolFromNpm(packageName: string): Promise<Tool> {
-        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
-        const packageJsonPath = path.join(toolPath, "package.json");
-
-        if (!fs.existsSync(packageJsonPath)) {
-            throw new Error(`Tool package not found: ${packageName}`);
-        }
-
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-
-        const tool: Tool = {
-            id: packageJson.name,
-            name: packageJson.displayName || packageJson.name,
-            version: packageJson.version,
-            description: packageJson.description || "",
-            author: packageJson.author || "Unknown",
-            icon: packageJson.icon,
-        };
-
-        this.tools.set(tool.id, tool);
-        this.emit("tool:loaded", tool);
-
-        return tool;
-    }
-
-    /**
-     * Load all installed tools from registry and npm
+     * Load all installed tools from registry
      */
     async loadAllInstalledTools(): Promise<void> {
         // Load registry-based tools
@@ -196,20 +124,7 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Load all installed tools from a list of package names (legacy npm support)
-     */
-    async loadInstalledTools(packageNames: string[]): Promise<void> {
-        for (const packageName of packageNames) {
-            try {
-                await this.loadTool(packageName);
-            } catch (error) {
-                console.error(`Failed to load installed tool ${packageName}:`, error);
-            }
-        }
-    }
-
-    /**
-     * Install a tool from the registry (new primary method)
+     * Install a tool from the registry (primary method)
      */
     async installToolFromRegistry(toolId: string): Promise<ToolManifest> {
         console.log(`[ToolManager] Installing tool from registry: ${toolId}`);
@@ -232,25 +147,65 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool (works for both registry and npm tools)
+     * Uninstall a tool from registry
      */
     async uninstallTool(toolId: string): Promise<void> {
-        // Check if it's a registry tool
-        const manifest = await this.registryManager.getInstalledManifest(toolId);
-        if (manifest) {
-            await this.registryManager.uninstallTool(toolId);
-            return;
-        }
+        await this.registryManager.uninstallTool(toolId);
+    }
 
-        // Fallback to npm-based uninstall (legacy)
-        await this.uninstallToolLegacy(toolId);
+    // ========================================================================
+    // DEBUG MODE ONLY: Legacy npm-based installation for tool developers
+    // ========================================================================
+
+    /**
+     * Check if a package manager is available globally (debug mode only)
+     */
+    private async checkPackageManager(command: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const isWindows = process.platform === "win32";
+            const cmd = isWindows ? `${command}.cmd` : command;
+            
+            const check = spawn(cmd, ["--version"], { shell: true });
+            
+            check.on("close", (code: number) => {
+                resolve(code === 0);
+            });
+            
+            check.on("error", () => {
+                resolve(false);
+            });
+        });
     }
 
     /**
-     * Install a tool using package manager (legacy - deprecated)
-     * @deprecated Use installToolFromRegistry instead
+     * Get the available package manager (debug mode only)
+     * Returns null if neither is available
      */
-    async installToolLegacy(packageName: string): Promise<void> {
+    private async getAvailablePackageManager(): Promise<{ command: string; name: string } | null> {
+        // Check for pnpm first (preferred)
+        const hasPnpm = await this.checkPackageManager("pnpm");
+        if (hasPnpm) {
+            console.log(`[ToolManager] Found pnpm globally installed`);
+            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
+        }
+        
+        // Fallback to npm
+        const hasNpm = await this.checkPackageManager("npm");
+        if (hasNpm) {
+            console.log(`[ToolManager] Found npm globally installed`);
+            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
+        }
+        
+        console.error(`[ToolManager] Neither pnpm nor npm found globally installed`);
+        return null;
+    }
+
+    /**
+     * Install a tool from npm (DEBUG MODE ONLY - for tool developers)
+     * This method is only for debugging and should not be used in production
+     * @param packageName - npm package name
+     */
+    async installToolForDebug(packageName: string): Promise<void> {
         const pkgManager = await this.getAvailablePackageManager();
         
         if (!pkgManager) {
@@ -259,7 +214,7 @@ export class ToolManager extends EventEmitter {
         }
         
         return new Promise((resolve, reject) => {
-            console.log(`[ToolManager] Installing tool: ${packageName} using ${pkgManager.name}`);
+            console.log(`[ToolManager] [DEBUG] Installing tool: ${packageName} using ${pkgManager.name}`);
             
             // Build command based on package manager
             const args = pkgManager.name === "pnpm" 
@@ -303,7 +258,7 @@ export class ToolManager extends EventEmitter {
     }
     
     /**
-     * Get installation instructions for package managers
+     * Get installation instructions for package managers (debug mode only)
      */
     private getInstallInstructions(): string {
         const platform = process.platform;
@@ -326,102 +281,6 @@ export class ToolManager extends EventEmitter {
         instructions += "  • Download from: https://nodejs.org/\n";
         
         return instructions;
-    }
-
-    /**
-     * Uninstall a tool using package manager (legacy - deprecated)
-     * @deprecated Use uninstallTool (which handles both registry and npm)
-     */
-    private async uninstallToolLegacy(packageName: string): Promise<void> {
-        const pkgManager = await this.getAvailablePackageManager();
-        
-        if (!pkgManager) {
-            throw new Error("No package manager found. Cannot uninstall tool.");
-        }
-        
-        return new Promise((resolve, reject) => {
-            const args = pkgManager.name === "pnpm"
-                ? ["remove", packageName, "--dir", this.toolsDirectory]
-                : ["uninstall", packageName, "--prefix", this.toolsDirectory];
-            
-            const uninstall = spawn(pkgManager.command, args, { shell: true });
-
-            uninstall.on("close", (code: number) => {
-                if (code !== 0) {
-                    reject(new Error(`Tool uninstallation failed with code ${code}`));
-                } else {
-                    resolve();
-                }
-            });
-
-            uninstall.on("error", (err: Error) => {
-                reject(err);
-            });
-        });
-    }
-
-    /**
-     * Check for the latest version of a package from npm registry
-     */
-    async getLatestVersion(packageName: string): Promise<string | null> {
-        const pkgManager = await this.getAvailablePackageManager();
-        
-        if (!pkgManager) {
-            return null;
-        }
-        
-        return new Promise((resolve) => {
-            const view = spawn(pkgManager.command, ["view", packageName, "version"], { shell: true });
-
-            let output = "";
-            
-            view.stdout.on("data", (data: Buffer) => {
-                output += data.toString();
-            });
-
-            view.on("close", (code: number) => {
-                if (code !== 0) {
-                    resolve(null);
-                } else {
-                    resolve(output.trim());
-                }
-            });
-
-            view.on("error", () => {
-                resolve(null);
-            });
-        });
-    }
-
-    /**
-     * Update a tool to the latest version
-     */
-    async updateTool(packageName: string): Promise<void> {
-        const pkgManager = await this.getAvailablePackageManager();
-        
-        if (!pkgManager) {
-            throw new Error("No package manager found. Cannot update tool.");
-        }
-        
-        return new Promise((resolve, reject) => {
-            const args = pkgManager.name === "pnpm"
-                ? ["update", packageName, "--dir", this.toolsDirectory]
-                : ["update", packageName, "--prefix", this.toolsDirectory];
-            
-            const update = spawn(pkgManager.command, args, { shell: true });
-
-            update.on("close", (code: number) => {
-                if (code !== 0) {
-                    reject(new Error(`Tool update failed with code ${code}`));
-                } else {
-                    resolve();
-                }
-            });
-
-            update.on("error", (err: Error) => {
-                reject(err);
-            });
-        });
     }
 
     /**
