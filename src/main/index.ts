@@ -273,6 +273,26 @@ class ToolBoxApp {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
+        // Context-aware tool settings handlers (for toolboxAPI)
+        ipcMain.handle("tool-settings-get-all", (_, toolId) => {
+            return this.settingsManager.getToolSettings(toolId) || {};
+        });
+
+        ipcMain.handle("tool-settings-get", (_, toolId, key) => {
+            const settings = this.settingsManager.getToolSettings(toolId);
+            return settings ? settings[key] : undefined;
+        });
+
+        ipcMain.handle("tool-settings-set", (_, toolId, key, value) => {
+            const settings = this.settingsManager.getToolSettings(toolId) || {};
+            settings[key] = value;
+            this.settingsManager.updateToolSettings(toolId, settings);
+        });
+
+        ipcMain.handle("tool-settings-set-all", (_, toolId, settings) => {
+            this.settingsManager.updateToolSettings(toolId, settings);
+        });
+
         // Notification handler
         ipcMain.handle("show-notification", (_, options) => {
             this.api.showNotification(options);

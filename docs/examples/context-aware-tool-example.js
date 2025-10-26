@@ -114,7 +114,61 @@ async function getToolEventHistory() {
 }
 
 // ============================================
-// 4. Using Dataverse API (Secure)
+// 4. Using Tool Settings (Context-Aware)
+// ============================================
+
+async function saveToolSettings() {
+    // Save individual settings
+    await toolboxAPI.settings.setSetting('theme', 'dark');
+    await toolboxAPI.settings.setSetting('autoRefresh', true);
+    await toolboxAPI.settings.setSetting('refreshInterval', 5000);
+    await toolboxAPI.settings.setSetting('userPreferences', {
+        showWelcome: false,
+        defaultView: 'grid'
+    });
+    
+    console.log('Settings saved');
+}
+
+async function loadToolSettings() {
+    // Get all settings for this tool
+    const allSettings = await toolboxAPI.settings.getSettings();
+    console.log('All settings:', allSettings);
+    
+    // Get individual settings
+    const theme = await toolboxAPI.settings.getSetting('theme');
+    const autoRefresh = await toolboxAPI.settings.getSetting('autoRefresh');
+    const refreshInterval = await toolboxAPI.settings.getSetting('refreshInterval');
+    
+    console.log('Theme:', theme); // 'dark'
+    console.log('Auto-refresh:', autoRefresh); // true
+    console.log('Refresh interval:', refreshInterval); // 5000
+    
+    return allSettings;
+}
+
+async function updateBulkSettings() {
+    // Update multiple settings at once
+    await toolboxAPI.settings.setSettings({
+        theme: 'light',
+        autoRefresh: false,
+        refreshInterval: 10000,
+        lastSync: new Date().toISOString()
+    });
+    
+    console.log('Bulk settings updated');
+}
+
+async function checkSettingExists() {
+    // Check if a setting exists
+    const value = await toolboxAPI.settings.getSetting('nonExistentKey');
+    if (value === undefined) {
+        console.log('Setting does not exist');
+    }
+}
+
+// ============================================
+// 5. Using Dataverse API (Secure)
 // ============================================
 
 async function queryDataverse() {
@@ -163,7 +217,7 @@ async function queryDataverse() {
 }
 
 // ============================================
-// 5. Complete Tool Example
+// 6. Complete Tool Example
 // ============================================
 
 async function main() {
@@ -175,7 +229,14 @@ async function main() {
     // 2. Set up event listeners
     setupEventListeners();
     
-    // 3. Check if connected to Dataverse
+    // 3. Load saved settings
+    const settings = await loadToolSettings();
+    if (!settings.theme) {
+        // First time running - save default settings
+        await saveToolSettings();
+    }
+    
+    // 4. Check if connected to Dataverse
     if (!context.connectionUrl) {
         console.warn('No active connection. Please connect to Dataverse.');
         // Show UI to prompt user to connect
@@ -187,27 +248,27 @@ async function main() {
         return;
     }
     
-    // 4. Create a terminal for this tool
+    // 5. Create a terminal for this tool
     const terminal = await createToolTerminal();
     
-    // 5. Execute some commands
+    // 6. Execute some commands
     await executeCommand(terminal.id, 'echo "Hello from tool!"');
     await executeCommand(terminal.id, 'pwd');
     
-    // 6. List all terminals for this tool
+    // 7. List all terminals for this tool
     await listToolTerminals();
     
-    // 7. Query Dataverse
+    // 8. Query Dataverse
     await queryDataverse();
     
-    // 8. Get event history
+    // 9. Get event history
     await getToolEventHistory();
     
     console.log('Tool initialized successfully!');
 }
 
 // ============================================
-// 6. Utility Functions
+// 7. Utility Functions
 // ============================================
 
 async function showNotification(title, message, type = 'info') {
@@ -267,9 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
  * 
  * 4. Events are AUTOMATICALLY FILTERED to this tool
  * 
- * 5. AccessToken is NOT available - use dataverseAPI instead
+ * 5. Settings are AUTOMATICALLY SCOPED to this tool - each tool has its own isolated settings
  * 
- * 6. All sensitive data is encrypted automatically
+ * 6. AccessToken is NOT available - use dataverseAPI instead
  * 
- * 7. Simpler, cleaner code with better security
+ * 7. All sensitive data is encrypted automatically
+ * 
+ * 8. Simpler, cleaner code with better security
  */

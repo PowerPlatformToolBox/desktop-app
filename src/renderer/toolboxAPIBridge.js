@@ -104,6 +104,26 @@
             return Promise.resolve(window.TOOLBOX_CONTEXT || { toolId: null, connectionUrl: null });
         },
 
+        // Settings namespace - context-aware tool settings (automatically uses current tool ID)
+        settings: {
+            // Get all settings for this tool
+            getSettings: function() {
+                return callParentAPI('settings.getSettings', currentToolId);
+            },
+            // Get a specific setting by key
+            getSetting: function(key) {
+                return callParentAPI('settings.getSetting', currentToolId, key);
+            },
+            // Set a specific setting by key
+            setSetting: function(key, value) {
+                return callParentAPI('settings.setSetting', currentToolId, key, value);
+            },
+            // Set all settings (replaces entire settings object)
+            setSettings: function(settings) {
+                return callParentAPI('settings.setSettings', currentToolId, settings);
+            }
+        },
+
         // Terminal operations - context-aware (tool ID determined automatically)
         terminal: {
             // Create terminal - auto-detects tool ID and uses tool name if no name provided
