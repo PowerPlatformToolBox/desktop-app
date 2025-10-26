@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, macos-latest]
 
     steps:
       - name: Checkout main branch
@@ -46,12 +46,6 @@ jobs:
       - name: Build application
         run: pnpm run build
 
-      - name: Package application (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: pnpm run package
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Package application (Windows)
         if: matrix.os == 'windows-latest'
         run: pnpm run package
@@ -64,18 +58,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false # Skip code signing if no certificate is configured
-
-      - name: Upload artifacts (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-release
-          path: |
-            build/*.AppImage
-            build/*.snap
-            build/*.deb
-            build/*.rpm
-          retention-days: 90
 
       - name: Upload artifacts (Windows)
         if: matrix.os == 'windows-latest'
@@ -176,11 +158,6 @@ jobs:
             ### macOS
             - Download the `.dmg` file
             - Open the DMG and drag the app to Applications
-
-            ### Linux
-            - Download the `.AppImage` file
-            - Make it executable: `chmod +x *.AppImage`
-            - Run it: `./*.AppImage`
 
             ## ✨ What's Changed
 
