@@ -142,12 +142,9 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async extractTool(archivePath: string, targetPath: string): Promise<void> {
         // For now, we'll use Node's zlib and tar modules
-        // In a production environment, you might want to use a library like 'tar'
+        // Use spawn instead of exec to prevent command injection
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { promisify } = require('util');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { exec } = require('child_process');
-        const execPromise = promisify(exec);
+        const { spawn } = require('child_process');
 
         try {
             // Ensure target directory exists
@@ -156,12 +153,27 @@ export class ToolRegistryManager extends EventEmitter {
             }
 
             // Use tar command to extract (works on Unix and modern Windows)
-            if (process.platform === 'win32') {
-                // Windows 10+ has tar built-in
-                await execPromise(`tar -xzf "${archivePath}" -C "${targetPath}"`);
-            } else {
-                await execPromise(`tar -xzf "${archivePath}" -C "${targetPath}"`);
-            }
+            // Pass arguments separately to prevent command injection
+            await new Promise<void>((resolve, reject) => {
+                const tar = spawn('tar', ['-xzf', archivePath, '-C', targetPath]);
+                
+                let stderr = '';
+                tar.stderr.on('data', (data) => {
+                    stderr += data.toString();
+                });
+
+                tar.on('close', (code) => {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(`tar extraction failed with code ${code}: ${stderr}`));
+                    }
+                });
+
+                tar.on('error', (err) => {
+                    reject(err);
+                });
+            });
 
             console.log(`[ToolRegistry] Tool extracted successfully to ${targetPath}`);
         } catch (error) {
