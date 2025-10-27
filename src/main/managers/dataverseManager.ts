@@ -352,16 +352,16 @@ export class DataverseManager {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
 
-        if (odataQuery === null || odataQuery === undefined) {
-            throw new Error("odataQuery parameter cannot be null or undefined");
+        if (!odataQuery || !odataQuery.trim()) {
+            throw new Error("odataQuery parameter cannot be empty");
         }
 
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         const entitySetName = this.getEntitySetName(entityLogicalName);
 
         // Remove leading '?' if present in the query string
-        const trimmedQuery = odataQuery.trim();
-        const cleanQuery = trimmedQuery.startsWith("?") ? trimmedQuery.substring(1) : trimmedQuery;
+        const query = odataQuery.trim();
+        const cleanQuery = query.startsWith("?") ? query.substring(1) : query;
         
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
         if (cleanQuery) {
