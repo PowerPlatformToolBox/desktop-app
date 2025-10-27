@@ -142,5 +142,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
         getSolutions: (selectColumns: string[]) => 
             ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
+        queryData: (entityLogicalName: string, odataQuery: string) => 
+            ipcRenderer.invoke("dataverse.queryData", entityLogicalName, odataQuery),
     },
 });
