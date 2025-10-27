@@ -343,6 +343,31 @@ export class DataverseManager {
     }
 
     /**
+     * Query data from Dataverse using OData query parameters
+     * @param entityLogicalName - Logical name of the entity to query
+     * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+     */
+    async queryData(entityLogicalName: string, odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
+        if (!entityLogicalName || !entityLogicalName.trim()) {
+            throw new Error("entityLogicalName parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+
+        // Remove leading '?' if present in the query string
+        const cleanQuery = odataQuery.trim().startsWith("?") ? odataQuery.trim().substring(1) : odataQuery.trim();
+        
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
+        if (cleanQuery) {
+            url += `?${cleanQuery}`;
+        }
+
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        return response.data as { value: Record<string, unknown>[] };
+    }
+
+    /**
      * Make an HTTP request to Dataverse Web API
      */
     private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>): Promise<{ data: unknown; headers: Record<string, string> }> {

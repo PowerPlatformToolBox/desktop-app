@@ -229,13 +229,28 @@
         },
 
         // Get metadata
-        getEntityMetadata: function(entityLogicalName) {
-            return callParentAPI('dataverse.getEntityMetadata', entityLogicalName);
+        getEntityMetadata: function(entityLogicalName, selectColumns) {
+            return callParentAPI('dataverse.getEntityMetadata', entityLogicalName, selectColumns);
         },
 
         // Get all entities metadata
         getAllEntitiesMetadata: function() {
             return callParentAPI('dataverse.getAllEntitiesMetadata');
+        },
+
+        // Get entity related metadata
+        getEntityRelatedMetadata: function(entityLogicalName, relatedPath, selectColumns) {
+            return callParentAPI('dataverse.getEntityRelatedMetadata', entityLogicalName, relatedPath, selectColumns);
+        },
+
+        // Get solutions
+        getSolutions: function(selectColumns) {
+            return callParentAPI('dataverse.getSolutions', selectColumns);
+        },
+
+        // Query data with OData
+        queryData: function(entityLogicalName, odataQuery) {
+            return callParentAPI('dataverse.queryData', entityLogicalName, odataQuery);
         }
     };
 

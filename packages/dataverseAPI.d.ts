@@ -286,6 +286,40 @@ declare namespace DataverseAPI {
          * });
          */
         getSolutions: (selectColumns: string[]) => Promise<{ value: Record<string, unknown>[] }>;
+
+        /**
+         * Query data from Dataverse using OData query parameters
+         *
+         * @param entityLogicalName - Logical name of the entity to query (e.g., 'account', 'contact')
+         * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+         * @returns Object with value array containing matching records
+         *
+         * @example
+         * // Get top 10 active accounts with specific fields
+         * const result = await dataverseAPI.queryData(
+         *     'account',
+         *     '$select=name,emailaddress1,telephone1&$filter=statecode eq 0&$orderby=name&$top=10'
+         * );
+         * console.log(`Found ${result.value.length} records`);
+         * result.value.forEach(record => {
+         *     console.log(`${record.name} - ${record.emailaddress1}`);
+         * });
+         *
+         * @example
+         * // Query with expand to include related records
+         * const result = await dataverseAPI.queryData(
+         *     'account',
+         *     '$select=name,accountid&$expand=contact_customer_accounts($select=fullname,emailaddress1)&$top=5'
+         * );
+         *
+         * @example
+         * // Simple query with just a filter
+         * const result = await dataverseAPI.queryData(
+         *     'contact',
+         *     '$filter=contains(fullname, \'Smith\')&$top=20'
+         * );
+         */
+        queryData: (entityLogicalName: string, odataQuery: string) => Promise<{ value: Record<string, unknown>[] }>;
     }
 }
 
