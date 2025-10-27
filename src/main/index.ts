@@ -466,6 +466,14 @@ class ToolBoxApp {
                 throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
             }
         });
+
+        ipcMain.handle("dataverse.queryData", async (_, entityLogicalName: string, odataQuery: string) => {
+            try {
+                return await this.dataverseManager.queryData(entityLogicalName, odataQuery);
+            } catch (error) {
+                throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
+            }
+        });
     }
 
     /**
