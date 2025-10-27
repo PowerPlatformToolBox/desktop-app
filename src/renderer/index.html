@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com"
+            content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com https://*.crm.dynamics.com"
         />
         <title>Power Platform Tool Box</title>
         <link rel="stylesheet" href="styles.scss" />
@@ -97,12 +97,7 @@
                                 <p class="debug-section-description">Enter an npm package name to install a custom tool directly from the npm registry.</p>
                                 <div class="debug-input-group">
                                     <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
-                                    <input 
-                                        type="text" 
-                                        id="sidebar-package-name-input" 
-                                        class="fluent-input" 
-                                        placeholder="e.g., @powerplatform/tool-example"
-                                    />
+                                    <input type="text" id="sidebar-package-name-input" class="fluent-input" placeholder="e.g., @powerplatform/tool-example" />
                                     <span class="debug-hint">Enter the full npm package name including scope (if applicable)</span>
                                 </div>
                                 <div class="debug-actions">
@@ -111,9 +106,7 @@
                             </div>
                             <div class="debug-section">
                                 <h3 class="debug-section-title">About This Feature</h3>
-                                <p class="debug-section-description">
-                                    This feature is designed for tool developers to quickly test and install their tools without publishing to the marketplace.
-                                </p>
+                                <p class="debug-section-description">This feature is designed for tool developers to quickly test and install their tools without publishing to the marketplace.</p>
                                 <ul class="debug-info-list">
                                     <li>📦 Install any npm package that follows the toolbox tool format</li>
                                     <li>🧪 Perfect for testing tools during development</li>
@@ -163,7 +156,7 @@
                                     <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
                                     <option value="custom">Custom Font...</option>
                                 </select>
-                                <div id="custom-font-input-container" style="display: none; margin-top: 8px;">
+                                <div id="custom-font-input-container" style="display: none; margin-top: 8px">
                                     <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
                                     <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
                                 </div>
@@ -213,7 +206,7 @@
                             <div class="terminal-panel-controls">
                                 <button class="btn-icon" id="terminal-panel-close" title="Hide terminal">
                                     <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                        <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z"/>
+                                        <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z" />
                                     </svg>
                                 </button>
                             </div>
@@ -231,8 +224,8 @@
                         </div>
                         <button class="footer-link-btn" id="footer-toggle-terminal-btn" title="Toggle terminal">
                             <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                <path d="M1.5 2.5h13v11h-13v-11zm1 1v9h11v-9h-11z"/>
-                                <path d="M3 5h1v1H3V5zm2 0h1v1H5V5zm-2 2h1v1H3V7zm2 0h1v1H5V7z"/>
+                                <path d="M1.5 2.5h13v11h-13v-11zm1 1v9h11v-9h-11z" />
+                                <path d="M3 5h1v1H3V5zm2 0h1v1H5V5zm-2 2h1v1H3V7zm2 0h1v1H5V7z" />
                             </svg>
                             Terminal
                         </button>
