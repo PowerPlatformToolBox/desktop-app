@@ -4,11 +4,11 @@ import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
-import { SettingsManager } from "./managers/settingsManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
-import { ToolManager } from "./managers/toolsManager";
-import { TerminalManager } from "./managers/terminalManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { SettingsManager } from "./managers/settingsManager";
+import { TerminalManager } from "./managers/terminalManager";
+import { ToolManager } from "./managers/toolsManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -413,19 +413,25 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.execute", async (_, request: {
-            entityName?: string;
-            entityId?: string;
-            operationName: string;
-            operationType: 'action' | 'function';
-            parameters?: Record<string, unknown>;
-        }) => {
-            try {
-                return await this.dataverseManager.execute(request);
-            } catch (error) {
-                throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
-            }
-        });
+        ipcMain.handle(
+            "dataverse.execute",
+            async (
+                _,
+                request: {
+                    entityName?: string;
+                    entityId?: string;
+                    operationName: string;
+                    operationType: "action" | "function";
+                    parameters?: Record<string, unknown>;
+                },
+            ) => {
+                try {
+                    return await this.dataverseManager.execute(request);
+                } catch (error) {
+                    throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
+                }
+            },
+        );
 
         ipcMain.handle("dataverse.fetchXmlQuery", async (_, fetchXml: string) => {
             try {
@@ -435,9 +441,9 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string, selectColumns?: string[]) => {
+        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName, selectColumns);
+                return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
             }
@@ -467,9 +473,9 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.queryData", async (_, entityLogicalName: string, odataQuery: string) => {
+        ipcMain.handle("dataverse.queryData", async (_, odataQuery: string) => {
             try {
-                return await this.dataverseManager.queryData(entityLogicalName, odataQuery);
+                return await this.dataverseManager.queryData(odataQuery);
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }

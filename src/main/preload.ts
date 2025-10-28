@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),
         copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
-        getCurrentTheme: () => Promise.resolve('light' as const), // Stub for now
+        getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
     },
 
     // External URL - Only for PPTB UI
@@ -95,7 +95,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onUpdateError: (callback: (error: string) => void) => {
         ipcRenderer.on("update-error", (_, error) => callback(error));
     },
-    
+
     // Home page - Only for PPTB UI
     onShowHomePage: (callback: () => void) => {
         ipcRenderer.on("show-home-page", callback);
@@ -114,35 +114,20 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>) => 
-            ipcRenderer.invoke("dataverse.create", entityLogicalName, record),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => 
-            ipcRenderer.invoke("dataverse.retrieve", entityLogicalName, id, columns),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => 
-            ipcRenderer.invoke("dataverse.update", entityLogicalName, id, record),
-        delete: (entityLogicalName: string, id: string) => 
-            ipcRenderer.invoke("dataverse.delete", entityLogicalName, id),
-        retrieveMultiple: (fetchXml: string) => 
-            ipcRenderer.invoke("dataverse.retrieveMultiple", fetchXml),
-        execute: (request: {
-            entityName?: string;
-            entityId?: string;
-            operationName: string;
-            operationType: 'action' | 'function';
-            parameters?: Record<string, unknown>;
-        }) => 
+        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke("dataverse.create", entityLogicalName, record),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcRenderer.invoke("dataverse.retrieve", entityLogicalName, id, columns),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcRenderer.invoke("dataverse.update", entityLogicalName, id, record),
+        delete: (entityLogicalName: string, id: string) => ipcRenderer.invoke("dataverse.delete", entityLogicalName, id),
+        retrieveMultiple: (fetchXml: string) => ipcRenderer.invoke("dataverse.retrieveMultiple", fetchXml),
+        execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }) =>
             ipcRenderer.invoke("dataverse.execute", request),
-        fetchXmlQuery: (fetchXml: string) => 
-            ipcRenderer.invoke("dataverse.fetchXmlQuery", fetchXml),
-        getEntityMetadata: (entityLogicalName: string, selectColumns?: string[]) => 
-            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName, selectColumns),
-        getAllEntitiesMetadata: () => 
-            ipcRenderer.invoke("dataverse.getAllEntitiesMetadata"),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => 
+        fetchXmlQuery: (fetchXml: string) => ipcRenderer.invoke("dataverse.fetchXmlQuery", fetchXml),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
+            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName, searchByLogicalName, selectColumns),
+        getAllEntitiesMetadata: () => ipcRenderer.invoke("dataverse.getAllEntitiesMetadata"),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
             ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
-        getSolutions: (selectColumns: string[]) => 
-            ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
-        queryData: (entityLogicalName: string, odataQuery: string) => 
-            ipcRenderer.invoke("dataverse.queryData", entityLogicalName, odataQuery),
+        getSolutions: (selectColumns: string[]) => ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
+        queryData: (odataQuery: string) => ipcRenderer.invoke("dataverse.queryData", odataQuery),
     },
 });
