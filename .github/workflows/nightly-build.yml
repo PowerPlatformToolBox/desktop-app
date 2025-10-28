@@ -169,6 +169,30 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R artifacts
 
+      - name: Delete old pre-releases
+        run: |
+          echo "🗑️ Deleting old pre-releases..."
+          
+          # Get all pre-releases (not full releases)
+          PRERELEASES=$(gh release list --limit 100 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName')
+          
+          if [ -z "$PRERELEASES" ]; then
+            echo "No pre-releases found to delete."
+          else
+            echo "Found pre-releases to delete:"
+            echo "$PRERELEASES"
+            
+            # Delete each pre-release
+            for TAG in $PRERELEASES; do
+              echo "Deleting pre-release: $TAG"
+              gh release delete "$TAG" --yes --cleanup-tag || echo "Failed to delete $TAG (may not exist)"
+            done
+            
+            echo "✅ Old pre-releases deleted successfully"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create pre-release
         uses: softprops/action-gh-release@v2
         with:
