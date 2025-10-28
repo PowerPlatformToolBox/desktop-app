@@ -32,6 +32,7 @@ toastr.options = {
     showMethod: "fadeIn",
     hideMethod: "fadeOut",
     iconClass: "", // Remove default icons to match VSCode style
+    iconClasses: undefined,
 };
 
 // Tab management for multiple tools
