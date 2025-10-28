@@ -2483,6 +2483,15 @@ body.dark-theme .terminal-tab.active {
     line-height: 1.4;
 }
 
+/* Hide default toastr icons to match VSCode style (uses accent border instead) */
+#toast-container > div::before {
+    display: none;
+}
+
+#toast-container > div .toast-icon {
+    display: none;
+}
+
 #toast-container > div:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
 }
