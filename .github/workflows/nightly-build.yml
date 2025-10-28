@@ -178,11 +178,11 @@ jobs:
           gh release list --limit 1000 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | while IFS= read -r TAG; do
             if [ -n "$TAG" ]; then
               echo "Deleting pre-release: $TAG"
-              gh release delete "$TAG" --yes --cleanup-tag || echo "Failed to delete $TAG (may not exist)"
+              gh release delete "$TAG" --yes --cleanup-tag || echo "⚠️ Failed to delete $TAG (may not exist or already deleted)"
             fi
           done
           
-          echo "✅ Old pre-releases deleted successfully"
+          echo "✅ Pre-release cleanup completed"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
