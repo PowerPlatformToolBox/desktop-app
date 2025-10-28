@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Notification, clipboard, dialog } from 'electron';
+import { clipboard, dialog } from 'electron';
 import * as fs from 'fs';
 import { ToolBoxEvent, ToolBoxEventPayload, NotificationOptions } from '../types';
 
@@ -15,28 +15,10 @@ export class ToolBoxAPI extends EventEmitter {
 
   /**
    * Show a notification to the user
+   * This emits an event that will be handled by the renderer process using toastr
    */
   showNotification(options: NotificationOptions): void {
-    // Check if notifications are supported
-    if (!Notification.isSupported()) {
-      console.warn('Notifications are not supported on this system');
-      return;
-    }
-
-    const notificationOptions: Electron.NotificationConstructorOptions = {
-      title: options.title,
-      body: options.body,
-    };
-
-    // urgency is only supported on Linux
-    if (process.platform === 'linux') {
-      notificationOptions.urgency = options.type === 'error' ? 'critical' : 'normal';
-    }
-
-    const notification = new Notification(notificationOptions);
-
-    notification.show();
-
+    // Emit event to be handled by renderer
     this.emitEvent(ToolBoxEvent.NOTIFICATION_SHOWN, options);
   }
 

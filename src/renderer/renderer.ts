@@ -2,6 +2,8 @@
 /// <reference path="types.d.ts" />
 
 import AnsiToHtml from "ansi-to-html";
+import toastr from "toastr";
+import "toastr/build/toastr.min.css";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml({
@@ -11,6 +13,27 @@ const ansiConverter = new AnsiToHtml({
     escapeXML: true,
     stream: false,
 });
+
+// Configure toastr for notifications
+toastr.options = {
+    closeButton: true,
+    debug: false,
+    newestOnTop: true,
+    progressBar: true,
+    positionClass: "toast-bottom-right",
+    preventDuplicates: false,
+    onclick: undefined,
+    showDuration: 300,
+    hideDuration: 1000,
+    timeOut: 5000,
+    extendedTimeOut: 1000,
+    showEasing: "swing",
+    hideEasing: "linear",
+    showMethod: "fadeIn",
+    hideMethod: "fadeOut",
+    iconClass: "", // Remove default icons to match VSCode style
+    iconClasses: undefined,
+};
 
 // Tab management for multiple tools
 interface OpenTool {
@@ -3060,6 +3083,33 @@ async function init() {
     // Listen for toolbox events and react to them
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
+
+        // Handle notifications using toastr
+        if (payload.event === "notification:shown") {
+            const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
+            const message = notificationData.body;
+            const title = notificationData.title;
+            const options = {
+                timeOut: notificationData.duration || 5000,
+            };
+
+            // Show notification based on type
+            switch (notificationData.type) {
+                case "success":
+                    toastr.success(message, title, options);
+                    break;
+                case "error":
+                    toastr.error(message, title, options);
+                    break;
+                case "warning":
+                    toastr.warning(message, title, options);
+                    break;
+                case "info":
+                default:
+                    toastr.info(message, title, options);
+                    break;
+            }
+        }
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {

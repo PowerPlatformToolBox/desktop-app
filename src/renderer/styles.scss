@@ -2462,3 +2462,167 @@ body.dark-theme .terminal-tab.active {
     background-color: #1e1e1e;
     color: #ffffff;
 }
+
+/* ========================================
+   Toastr Custom Styling (VSCode-inspired)
+   ======================================== */
+
+/* Override toastr default styles to match VSCode notification design */
+#toast-container > div {
+    opacity: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    border-radius: 0;
+    padding: 12px 16px 12px 12px;
+    width: 400px;
+    font-family: $font-family;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    background-image: none;
+    border-left: 3px solid;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* Hide default toastr icons to match VSCode style (uses accent border instead) */
+#toast-container > div::before {
+    display: none;
+}
+
+#toast-container > .toast {
+    background-image: none !important;
+}
+
+#toast-container > div .toast-icon {
+    display: none;
+}
+
+#toast-container > div:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+}
+
+/* Info notification - Blue accent */
+#toast-container > .toast-info {
+    border-left-color: $notification-info;
+}
+
+/* Success notification - Green accent */
+#toast-container > .toast-success {
+    border-left-color: $notification-success;
+}
+
+/* Warning notification - Yellow/Orange accent */
+#toast-container > .toast-warning {
+    border-left-color: $notification-warning;
+}
+
+/* Error notification - Red accent */
+#toast-container > .toast-error {
+    border-left-color: $notification-error;
+}
+
+/* Toast title styling */
+#toast-container > div > .toast-title {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+/* Toast message styling */
+#toast-container > div > .toast-message {
+    color: var(--text-color);
+    opacity: 0.9;
+}
+
+/* Close button styling - VSCode style */
+#toast-container > div > .toast-close-button {
+    color: var(--text-color);
+    opacity: 0.6;
+    font-size: 16px;
+    font-weight: normal;
+    text-shadow: none;
+    right: 8px;
+    top: 8px;
+}
+
+#toast-container > div > .toast-close-button:hover {
+    opacity: 1;
+    color: var(--text-color);
+}
+
+/* Progress bar styling - subtle accent color */
+#toast-container > div > .toast-progress {
+    opacity: 0.3;
+    height: 3px;
+    background-color: currentColor;
+}
+
+#toast-container > .toast-info > .toast-progress {
+    background-color: $notification-info;
+}
+
+#toast-container > .toast-success > .toast-progress {
+    background-color: $notification-success;
+}
+
+#toast-container > .toast-warning > .toast-progress {
+    background-color: $notification-warning;
+}
+
+#toast-container > .toast-error > .toast-progress {
+    background-color: $notification-error;
+}
+
+/* Dark theme toastr styling */
+body.dark-theme #toast-container > div {
+    background-color: $dark-card-bg;
+    color: $dark-text-color;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-theme #toast-container > div:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-theme #toast-container > .toast-info {
+    border-left-color: $notification-info-dark;
+}
+
+body.dark-theme #toast-container > .toast-success {
+    border-left-color: $notification-success-dark;
+}
+
+body.dark-theme #toast-container > .toast-warning {
+    border-left-color: $notification-warning-dark;
+}
+
+body.dark-theme #toast-container > .toast-error {
+    border-left-color: $notification-error-dark;
+}
+
+body.dark-theme #toast-container > div > .toast-title {
+    color: $dark-text-color;
+}
+
+body.dark-theme #toast-container > div > .toast-message {
+    color: $dark-text-color;
+}
+
+body.dark-theme #toast-container > div > .toast-close-button {
+    color: $dark-text-color;
+}
+
+body.dark-theme #toast-container > .toast-info > .toast-progress {
+    background-color: $notification-info-dark;
+}
+
+body.dark-theme #toast-container > .toast-success > .toast-progress {
+    background-color: $notification-success-dark;
+}
+
+body.dark-theme #toast-container > .toast-warning > .toast-progress {
+    background-color: $notification-warning-dark;
+}
+
+body.dark-theme #toast-container > .toast-error > .toast-progress {
+    background-color: $notification-error-dark;
+}
