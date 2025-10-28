@@ -2462,3 +2462,89 @@ body.dark-theme .terminal-tab.active {
     background-color: #1e1e1e;
     color: #ffffff;
 }
+
+/* ========================================
+   Toastr Custom Styling (Fluent UI)
+   ======================================== */
+
+/* Override toastr default styles to match Fluent UI design system */
+#toast-container > div {
+    opacity: 1;
+    box-shadow: 0 3.2px 7.2px 0 rgba(0, 0, 0, 0.132), 0 0.6px 1.8px 0 rgba(0, 0, 0, 0.108);
+    border-radius: 4px;
+    padding: 15px 15px 15px 50px;
+    width: 300px;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+#toast-container > div:hover {
+    box-shadow: 0 6.4px 14.4px 0 rgba(0, 0, 0, 0.132), 0 1.2px 3.6px 0 rgba(0, 0, 0, 0.108);
+}
+
+/* Info notification */
+#toast-container > .toast-info {
+    background-color: #0078d4;
+    background-image: none;
+}
+
+/* Success notification */
+#toast-container > .toast-success {
+    background-color: #107c10;
+    background-image: none;
+}
+
+/* Warning notification */
+#toast-container > .toast-warning {
+    background-color: #ffd335;
+    color: #323130;
+    background-image: none;
+}
+
+/* Error notification */
+#toast-container > .toast-error {
+    background-color: #d13438;
+    background-image: none;
+}
+
+/* Close button styling */
+#toast-container > div > .toast-close-button {
+    color: inherit;
+    opacity: 0.7;
+    font-size: 18px;
+    font-weight: normal;
+}
+
+#toast-container > div > .toast-close-button:hover {
+    opacity: 1;
+}
+
+/* Progress bar styling */
+#toast-container > div > .toast-progress {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark theme toastr styling */
+body.dark-theme #toast-container > div {
+    box-shadow: 0 3.2px 7.2px 0 rgba(0, 0, 0, 0.3), 0 0.6px 1.8px 0 rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme #toast-container > div:hover {
+    box-shadow: 0 6.4px 14.4px 0 rgba(0, 0, 0, 0.3), 0 1.2px 3.6px 0 rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme #toast-container > .toast-info {
+    background-color: #2b88d8;
+}
+
+body.dark-theme #toast-container > .toast-success {
+    background-color: #13a10e;
+}
+
+body.dark-theme #toast-container > .toast-warning {
+    background-color: #f7b731;
+    color: #000000;
+}
+
+body.dark-theme #toast-container > .toast-error {
+    background-color: #e74856;
+}
