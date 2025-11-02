@@ -266,17 +266,17 @@ export class DataverseManager {
     /**
      * Get metadata for a specific entity
      */
-    async getEntityMetadata(entityLogicalName: string, selectColumns?: string[]): Promise<EntityMetadata> {
-        if (!entityLogicalName || !entityLogicalName.trim()) {
+    async getEntityMetadata(entityLogicalNameOrId: string, searchByLogicalName: boolean, selectColumns?: string[]): Promise<EntityMetadata> {
+        if (!entityLogicalNameOrId || !entityLogicalNameOrId.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
 
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const encodedLogicalName = encodeURIComponent(entityLogicalName);
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')`;
-        
+        const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`;
+
         if (selectColumns && selectColumns.length > 0) {
-            const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
             url += `?$select=${encodedColumns}`;
         }
 
@@ -313,11 +313,15 @@ export class DataverseManager {
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         // Encode individual path segments but preserve forward slashes for URL structure
         // Filter out empty or whitespace-only segments to prevent double slashes
-        const encodedPath = relatedPath.split('/').filter(segment => segment.trim().length > 0).map(segment => encodeURIComponent(segment)).join('/');
+        const encodedPath = relatedPath
+            .split("/")
+            .filter((segment) => segment.trim().length > 0)
+            .map((segment) => encodeURIComponent(segment))
+            .join("/");
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
-        
+
         if (selectColumns && selectColumns.length > 0) {
-            const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
             url += `?$select=${encodedColumns}`;
         }
 
@@ -335,8 +339,32 @@ export class DataverseManager {
         }
 
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const encodedColumns = selectColumns.map(col => encodeURIComponent(col)).join(",");
+        const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
+
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        return response.data as { value: Record<string, unknown>[] };
+    }
+
+    /**
+     * Query data from Dataverse using OData query parameters
+     * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+     */
+    async queryData(odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
+        if (!odataQuery || !odataQuery.trim()) {
+            throw new Error("odataQuery parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+
+        // Remove leading '?' if present in the query string
+        const query = odataQuery.trim();
+        const cleanQuery = query.startsWith("?") ? query.substring(1) : query;
+
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}`;
+        if (cleanQuery) {
+            url += `/${cleanQuery}`;
+        }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: Record<string, unknown>[] };

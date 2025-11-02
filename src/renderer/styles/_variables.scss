@@ -49,6 +49,20 @@ $transition-normal: 0.3s ease;
 // Font Family
 $font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
+// Notification Colors - Light Theme
+$notification-info: #0078d4;
+$notification-success: #107c10;
+$notification-warning: #ffd335;
+$notification-warning-text: #323130;
+$notification-error: #d13438;
+
+// Notification Colors - Dark Theme
+$notification-info-dark: #2b88d8;
+$notification-success-dark: #13a10e;
+$notification-warning-dark: #f7b731;
+$notification-warning-text-dark: #000000;
+$notification-error-dark: #e74856;
+
 // Z-Index Layers
 $z-activity-bar: 100;
 $z-sidebar: 50;
