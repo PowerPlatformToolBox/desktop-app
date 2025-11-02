@@ -86,9 +86,11 @@
 -   [Troubleshooting](#troubleshooting)
     -   [Electron won't start](#electron-wont-start)
 -   [Documentation](#documentation)
+    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
+    -   [Contributing](#contributing)
 -   [Discussions](#discussions)
 -   [License](#license)
--   [Contributing](#contributing)
+-   [Contributing](#contributing-1)
 
 ## Features Overview
 
@@ -389,11 +391,11 @@ node node_modules/electron/install.js
 
 ### Porting XrmToolBox Tools
 
--   **[PORTING_XTB_TOOLS.md](docs/PORTING_XTB_TOOLS.md)** - Comprehensive guide for porting XrmToolBox tools to PPTB (recommended approach)
--   **[PORTING_DLL_TO_WASM.md](docs/PORTING_DLL_TO_WASM.md)** - Minimal-effort porting using WebAssembly/Blazor to reuse .NET DLLs
--   **[PORTING_QUICK_START.md](docs/PORTING_QUICK_START.md)** - Quick reference for XTB tool porting
--   **[ADR_PORTING_STRATEGY.md](docs/ADR_PORTING_STRATEGY.md)** - Technical rationale for porting strategy decision
--   **[FetchXML Builder Sample](examples/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
+-   **[PORTING_XTB_TOOLS.md](docs/porting/PORTING_XTB_TOOLS.md)** - Comprehensive guide for porting XrmToolBox tools to PPTB (recommended approach)
+-   **[PORTING_DLL_TO_WASM.md](docs/porting/PORTING_DLL_TO_WASM.md)** - Minimal-effort porting using WebAssembly/Blazor to reuse .NET DLLs
+-   **[PORTING_QUICK_START.md](docs/porting/PORTING_QUICK_START.md)** - Quick reference for XTB tool porting
+-   **[ADR_PORTING_STRATEGY.md](docs/porting/ADR_PORTING_STRATEGY.md)** - Technical rationale for porting strategy decision
+-   **[FetchXML Builder Sample](https://github.com/PowerPlatformToolBox/sample-tools/ported-tools/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
 
 ### Contributing
 
