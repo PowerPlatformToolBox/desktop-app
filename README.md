@@ -87,10 +87,9 @@
     -   [Electron won't start](#electron-wont-start)
 -   [Documentation](#documentation)
     -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
-    -   [Contributing](#contributing)
 -   [Discussions](#discussions)
 -   [License](#license)
--   [Contributing](#contributing-1)
+-   [Contributing](#contributing)
 
 ## Features Overview
 
@@ -397,10 +396,6 @@ node node_modules/electron/install.js
 -   **[ADR_PORTING_STRATEGY.md](docs/porting/ADR_PORTING_STRATEGY.md)** - Technical rationale for porting strategy decision
 -   **[FetchXML Builder Sample](https://github.com/PowerPlatformToolBox/sample-tools/ported-tools/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
 
-### Contributing
-
--   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
-
 ## Discussions
 
 If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatform-ToolBox/desktop-app/discussions).
@@ -413,7 +408,9 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+> If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
+
+Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
