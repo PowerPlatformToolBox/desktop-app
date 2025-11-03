@@ -2340,9 +2340,10 @@ async function openToolDetail(tool: any, isInstalled: boolean) {
     if (readmeContent) {
         readmeContent.innerHTML = '<p class="loading-text">Loading README...</p>';
 
-        if (tool.readmeUrl) {
+        const readmeUrl = (tool as any).readme || (tool as any).readmeUrl;
+        if (readmeUrl) {
             try {
-                const response = await fetch(tool.readmeUrl);
+                const response = await fetch(readmeUrl);
                 const markdown = await response.text();
 
                 // Simple markdown to HTML conversion

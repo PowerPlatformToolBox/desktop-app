@@ -156,6 +156,7 @@ https://raw.githubusercontent.com/PowerPlatformToolBox/tool-registry/main/regist
       "size": 1024000,
       "publishedAt": "2024-01-15T10:00:00Z",
       "tags": ["dataverse", "utility", "reporting"],
+      "readme": "https://raw.githubusercontent.com/username/my-tool/main/README.md",
       "minToolboxVersion": "1.0.0",
       "repository": "https://github.com/username/my-tool",
       "homepage": "https://my-tool-docs.com",
@@ -180,6 +181,7 @@ https://raw.githubusercontent.com/PowerPlatformToolBox/tool-registry/main/regist
 | `size` | ❌ | File size in bytes |
 | `publishedAt` | ✅ | ISO 8601 timestamp |
 | `tags` | ❌ | Array of tags for filtering/search |
+| `readme` | ❌ | URL to the tool's README markdown file |
 | `minToolboxVersion` | ❌ | Minimum ToolBox version required |
 | `repository` | ❌ | Source code repository URL |
 | `homepage` | ❌ | Tool documentation/homepage URL |

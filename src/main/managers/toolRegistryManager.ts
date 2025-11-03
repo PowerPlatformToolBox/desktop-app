@@ -221,6 +221,7 @@ export class ToolRegistryManager extends EventEmitter {
             installedAt: new Date().toISOString(),
             source: "registry",
             sourceUrl: tool.downloadUrl,
+            readme: tool.readme, // Include readme URL from registry
         };
 
         // Save to manifest file

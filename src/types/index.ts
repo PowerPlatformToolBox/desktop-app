@@ -30,6 +30,7 @@ export interface ToolRegistryEntry {
   size?: number;
   publishedAt: string;
   tags?: string[];
+  readme?: string; // URL or relative path to README file
 }
 
 /**
@@ -46,6 +47,7 @@ export interface ToolManifest {
   installedAt: string;
   source: 'registry' | 'npm' | 'local'; // Track installation source
   sourceUrl?: string;
+  readme?: string; // URL or relative path to README file
 }
 
 /**
