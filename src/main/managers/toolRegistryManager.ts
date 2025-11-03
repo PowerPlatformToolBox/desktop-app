@@ -1,11 +1,11 @@
 import { EventEmitter } from "events";
 import * as fs from "fs";
-import * as path from "path";
-import * as https from "https";
-import * as http from "http";
 import { createWriteStream } from "fs";
+import * as http from "http";
+import * as https from "https";
+import * as path from "path";
 import { pipeline } from "stream/promises";
-import { ToolRegistryEntry, ToolManifest } from "../../types";
+import { ToolManifest, ToolRegistryEntry } from "../../types";
 import { TOOL_REGISTRY_URL } from "../constants";
 
 /**
@@ -41,32 +41,34 @@ export class ToolRegistryManager extends EventEmitter {
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
         return new Promise((resolve, reject) => {
             console.log(`[ToolRegistry] Fetching registry from: ${this.registryUrl}`);
-            
-            const protocol = this.registryUrl.startsWith('https') ? https : http;
-            
-            protocol.get(this.registryUrl, (res) => {
-                if (res.statusCode !== 200) {
-                    reject(new Error(`Failed to fetch registry: HTTP ${res.statusCode}`));
-                    return;
-                }
 
-                let data = '';
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
+            const protocol = this.registryUrl.startsWith("https") ? https : http;
 
-                res.on('end', () => {
-                    try {
-                        const registry = JSON.parse(data);
-                        console.log(`[ToolRegistry] Fetched ${registry.tools?.length || 0} tools from registry`);
-                        resolve(registry.tools || []);
-                    } catch (error) {
-                        reject(new Error(`Failed to parse registry JSON: ${error}`));
+            protocol
+                .get(this.registryUrl, (res) => {
+                    if (res.statusCode !== 200) {
+                        reject(new Error(`Failed to fetch registry: HTTP ${res.statusCode}`));
+                        return;
                     }
+
+                    let data = "";
+                    res.on("data", (chunk) => {
+                        data += chunk;
+                    });
+
+                    res.on("end", () => {
+                        try {
+                            const registry = JSON.parse(data);
+                            console.log(`[ToolRegistry] Fetched ${registry.tools?.length || 0} tools from registry`);
+                            resolve(registry.tools || []);
+                        } catch (error) {
+                            reject(new Error(`Failed to parse registry JSON: ${error}`));
+                        }
+                    });
+                })
+                .on("error", (error) => {
+                    reject(new Error(`Failed to fetch registry: ${error.message}`));
                 });
-            }).on('error', (error) => {
-                reject(new Error(`Failed to fetch registry: ${error.message}`));
-            });
         });
     }
 
@@ -80,61 +82,63 @@ export class ToolRegistryManager extends EventEmitter {
         console.log(`[ToolRegistry] Downloading tool ${tool.id} from ${tool.downloadUrl}`);
 
         return new Promise((resolve, reject) => {
-            const protocol = tool.downloadUrl.startsWith('https') ? https : http;
-            
-            protocol.get(tool.downloadUrl, (res) => {
-                if (res.statusCode === 302 || res.statusCode === 301) {
-                    // Handle redirects
-                    const redirectUrl = res.headers.location;
-                    if (redirectUrl) {
-                        console.log(`[ToolRegistry] Following redirect to ${redirectUrl}`);
-                        const redirectProtocol = redirectUrl.startsWith('https') ? https : http;
-                        redirectProtocol.get(redirectUrl, (redirectRes) => {
-                            this.handleDownloadResponse(redirectRes, downloadPath, toolPath, resolve, reject);
-                        }).on('error', reject);
+            const protocol = tool.downloadUrl.startsWith("https") ? https : http;
+
+            protocol
+                .get(tool.downloadUrl, (res) => {
+                    if (res.statusCode === 302 || res.statusCode === 301) {
+                        // Handle redirects
+                        const redirectUrl = res.headers.location;
+                        if (redirectUrl) {
+                            console.log(`[ToolRegistry] Following redirect to ${redirectUrl}`);
+                            const redirectProtocol = redirectUrl.startsWith("https") ? https : http;
+                            redirectProtocol
+                                .get(redirectUrl, (redirectRes) => {
+                                    this.handleDownloadResponse(redirectRes, downloadPath, toolPath, resolve, reject);
+                                })
+                                .on("error", reject);
+                        } else {
+                            reject(new Error("Redirect without location header"));
+                        }
                     } else {
-                        reject(new Error('Redirect without location header'));
+                        this.handleDownloadResponse(res, downloadPath, toolPath, resolve, reject);
                     }
-                } else {
-                    this.handleDownloadResponse(res, downloadPath, toolPath, resolve, reject);
-                }
-            }).on('error', (error) => {
-                reject(new Error(`Failed to download tool: ${error.message}`));
-            });
+                })
+                .on("error", (error) => {
+                    reject(new Error(`Failed to download tool: ${error.message}`));
+                });
         });
     }
 
     /**
      * Handle the download response
      */
-    private handleDownloadResponse(
-        res: http.IncomingMessage,
-        downloadPath: string,
-        toolPath: string,
-        resolve: (path: string) => void,
-        reject: (error: Error) => void
-    ): void {
+    private handleDownloadResponse(res: http.IncomingMessage, downloadPath: string, toolPath: string, resolve: (path: string) => void, reject: (error: Error) => void): void {
         if (res.statusCode !== 200) {
             reject(new Error(`Failed to download: HTTP ${res.statusCode}`));
             return;
         }
 
-        const fileStream = createWriteStream(downloadPath);
-        
-        pipeline(res, fileStream)
-            .then(() => {
-                console.log(`[ToolRegistry] Download complete, extracting to ${toolPath}`);
-                this.extractTool(downloadPath, toolPath)
-                    .then(() => {
-                        // Clean up download file
-                        fs.unlinkSync(downloadPath);
-                        resolve(toolPath);
-                    })
-                    .catch(reject);
-            })
-            .catch((error) => {
-                reject(new Error(`Download failed: ${error.message}`));
-            });
+        try {
+            const fileStream = createWriteStream(downloadPath);
+
+            pipeline(res, fileStream)
+                .then(() => {
+                    console.log(`[ToolRegistry] Download complete, extracting to ${toolPath}`);
+                    this.extractTool(downloadPath, toolPath)
+                        .then(() => {
+                            // Clean up download file
+                            fs.unlinkSync(downloadPath);
+                            resolve(toolPath);
+                        })
+                        .catch(reject);
+                })
+                .catch((error) => {
+                    reject(new Error(`Download failed: ${error.message}`));
+                });
+        } catch (err) {
+            reject(new Error(`Failed to download tool: ${err}`));
+        }
     }
 
     /**
@@ -144,7 +148,7 @@ export class ToolRegistryManager extends EventEmitter {
         // For now, we'll use Node's zlib and tar modules
         // Use spawn instead of exec to prevent command injection
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { spawn } = require('child_process');
+        const { spawn } = require("child_process");
 
         try {
             // Ensure target directory exists
@@ -155,14 +159,14 @@ export class ToolRegistryManager extends EventEmitter {
             // Use tar command to extract (works on Unix and modern Windows)
             // Pass arguments separately to prevent command injection
             await new Promise<void>((resolve, reject) => {
-                const tar = spawn('tar', ['-xzf', archivePath, '-C', targetPath]);
-                
-                let stderr = '';
-                tar.stderr.on('data', (data) => {
+                const tar = spawn("tar", ["-xzf", archivePath, "-C", targetPath]);
+
+                let stderr = "";
+                tar.stderr.on("data", (data) => {
                     stderr += data.toString();
                 });
 
-                tar.on('close', (code) => {
+                tar.on("close", (code) => {
                     if (code === 0) {
                         resolve();
                     } else {
@@ -170,7 +174,7 @@ export class ToolRegistryManager extends EventEmitter {
                     }
                 });
 
-                tar.on('error', (err) => {
+                tar.on("error", (err) => {
                     reject(err);
                 });
             });
@@ -187,9 +191,9 @@ export class ToolRegistryManager extends EventEmitter {
     async installTool(toolId: string): Promise<ToolManifest> {
         // Fetch registry
         const registry = await this.fetchRegistry();
-        
+
         // Find tool
-        const tool = registry.find(t => t.id === toolId);
+        const tool = registry.find((t) => t.id === toolId);
         if (!tool) {
             throw new Error(`Tool ${toolId} not found in registry`);
         }
@@ -207,23 +211,23 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Create manifest
         const manifest: ToolManifest = {
-            id: packageJson.name || tool.id,
-            name: packageJson.displayName || packageJson.name || tool.name,
-            version: packageJson.version || tool.version,
-            description: packageJson.description || tool.description,
-            author: packageJson.author || tool.author,
-            icon: packageJson.icon || tool.icon,
+            id: tool.id || packageJson.name,
+            name: tool.name || packageJson.displayName || packageJson.name,
+            version: tool.version || packageJson.version,
+            description: tool.description || packageJson.description,
+            author: tool.author || packageJson.author,
+            icon: tool.icon || packageJson.icon,
             installPath: toolPath,
             installedAt: new Date().toISOString(),
-            source: 'registry',
-            sourceUrl: tool.downloadUrl
+            source: "registry",
+            sourceUrl: tool.downloadUrl,
         };
 
         // Save to manifest file
         await this.saveManifest(manifest);
 
         console.log(`[ToolRegistry] Tool ${toolId} installed successfully`);
-        this.emit('tool:installed', manifest);
+        this.emit("tool:installed", manifest);
 
         return manifest;
     }
@@ -246,7 +250,7 @@ export class ToolRegistryManager extends EventEmitter {
         await this.removeFromManifest(toolId);
 
         console.log(`[ToolRegistry] Tool ${toolId} uninstalled successfully`);
-        this.emit('tool:uninstalled', toolId);
+        this.emit("tool:uninstalled", toolId);
     }
 
     /**
@@ -258,7 +262,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         try {
-            const data = fs.readFileSync(this.manifestPath, 'utf-8');
+            const data = fs.readFileSync(this.manifestPath, "utf-8");
             const manifest = JSON.parse(data);
             return manifest.tools || [];
         } catch (error) {
@@ -272,7 +276,7 @@ export class ToolRegistryManager extends EventEmitter {
      */
     async getInstalledManifest(toolId: string): Promise<ToolManifest | null> {
         const tools = await this.getInstalledTools();
-        return tools.find(t => t.id === toolId) || null;
+        return tools.find((t) => t.id === toolId) || null;
     }
 
     /**
@@ -280,14 +284,14 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async saveManifest(toolManifest: ToolManifest): Promise<void> {
         const tools = await this.getInstalledTools();
-        
+
         // Remove existing entry if present
-        const filtered = tools.filter(t => t.id !== toolManifest.id);
+        const filtered = tools.filter((t) => t.id !== toolManifest.id);
         filtered.push(toolManifest);
 
         const manifest = {
             version: "1.0",
-            tools: filtered
+            tools: filtered,
         };
 
         fs.writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2));
@@ -298,11 +302,11 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async removeFromManifest(toolId: string): Promise<void> {
         const tools = await this.getInstalledTools();
-        const filtered = tools.filter(t => t.id !== toolId);
+        const filtered = tools.filter((t) => t.id !== toolId);
 
         const manifest = {
             version: "1.0",
-            tools: filtered
+            tools: filtered,
         };
 
         fs.writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2));
@@ -318,7 +322,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         const registry = await this.fetchRegistry();
-        const registryTool = registry.find(t => t.id === toolId);
+        const registryTool = registry.find((t) => t.id === toolId);
 
         if (!registryTool) {
             return { hasUpdate: false };
@@ -327,7 +331,7 @@ export class ToolRegistryManager extends EventEmitter {
         const hasUpdate = registryTool.version !== installed.version;
         return {
             hasUpdate,
-            latestVersion: registryTool.version
+            latestVersion: registryTool.version,
         };
     }
 
