@@ -203,6 +203,40 @@ declare namespace ToolBoxAPI {
     }
 
     /**
+     * Settings namespace - context-aware tool settings
+     * All settings operations automatically use the current tool's ID
+     */
+    export interface SettingsAPI {
+        /**
+         * Get all settings for this tool
+         * @returns Promise resolving to an object with all settings (empty object if no settings exist)
+         */
+        getSettings: () => Promise<Record<string, any>>;
+
+        /**
+         * Get a specific setting by key
+         * @param key The setting key to retrieve
+         * @returns Promise resolving to the setting value, or undefined if not found
+         */
+        getSetting: (key: string) => Promise<any>;
+
+        /**
+         * Set a specific setting by key
+         * @param key The setting key to set
+         * @param value The value to store (can be any JSON-serializable value)
+         * @returns Promise that resolves when the setting is saved
+         */
+        setSetting: (key: string, value: any) => Promise<void>;
+
+        /**
+         * Set all settings (replaces entire settings object)
+         * @param settings The settings object to store
+         * @returns Promise that resolves when the settings are saved
+         */
+        setSettings: (settings: Record<string, any>) => Promise<void>;
+    }
+
+    /**
      * Main ToolBox API exposed to tools via window.toolboxAPI
      */
     export interface API {
@@ -215,6 +249,11 @@ declare namespace ToolBoxAPI {
          * Utility functions
          */
         utils: UtilsAPI;
+
+        /**
+         * Tool-specific settings (context-aware)
+         */
+        settings: SettingsAPI;
 
         /**
          * Terminal operations (context-aware)

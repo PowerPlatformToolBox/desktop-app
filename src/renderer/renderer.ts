@@ -2,6 +2,8 @@
 /// <reference path="types.d.ts" />
 
 import AnsiToHtml from "ansi-to-html";
+import toastr from "toastr";
+import "toastr/build/toastr.min.css";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml({
@@ -11,6 +13,27 @@ const ansiConverter = new AnsiToHtml({
     escapeXML: true,
     stream: false,
 });
+
+// Configure toastr for notifications
+toastr.options = {
+    closeButton: true,
+    debug: false,
+    newestOnTop: true,
+    progressBar: true,
+    positionClass: "toast-bottom-right",
+    preventDuplicates: false,
+    onclick: undefined,
+    showDuration: 300,
+    hideDuration: 1000,
+    timeOut: 5000,
+    extendedTimeOut: 1000,
+    showEasing: "swing",
+    hideEasing: "linear",
+    showMethod: "fadeIn",
+    hideMethod: "fadeOut",
+    iconClass: "", // Remove default icons to match VSCode style
+    iconClasses: undefined,
+};
 
 // Tab management for multiple tools
 interface OpenTool {
@@ -87,6 +110,40 @@ window.addEventListener("message", async (event) => {
                     // Connection and notification events are global
                     return true;
                 });
+            } else if (method === "settings.getSettings") {
+                // Get toolId from first arg (injected by bridge)
+                const toolId = args && args[0];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                result = await window.api.invoke("tool-settings-get-all", toolId);
+            } else if (method === "settings.getSetting") {
+                // Get toolId and key from args (injected by bridge)
+                const toolId = args && args[0];
+                const key = args && args[1];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                result = await window.api.invoke("tool-settings-get", toolId, key);
+            } else if (method === "settings.setSetting") {
+                // Get toolId, key, and value from args (injected by bridge)
+                const toolId = args && args[0];
+                const key = args && args[1];
+                const value = args && args[2];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                await window.api.invoke("tool-settings-set", toolId, key, value);
+                result = undefined; // void return
+            } else if (method === "settings.setSettings") {
+                // Get toolId and settings from args (injected by bridge)
+                const toolId = args && args[0];
+                const settings = args && args[1];
+                if (!toolId) {
+                    throw new Error("Tool ID not available");
+                }
+                await window.api.invoke("tool-settings-set-all", toolId, settings);
+                result = undefined; // void return
             } else {
                 // Handle regular API methods
                 const methodParts = method.split(".");
@@ -3065,6 +3122,33 @@ async function init() {
     // Listen for toolbox events and react to them
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
+
+        // Handle notifications using toastr
+        if (payload.event === "notification:shown") {
+            const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
+            const message = notificationData.body;
+            const title = notificationData.title;
+            const options = {
+                timeOut: notificationData.duration || 5000,
+            };
+
+            // Show notification based on type
+            switch (notificationData.type) {
+                case "success":
+                    toastr.success(message, title, options);
+                    break;
+                case "error":
+                    toastr.error(message, title, options);
+                    break;
+                case "warning":
+                    toastr.warning(message, title, options);
+                    break;
+                case "info":
+                default:
+                    toastr.info(message, title, options);
+                    break;
+            }
+        }
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {

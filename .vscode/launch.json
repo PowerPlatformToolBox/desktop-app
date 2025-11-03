@@ -13,9 +13,25 @@
             "windows": {
                 "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
             },
-            "args" : ["."],
+            "args": ["."],
+            "runtimeArgs": ["--remote-debugging-port=9222"],
+            // Ensure VS Code knows where the compiled JS lives for source map resolution
+            "outFiles": ["${workspaceFolder}/dist/main/**/*.js"],
+            "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
             "outputCapture": "std",
-            "preLaunchTask": "build",
+            // Build in development mode for sourcemaps during debugging
+            "preLaunchTask": "npm: build:debug"
+        },
+        {
+            "name": "Renderer (Chromium) Attach",
+            "type": "chrome",
+            "request": "attach",
+            "port": 9222,
+            "webRoot": "${workspaceFolder}/src/renderer",
+            "sourceMaps": true,
+            "timeout": 30000,
+            // When multiple BrowserWindows are open, let me pick the target
+            "targetSelection": "pick"
         }
     ]
 }

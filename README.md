@@ -86,6 +86,7 @@
 -   [Troubleshooting](#troubleshooting)
     -   [Electron won't start](#electron-wont-start)
 -   [Documentation](#documentation)
+    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
 -   [Discussions](#discussions)
 -   [License](#license)
 -   [Contributing](#contributing)
@@ -345,6 +346,30 @@ Create connections to Dataverse environments:
 2. Click "Add Connection"
 3. Follow the prompt
 
+## Releases & Downloads
+
+Power Platform Tool Box releases are published on GitHub:
+
+-   **Stable Releases**: Published when PRs are merged to the `main` branch
+-   **Nightly Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
+
+### Download Latest Release
+
+Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/releases) to download:
+
+-   **Windows**: `.exe` installer
+-   **macOS**: `.dmg` installer
+-   **Linux**: `.AppImage` installer
+
+### Release Workflows
+
+The project includes automated GitHub Actions workflows:
+
+-   **Nightly Dev Build**: Runs daily at midnight UTC, creates pre-releases for testing
+-   **Release Build**: Triggers on PR merge to main, creates stable releases
+
+For more details, see [Workflows Documentation](docs/WORKFLOWS.md).
+
 ## Auto-Updates
 
 The application supports automatic updates to keep your ToolBox up to date:
@@ -385,8 +410,16 @@ node node_modules/electron/install.js
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
+-   **[WORKFLOWS.md](docs/WORKFLOWS.md)** - GitHub Actions workflows for builds and releases
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
--   **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+
+### Porting XrmToolBox Tools
+
+-   **[PORTING_XTB_TOOLS.md](docs/porting/PORTING_XTB_TOOLS.md)** - Comprehensive guide for porting XrmToolBox tools to PPTB (recommended approach)
+-   **[PORTING_DLL_TO_WASM.md](docs/porting/PORTING_DLL_TO_WASM.md)** - Minimal-effort porting using WebAssembly/Blazor to reuse .NET DLLs
+-   **[PORTING_QUICK_START.md](docs/porting/PORTING_QUICK_START.md)** - Quick reference for XTB tool porting
+-   **[ADR_PORTING_STRATEGY.md](docs/porting/ADR_PORTING_STRATEGY.md)** - Technical rationale for porting strategy decision
+-   **[FetchXML Builder Sample](https://github.com/PowerPlatformToolBox/sample-tools/ported-tools/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
 
 ## Discussions
 
@@ -400,7 +433,9 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+> If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
+
+Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->

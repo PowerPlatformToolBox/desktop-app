@@ -4,11 +4,11 @@ import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
-import { SettingsManager } from "./managers/settingsManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
-import { ToolManager } from "./managers/toolsManager";
-import { TerminalManager } from "./managers/terminalManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { SettingsManager } from "./managers/settingsManager";
+import { TerminalManager } from "./managers/terminalManager";
+import { ToolManager } from "./managers/toolsManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -281,6 +281,26 @@ class ToolBoxApp {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
+        // Context-aware tool settings handlers (for toolboxAPI)
+        ipcMain.handle("tool-settings-get-all", (_, toolId) => {
+            return this.settingsManager.getToolSettings(toolId) || {};
+        });
+
+        ipcMain.handle("tool-settings-get", (_, toolId, key) => {
+            const settings = this.settingsManager.getToolSettings(toolId);
+            return settings ? settings[key] : undefined;
+        });
+
+        ipcMain.handle("tool-settings-set", (_, toolId, key, value) => {
+            const settings = this.settingsManager.getToolSettings(toolId) || {};
+            settings[key] = value;
+            this.settingsManager.updateToolSettings(toolId, settings);
+        });
+
+        ipcMain.handle("tool-settings-set-all", (_, toolId, settings) => {
+            this.settingsManager.updateToolSettings(toolId, settings);
+        });
+
         // Notification handler
         ipcMain.handle("show-notification", (_, options) => {
             this.api.showNotification(options);
@@ -401,19 +421,25 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.execute", async (_, request: {
-            entityName?: string;
-            entityId?: string;
-            operationName: string;
-            operationType: 'action' | 'function';
-            parameters?: Record<string, unknown>;
-        }) => {
-            try {
-                return await this.dataverseManager.execute(request);
-            } catch (error) {
-                throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
-            }
-        });
+        ipcMain.handle(
+            "dataverse.execute",
+            async (
+                _,
+                request: {
+                    entityName?: string;
+                    entityId?: string;
+                    operationName: string;
+                    operationType: "action" | "function";
+                    parameters?: Record<string, unknown>;
+                },
+            ) => {
+                try {
+                    return await this.dataverseManager.execute(request);
+                } catch (error) {
+                    throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
+                }
+            },
+        );
 
         ipcMain.handle("dataverse.fetchXmlQuery", async (_, fetchXml: string) => {
             try {
@@ -423,9 +449,9 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string) => {
+        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName);
+                return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
             }
@@ -436,6 +462,30 @@ class ToolBoxApp {
                 return await this.dataverseManager.getAllEntitiesMetadata();
             } catch (error) {
                 throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getEntityRelatedMetadata", async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
+            try {
+                return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
+            } catch (error) {
+                throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.getSolutions", async (_, selectColumns: string[]) => {
+            try {
+                return await this.dataverseManager.getSolutions(selectColumns);
+            } catch (error) {
+                throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle("dataverse.queryData", async (_, odataQuery: string) => {
+            try {
+                return await this.dataverseManager.queryData(odataQuery);
+            } catch (error) {
+                throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }
         });
     }

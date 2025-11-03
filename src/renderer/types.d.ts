@@ -23,7 +23,7 @@ export interface UtilsAPI {
     showNotification: (options: any) => Promise<void>;
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
-    getCurrentTheme: () => Promise<'light' | 'dark'>;
+    getCurrentTheme: () => Promise<"light" | "dark">;
 }
 
 export interface TerminalAPI {
@@ -48,16 +48,11 @@ export interface DataverseAPI {
     update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => Promise<void>;
     delete: (entityLogicalName: string, id: string) => Promise<void>;
     retrieveMultiple: (fetchXml: string) => Promise<any>;
-    execute: (request: {
-        entityName?: string;
-        entityId?: string;
-        operationName: string;
-        operationType: 'action' | 'function';
-        parameters?: Record<string, unknown>;
-    }) => Promise<any>;
+    execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }) => Promise<any>;
     fetchXmlQuery: (fetchXml: string) => Promise<any>;
-    getEntityMetadata: (entityLogicalName: string) => Promise<any>;
+    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<any>;
     getAllEntitiesMetadata: () => Promise<any>;
+    queryData: (odataQuery: string) => Promise<any>;
 }
 
 export interface ToolboxAPI {
@@ -65,10 +60,10 @@ export interface ToolboxAPI {
     updateUserSettings: (settings: any) => Promise<void>;
     getSetting: (key: string) => Promise<any>;
     setSetting: (key: string, value: any) => Promise<void>;
-    
+
     // Connections namespace
     connections: ConnectionsAPI;
-    
+
     getAllTools: () => Promise<any[]>;
     getTool: (toolId: string) => Promise<any>;
     loadTool: (packageName: string) => Promise<any>;
@@ -81,18 +76,18 @@ export interface ToolboxAPI {
     updateTool: (packageName: string) => Promise<any>;
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
-    
+
     // Utils namespace
     utils: UtilsAPI;
-    
+
     openExternal: (url: string) => Promise<void>;
-    
+
     // Terminal namespace
     terminal: TerminalAPI;
-    
+
     // Events namespace
     events: EventsAPI;
-    
+
     // Auto-update
     checkForUpdates: () => Promise<void>;
     downloadUpdate: () => Promise<void>;
@@ -105,12 +100,12 @@ export interface ToolboxAPI {
     onUpdateDownloaded: (callback: (info: any) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
     onShowHomePage: (callback: () => void) => void;
-    
+
     // Authentication dialogs
     onShowDeviceCodeDialog: (callback: (message: string) => void) => void;
     onCloseDeviceCodeDialog: (callback: () => void) => void;
     onShowAuthErrorDialog: (callback: (message: string) => void) => void;
-    
+
     // Dataverse namespace
     dataverse: DataverseAPI;
 }
