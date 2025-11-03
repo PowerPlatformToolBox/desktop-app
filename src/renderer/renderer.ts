@@ -1866,9 +1866,8 @@ async function loadSidebarTools() {
     // Check for updates for all tools
     const toolsWithUpdateInfo = await Promise.all(
         tools.map(async (tool) => {
-            const latestVersion = await window.toolboxAPI.getLatestToolVersion(tool.id);
-            const hasUpdate = latestVersion && latestVersion !== tool.version;
-            return { ...tool, latestVersion, hasUpdate };
+            const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
+            return { ...tool, latestVersion: updateInfo.latestVersion, hasUpdate: updateInfo.hasUpdate };
         }),
     );
 
