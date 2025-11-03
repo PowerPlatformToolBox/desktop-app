@@ -1,7 +1,7 @@
+import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
-import { spawn } from "child_process";
 import { Tool, ToolManifest } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
@@ -20,13 +20,13 @@ export class ToolManager extends EventEmitter {
         this.toolsDirectory = toolsDirectory;
         this.registryManager = new ToolRegistryManager(toolsDirectory, registryUrl);
         this.ensureToolsDirectory();
-        
+
         // Forward registry events
-        this.registryManager.on('tool:installed', (manifest) => {
-            this.emit('tool:installed', manifest);
+        this.registryManager.on("tool:installed", (manifest) => {
+            this.emit("tool:installed", manifest);
         });
-        this.registryManager.on('tool:uninstalled', (toolId) => {
-            this.emit('tool:uninstalled', toolId);
+        this.registryManager.on("tool:uninstalled", (toolId) => {
+            this.emit("tool:uninstalled", toolId);
         });
     }
 
@@ -164,13 +164,13 @@ export class ToolManager extends EventEmitter {
         return new Promise((resolve) => {
             const isWindows = process.platform === "win32";
             const cmd = isWindows ? `${command}.cmd` : command;
-            
+
             const check = spawn(cmd, ["--version"], { shell: true });
-            
+
             check.on("close", (code: number) => {
                 resolve(code === 0);
             });
-            
+
             check.on("error", () => {
                 resolve(false);
             });
@@ -188,14 +188,14 @@ export class ToolManager extends EventEmitter {
             console.log(`[ToolManager] Found pnpm globally installed`);
             return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
         }
-        
+
         // Fallback to npm
         const hasNpm = await this.checkPackageManager("npm");
         if (hasNpm) {
             console.log(`[ToolManager] Found npm globally installed`);
             return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
         }
-        
+
         console.error(`[ToolManager] Neither pnpm nor npm found globally installed`);
         return null;
     }
@@ -207,20 +207,21 @@ export class ToolManager extends EventEmitter {
      */
     async installToolForDebug(packageName: string): Promise<void> {
         const pkgManager = await this.getAvailablePackageManager();
-        
+
         if (!pkgManager) {
             const instructions = this.getInstallInstructions();
             throw new Error(`No package manager found. Please install pnpm or npm globally:\n\n${instructions}`);
         }
-        
+
         return new Promise((resolve, reject) => {
             console.log(`[ToolManager] [DEBUG] Installing tool: ${packageName} using ${pkgManager.name}`);
-            
+
             // Build command based on package manager
-            const args = pkgManager.name === "pnpm" 
-                ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
-                : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
-            
+            const args =
+                pkgManager.name === "pnpm"
+                    ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
+                    : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
+
             const install = spawn(pkgManager.command, args, { shell: true });
 
             let stderr = "";
@@ -256,14 +257,14 @@ export class ToolManager extends EventEmitter {
             });
         });
     }
-    
+
     /**
      * Get installation instructions for package managers (debug mode only)
      */
     private getInstallInstructions(): string {
         const platform = process.platform;
         let instructions = "To install a package manager, choose one of the following:\n\n";
-        
+
         instructions += "**Install pnpm (recommended):**\n";
         if (platform === "win32") {
             instructions += "  • Using npm: npm install -g pnpm\n";
@@ -276,10 +277,10 @@ export class ToolManager extends EventEmitter {
             instructions += "  • Using npm: npm install -g pnpm\n";
             instructions += "  • Using curl: curl -fsSL https://get.pnpm.io/install.sh | sh -\n";
         }
-        
+
         instructions += "\n**Or use npm (comes with Node.js):**\n";
         instructions += "  • Download from: https://nodejs.org/\n";
-        
+
         return instructions;
     }
 
@@ -288,7 +289,7 @@ export class ToolManager extends EventEmitter {
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */
     getToolWebviewHtml(packageName: string): string | undefined {
-        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+        const toolPath = path.join(this.toolsDirectory, packageName);
         const distPath = path.join(toolPath, "dist");
         const distHtmlPath = path.join(distPath, "index.html");
 
