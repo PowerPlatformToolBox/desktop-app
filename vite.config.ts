@@ -90,10 +90,7 @@ export default defineConfig(({ mode }) => {
                     }
 
                     // Copy static assets
-                    const assetsToCopy = [
-                        //{ from: "src/renderer/tools.json", to: "dist/renderer/tools.json" },
-                        { from: "src/renderer/toolboxAPIBridge.js", to: "dist/renderer/toolboxAPIBridge.js" },
-                    ];
+                    const assetsToCopy = [{ from: "src/renderer/toolboxAPIBridge.js", to: "dist/renderer/toolboxAPIBridge.js" }];
 
                     assetsToCopy.forEach(({ from, to }) => {
                         try {

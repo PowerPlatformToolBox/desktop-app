@@ -198,7 +198,7 @@ async function loadToolsLibrary() {
     try {
         // Fetch tools from registry
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
-        
+
         // Map registry tools to the format expected by the UI
         toolLibrary = registryTools.map((tool: any) => ({
             id: tool.id,
@@ -209,9 +209,9 @@ async function loadToolsLibrary() {
             version: tool.version,
             icon: tool.icon,
             downloadUrl: tool.downloadUrl,
-            tags: tool.tags || []
+            tags: tool.tags || [],
         }));
-        
+
         console.log(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
         console.error("Failed to load tools from registry:", error);
@@ -2146,7 +2146,7 @@ async function loadMarketplace() {
         marketplaceList.innerHTML = `
             <div class="empty-state">
                 <p>No tools found.</p>
-                <p class="empty-state-hint">${searchTerm ? 'Try a different search term.' : 'Check back later for new tools.'}</p>
+                <p class="empty-state-hint">${searchTerm ? "Try a different search term." : "Check back later for new tools."}</p>
             </div>
         `;
         return;
