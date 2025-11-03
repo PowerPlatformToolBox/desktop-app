@@ -392,19 +392,23 @@ jobs:
         id: audit
         continue-on-error: true
         run: |
+          echo "Running security scan on ${{ steps.package.outputs.name }}"
           npm pack ${{ steps.package.outputs.name }}
           tar -xzf *.tgz
           cd package
-          npm audit --production --audit-level=moderate > audit.txt 2>&1
           
-          if [ $? -eq 0 ]; then
+          # Run npm audit and capture exit code
+          npm audit --production --audit-level=moderate > ../audit.txt 2>&1 || AUDIT_EXIT=$?
+          
+          if [ "${AUDIT_EXIT:-0}" -eq 0 ]; then
             echo "✅ No security vulnerabilities found"
             echo "secure=true" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Security issues detected"
+            echo "⚠️ Security issues detected (exit code: ${AUDIT_EXIT:-0})"
             echo "secure=false" >> $GITHUB_OUTPUT
           fi
           
+          cd ..
           cat audit.txt
       
       - name: Check license
@@ -536,9 +540,7 @@ jobs:
           npm install --production --no-optional
           
           # Run build if script exists
-          if npm run --if-present build; then
-            echo "✅ Build completed"
-          fi
+          npm run --if-present build || echo "No build script found or build failed"
           
           # Create tool ID (kebab-case)
           TOOL_ID=$(echo "${{ steps.tool.outputs.package }}" | sed 's/@//g' | sed 's/\//-/g')
