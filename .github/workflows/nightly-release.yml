@@ -78,7 +78,7 @@ jobs:
               run: |
                   rm -rf build dist
                   if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-                    pnpm exec electron-builder --mac dmg --publish never --log-level debug
+                    pnpm exec electron-builder --mac dmg --publish never
                   elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
                     pnpm exec electron-builder --win nsis
                   fi
@@ -88,6 +88,7 @@ jobs:
                   ELECTRON_CACHE: ${{ runner.temp }}/electron
                   ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
                   TMPDIR: ${{ runner.temp }}
+                  DEBUG: electron-builder
 
             - name: Verify macOS DMG
               if: matrix.os == 'macos-latest'
