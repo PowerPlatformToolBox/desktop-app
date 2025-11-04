@@ -79,6 +79,9 @@
       "target": "dmg",
       "icon": "icons/icon.icns",
       "identity": null
+    },
+    "dmg": {
+      "sign": false
     }
   }
 }
