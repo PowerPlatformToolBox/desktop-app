@@ -29,6 +29,9 @@ Feature suggestions are welcome! Please create an issue describing:
 
 ### Pull Requests
 
+> [!IMPORTANT]
+> All pull request submitted should be for the **dev** branch
+
 1. Fork the repository
 2. Create a new branch following the naming convention:
     - For new features: `feature/<short-description>` (e.g., `feature/add-connection-export`)
@@ -48,103 +51,7 @@ Feature suggestions are welcome! Please create an issue describing:
 
 ## Development Setup
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/PowerPlatform-ToolBox/desktop-app.git
-cd desktop-app
-```
-
-2. Install pnpm (if not already installed):
-
-```bash
-npm install -g pnpm
-```
-
-3. Install dependencies:
-
-```bash
-pnpm install
-```
-
-4. Build the application:
-
-```bash
-pnpm run build
-```
-
-5. Run the application:
-
-```bash
-pnpm start
-```
-
-## Development Workflow
-
-### Running in Development Mode
-
-The project uses Vite for fast development with Hot Module Replacement (HMR):
-
-```bash
-pnpm run dev
-```
-
-This starts Vite's dev server with Electron, providing instant feedback for renderer process changes.
-
-### Building
-
-Build the application using Vite:
-
-```bash
-pnpm run build
-```
-
-This compiles both the main and renderer processes using Vite's optimized bundler.
-
-### Linting
-
-```bash
-pnpm run lint
-```
-
-### Watching for Changes
-
-For continuous compilation in watch mode:
-
-```bash
-pnpm run watch
-```
-
-In a separate terminal:
-
-```bash
-pnpm start
-```
-
-## Package Manager
-
-This project uses **pnpm** as the package manager. pnpm provides:
-
--   **Fast installations**: Uses a content-addressable file system with symlinks
--   **Disk space efficiency**: Packages are stored once globally and linked to projects
--   **Strict dependency resolution**: Prevents phantom dependencies and ensures reproducible builds
--   **Tool isolation**: Each tool installed by the application gets its own isolated node_modules
-
-**Important**: Always use `pnpm` commands instead of `npm` or `yarn` to maintain consistency with the project's configuration.
-
-## Project Structure
-
-```
-desktop-app/
-├── src/
-│   ├── api/           # ToolBox API layer
-│   ├── main/          # Main Electron process
-│   ├── renderer/      # UI/Renderer process
-│   └── types/         # TypeScript type definitions
-├── assets/            # Static assets
-├── dist/              # Compiled output
-└── build/             # Build artifacts
-```
+Checkout [TOOLBOX_DEV.md](TOOLBOX_DEV.md) for more information.
 
 ## Coding Standards
 
@@ -165,7 +72,7 @@ desktop-app/
 
 Use the following prefixes for branch names:
 
--   `feature/` - For new features (e.g., `feature/add-connection-export`)
+-   `feat/` - For new features (e.g., `feat/add-connection-export`)
 -   `fix/` - For bug fixes (e.g., `fix/tool-loading-error`)
 -   `docs/` - For documentation changes (e.g., `docs/update-api-guide`)
 -   `refactor/` - For code refactoring (e.g., `refactor/tool-manager`)
@@ -218,17 +125,18 @@ Currently, we're establishing the testing infrastructure. When adding new featur
 When adding new features:
 
 1. Update README.md if it affects user-facing functionality
-2. Update [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for tool-related changes
+2. Update [TOOLBOX_DEV.md](TOOLBOX_DEV.md) for Tool Box related changes
 3. Update [ARCHITECTURE.md](ARCHITECTURE.md) for architectural changes
-4. Update [TOOL_HOST_ARCHITECTURE.md](TOOL_HOST_ARCHITECTURE.md) for Tool Host changes
-5. Add inline code comments for complex logic
-6. Update type definitions in `src/types/`
+4. Add inline code comments for complex logic
+5. Update type definitions in `packages/types/` & publish a new version to **npm**
 
 All documentation files are located in the `docs/` directory.
 
 ## Release Process
 
-(To be established)
+-   PR --> dev branch --> automated nightly pre-release
+-   Testing performed on the new changes
+-   dev branch --> main branch --> automated release
 
 ## Questions?
 

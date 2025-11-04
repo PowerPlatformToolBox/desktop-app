@@ -2,6 +2,37 @@
 
 TypeScript type definitions for Power Platform Tool Box APIs.
 
+-   [@pptb/types](#pptbtypes)
+    -   [Installation](#installation)
+    -   [Overview](#overview)
+    -   [Usage](#usage)
+        -   [Include all type definitions](#include-all-type-definitions)
+        -   [Include specific API types](#include-specific-api-types)
+    -   [ToolBox API Examples](#toolbox-api-examples)
+        -   [Connections](#connections)
+        -   [Utilities](#utilities)
+        -   [Terminal Operations](#terminal-operations)
+        -   [Events](#events)
+    -   [Dataverse API Examples](#dataverse-api-examples)
+        -   [CRUD Operations](#crud-operations)
+        -   [FetchXML Queries](#fetchxml-queries)
+        -   [Metadata Operations](#metadata-operations)
+        -   [Execute Actions/Functions](#execute-actionsfunctions)
+    -   [API Reference](#api-reference)
+        -   [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
+            -   [Connections](#connections-1)
+            -   [Utils](#utils)
+            -   [Terminal](#terminal)
+            -   [Events](#events-1)
+        -   [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
+            -   [CRUD Operations](#crud-operations-1)
+            -   [Query Operations](#query-operations)
+            -   [Metadata Operations](#metadata-operations-1)
+            -   [Advanced Operations](#advanced-operations)
+        -   [Security Notes](#security-notes)
+    -   [Publishing the package to npm](#publishing-the-package-to-npm)
+    -   [License](#license)
+
 ## Installation
 
 ```bash

@@ -7,6 +7,7 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
     -   [API Architecture](#api-architecture)
         -   [1. ToolBox API (`window.toolboxAPI`)](#1-toolbox-api-windowtoolboxapi)
         -   [2. Dataverse API (`window.dataverseAPI`)](#2-dataverse-api-windowdataverseapi)
+    -   [Prerequisites (_optional_)](#prerequisites-optional)
     -   [Quick Start](#quick-start)
         -   [1. Create Your Tool Package](#1-create-your-tool-package)
         -   [2. Define package.json](#2-define-packagejson)
@@ -17,13 +18,15 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
         -   [ToolBox API](#toolbox-api)
             -   [Working with Connections](#working-with-connections)
             -   [Using Utilities](#using-utilities)
-            -   [Settings Storage](#settings-storage)
+            -   [Tool Settings Storage](#tool-settings-storage)
             -   [Terminal Operations](#terminal-operations)
             -   [Event Handling](#event-handling)
         -   [Dataverse API](#dataverse-api)
             -   [Complete CRUD Example](#complete-crud-example)
             -   [FetchXML Query Examples](#fetchxml-query-examples)
+            -   [OData Query Examples](#odata-query-examples)
             -   [Metadata Operations](#metadata-operations)
+            -   [Solutions](#solutions)
             -   [Execute Actions and Functions](#execute-actions-and-functions)
             -   [Error Handling](#error-handling)
         -   [Building a Complete Tool](#building-a-complete-tool)
@@ -43,26 +46,18 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
         -   [7. Limit Query Results](#7-limit-query-results)
     -   [Error Handling](#error-handling-1)
     -   [Publishing Your Tool](#publishing-your-tool)
-        -   [1. Test Locally](#1-test-locally)
+        -   [1. Build your tool](#1-build-your-tool)
         -   [2. Prepare for Publishing](#2-prepare-for-publishing)
         -   [3. Publish to npm](#3-publish-to-npm)
-        -   [4. Install in ToolBox](#4-install-in-toolbox)
+        -   [4. Test in ToolBox](#4-test-in-toolbox)
+    -   [Submitting the tool to the Tool Box registry](#submitting-the-tool-to-the-tool-box-registry)
+        -   [Process Flow](#process-flow)
     -   [Sample Tools Repository](#sample-tools-repository)
     -   [Debugging](#debugging)
         -   [Console Output](#console-output)
         -   [Error Messages](#error-messages)
-        -   [Tool Host Logs](#tool-host-logs)
     -   [Support and Resources](#support-and-resources)
     -   [Feature Summary](#feature-summary)
-        -   [Core Features](#core-features)
-            -   [1. **Organized ToolBox API**](#1-organized-toolbox-api)
-            -   [2. **Complete Dataverse API**](#2-complete-dataverse-api)
-            -   [3. **Security \& Isolation**](#3-security--isolation)
-            -   [4. **Developer Experience**](#4-developer-experience)
-            -   [5. **Platform Integration**](#5-platform-integration)
-        -   [API Capabilities](#api-capabilities)
-            -   [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
-            -   [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
         -   [Supported Frameworks](#supported-frameworks)
         -   [What Tools Can Do](#what-tools-can-do)
         -   [What Tools Cannot Do](#what-tools-cannot-do)
@@ -101,19 +96,45 @@ Complete HTTP client for Dataverse:
 -   Metadata operations
 -   Execute actions and functions
 
+## Prerequisites (_optional_)
+
+Install Yeoman and the PPTB generator globally:
+
+```bash
+npm install -g yo generator-pptb
+```
+
 ## Quick Start
 
 ### 1. Create Your Tool Package
 
-Create a new npm package with this structure:
+```bash
+yo pptb
+```
+
+Or create in a specific directory:
+
+```bash
+yo pptb my-tool
+```
+
+And follow the prompt. This will generate a folder structure based on your selection.
+
+Example:
 
 ```
 my-tool/
 ├── package.json
 ├── index.html
 ├── styles.css
-├── app.js (or app.ts)
+├── app..ts
 └── README.md
+```
+
+If you do not want to download Yeoman and PPTB Generator globally you can run the below command:
+
+```bash
+npx --package yo --package generator-pptb -- yo pptb
 ```
 
 ### 2. Define package.json
@@ -124,12 +145,8 @@ my-tool/
     "version": "1.0.0",
     "displayName": "My Tool",
     "description": "Description of what your tool does",
-    "main": "index.html",
     "author": "Your Name",
-    "keywords": ["powerplatform", "dataverse", "toolbox"],
-    "engines": {
-        "node": ">=16.0.0"
-    }
+    "keywords": ["powerplatform", "dataverse", "toolbox"]
 }
 ```
 
@@ -328,7 +345,7 @@ const theme = await toolboxAPI.utils.getCurrentTheme();
 document.body.classList.add(`theme-${theme}`);
 ```
 
-#### Settings Storage
+#### Tool Settings Storage
 
 ```typescript
 // Save individual settings
@@ -596,45 +613,46 @@ async function getAccountCountByIndustry() {
 }
 ```
 
+#### OData Query Examples
+
+```typescript
+const result = await dataverseAPI.queryData(
+                    '$select=name,emailaddress1,telephone1&$filter=statecode eq 0&$orderby=name&$top=10'
+                );
+console.log(`Found ${result.value.length} records`);
+result.value.forEach(record => {
+   console.log(`${record.name} - ${record.emailaddress1}`);
+);
+```
+
 #### Metadata Operations
 
 ```typescript
 // Get entity metadata
 async function exploreEntity(entityLogicalName: string) {
-    const metadata = await dataverseAPI.getEntityMetadata(entityLogicalName);
+    const metadata = await dataverseAPI.getEntityMetadata(entityLogicalName, true);
 
     console.log("Entity Information:");
     console.log("  Logical Name:", metadata.LogicalName);
     console.log("  Display Name:", metadata.DisplayName?.LocalizedLabels?.[0]?.Label);
     console.log("  Metadata ID:", metadata.MetadataId);
-    console.log("  Attributes:", metadata.Attributes?.length || 0);
 
     // You can inspect specific attributes
-    if (metadata.Attributes) {
-        const stringAttributes = metadata.Attributes.filter((attr: any) => attr.AttributeType === "String");
-        console.log("  String Attributes:", stringAttributes.length);
-    }
+    const attributes = await dataverseAPI.getEntityRelatedMetadata(entityLogicalName, "Attributes");
+    console.log("Attributes:", attributes.value);
 
-    return metadata;
+    return { entityMetadata: metadata, Attributes: attributes };
 }
+```
 
-// List all entities
-async function listAllEntities() {
-    const allEntities = await dataverseAPI.getAllEntitiesMetadata();
+#### Solutions
 
-    console.log(`Total entities: ${allEntities.value.length}`);
-
-    // Filter to custom entities
-    const customEntities = allEntities.value.filter((e) => e.LogicalName.startsWith("new_") || e.LogicalName.startsWith("prefix_"));
-
-    console.log("\nCustom Entities:");
-    customEntities.forEach((entity) => {
-        const displayName = entity.DisplayName?.LocalizedLabels?.[0]?.Label;
-        console.log(`  ${entity.LogicalName} - ${displayName}`);
-    });
-
-    return allEntities.value;
-}
+```typescript
+const solutions = await dataverseAPI.getSolutions(["solutionid", "uniquename", "friendlyname", "version", "ismanaged"]);
+console.log(`Total solutions: ${solutions.value.length}`);
+solutions.value.forEach((solution) => {
+    console.log(`${solution.friendlyname} (${solution.uniquename}) - v${solution.version}`);
+});
 ```
 
 #### Execute Actions and Functions
@@ -934,10 +952,7 @@ if (document.readyState === "loading") {
 
 ## API Reference
 
-For complete API documentation, see:
-
--   **[ToolBox API & Dataverse API Reference](../packages/README.md)** - Complete API documentation with all methods and types
--   **[Dataverse API Deep Dive](./DATAVERSE_API.md)** - Detailed Dataverse operations and best practices
+For complete API documentation, see **[ToolBox API & Dataverse API Reference](../packages/README.md)**
 
 ## Security Model
 
@@ -959,7 +974,6 @@ For complete API documentation, see:
 -   Tool ID is automatically determined by the platform
 -   Terminal operations are scoped to the calling tool
 -   Event subscriptions are filtered to relevant events only
--   No manual tool ID management needed
 
 ### Message Validation
 
@@ -1097,16 +1111,10 @@ try {
 
 ## Publishing Your Tool
 
-### 1. Test Locally
-
-Build and test your tool thoroughly:
+### 1. Build your tool
 
 ```bash
-# Build your tool
 npm run build
-
-# Test in development
-npm run dev
 ```
 
 ### 2. Prepare for Publishing
@@ -1115,12 +1123,12 @@ Ensure your `package.json` has all required fields:
 
 ```json
 {
-    "name": "@powerplatform/my-tool",
+    "name": "@org-name/my-tool",
     "version": "1.0.0",
     "displayName": "My Tool",
     "description": "Clear description of what your tool does",
     "main": "index.html",
-    "author": "Your Name <email@example.com>",
+    "author": "Your Name",
     "keywords": ["powerplatform", "dataverse", "toolbox"],
     "repository": {
         "type": "git",
@@ -1138,9 +1146,63 @@ npm login
 npm publish --access public
 ```
 
-### 4. Install in ToolBox
+### 4. Test in ToolBox
 
-Users can then install your tool from the ToolBox UI by entering your package name.
+You can then install your tool from the ToolBox UI by entering your package name in the **Debug** menu.
+
+## Submitting the tool to the Tool Box registry
+
+The Power Platform Tool Box uses a registry-based system where tools are distributed as pre-built `.tar.gz` archives. Tool developers publish their tools to npm, and an automated system converts them to the registry format.
+
+### Process Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Tool Developer                                    │
+│  - Develops tool                                                      │
+│  - Publishes to npm                                                   │
+│  - Submits intake form                                                │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Tool Intake Form                                     │
+│  - Tool npm package name                                              │
+│  - Tool description                                                   │
+│  - Author information                                                 │
+│  - Tags/categories                                                    │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               Review & Approval Process                               │
+│  - Maintainers review submission                                      │
+│  - Check for malicious code                                           │
+│  - Verify tool follows guidelines                                     │
+│  - Approve or request changes                                         │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│            Automated Conversion Server                                │
+│  - Downloads npm package                                              │
+│  - Runs npm install & build                                           │
+│  - Creates .tar.gz archive                                            │
+│  - Generates checksum                                                 │
+│  - Uploads to CDN                                                     │
+│  - Updates registry.json                                              │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                Tool Registry (GitHub/CDN)                             │
+│  - registry.json updated                                              │
+│  - Tool available in ToolBox                                          │
+│  - Users can install                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+See [TOOL_INTAKE_PROCESS.md](TOOL_INTAKE_PROCESS.md) for more information.
 
 ## Sample Tools Repository
 
@@ -1170,10 +1232,6 @@ Use `console.log()` in your tool - output appears in the ToolBox developer conso
 
 Unhandled errors in your tool will be caught and displayed to the user.
 
-### Tool Host Logs
-
-Check the main ToolBox logs for tool host process information.
-
 ## Support and Resources
 
 -   **Documentation**: https://github.com/PowerPlatform-ToolBox/desktop-app
@@ -1184,110 +1242,6 @@ Check the main ToolBox logs for tool host process information.
 ## Feature Summary
 
 Power Platform Tool Box provides a comprehensive platform for building tools with the following capabilities:
-
-### Core Features
-
-#### 1. **Organized ToolBox API**
-
--   **Connections**: Read-only access to active Dataverse connection
--   **Utils**: Notifications, clipboard, file operations, theme detection
--   **Terminal**: Context-aware terminal creation and management
--   **Events**: Tool-specific event subscriptions and history
-
-#### 2. **Complete Dataverse API**
-
--   **CRUD Operations**: Full create, retrieve, update, delete support
--   **FetchXML Queries**: Complex queries with filters, joins, and aggregation
--   **Metadata**: Entity and attribute metadata retrieval
--   **Actions/Functions**: Execute bound and unbound operations
--   **Automatic Authentication**: Token management and refresh handled automatically
-
-#### 3. **Security & Isolation**
-
--   **Webview Sandboxing**: Each tool runs in isolated iframe
--   **Secure Communication**: Validated postMessage protocol
--   **No Token Exposure**: Access tokens never exposed to tools
--   **Context-Aware**: Tool ID automatically determined
-
-#### 4. **Developer Experience**
-
--   **Full TypeScript Support**: Complete type definitions via `@pptb/types`
--   **IntelliSense**: Rich code completion and type checking
--   **Error Handling**: Detailed error messages and validation
--   **Event-Driven**: Subscribe to platform and connection events
-
-#### 5. **Platform Integration**
-
--   **Connection Management**: Automatic connection context
--   **Theme Support**: Light/dark theme detection
--   **Notifications**: System-level notifications
--   **File Operations**: Secure file save dialogs
--   **Clipboard**: System clipboard integration
-
-### API Capabilities
-
-#### ToolBox API (`window.toolboxAPI`)
-
-**Connections**
-
--   Get active connection details (read-only for security)
-
-**Utilities**
-
--   Show notifications with different types and durations
--   Copy text to system clipboard
--   Save files with native dialogs
--   Get current UI theme
-
-**Settings**
-
--   Store tool-specific settings (persistent across app restarts)
--   Get all settings or individual settings by key
--   Set individual settings or bulk update
--   Context-aware (automatically scoped to the tool)
--   Supports any JSON-serializable value (strings, numbers, booleans, objects, arrays)
-
-**Terminal**
-
--   Create terminals with custom shell, working directory, and environment
--   Execute commands and capture output
--   List and manage terminals (scoped to tool)
--   Control terminal visibility
-
-**Events**
-
--   Subscribe to platform events (connection changes, terminal events, etc.)
--   Get event history
--   Tool-specific filtering
-
-#### Dataverse API (`window.dataverseAPI`)
-
-**CRUD**
-
--   Create records with all fields
--   Retrieve records with column selection
--   Update existing records
--   Delete records
-
-**Queries**
-
--   FetchXML queries with full OData support
--   Complex filters and conditions
--   Linked entities (joins)
--   Aggregation and grouping
--   Sorting and pagination
-
-**Metadata**
-
--   Get entity metadata (display names, attributes, etc.)
--   List all entities
--   Explore entity structure
-
-**Advanced**
-
--   Execute WhoAmI and other functions
--   Run custom actions (global and bound)
--   Full OData v4.0 support
 
 ### Supported Frameworks
 

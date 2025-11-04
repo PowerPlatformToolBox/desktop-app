@@ -55,7 +55,6 @@
 </h3> -->
 
 -   [Features Overview](#features-overview)
--   [Comprehensive Features Overview](#comprehensive-features-overview)
 -   [Architecture](#architecture)
     -   [Main Process (`src/main/`)](#main-process-srcmain)
     -   [API Layer (`src/api/`)](#api-layer-srcapi)
@@ -66,25 +65,16 @@
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
     -   [Sample Tools Repository](#sample-tools-repository)
-    -   [Getting Started with Tool Development](#getting-started-with-tool-development)
-    -   [Quick Example](#quick-example)
--   [Getting Started with ToolBox development](#getting-started-with-toolbox-development)
-    -   [Prerequisites](#prerequisites)
-    -   [Installation](#installation)
-    -   [Development](#development)
-    -   [Linting](#linting)
-    -   [Bundle Analysis](#bundle-analysis)
-    -   [Packaging](#packaging)
--   [Tools provided by the Tool Box](#tools-provided-by-the-tool-box)
+-   [ToolBox development](#toolbox-development)
     -   [Installing Tools](#installing-tools)
     -   [Tool Security](#tool-security)
 -   [Dataverse Connections](#dataverse-connections)
+-   [Releases \& Downloads](#releases--downloads)
+    -   [Download Latest Release](#download-latest-release)
 -   [Auto-Updates](#auto-updates)
     -   [Enabling Auto-Updates](#enabling-auto-updates)
     -   [Manual Update Check](#manual-update-check)
     -   [Update Process](#update-process)
--   [Troubleshooting](#troubleshooting)
-    -   [Electron won't start](#electron-wont-start)
 -   [Documentation](#documentation)
     -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
 -   [Discussions](#discussions)
@@ -104,25 +94,9 @@
 -   **🔔 Notifications**: Built-in notification system to keep users informed
 -   **🔄 Auto-Updates**: Automatic application updates with user control
 
-## Comprehensive Features Overview
-
-For a **complete, detailed overview** of all features, maturity assessment, known limitations, security considerations, and future roadmap, see:
-
-**👉 [FEATURES_OVERVIEW.md](docs/FEATURES_OVERVIEW.md)**
-
-This comprehensive document includes:
-
--   **Feature Maturity Matrix** - Production readiness of each feature
--   **Known Limitations** - Current platform and technical constraints
--   **Security Considerations** - Threat model and security recommendations
--   **Performance Characteristics** - Benchmarks and optimization tips
--   **Future Enhancements** - Detailed roadmap for upcoming features
--   **Known Issues** - Current issues and workarounds
--   **Maturity Assessment** - Overall platform maturity and adoption recommendations
-
-Perfect for understanding the platform's capabilities and planning your adoption strategy.
-
 ## Architecture
+
+TODO needs changing
 
 The application uses a **robust Tool Host architecture** inspired by VS Code's Extension Host:
 
@@ -179,6 +153,8 @@ The application uses a **robust Tool Host architecture** inspired by VS Code's E
 
 Power Platform Tool Box uses a secure, extensible Tool Host architecture that allows developers to create custom tools as npm packages. Tools run in isolated processes and communicate with the ToolBox through a secure API.
 
+See **[TOOL_DEV.md](docs/TOOL_DEV.md)** for the complete guide on creating tools.
+
 ### Sample Tools Repository
 
 Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBox/sample-tools)** for complete, ready-to-use examples demonstrating different frameworks:
@@ -188,146 +164,15 @@ Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBo
 -   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/vue-sample)** - Vue 3 with Composition API
 -   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/svelte-sample)** - Svelte 5 with TypeScript
 
-Each sample demonstrates:
+## ToolBox development
 
--   ToolBox API integration
--   Connection management
--   Event handling
--   Modern build tooling
--   Full TypeScript support
-
-### Getting Started with Tool Development
-
-See **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** for the complete guide on creating tools.
-
-### Quick Example
-
-```typescript
-/// <reference types="@pptb/types" />
-
-// Access the ToolBox API
-const toolbox = window.toolboxAPI;
-
-// Get connection context
-const context = await toolbox.getToolContext();
-console.log("Connection URL:", context.connectionUrl);
-console.log("Access Token:", context.accessToken);
-
-// Subscribe to events
-toolbox.onToolboxEvent((event, payload) => {
-    console.log("Event:", payload.event, "Data:", payload.data);
-});
-
-// Show notifications
-await toolbox.showNotification({
-    title: "Success",
-    body: "Operation completed successfully",
-    type: "success",
-});
-```
-
-## Getting Started with ToolBox development
-
-### Prerequisites
-
--   Node.js 18 or higher
--   pnpm 10 or higher (recommended package manager)
-
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/PowerPlatform-ToolBox/desktop-app.git
-cd desktop-app
-```
-
-2. Install pnpm (if not already installed):
-
-```bash
-npm install -g pnpm
-```
-
-3. Install dependencies:
-
-```bash
-pnpm install
-```
-
-4. Build the application:
-
-```bash
-pnpm run build
-```
-
-5. Run the application:
-
-```bash
-pnpm start
-```
-
-### Development
-
-For development with Vite's built-in hot module replacement (HMR):
-
-```bash
-pnpm run dev
-```
-
-This starts the Vite dev server with Electron, providing fast refresh for renderer process changes.
-
-For watch mode (continuous compilation):
-
-```bash
-pnpm run watch
-```
-
-### Linting
-
-Check code quality:
-
-```bash
-pnpm run lint
-```
-
-### Bundle Analysis
-
-After building, view bundle composition reports:
-
-```bash
-# Build the project first
-pnpm run build
-
-# View bundle analysis reports (in browser)
-open dist/stats-main.html      # Main process bundle
-open dist/stats-renderer.html  # Renderer process bundle
-```
-
-The reports show module sizes, dependencies, and optimization opportunities. See [BUILD_OPTIMIZATION.md](docs/BUILD_OPTIMIZATION.md) for details.
-
-### Packaging
-
-Build distributable packages:
-
-```bash
-pnpm run package
-```
-
-This will create installers for your platform in the `build/` directory.
-
-## Tools provided by the Tool Box
-
-Tools are npm packages with specific structure that extend the Power Platform Tool Box functionality. The Tool Box uses pnpm to install tools, which provides:
-
--   **Isolated installations**: Each tool is installed in its own isolated folder to avoid dependency conflicts
--   **Disk space optimization**: pnpm uses a content-addressable store with symlinks, significantly reducing disk space usage
--   **Fast installations**: Packages are cached globally and reused across projects
+See **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** for the complete guide on creating tools.
 
 ### Installing Tools
 
 Users can install tools directly from the application:
 
-1. Navigate to the Tool MArketplace within the app
+1. Navigate to the Tool Marketplace within the app
 2. Search for the tool and click on `Install` button on the tool
 3. The tool will be installed, loaded, and activated automatically
 
@@ -359,16 +204,6 @@ Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/re
 
 -   **Windows**: `.exe` installer
 -   **macOS**: `.dmg` installer
--   **Linux**: `.AppImage` installer
-
-### Release Workflows
-
-The project includes automated GitHub Actions workflows:
-
--   **Nightly Dev Build**: Runs daily at midnight UTC, creates pre-releases for testing
--   **Release Build**: Triggers on PR merge to main, creates stable releases
-
-For more details, see [Workflows Documentation](docs/WORKFLOWS.md).
 
 ## Auto-Updates
 
@@ -394,23 +229,11 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   Updates are published via GitHub releases
 -   The application checks for updates on startup (if auto-update is enabled)
 
-## Troubleshooting
-
-### Electron won't start
-
-Getting the following error `throw new Error('Electron failed to install correctly, please delete node_modules/electron and try installing again');`
-
-Manually trigger Electron's install script
-
-```bash
-node node_modules/electron/install.js
-```
-
 ## Documentation
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
--   **[TOOL_DEVELOPMENT.md](docs/TOOL_DEVELOPMENT.md)** - Complete guide for tool developers
--   **[WORKFLOWS.md](docs/WORKFLOWS.md)** - GitHub Actions workflows for builds and releases
+-   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
+-   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 
 ### Porting XrmToolBox Tools

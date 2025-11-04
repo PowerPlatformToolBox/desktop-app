@@ -205,17 +205,20 @@ declare namespace DataverseAPI {
          * Get metadata for a specific entity
          *
          * @param entityLogicalName - Logical name of the entity
+         * @param searchByLogicalName - Whether to search by logical name (true) or metadata ID (false)
          * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
          * @returns Object containing entity metadata
          *
          * @example
-         * const metadata = await dataverseAPI.getEntityMetadata('account');
+         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName', 'DisplayName']);
+         * console.log('Logical Name:', metadata.LogicalName);
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
-         * console.log('Attributes:', metadata.Attributes?.length);
          *
          * @example
-         * // Get only specific metadata columns
-         * const metadata = await dataverseAPI.getEntityMetadata('account', ['LogicalName', 'DisplayName']);
+         * // Get entity metadata by metadata ID
+         * const metadata = await dataverseAPI.getEntityMetadata('00000000-0000-0000-0000-000000000001', false, ['LogicalName', 'DisplayName']);
+         * console.log('Entity Metadata ID:', metadata.MetadataId);
+         * console.log('Logical Name:', metadata.LogicalName);
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
          */
         getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<EntityMetadata>;
