@@ -2032,6 +2032,7 @@ async function loadSidebarConnections() {
                     <p class="empty-state-hint">Add a connection to get started.</p>
                 </div>
             `;
+            updateFooterConnectionStatus(null);
             return;
         }
 
@@ -2093,6 +2094,10 @@ async function loadSidebarConnections() {
                 }
             });
         });
+
+        // Update footer status
+        const activeConn = connections.find((c: any) => c.isActive);
+        updateFooterConnectionStatus(activeConn || null);
     } catch (error) {
         console.error("Failed to load connections:", error);
     }
