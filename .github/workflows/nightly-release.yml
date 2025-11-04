@@ -81,8 +81,6 @@ jobs:
                     pnpm exec electron-builder --mac dmg --publish never --log-level debug
                   elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
                     pnpm exec electron-builder --win nsis
-                  else
-                    pnpm exec electron-builder --linux AppImage
                   fi
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
