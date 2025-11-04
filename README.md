@@ -10,58 +10,47 @@
     </p>
 </p>
 
-<!-- <p align="center">
-    <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/actions/workflows/build.yml" alt="Build">
-      <img src="https://github.com/Power-Maverick/DataverseDevTools-VSCode/actions/workflows/build.yml/badge.svg?branch=main"/>
+<p align="center">
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml" alt="Nightly Pre-Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml/badge.svg?branch=main"/>
     </a>
-    <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/actions/workflows/release.yml" alt="Release">
-      <img src="https://github.com/Power-Maverick/DataverseDevTools-VSCode/actions/workflows/release.yml/badge.svg?branch=release"/>
+    <a href="hhttps://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml" alt="Prod Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml/badge.svg"/>
     </a>
-    <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/blob/master/LICENSE" alt="License">
-      <img src="https://img.shields.io/github/license/Power-Maverick/DataverseDevTools-VSCode"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/blob/master/LICENSE" alt="License">
+      <img src="https://img.shields.io/github/license/PowerPlatformToolBox/desktop-app"/>
     </a>
-    <a href="https://app.codacy.com/gh/Power-Maverick/DataverseDevTools-VSCode?utm_source=github.com&utm_medium=referral&utm_content=Power-Maverick/DataverseDevTools-VSCode&utm_campaign=Badge_Grade" alt="Codacy Badge">
-      <img src="https://api.codacy.com/project/badge/Grade/b947883a529941309d08736843cb126f"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/github-code-scanning/codeql" alt="CodeQL">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/github-code-scanning/codeql/badge.svg"/>
     </a>
-</p> -->
+</p>
 
-<!-- <p align="center">
-    <a href="https://img.shields.io/visual-studio-marketplace/d/danish-naglekar.dataverse-devtools" alt="Visual Studio Marketplace Downloads">
-      <img src="https://img.shields.io/visual-studio-marketplace/d/danish-naglekar.dataverse-devtools" />
+<p align="center">
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest" alt="GH Prod Release">
+      <img src="https://img.shields.io/github/downloads/PowerPlatformToolBox/desktop-app/latest/total?label=Production%20Build" />
     </a>
-    <a href="https://marketplace.visualstudio.com/items?itemName=danish-naglekar.dataverse-devtools" alt="Visual Studio Marketplace Version">
-      <img src="https://img.shields.io/visual-studio-marketplace/v/danish-naglekar.dataverse-devtools?label=vscode%20marketplace" />
+    <a href="https://www.powerplatformtoolbox.com" alt="Website">
+      <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
     </a>
-    <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode" alt="GitHub Stars">
-      <img src="https://img.shields.io/github/stars/Power-Maverick/DataverseDevTools-VSCode?label=github%20stars" />
-    </a>
-</p> -->
-
-<!-- <p align="center">
-    <a href="https://github.com/sponsors/Power-Maverick" alt="Sponsor">
-      <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub" />
-    </a>
-    <a href="https://twitter.com/DanzMaverick" alt="Twitter Follow">
-      <img src="https://img.shields.io/twitter/follow/DanzMaverick?style=social" />
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app" alt="GitHub Stars">
+      <img src="https://img.shields.io/github/stars/PowerPlatformToolBox/desktop-app?label=github%20stars" />
     </a>
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/issues/new?assignees=Power-Maverick&labels=enhancement%2Ctriage&template=issues-form-feature-request.yaml&title=%5BFeature%5D%3A+">Feature request</a>
-  <span> · </span>
-  <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/issues/new?assignees=Power-Maverick&labels=bug%2Ctriage&template=issue-form-bug.yaml&title=%5BBug%5D%3A+">Report a bug</a>
-  <span> · </span>
-  <a href="https://github.com/Power-Maverick/DataverseDevTools-VSCode/discussions/categories/q-a">Support</a>
-</h3> -->
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issues-form-feature-request.yaml">Feature request</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issue-form-bug.yml">Report a bug</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://github.com/PowerPlatformToolBox/pptb-web/issues/new?template=tool-submission.yml">Tool Submission</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/discussions/categories/q-a">Support</a>
+</h3>
+
+<hr />
 
 -   [Features Overview](#features-overview)
 -   [Architecture](#architecture)
-    -   [Main Process (`src/main/`)](#main-process-srcmain)
-    -   [API Layer (`src/api/`)](#api-layer-srcapi)
-    -   [Renderer Process (`src/renderer/`)](#renderer-process-srcrenderer)
-    -   [UI Design](#ui-design)
-    -   [Types (`src/types/`)](#types-srctypes)
-    -   [Build System](#build-system)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
     -   [Sample Tools Repository](#sample-tools-repository)
@@ -96,51 +85,9 @@
 
 ## Architecture
 
-TODO needs changing
+The application uses a **robust Tool Host architecture** inspired by VS Code's Extension Host.
 
-The application uses a **robust Tool Host architecture** inspired by VS Code's Extension Host:
-
-### Main Process (`src/main/`)
-
--   **index.ts**: Main Electron application entry point
--   **settings-manager.ts**: Manages user and tool settings using electron-store
--   **tool-manager.ts**: Handles tool installation, loading, and management via npm
--   **auto-update-manager.ts**: Manages automatic application updates using electron-updater
--   **preload.ts**: Secure bridge between main and renderer processes
-
-### API Layer (`src/api/`)
-
--   **toolbox-api.ts**: Event-driven API system for tools and application events
-
-### Renderer Process (`src/renderer/`)
-
--   **index.html**: Main application UI built with Fluent UI Web Components
--   **styles.css**: Modern, responsive styling with Fluent Design System integration
--   **renderer.ts**: UI logic and interaction handlers
-
-### UI Design
-
--   **Fluent UI Web Components**: Microsoft's design system for consistent, accessible UI
--   **Design Tokens**: Uses `@fluentui/tokens` for colors, spacing, and typography
--   **Theme Support**: Seamless light/dark theme switching
--   See [FLUENT_UI_INTEGRATION.md](docs/FLUENT_UI_INTEGRATION.md) for details
-
-### Types (`src/types/`)
-
--   Comprehensive TypeScript type definitions for all application entities
--   Tool contribution points and Tool Host protocol types
-
-### Build System
-
--   **Vite**: Modern, fast bundler for both main and renderer processes
--   **TypeScript**: Strict mode enabled for type safety
--   **Hot Module Replacement (HMR)**: Instant feedback during development
--   **Optimized Bundling**: Production builds are optimized for size and performance
--   **Bundle Analysis**: Visualize bundle composition with built-in analysis tools
--   **Code Splitting**: Automatic vendor chunk separation for better caching
--   **SCSS Modules**: Organized SCSS with variables and mixins for maintainable styles
--   **ES Modules**: Full ESM migration for better tree-shaking and performance
--   **CI/CD Monitoring**: Automated bundle size tracking in GitHub Actions
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
 
 ## Security Model
 
