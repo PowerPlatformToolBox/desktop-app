@@ -78,10 +78,12 @@
     "mac": {
       "target": "dmg",
       "icon": "icons/icon.icns",
-      "identity": null
+      "identity": null,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "sign": false
-    }
+    },
+    "afterSign": "scripts/removeQuarantine.js"
   }
 }
