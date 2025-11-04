@@ -77,13 +77,35 @@
     },
     "mac": {
       "target": "dmg",
+      "category": "public.app-category.developer-tools",
       "icon": "icons/icon.icns",
       "identity": null,
       "gatekeeperAssess": false
     },
     "dmg": {
-      "sign": false
+      "sign": false,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
-    "afterSign": "scripts/removeQuarantine.js"
+    "afterPack": "scripts/afterPack.js",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Power Platform Tool Box"
+    }
   }
 }
