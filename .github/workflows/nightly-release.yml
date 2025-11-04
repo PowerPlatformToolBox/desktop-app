@@ -103,6 +103,8 @@ jobs:
                   # Skip code signing for nightly builds
                   # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
+                  ELECTRON_CACHE: ${{ runner.temp }}/electron
+                  ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
 
             - name: Upload artifacts (Linux)
               if: matrix.os == 'ubuntu-latest'

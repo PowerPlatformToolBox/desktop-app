@@ -13,6 +13,7 @@ export interface Tool {
   author: string;
   icon?: string;
   settings?: ToolSettings;
+  localPath?: string; // For local development tools - absolute path to tool directory
 }
 
 /**

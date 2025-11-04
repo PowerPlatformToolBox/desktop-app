@@ -93,6 +93,21 @@
                     <div class="sidebar-body">
                         <div class="debug-container-sidebar">
                             <div class="debug-section">
+                                <h3 class="debug-section-title">Load Local Tool</h3>
+                                <p class="debug-section-description">Load a tool directly from your local file system for development and testing.</p>
+                                <div class="debug-input-group">
+                                    <label class="debug-label" for="sidebar-local-tool-path">Tool Directory Path</label>
+                                    <div class="debug-path-input-group">
+                                        <input type="text" id="sidebar-local-tool-path" class="fluent-input" placeholder="Select tool directory..." readonly />
+                                        <button id="sidebar-browse-local-tool-btn" class="fluent-button fluent-button-secondary">Browse</button>
+                                    </div>
+                                    <span class="debug-hint">Select the root directory containing your tool's package.json</span>
+                                </div>
+                                <div class="debug-actions">
+                                    <button id="sidebar-load-local-tool-btn" class="fluent-button fluent-button-primary">Load Tool</button>
+                                </div>
+                            </div>
+                            <div class="debug-section">
                                 <h3 class="debug-section-title">Install Tool by Package Name</h3>
                                 <p class="debug-section-description">Enter an npm package name to install a custom tool directly from the npm registry.</p>
                                 <div class="debug-input-group">
@@ -105,13 +120,13 @@
                                 </div>
                             </div>
                             <div class="debug-section">
-                                <h3 class="debug-section-title">About This Feature</h3>
-                                <p class="debug-section-description">This feature is designed for tool developers to quickly test and install their tools without publishing to the marketplace.</p>
+                                <h3 class="debug-section-title">About These Features</h3>
+                                <p class="debug-section-description">These features are designed for tool developers to quickly test and install their tools without publishing to the marketplace.</p>
                                 <ul class="debug-info-list">
-                                    <li>📦 Install any npm package that follows the toolbox tool format</li>
-                                    <li>🧪 Perfect for testing tools during development</li>
-                                    <li>🔄 Package must be published to npm (or a private registry)</li>
-                                    <li>⚠️ Use with caution - only install trusted packages</li>
+                                    <li>📂 <strong>Local Tool:</strong> Load tools from your filesystem - no publishing needed</li>
+                                    <li>🔄 <strong>Watch Mode:</strong> Build your tool with watch mode, then reload in ToolBox to see changes</li>
+                                    <li>📦 <strong>npm Package:</strong> Install published packages for testing or private use</li>
+                                    <li>⚠️ <strong>Security:</strong> Only load/install tools you trust</li>
                                 </ul>
                             </div>
                         </div>

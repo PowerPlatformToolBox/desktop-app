@@ -102,6 +102,17 @@ Power Platform Tool Box uses a secure, extensible Tool Host architecture that al
 
 See **[TOOL_DEV.md](docs/TOOL_DEV.md)** for the complete guide on creating tools.
 
+### Testing Tools Locally
+
+You can test your tools locally during development without publishing to npm. This enables rapid iteration using watch mode:
+
+1. Navigate to the **Debug** section in ToolBox
+2. Use **Load Local Tool** to select your tool directory
+3. Make changes with watch mode running (`npm run build -- --watch`)
+4. Reload the tool in ToolBox to see updates
+
+See **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** for a complete step-by-step guide.
+
 ### Sample Tools Repository
 
 Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBox/sample-tools)** for complete, ready-to-use examples demonstrating different frameworks:
@@ -181,6 +192,7 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
 -   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
+-   **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** - Step-by-step guide for testing tools locally without publishing
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 
 ### Porting XrmToolBox Tools
