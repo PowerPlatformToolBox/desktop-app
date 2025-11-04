@@ -332,4 +332,112 @@ export class ToolManager extends EventEmitter {
             toolId: packageName,
         };
     }
+
+    // ========================================================================
+    // LOCAL TOOL DEVELOPMENT: Load tools from local directories
+    // ========================================================================
+
+    /**
+     * Load a tool from a local directory (DEBUG MODE ONLY - for tool developers)
+     * This allows developers to test their tools without publishing to npm
+     * @param localPath - Absolute path to the tool directory
+     */
+    async loadLocalTool(localPath: string): Promise<Tool> {
+        console.log(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
+
+        // Verify the path exists
+        if (!fs.existsSync(localPath)) {
+            throw new Error(`Local tool path does not exist: ${localPath}`);
+        }
+
+        // Check if it's a directory
+        const stats = fs.statSync(localPath);
+        if (!stats.isDirectory()) {
+            throw new Error(`Path is not a directory: ${localPath}`);
+        }
+
+        // Look for package.json
+        const packageJsonPath = path.join(localPath, "package.json");
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error(`No package.json found in: ${localPath}`);
+        }
+
+        // Read and parse package.json
+        let packageJson: any;
+        try {
+            const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
+            packageJson = JSON.parse(packageJsonContent);
+        } catch (error) {
+            throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
+        }
+
+        // Verify required fields
+        if (!packageJson.name) {
+            throw new Error("package.json missing required field: name");
+        }
+
+        // Check for dist directory and index.html
+        const distPath = path.join(localPath, "dist");
+        const indexHtmlPath = path.join(distPath, "index.html");
+
+        if (!fs.existsSync(indexHtmlPath)) {
+            throw new Error(
+                `No dist/index.html found in: ${localPath}\n\nPlease build your tool first (e.g., npm run build).\n\nThe tool should have a dist/ directory with an index.html entry point.`,
+            );
+        }
+
+        // Create a tool object with local path metadata
+        const toolId = `local:${packageJson.name}`;
+        const tool: Tool = {
+            id: toolId,
+            name: packageJson.displayName || packageJson.name,
+            version: packageJson.version || "0.0.0",
+            description: packageJson.description || "Local development tool",
+            author: packageJson.author || "Local Developer",
+            icon: packageJson.icon,
+            localPath: localPath, // Store the local path for loading
+        };
+
+        this.tools.set(toolId, tool);
+        this.emit("tool:loaded", tool);
+
+        console.log(`[ToolManager] [DEBUG] Local tool loaded: ${tool.name} (${toolId})`);
+        return tool;
+    }
+
+    /**
+     * Get webview HTML for a local tool with absolute file paths
+     * @param localPath - Absolute path to the tool directory
+     */
+    getLocalToolWebviewHtml(localPath: string): string | undefined {
+        const distPath = path.join(localPath, "dist");
+        const distHtmlPath = path.join(distPath, "index.html");
+
+        if (fs.existsSync(distHtmlPath)) {
+            let html = fs.readFileSync(distHtmlPath, "utf-8");
+
+            // Convert relative CSS paths to absolute file:// URLs
+            html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
+                const cssPath = path.join(distPath, cssFile);
+                if (fs.existsSync(cssPath)) {
+                    const absolutePath = `file://${cssPath.replace(/\\/g, "/")}`;
+                    return `<link ${before}href="${absolutePath}"${after}>`;
+                }
+                return match;
+            });
+
+            // Convert relative JavaScript paths to absolute file:// URLs
+            html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
+                const jsPath = path.join(distPath, jsFile);
+                if (fs.existsSync(jsPath)) {
+                    const absolutePath = `file://${jsPath.replace(/\\/g, "/")}`;
+                    return `<script ${before}src="${absolutePath}"${after}></script>`;
+                }
+                return match;
+            });
+
+            return html;
+        }
+        return undefined;
+    }
 }

@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke("get-tool-context", packageName, connectionUrl),
 
+    // Local tool development (DEBUG MODE)
+    loadLocalTool: (localPath: string) => ipcRenderer.invoke("load-local-tool", localPath),
+    getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke("get-local-tool-webview-html", localPath),
+    openDirectoryPicker: () => ipcRenderer.invoke("open-directory-picker"),
 
     // Registry-based tools (new primary method)
     fetchRegistryTools: () => ipcRenderer.invoke("fetch-registry-tools"),

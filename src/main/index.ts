@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import * as path from "path";
 import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
@@ -262,6 +262,34 @@ class ToolBoxApp {
             this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
+        });
+
+        // Local tool development - load tool from local directory
+        ipcMain.handle("load-local-tool", async (_, localPath) => {
+            const tool = await this.toolManager.loadLocalTool(localPath);
+            return tool;
+        });
+
+        ipcMain.handle("get-local-tool-webview-html", (_, localPath) => {
+            return this.toolManager.getLocalToolWebviewHtml(localPath);
+        });
+
+        ipcMain.handle("open-directory-picker", async () => {
+            if (!this.mainWindow) {
+                throw new Error("Main window not available");
+            }
+
+            const result = await dialog.showOpenDialog(this.mainWindow, {
+                properties: ["openDirectory"],
+                title: "Select Tool Directory",
+                message: "Select the root directory of your tool (containing package.json)",
+            });
+
+            if (result.canceled || result.filePaths.length === 0) {
+                return null;
+            }
+
+            return result.filePaths[0];
         });
 
         ipcMain.handle("get-tool-webview-html", (_, packageName) => {

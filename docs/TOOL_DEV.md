@@ -1109,7 +1109,87 @@ try {
 }
 ```
 
+## Testing Your Tool Locally
+
+Before publishing your tool, you can test it locally in the Power Platform Tool Box without needing to publish to npm.
+
+### Local Development Workflow
+
+1. **Build your tool with watch mode:**
+
+   ```bash
+   cd my-tool
+   npm run build -- --watch
+   ```
+
+   This will continuously rebuild your tool when you make changes.
+
+2. **Load the tool in ToolBox:**
+
+   - Open Power Platform Tool Box
+   - Click on the **Debug** icon in the activity bar (left sidebar)
+   - In the "Load Local Tool" section, click **Browse**
+   - Select your tool's root directory (the one containing `package.json`)
+   - Click **Load Tool**
+
+3. **Make changes and reload:**
+
+   - Edit your tool's source code
+   - The watch mode will automatically rebuild to `dist/`
+   - In ToolBox, close the tool tab and reload it from the sidebar to see your changes
+
+### Requirements for Local Tools
+
+Your tool directory must:
+
+- Have a `package.json` file at the root
+- Have a `dist/index.html` file (the entry point)
+- Be built before loading (run `npm run build` first)
+
+### Example Directory Structure
+
+```
+my-tool/
+├── package.json          # Required
+├── dist/                 # Required - output from build
+│   ├── index.html       # Required - entry point
+│   ├── app.js
+│   └── styles.css
+├── src/                  # Your source files
+│   ├── app.ts
+│   └── styles.css
+├── tsconfig.json
+└── README.md
+```
+
+### Tips for Local Development
+
+- **Use watch mode**: Run your build tool with watch mode (`npm run build -- --watch`) so changes are automatically compiled
+- **Hot reload**: After making changes, close and reopen the tool in ToolBox to see updates
+- **Check console**: Open the ToolBox developer console (View > Toggle Developer Tools) to see console.log output from your tool
+- **Test connections**: Test with different Dataverse connections to ensure your tool works properly
+- **Tool ID**: Local tools have IDs prefixed with `local:` (e.g., `local:@powerplatform/my-tool`)
+
+### Common Build Commands
+
+Most tools use one of these patterns:
+
+```bash
+# TypeScript with Vite
+npm run build -- --watch
+
+# Plain npm scripts
+npm run watch
+
+# webpack
+npm run dev
+```
+
+Check your tool's `package.json` `scripts` section for the correct command.
+
 ## Publishing Your Tool
+
+Once you've tested your tool locally and are ready to share it:
 
 ### 1. Build your tool
 
@@ -1146,9 +1226,9 @@ npm login
 npm publish --access public
 ```
 
-### 4. Test in ToolBox
+### 4. Test Published Version
 
-You can then install your tool from the ToolBox UI by entering your package name in the **Debug** menu.
+You can test the published version by installing it from npm via the ToolBox **Debug** menu "Install Tool by Package Name" section.
 
 ## Submitting the tool to the Tool Box registry
 
