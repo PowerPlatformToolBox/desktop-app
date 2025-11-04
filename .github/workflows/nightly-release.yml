@@ -100,7 +100,9 @@ jobs:
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  CSC_IDENTITY_AUTO_DISCOVERY: false # Skip code signing for nightly builds
+                  # Skip code signing for nightly builds
+                  # Note: package.json also sets "identity": null in mac config to prevent DMG corruption
+                  CSC_IDENTITY_AUTO_DISCOVERY: false
 
             - name: Upload artifacts (Linux)
               if: matrix.os == 'ubuntu-latest'
