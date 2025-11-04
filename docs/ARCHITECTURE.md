@@ -106,11 +106,25 @@ The main process is the entry point of the Electron application and manages the 
 -   **Purpose**: Manage external tools
 -   **Responsibilities**:
     -   Load/unload tools
-    -   Install/uninstall tools via pnpm
+    -   Install tools from registry (primary method)
+    -   Install/uninstall tools via npm/pnpm (legacy, deprecated)
     -   Track loaded tools
     -   Parse contribution points from package.json
     -   Emit tool lifecycle events
     -   Provide tool context (without exposing access tokens)
+    -   Manage tool manifests and metadata
+
+##### `toolRegistryManager.ts`
+
+-   **Purpose**: Manage tool registry and downloads
+-   **Responsibilities**:
+    -   Fetch tool registry from server (VS Code marketplace style)
+    -   Download tools as pre-built archives via HTTP/HTTPS
+    -   Extract and cache tools locally
+    -   Manage tool manifests (installation tracking)
+    -   Check for tool updates
+    -   Handle tool versioning
+    -   No npm/pnpm dependency required
 
 ##### `authManager.ts`
 
@@ -522,12 +536,14 @@ External tools can integrate through:
 Tools have access to organized APIs:
 
 #### Utils
+
 -   `showNotification()` - Display notifications
 -   `copyToClipboard()` - Copy text to clipboard
 -   `saveFile()` - Save files to disk
 -   `getCurrentTheme()` - Get current theme
 
 #### Terminal
+
 -   `create()` - Create a terminal (auto-named with tool name)
 -   `execute()` - Execute commands
 -   `close()` - Close terminal
@@ -535,11 +551,13 @@ Tools have access to organized APIs:
 -   `setVisibility()` - Show/hide terminal
 
 #### Events
+
 -   `on()` - Subscribe to events (filtered to relevant events)
 -   `off()` - Unsubscribe from events
 -   `getHistory()` - Get event history (tool-specific)
 
 #### Connections
+
 -   `getActiveConnection()` - Get active Dataverse connection (without token)
 
 ### Dataverse API
@@ -547,20 +565,24 @@ Tools have access to organized APIs:
 Complete Dataverse Web API client:
 
 #### CRUD Operations
+
 -   `create(entity, record)` - Create records
 -   `retrieve(entity, id, columns)` - Retrieve by ID
 -   `update(entity, id, record)` - Update records
 -   `delete(entity, id)` - Delete records
 
 #### Query Operations
+
 -   `fetchXmlQuery(fetchXml)` - Execute FetchXML queries
 -   `retrieveMultiple(fetchXml)` - Alias for fetchXmlQuery
 
 #### Metadata Operations
+
 -   `getEntityMetadata(entityName)` - Get entity metadata
 -   `getAllEntitiesMetadata()` - Get all entities metadata
 
 #### Advanced Operations
+
 -   `execute(request)` - Execute actions and functions
 
 ### Event System
@@ -611,15 +633,8 @@ desktop-app/
 │   ├── index.d.ts                     # Main export (~15 lines)
 │   ├── package.json                   # Package metadata
 │   └── README.md                      # Tool developer documentation
-├── docs/
-│   ├── ARCHITECTURE.md                # Architecture documentation (this file)
-│   ├── TOOL_DEVELOPMENT.md            # Tool development guide
-│   ├── DATAVERSE_API.md               # Dataverse API reference
-│   ├── TERMINAL_USAGE.md              # Terminal API guide
-│   ├── CONTEXT_AWARE_SECURE_STORAGE.md # Security documentation
-│   ├── PNPM_MIGRATION.md              # pnpm package manager guide
-│   ├── BUILD_OPTIMIZATION.md          # Build and optimization guide
-│   └── FEATURES_OVERVIEW.md           # Feature documentation
+├── docs/                              # All the documentations can be found at a single location
+│   ├── ...
 ├── assets/
 │   └── icon.png                       # Application icon
 ├── icons/
@@ -643,8 +658,6 @@ desktop-app/
 ├── .prettierrc.json                   # Code formatting config
 └── CONTRIBUTING.md                    # Contribution guidelines
 ```
-
-**Total Lines of Code**: ~7,500 lines across 13 TypeScript source files + renderer HTML/SCSS
 
 ## Build Process
 
@@ -673,12 +686,14 @@ pnpm run package     # Create distributable packages
 Vite builds three separate bundles in parallel:
 
 1. **Main Process Build**:
+
     - Entry: `src/main/index.ts`
     - Output: `dist/main/index.js`
     - Bundles all managers and dependencies
     - Includes rollup-plugin-visualizer for bundle analysis
 
 2. **Preload Script Build**:
+
     - Entry: `src/main/preload.ts`
     - Output: `dist/main/preload.js`
     - Secure bridge for IPC communication
@@ -753,7 +768,7 @@ dist/
 
 ### Planned Features
 
-1. **Tool Marketplace**: Browse and install tools from a catalog
+1. **Tool Marketplace**: Browse and install tools from a catalog ✅
 2. **Enhanced Tool Sandboxing**: Additional security layers for third-party tools
 3. **Multi-language Support**: Internationalization (i18n)
 4. **Theme Customization**: User-defined themes and dark mode
@@ -761,7 +776,7 @@ dist/
 6. **Testing Framework**: Automated testing infrastructure
 7. **Documentation Site**: Comprehensive online documentation
 8. **Plugin Versioning**: Tool update management and version compatibility
-9. **Collaboration Features**: Share tools and configurations between team members
+9. **Sync Features**: Sync your local toolbox configuration across different machine without compromising security
 
 ### Technical Debt
 
@@ -782,25 +797,6 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines on:
 -   Code standards and linting
 -   Pull request process
 -   Building and testing
-
-## Tool Development
-
-See [TOOL_DEVELOPMENT.md](TOOL_DEVELOPMENT.md) for:
-
--   Tool structure requirements
--   ToolBox API documentation
--   Dataverse API usage
--   Example implementations
--   Publishing guidelines
-
-## Additional Documentation
-
--   **[DATAVERSE_API.md](DATAVERSE_API.md)**: Complete Dataverse API reference with examples
--   **[TERMINAL_USAGE.md](TERMINAL_USAGE.md)**: Terminal API guide for tool developers
--   **[CONTEXT_AWARE_SECURE_STORAGE.md](CONTEXT_AWARE_SECURE_STORAGE.md)**: Security implementation details
--   **[PNPM_MIGRATION.md](PNPM_MIGRATION.md)**: pnpm package manager and tool isolation
--   **[BUILD_OPTIMIZATION.md](BUILD_OPTIMIZATION.md)**: Build system and optimization guide
--   **[FEATURES_OVERVIEW.md](FEATURES_OVERVIEW.md)**: Feature documentation
 
 ## Terminal Integration
 
@@ -879,5 +875,3 @@ await toolboxAPI.terminal.close(terminal.id);
 -   No elevation or sudo access by default
 -   Output is sanitized before display
 -   Process isolation prevents cross-tool interference
-
-For complete documentation, see [TERMINAL_USAGE.md](TERMINAL_USAGE.md).

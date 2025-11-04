@@ -1,0 +1,232 @@
+name: Nightly Pre-Release
+
+on:
+    schedule:
+        # Run at midnight UTC every day
+        - cron: "0 0 * * *"
+    workflow_dispatch: # Allow manual trigger
+
+permissions:
+    contents: write
+
+jobs:
+    check-commits:
+        runs-on: ubuntu-latest
+        outputs:
+            should_build: ${{ steps.check.outputs.should_build }}
+            commit_count: ${{ steps.check.outputs.commit_count }}
+        steps:
+            - name: Checkout dev branch
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Check for commits in the last 24 hours
+              id: check
+              run: |
+                  # Get commits from the last 24 hours
+                  COMMIT_COUNT=$(git log --since="24 hours ago" --oneline | wc -l)
+                  echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+
+                  if [ "$COMMIT_COUNT" -gt 0 ]; then
+                    echo "should_build=true" >> $GITHUB_OUTPUT
+                    echo "✅ Found $COMMIT_COUNT commit(s) in the last 24 hours. Build will proceed."
+                  else
+                    echo "should_build=false" >> $GITHUB_OUTPUT
+                    echo "⏭️ No commits in the last 24 hours. Skipping build."
+                  fi
+
+    build:
+        needs: check-commits
+        if: needs.check-commits.outputs.should_build == 'true'
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+
+        steps:
+            - name: Checkout dev branch
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Install dependencies
+              run: pnpm install
+
+            - name: Update version for nightly build
+              id: version
+              run: |
+                  # Get current version from package.json
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+                  # Create nightly version with date (e.g., 1.0.0-dev.20251025)
+                  DATE_TAG=$(date +%Y%m%d)
+                  NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
+
+                  echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Nightly version: $NEW_VERSION"
+
+                  # Update package.json with new version
+                  node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version='$NEW_VERSION'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+              shell: bash
+
+            - name: Build application
+              run: pnpm run build
+
+            - name: Package application (Ubuntu)
+              if: matrix.os == 'ubuntu-latest'
+              run: pnpm run package
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Package application (Windows)
+              if: matrix.os == 'windows-latest'
+              run: pnpm run package
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Package application (macOS)
+              if: matrix.os == 'macos-latest'
+              run: pnpm run package
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # Skip code signing for nightly builds
+                  # Note: package.json also sets "identity": null in mac config to prevent DMG corruption
+                  CSC_IDENTITY_AUTO_DISCOVERY: false
+
+            - name: Upload artifacts (Linux)
+              if: matrix.os == 'ubuntu-latest'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-build
+                  path: |
+                      build/*.AppImage
+                      build/*.snap
+                      build/*.deb
+                      build/*.rpm
+                  retention-days: 30
+
+            - name: Upload artifacts (Windows)
+              if: matrix.os == 'windows-latest'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-build
+                  path: |
+                      build/*.exe
+                      build/*.msi
+                  retention-days: 30
+
+            - name: Upload artifacts (macOS)
+              if: matrix.os == 'macos-latest'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-build
+                  path: |
+                      build/*.dmg
+                      build/*.pkg
+                  retention-days: 30
+
+    create-release:
+        needs: [check-commits, build]
+        if: needs.check-commits.outputs.should_build == 'true'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout dev branch
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Calculate version
+              id: version
+              run: |
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  DATE_TAG=$(date +%Y%m%d)
+                  NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
+                  echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "release_name=Nightly Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
+              shell: bash
+
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+
+            - name: Display structure of downloaded files
+              run: ls -R artifacts
+
+            - name: Delete old pre-releases
+              run: |
+                  echo "🗑️ Deleting old pre-releases..."
+
+                  # Get all pre-releases (not full releases) - using higher limit to capture more
+                  # Note: gh release list returns releases sorted by creation date (newest first)
+                  gh release list --limit 1000 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | while IFS= read -r TAG; do
+                    if [ -n "$TAG" ]; then
+                      echo "Deleting pre-release: $TAG"
+                      gh release delete "$TAG" --yes --cleanup-tag || echo "⚠️ Failed to delete $TAG (may not exist or already deleted)"
+                    fi
+                  done
+
+                  echo "✅ Pre-release cleanup completed"
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Create pre-release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ steps.version.outputs.new_version }}
+                  name: ${{ steps.version.outputs.release_name }}
+                  body: |
+                      # 🌙 Nightly Development Build
+
+                      **Version:** ${{ steps.version.outputs.new_version }}
+                      **Branch:** dev
+                      **Commits:** ${{ needs.check-commits.outputs.commit_count }} in the last 24 hours
+                      **Build Date:** ${{ github.run_id }}
+
+                      ## ⚠️ Pre-release Warning
+
+                      This is an automated nightly build from the development branch. It may contain:
+                      - 🐛 Bugs and instability
+                      - 🚧 Incomplete features
+                      - 💥 Breaking changes
+
+                      **Not recommended for production use!**
+
+                      ## 📦 Installation
+
+                      Choose the appropriate installer for your platform:
+                      - **Windows**: Download the `.exe` file
+                      - **macOS**: Download the `.dmg` file
+                      - **Linux**: Download the `.AppImage` file
+
+                      ## 🔗 Links
+
+                      - [View commits](${{ github.server_url }}/${{ github.repository }}/commits/dev)
+                      - [Report an issue](${{ github.server_url }}/${{ github.repository }}/issues/new)
+
+                      ---
+                      *This release was automatically generated by the nightly build workflow.*
+                  files: |
+                      artifacts/**/*
+                  prerelease: true
+                  draft: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

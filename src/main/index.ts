@@ -233,27 +233,35 @@ class ToolBoxApp {
             this.toolManager.unloadTool(toolId);
         });
 
+        // Registry-based tool installation (new primary method)
+        ipcMain.handle("install-tool-from-registry", async (_, toolId) => {
+            const manifest = await this.toolManager.installToolFromRegistry(toolId);
+            const tool = await this.toolManager.loadTool(toolId);
+            this.settingsManager.addInstalledTool(toolId);
+            return { manifest, tool };
+        });
+
+        // Fetch available tools from registry
+        ipcMain.handle("fetch-registry-tools", async () => {
+            return await this.toolManager.fetchAvailableTools();
+        });
+
+        // Check for tool updates
+        ipcMain.handle("check-tool-updates", async (_, toolId) => {
+            return await this.toolManager.checkForUpdates(toolId);
+        });
+
+        // Debug mode only - npm-based installation for tool developers
         ipcMain.handle("install-tool", async (_, packageName) => {
-            await this.toolManager.installTool(packageName);
-            const tool = await this.toolManager.loadTool(packageName);
+            await this.toolManager.installToolForDebug(packageName);
+            // For debug mode, we don't load from manifest since it's npm-based
             this.settingsManager.addInstalledTool(packageName);
-            return tool;
         });
 
         ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
             this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
-        });
-
-        ipcMain.handle("get-latest-tool-version", async (_, packageName) => {
-            return await this.toolManager.getLatestVersion(packageName);
-        });
-
-        ipcMain.handle("update-tool", async (_, packageName) => {
-            await this.toolManager.updateTool(packageName);
-            const tool = await this.toolManager.loadTool(packageName);
-            return tool;
         });
 
         ipcMain.handle("get-tool-webview-html", (_, packageName) => {
