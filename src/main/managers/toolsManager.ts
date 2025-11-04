@@ -312,7 +312,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
                 const cssPath = path.join(distPath, cssFile);
                 if (fs.existsSync(cssPath)) {
-                    const absolutePath = `file://${cssPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(cssPath);
                     return `<link ${before}href="${absolutePath}"${after}>`;
                 }
                 return match;
@@ -322,7 +322,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
                 const jsPath = path.join(distPath, jsFile);
                 if (fs.existsSync(jsPath)) {
-                    const absolutePath = `file://${jsPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(jsPath);
                     return `<script ${before}src="${absolutePath}"${after}></script>`;
                 }
                 return match;
@@ -350,19 +350,61 @@ export class ToolManager extends EventEmitter {
     // ========================================================================
 
     /**
+     * Get system directories to protect from tool loading
+     */
+    private getSystemDirectories(): string[] {
+        const platform = process.platform;
+
+        if (platform === "win32") {
+            return [
+                "C:\\Windows",
+                "C:\\Program Files",
+                "C:\\Program Files (x86)",
+                "C:\\ProgramData",
+                "C:\\System32",
+            ];
+        } else if (platform === "darwin") {
+            return [
+                "/System",
+                "/Library",
+                "/usr",
+                "/bin",
+                "/sbin",
+                "/private",
+            ];
+        } else {
+            // Linux and other Unix-like systems
+            return [
+                "/usr",
+                "/bin",
+                "/sbin",
+                "/etc",
+                "/root",
+                "/sys",
+                "/proc",
+            ];
+        }
+    }
+
+    /**
      * Validate that a local path is safe to use (no path traversal)
      */
     private isPathSafe(localPath: string): boolean {
         // Resolve to absolute path
         const resolvedPath = path.resolve(localPath);
 
-        // Check for path traversal attempts
-        if (resolvedPath.includes("..") || !path.isAbsolute(resolvedPath)) {
+        // Ensure path is absolute after resolution
+        if (!path.isAbsolute(resolvedPath)) {
             return false;
         }
 
-        // Don't allow loading from system directories (basic protection)
-        const systemDirs = ["/System", "/Windows", "/Program Files", "C:\\Windows", "C:\\Program Files"];
+        // Check if path contains null bytes (security check)
+        if (resolvedPath.includes("\0")) {
+            return false;
+        }
+
+        // Don't allow loading from system directories
+        const systemDirs = this.getSystemDirectories();
         const lowerPath = resolvedPath.toLowerCase();
 
         for (const sysDir of systemDirs) {
