@@ -77,7 +77,8 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "icons/icon.icns"
+      "icon": "icons/icon.icns",
+      "identity": null
     }
   }
 }
