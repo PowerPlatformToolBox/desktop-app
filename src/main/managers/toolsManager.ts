@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
+import { pathToFileURL } from "url";
 import { Tool, ToolManifest } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
@@ -418,15 +419,10 @@ export class ToolManager extends EventEmitter {
 
     /**
      * Convert file system path to file:// URL properly across platforms
+     * Uses Node.js built-in pathToFileURL for proper encoding
      */
     private pathToFileUrl(filePath: string): string {
-        // Normalize path separators to forward slashes
-        const normalizedPath = filePath.replace(/\\/g, "/");
-
-        // Ensure it starts with a forward slash for absolute paths
-        const urlPath = normalizedPath.startsWith("/") ? normalizedPath : "/" + normalizedPath;
-
-        return `file://${urlPath}`;
+        return pathToFileURL(filePath).toString();
     }
 
     /**
@@ -507,6 +503,12 @@ export class ToolManager extends EventEmitter {
      * @param localPath - Absolute path to the tool directory
      */
     getLocalToolWebviewHtml(localPath: string): string | undefined {
+        // Validate path safety before loading
+        if (!this.isPathSafe(localPath)) {
+            console.error(`[ToolManager] Unsafe local path rejected: ${localPath}`);
+            return undefined;
+        }
+
         const distPath = path.join(localPath, "dist");
         const distHtmlPath = path.join(distPath, "index.html");
 

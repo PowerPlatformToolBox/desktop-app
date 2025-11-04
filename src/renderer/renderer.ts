@@ -408,9 +408,25 @@ async function launchTool(toolId: string) {
         if (tool.localPath) {
             // Load from local path for development
             webviewHtml = await window.toolboxAPI.getLocalToolWebviewHtml(tool.localPath);
+            if (!webviewHtml) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Load Failed",
+                    body: `Failed to load tool HTML from: ${tool.localPath}\n\nMake sure the tool is built and has a dist/index.html file.`,
+                    type: "error",
+                });
+                return;
+            }
         } else {
             // Load from installed package
             webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+            if (!webviewHtml) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Load Failed",
+                    body: `Failed to load tool HTML for: ${tool.name}`,
+                    type: "error",
+                });
+                return;
+            }
         }
 
         // Get tool context separately for postMessage (without accessToken)
