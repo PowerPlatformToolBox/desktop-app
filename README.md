@@ -14,7 +14,7 @@
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml" alt="Nightly Pre-Release">
       <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml/badge.svg?branch=main"/>
     </a>
-    <a href="hhttps://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml" alt="Prod Release">
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml" alt="Prod Release">
       <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml/badge.svg"/>
     </a>
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/blob/master/LICENSE" alt="License">
