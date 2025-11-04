@@ -2,8 +2,21 @@ import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
+import { pathToFileURL } from "url";
 import { Tool, ToolManifest } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
+
+/**
+ * Package.json structure for tool validation
+ */
+interface ToolPackageJson {
+    name: string;
+    version?: string;
+    displayName?: string;
+    description?: string;
+    author?: string;
+    icon?: string;
+}
 
 /**
  * Manages tool plugins using registry-based installation
@@ -300,7 +313,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
                 const cssPath = path.join(distPath, cssFile);
                 if (fs.existsSync(cssPath)) {
-                    const absolutePath = `file://${cssPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(cssPath);
                     return `<link ${before}href="${absolutePath}"${after}>`;
                 }
                 return match;
@@ -310,7 +323,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
                 const jsPath = path.join(distPath, jsFile);
                 if (fs.existsSync(jsPath)) {
-                    const absolutePath = `file://${jsPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(jsPath);
                     return `<script ${before}src="${absolutePath}"${after}></script>`;
                 }
                 return match;
@@ -331,5 +344,199 @@ export class ToolManager extends EventEmitter {
             connectionUrl: connectionUrl || null,
             toolId: packageName,
         };
+    }
+
+    // ========================================================================
+    // LOCAL TOOL DEVELOPMENT: Load tools from local directories
+    // ========================================================================
+
+    /**
+     * Get system directories to protect from tool loading
+     */
+    private getSystemDirectories(): string[] {
+        const platform = process.platform;
+
+        if (platform === "win32") {
+            return [
+                "C:\\Windows",
+                "C:\\Program Files",
+                "C:\\Program Files (x86)",
+                "C:\\ProgramData",
+                "C:\\System32",
+            ];
+        } else if (platform === "darwin") {
+            return [
+                "/System",
+                "/Library",
+                "/usr",
+                "/bin",
+                "/sbin",
+                "/private",
+            ];
+        } else {
+            // Linux and other Unix-like systems
+            return [
+                "/usr",
+                "/bin",
+                "/sbin",
+                "/etc",
+                "/root",
+                "/sys",
+                "/proc",
+            ];
+        }
+    }
+
+    /**
+     * Validate that a local path is safe to use (no path traversal)
+     */
+    private isPathSafe(localPath: string): boolean {
+        // Resolve to absolute path
+        const resolvedPath = path.resolve(localPath);
+
+        // Ensure path is absolute after resolution
+        if (!path.isAbsolute(resolvedPath)) {
+            return false;
+        }
+
+        // Check if path contains null bytes (security check)
+        if (resolvedPath.includes("\0")) {
+            return false;
+        }
+
+        // Don't allow loading from system directories
+        const systemDirs = this.getSystemDirectories();
+        const lowerPath = resolvedPath.toLowerCase();
+
+        for (const sysDir of systemDirs) {
+            if (lowerPath.startsWith(sysDir.toLowerCase())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Convert file system path to file:// URL properly across platforms
+     * Uses Node.js built-in pathToFileURL for proper encoding
+     */
+    private pathToFileUrl(filePath: string): string {
+        return pathToFileURL(filePath).toString();
+    }
+
+    /**
+     * Load a tool from a local directory (DEBUG MODE ONLY - for tool developers)
+     * This allows developers to test their tools without publishing to npm
+     * @param localPath - Absolute path to the tool directory
+     */
+    async loadLocalTool(localPath: string): Promise<Tool> {
+        console.log(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
+
+        // Validate path safety
+        if (!this.isPathSafe(localPath)) {
+            throw new Error(`Unsafe path detected: ${localPath}\n\nPaths with '..' or system directories are not allowed for security reasons.`);
+        }
+
+        // Verify the path exists
+        if (!fs.existsSync(localPath)) {
+            throw new Error(`Local tool path does not exist: ${localPath}`);
+        }
+
+        // Check if it's a directory
+        const stats = fs.statSync(localPath);
+        if (!stats.isDirectory()) {
+            throw new Error(`Path is not a directory: ${localPath}`);
+        }
+
+        // Look for package.json
+        const packageJsonPath = path.join(localPath, "package.json");
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error(`No package.json found in: ${localPath}`);
+        }
+
+        // Read and parse package.json
+        let packageJson: ToolPackageJson;
+        try {
+            const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
+            packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
+        } catch (error) {
+            throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
+        }
+
+        // Verify required fields
+        if (!packageJson.name) {
+            throw new Error("package.json missing required field: name");
+        }
+
+        // Check for dist directory and index.html
+        const distPath = path.join(localPath, "dist");
+        const indexHtmlPath = path.join(distPath, "index.html");
+
+        if (!fs.existsSync(indexHtmlPath)) {
+            throw new Error(
+                `No dist/index.html found in: ${localPath}\n\nPlease build your tool first (e.g., npm run build).\n\nThe tool should have a dist/ directory with an index.html entry point.`,
+            );
+        }
+
+        // Create a tool object with local path metadata
+        const toolId = `local:${packageJson.name}`;
+        const tool: Tool = {
+            id: toolId,
+            name: packageJson.displayName || packageJson.name,
+            version: packageJson.version || "0.0.0",
+            description: packageJson.description || "Local development tool",
+            author: packageJson.author || "Local Developer",
+            icon: packageJson.icon,
+            localPath: localPath, // Store the local path for loading
+        };
+
+        this.tools.set(toolId, tool);
+        this.emit("tool:loaded", tool);
+
+        console.log(`[ToolManager] [DEBUG] Local tool loaded: ${tool.name} (${toolId})`);
+        return tool;
+    }
+
+    /**
+     * Get webview HTML for a local tool with absolute file paths
+     * @param localPath - Absolute path to the tool directory
+     */
+    getLocalToolWebviewHtml(localPath: string): string | undefined {
+        // Validate path safety before loading
+        if (!this.isPathSafe(localPath)) {
+            console.error(`[ToolManager] Unsafe local path rejected: ${localPath}`);
+            return undefined;
+        }
+
+        const distPath = path.join(localPath, "dist");
+        const distHtmlPath = path.join(distPath, "index.html");
+
+        if (fs.existsSync(distHtmlPath)) {
+            let html = fs.readFileSync(distHtmlPath, "utf-8");
+
+            // Convert relative CSS paths to absolute file:// URLs
+            html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
+                const cssPath = path.join(distPath, cssFile);
+                if (fs.existsSync(cssPath)) {
+                    const absolutePath = this.pathToFileUrl(cssPath);
+                    return `<link ${before}href="${absolutePath}"${after}>`;
+                }
+                return match;
+            });
+
+            // Convert relative JavaScript paths to absolute file:// URLs
+            html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
+                const jsPath = path.join(distPath, jsFile);
+                if (fs.existsSync(jsPath)) {
+                    const absolutePath = this.pathToFileUrl(jsPath);
+                    return `<script ${before}src="${absolutePath}"${after}></script>`;
+                }
+                return match;
+            });
+
+            return html;
+        }
+        return undefined;
     }
 }

@@ -403,8 +403,31 @@ async function launchTool(toolId: string) {
         const connectionUrl = activeConnection?.url;
         // NOTE: accessToken is NOT passed to tools for security reasons
 
-        // Get tool HTML without context injection (to avoid CSP issues)
-        const webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+        // Get tool HTML - check if it's a local tool
+        let webviewHtml;
+        if (tool.localPath) {
+            // Load from local path for development
+            webviewHtml = await window.toolboxAPI.getLocalToolWebviewHtml(tool.localPath);
+            if (!webviewHtml) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Load Failed",
+                    body: `Failed to load tool HTML from: ${tool.localPath}\n\nMake sure the tool is built and has a dist/index.html file.`,
+                    type: "error",
+                });
+                return;
+            }
+        } else {
+            // Load from installed package
+            webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
+            if (!webviewHtml) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Load Failed",
+                    body: `Failed to load tool HTML for: ${tool.name}`,
+                    type: "error",
+                });
+                return;
+            }
+        }
 
         // Get tool context separately for postMessage (without accessToken)
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl);
@@ -2769,6 +2792,82 @@ async function init() {
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
+
+    // Sidebar browse local tool button (Debug section)
+    const sidebarBrowseLocalToolBtn = document.getElementById("sidebar-browse-local-tool-btn");
+    const sidebarLocalToolPathInput = document.getElementById("sidebar-local-tool-path") as HTMLInputElement;
+
+    if (sidebarBrowseLocalToolBtn) {
+        sidebarBrowseLocalToolBtn.addEventListener("click", async () => {
+            try {
+                const selectedPath = await window.toolboxAPI.openDirectoryPicker();
+                if (selectedPath && sidebarLocalToolPathInput) {
+                    sidebarLocalToolPathInput.value = selectedPath;
+                }
+            } catch (error) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Directory Selection Failed",
+                    body: `Failed to select directory: ${(error as Error).message}`,
+                    type: "error",
+                });
+            }
+        });
+    }
+
+    // Sidebar load local tool button (Debug section)
+    const sidebarLoadLocalToolBtn = document.getElementById("sidebar-load-local-tool-btn");
+    if (sidebarLoadLocalToolBtn) {
+        sidebarLoadLocalToolBtn.addEventListener("click", async () => {
+            if (!sidebarLocalToolPathInput) return;
+
+            const localPath = sidebarLocalToolPathInput.value.trim();
+            if (!localPath) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Invalid Path",
+                    body: "Please select a tool directory first.",
+                    type: "error",
+                });
+                return;
+            }
+
+            // Disable button and show loading state
+            sidebarLoadLocalToolBtn.textContent = "Loading...";
+            sidebarLoadLocalToolBtn.setAttribute("disabled", "true");
+
+            try {
+                // Load the local tool
+                const tool = await window.toolboxAPI.loadLocalTool(localPath);
+
+                // Show success notification
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Tool Loaded",
+                    body: `${tool.name} has been loaded successfully from local directory.`,
+                    type: "success",
+                });
+
+                // Clear the input
+                sidebarLocalToolPathInput.value = "";
+
+                // Refresh the tools list
+                await loadSidebarTools();
+
+                // Switch to tools sidebar to show the newly loaded tool
+                switchSidebar("tools");
+            } catch (error) {
+                // Show error notification
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Load Failed",
+                    body: `Failed to load tool: ${(error as Error).message}`,
+                    type: "error",
+                    duration: 0, // Persistent error message
+                });
+            } finally {
+                // Re-enable button
+                sidebarLoadLocalToolBtn.textContent = "Load Tool";
+                sidebarLoadLocalToolBtn.removeAttribute("disabled");
+            }
+        });
     }
 
     // Sidebar install package button (Debug section)

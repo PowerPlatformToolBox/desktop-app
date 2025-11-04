@@ -423,6 +423,20 @@ body {
     gap: 8px;
 }
 
+.debug-path-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.debug-path-input-group input {
+    flex: 1;
+}
+
+.debug-path-input-group button {
+    flex-shrink: 0;
+}
+
 .debug-label {
     font-size: 13px;
     font-weight: 500;
