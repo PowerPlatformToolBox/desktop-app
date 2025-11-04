@@ -7,13 +7,36 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
     -   [API Architecture](#api-architecture)
         -   [1. ToolBox API (`window.toolboxAPI`)](#1-toolbox-api-windowtoolboxapi)
         -   [2. Dataverse API (`window.dataverseAPI`)](#2-dataverse-api-windowdataverseapi)
-    -   [Prerequisites (_optional_)](#prerequisites-optional)
     -   [Quick Start](#quick-start)
+        -   [Prerequisites (_optional_)](#prerequisites-optional)
         -   [1. Create Your Tool Package](#1-create-your-tool-package)
         -   [2. Define package.json](#2-define-packagejson)
         -   [3. Install Type Definitions](#3-install-type-definitions)
         -   [4. Create Your Tool HTML](#4-create-your-tool-html)
         -   [5. Implement Your Tool Logic](#5-implement-your-tool-logic)
+    -   [Debugging and Testing your tool](#debugging-and-testing-your-tool)
+        -   [Prerequisites](#prerequisites)
+        -   [Step-by-Step Guide](#step-by-step-guide)
+            -   [1. Set Up Your Tool Project](#1-set-up-your-tool-project)
+            -   [2. Start Watch Mode (Optional but Recommended)](#2-start-watch-mode-optional-but-recommended)
+            -   [3. Load the Tool in ToolBox](#3-load-the-tool-in-toolbox)
+            -   [4. Launch and Test Your Tool](#4-launch-and-test-your-tool)
+            -   [5. Make Changes and Reload](#5-make-changes-and-reload)
+    -   [Troubleshooting](#troubleshooting)
+        -   [Error: "No dist/index.html found"](#error-no-distindexhtml-found)
+        -   [Error: "No package.json found"](#error-no-packagejson-found)
+        -   [Tool Won't Load After Changes](#tool-wont-load-after-changes)
+        -   [Watch Mode Not Working](#watch-mode-not-working)
+    -   [When to Use Each Method](#when-to-use-each-method)
+        -   [Use Local Loading When:](#use-local-loading-when)
+        -   [Use npm Installation When:](#use-npm-installation-when)
+        -   [Use Registry Installation When:](#use-registry-installation-when)
+    -   [Publishing Your Tool](#publishing-your-tool)
+        -   [1. Build your tool](#1-build-your-tool)
+        -   [2. Prepare for Publishing](#2-prepare-for-publishing)
+        -   [3. Publish to npm](#3-publish-to-npm)
+        -   [4. Test Published Version](#4-test-published-version)
+        -   [5. Submitting the tool to the Tool Box registry](#5-submitting-the-tool-to-the-tool-box-registry)
     -   [Comprehensive API Examples](#comprehensive-api-examples)
         -   [ToolBox API](#toolbox-api)
             -   [Working with Connections](#working-with-connections)
@@ -44,13 +67,6 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
         -   [5. Clean Up Resources](#5-clean-up-resources)
         -   [6. Use Specific Column Selection](#6-use-specific-column-selection)
         -   [7. Limit Query Results](#7-limit-query-results)
-    -   [Error Handling](#error-handling-1)
-    -   [Publishing Your Tool](#publishing-your-tool)
-        -   [1. Build your tool](#1-build-your-tool)
-        -   [2. Prepare for Publishing](#2-prepare-for-publishing)
-        -   [3. Publish to npm](#3-publish-to-npm)
-        -   [4. Test in ToolBox](#4-test-in-toolbox)
-    -   [Submitting the tool to the Tool Box registry](#submitting-the-tool-to-the-tool-box-registry)
         -   [Process Flow](#process-flow)
     -   [Sample Tools Repository](#sample-tools-repository)
     -   [Debugging](#debugging)
@@ -61,7 +77,6 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
         -   [Supported Frameworks](#supported-frameworks)
         -   [What Tools Can Do](#what-tools-can-do)
         -   [What Tools Cannot Do](#what-tools-cannot-do)
-        -   [Architecture](#architecture)
 
 ## Overview
 
@@ -96,15 +111,15 @@ Complete HTTP client for Dataverse:
 -   Metadata operations
 -   Execute actions and functions
 
-## Prerequisites (_optional_)
+## Quick Start
+
+### Prerequisites (_optional_)
 
 Install Yeoman and the PPTB generator globally:
 
 ```bash
 npm install -g yo generator-pptb
 ```
-
-## Quick Start
 
 ### 1. Create Your Tool Package
 
@@ -260,6 +275,210 @@ if (document.readyState === "loading") {
     initialize();
 }
 ```
+
+## Debugging and Testing your tool
+
+### Prerequisites
+
+-   Power Platform Tool Box installed
+-   A tool project with a valid `package.json`
+-   The tool must be built (have a `dist/index.html` file)
+
+### Step-by-Step Guide
+
+#### 1. Set Up Your Tool Project
+
+Create or navigate to your tool directory:
+
+```bash
+# Create a new tool (optional)
+npx --package yo --package generator-pptb -- yo pptb my-tool
+cd my-tool
+
+# Install dependencies
+npm install
+
+# Build the tool
+npm run build
+```
+
+Your directory should look like:
+
+```
+my-tool/
+├── package.json          # Required
+├── dist/                 # Required - created by build
+│   ├── index.html       # Required - entry point
+│   ├── app.js
+│   └── styles.css
+├── src/
+│   ├── app.ts
+│   └── styles.css
+└── tsconfig.json
+```
+
+#### 2. Start Watch Mode (Optional but Recommended)
+
+For continuous development, start your build tool in watch mode:
+
+```bash
+# If using Vite
+npm run build -- --watch
+
+# If using webpack or custom scripts
+npm run watch
+
+# Or check your package.json for the watch command
+```
+
+This will automatically rebuild your tool whenever you save changes.
+
+#### 3. Load the Tool in ToolBox
+
+1. **Open Power Platform Tool Box**
+
+2. **Navigate to Debug Section**
+
+    - Click the Debug icon in the activity bar (left sidebar)
+    - It's the fourth icon from the top
+
+3. **Load Your Local Tool**
+
+    - In the "Load Local Tool" section
+    - Click the **Browse** button
+    - Navigate to your tool's root directory (the one with `package.json`)
+    - Select the directory
+    - Click **Load Tool**
+
+4. **Tool Loaded Successfully**
+    - You'll see a success notification
+    - The tool will appear in the Installed Tools list with a `local:` prefix
+    - Example: `local:@powerplatform/my-tool`
+
+#### 4. Launch and Test Your Tool
+
+1. Click on your tool in the Installed Tools sidebar
+2. The tool will open in the main content area
+3. Test your tool's functionality
+4. Check the developer console for logs:
+    - View > Toggle Developer Tools
+    - Console tab will show your tool's `console.log` output
+
+#### 5. Make Changes and Reload
+
+When you make changes to your tool:
+
+1. **Save your source files** - the watch mode will rebuild automatically
+2. **Close the tool tab** in ToolBox (click the X on the tab)
+3. **Reopen the tool** from the sidebar
+4. Your changes will be reflected
+
+> **Note**: Currently, hot module replacement is not supported. You need to close and reopen the tool to see changes.
+
+## Troubleshooting
+
+### Error: "No dist/index.html found"
+
+**Problem**: Your tool hasn't been built yet.
+
+**Solution**: Run `npm run build` in your tool directory.
+
+### Error: "No package.json found"
+
+**Problem**: The selected directory doesn't contain a `package.json` file.
+
+**Solution**: Make sure you select the root directory of your tool (the one containing `package.json`).
+
+### Tool Won't Load After Changes
+
+**Problem**: The tool iframe is cached.
+
+**Solution**:
+
+1. Close the tool tab completely
+2. Reload it from the sidebar
+3. If still not working, restart ToolBox
+
+### Watch Mode Not Working
+
+**Problem**: Changes aren't being reflected in the `dist/` directory.
+
+**Solution**:
+
+1. Check that watch mode is running (you should see it in the terminal)
+2. Check your build tool's configuration
+3. Try running `npm run build` manually to verify the build works
+
+## When to Use Each Method
+
+### Use Local Loading When:
+
+-   🛠️ Actively developing a tool
+-   🧪 Testing new features
+-   🐛 Debugging issues
+-   📚 Learning tool development
+
+### Use npm Installation When:
+
+-   📦 Testing published packages
+-   🚀 Using production tools
+-   👥 Sharing with team members
+-   ⚙️ Need auto-updates
+
+### Use Registry Installation When:
+
+-   ✅ Tool is production-ready
+-   📊 Want official marketplace distribution
+-   🔒 Need verified, trusted tools
+
+## Publishing Your Tool
+
+Once you've tested your tool locally and are ready to share it:
+
+### 1. Build your tool
+
+```bash
+npm run build
+```
+
+### 2. Prepare for Publishing
+
+Ensure your `package.json` has all required fields:
+
+```json
+{
+    "name": "@org-name/my-tool",
+    "version": "1.0.0",
+    "displayName": "My Tool",
+    "description": "Clear description of what your tool does",
+    "main": "index.html",
+    "author": "Your Name",
+    "keywords": ["powerplatform", "dataverse", "toolbox"],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/your-tool"
+    },
+    "license": "MIT"
+}
+```
+
+### 3. Publish to npm
+
+```bash
+cd my-tool
+npm login
+npm publish --access public
+```
+
+### 4. Test Published Version
+
+You can test the published version by installing it from npm via the ToolBox **Debug** menu "Install Tool by Package Name" section.
+
+### 5. Submitting the tool to the Tool Box registry
+
+**Submit your tool to the registry** by following the [Tool Intake Process](TOOL_INTAKE_PROCESS.md).
+
+The Power Platform Tool Box uses a registry-based system where tools are distributed as pre-built `.tar.gz` archives. Tool developers publish their tools to npm, and an automated system converts them to the registry format.
 
 ## Comprehensive API Examples
 
@@ -1075,165 +1294,6 @@ const account = await dataverseAPI.retrieve("account", id);
 </fetch>
 ```
 
-## Error Handling
-
-Always handle errors gracefully:
-
-```typescript
-try {
-    const result = await dataverseAPI.fetchXmlQuery(fetchXml);
-    // Process result
-} catch (error) {
-    console.error("Query failed:", error);
-
-    // Show user-friendly error
-    let message = "An error occurred";
-
-    if (error instanceof Error) {
-        if (error.message.includes("No active connection")) {
-            message = "Please connect to an environment";
-        } else if (error.message.includes("401")) {
-            message = "Authentication failed - please reconnect";
-        } else if (error.message.includes("Invalid FetchXML")) {
-            message = "Query syntax error";
-        } else {
-            message = error.message;
-        }
-    }
-
-    await toolboxAPI.utils.showNotification({
-        title: "Error",
-        body: message,
-        type: "error",
-    });
-}
-```
-
-## Testing Your Tool Locally
-
-Before publishing your tool, you can test it locally in the Power Platform Tool Box without needing to publish to npm.
-
-### Local Development Workflow
-
-1. **Build your tool with watch mode:**
-
-   ```bash
-   cd my-tool
-   npm run build -- --watch
-   ```
-
-   This will continuously rebuild your tool when you make changes.
-
-2. **Load the tool in ToolBox:**
-
-   - Open Power Platform Tool Box
-   - Click on the **Debug** icon in the activity bar (left sidebar)
-   - In the "Load Local Tool" section, click **Browse**
-   - Select your tool's root directory (the one containing `package.json`)
-   - Click **Load Tool**
-
-3. **Make changes and reload:**
-
-   - Edit your tool's source code
-   - The watch mode will automatically rebuild to `dist/`
-   - In ToolBox, close the tool tab and reload it from the sidebar to see your changes
-
-### Requirements for Local Tools
-
-Your tool directory must:
-
-- Have a `package.json` file at the root
-- Have a `dist/index.html` file (the entry point)
-- Be built before loading (run `npm run build` first)
-
-### Example Directory Structure
-
-```
-my-tool/
-├── package.json          # Required
-├── dist/                 # Required - output from build
-│   ├── index.html       # Required - entry point
-│   ├── app.js
-│   └── styles.css
-├── src/                  # Your source files
-│   ├── app.ts
-│   └── styles.css
-├── tsconfig.json
-└── README.md
-```
-
-### Tips for Local Development
-
-- **Use watch mode**: Run your build tool with watch mode (`npm run build -- --watch`) so changes are automatically compiled
-- **Hot reload**: After making changes, close and reopen the tool in ToolBox to see updates
-- **Check console**: Open the ToolBox developer console (View > Toggle Developer Tools) to see console.log output from your tool
-- **Test connections**: Test with different Dataverse connections to ensure your tool works properly
-- **Tool ID**: Local tools have IDs prefixed with `local:` (e.g., `local:@powerplatform/my-tool`)
-
-### Common Build Commands
-
-Most tools use one of these patterns:
-
-```bash
-# TypeScript with Vite
-npm run build -- --watch
-
-# Plain npm scripts
-npm run watch
-
-# webpack
-npm run dev
-```
-
-Check your tool's `package.json` `scripts` section for the correct command.
-
-## Publishing Your Tool
-
-Once you've tested your tool locally and are ready to share it:
-
-### 1. Build your tool
-
-```bash
-npm run build
-```
-
-### 2. Prepare for Publishing
-
-Ensure your `package.json` has all required fields:
-
-```json
-{
-    "name": "@org-name/my-tool",
-    "version": "1.0.0",
-    "displayName": "My Tool",
-    "description": "Clear description of what your tool does",
-    "main": "index.html",
-    "author": "Your Name",
-    "keywords": ["powerplatform", "dataverse", "toolbox"],
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/yourusername/your-tool"
-    },
-    "license": "MIT"
-}
-```
-
-### 3. Publish to npm
-
-```bash
-cd my-tool
-npm login
-npm publish --access public
-```
-
-### 4. Test Published Version
-
-You can test the published version by installing it from npm via the ToolBox **Debug** menu "Install Tool by Package Name" section.
-
-## Submitting the tool to the Tool Box registry
-
-The Power Platform Tool Box uses a registry-based system where tools are distributed as pre-built `.tar.gz` archives. Tool developers publish their tools to npm, and an automated system converts them to the registry format.
-
 ### Process Flow
 
 ```
@@ -1354,38 +1414,3 @@ Tools can be built with any web framework:
 ❌ Access Electron APIs directly
 ❌ Access Node.js filesystem directly
 ❌ Modify platform configuration
-
-### Architecture
-
-```
-┌─────────────────────────────────────────┐
-│         Power Platform Tool Box          │
-│  ┌────────────────────────────────────┐ │
-│  │   Tool (iframe - sandboxed)        │ │
-│  │                                    │ │
-│  │   window.toolboxAPI                │ │
-│  │   window.dataverseAPI              │ │
-│  │                                    │ │
-│  │   Your HTML/CSS/JS                 │ │
-│  └────────────────────────────────────┘ │
-│              ↕ postMessage               │
-│  ┌────────────────────────────────────┐ │
-│  │   toolboxAPIBridge.js              │ │
-│  └────────────────────────────────────┘ │
-│              ↕ IPC                      │
-│  ┌────────────────────────────────────┐ │
-│  │   Main Process                     │ │
-│  │   - DataverseManager               │ │
-│  │   - TerminalManager                │ │
-│  │   - ConnectionsManager             │ │
-│  │   - AuthManager                    │ │
-│  └────────────────────────────────────┘ │
-└─────────────────────────────────────────┘
-```
-
-This architecture ensures:
-
--   **Security**: Tools cannot access sensitive data
--   **Isolation**: Tools cannot interfere with each other
--   **Stability**: Tool errors don't crash the platform
--   **Simplicity**: Clean APIs with clear boundaries
