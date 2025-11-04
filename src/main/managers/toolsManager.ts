@@ -6,6 +6,18 @@ import { Tool, ToolManifest } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
+ * Package.json structure for tool validation
+ */
+interface ToolPackageJson {
+    name: string;
+    version?: string;
+    displayName?: string;
+    description?: string;
+    author?: string;
+    icon?: string;
+}
+
+/**
  * Manages tool plugins using registry-based installation
  * Tools are HTML-first and loaded directly into webviews
  * Note: Legacy npm installation is only available for debug mode
@@ -338,12 +350,55 @@ export class ToolManager extends EventEmitter {
     // ========================================================================
 
     /**
+     * Validate that a local path is safe to use (no path traversal)
+     */
+    private isPathSafe(localPath: string): boolean {
+        // Resolve to absolute path
+        const resolvedPath = path.resolve(localPath);
+
+        // Check for path traversal attempts
+        if (resolvedPath.includes("..") || !path.isAbsolute(resolvedPath)) {
+            return false;
+        }
+
+        // Don't allow loading from system directories (basic protection)
+        const systemDirs = ["/System", "/Windows", "/Program Files", "C:\\Windows", "C:\\Program Files"];
+        const lowerPath = resolvedPath.toLowerCase();
+
+        for (const sysDir of systemDirs) {
+            if (lowerPath.startsWith(sysDir.toLowerCase())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Convert file system path to file:// URL properly across platforms
+     */
+    private pathToFileUrl(filePath: string): string {
+        // Normalize path separators to forward slashes
+        const normalizedPath = filePath.replace(/\\/g, "/");
+
+        // Ensure it starts with a forward slash for absolute paths
+        const urlPath = normalizedPath.startsWith("/") ? normalizedPath : "/" + normalizedPath;
+
+        return `file://${urlPath}`;
+    }
+
+    /**
      * Load a tool from a local directory (DEBUG MODE ONLY - for tool developers)
      * This allows developers to test their tools without publishing to npm
      * @param localPath - Absolute path to the tool directory
      */
     async loadLocalTool(localPath: string): Promise<Tool> {
         console.log(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
+
+        // Validate path safety
+        if (!this.isPathSafe(localPath)) {
+            throw new Error(`Unsafe path detected: ${localPath}\n\nPaths with '..' or system directories are not allowed for security reasons.`);
+        }
 
         // Verify the path exists
         if (!fs.existsSync(localPath)) {
@@ -363,10 +418,10 @@ export class ToolManager extends EventEmitter {
         }
 
         // Read and parse package.json
-        let packageJson: any;
+        let packageJson: ToolPackageJson;
         try {
             const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
-            packageJson = JSON.parse(packageJsonContent);
+            packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
         } catch (error) {
             throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
         }
@@ -420,7 +475,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
                 const cssPath = path.join(distPath, cssFile);
                 if (fs.existsSync(cssPath)) {
-                    const absolutePath = `file://${cssPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(cssPath);
                     return `<link ${before}href="${absolutePath}"${after}>`;
                 }
                 return match;
@@ -430,7 +485,7 @@ export class ToolManager extends EventEmitter {
             html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
                 const jsPath = path.join(distPath, jsFile);
                 if (fs.existsSync(jsPath)) {
-                    const absolutePath = `file://${jsPath.replace(/\\/g, "/")}`;
+                    const absolutePath = this.pathToFileUrl(jsPath);
                     return `<script ${before}src="${absolutePath}"${after}></script>`;
                 }
                 return match;
