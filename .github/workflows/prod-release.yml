@@ -64,7 +64,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   # Skip code signing if no certificate is configured
-                  # Note: package.json also sets "identity": null in mac config to prevent DMG corruption
+                  # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
 
             - name: Upload artifacts (Linux)
