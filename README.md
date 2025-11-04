@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml" alt="Nightly Pre-Release">
-      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml/badge.svg?branch=main"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-release.yml" alt="Nightly Pre-Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-release.yml/badge.svg"/>
     </a>
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml" alt="Prod Release">
-      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml/badge.svg"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml" alt="Prod Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml/badge.svg"/>
     </a>
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/blob/master/LICENSE" alt="License">
       <img src="https://img.shields.io/github/license/PowerPlatformToolBox/desktop-app"/>
@@ -53,6 +53,7 @@
 -   [Architecture](#architecture)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
+    -   [Testing Tools Locally](#testing-tools-locally)
     -   [Sample Tools Repository](#sample-tools-repository)
 -   [ToolBox development](#toolbox-development)
     -   [Installing Tools](#installing-tools)
