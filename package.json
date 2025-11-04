@@ -10,7 +10,7 @@
     "watch": "vite build --watch",
     "lint": "eslint src --ext .ts",
     "start": "electron .",
-    "package": "pnpm run build && electron-builder",
+    "package": "pnpm run build && node ./scripts/package.js",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"
