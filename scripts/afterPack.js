@@ -1,11 +1,17 @@
 // scripts/afterPack.js
 const { execSync } = require("child_process");
 const path = require("path");
+const os = require("os");
 
 module.exports = async function (context) {
     try {
-        const appOutDir = context.appOutDir; // output dir for .app
-        const productName = context.packager.appInfo.productFilename; // e.g., "PowerPlatformToolBox"
+        if (os.platform() !== "darwin") {
+            console.log("Skipping afterPack macOS steps: not running on macOS.");
+            return;
+        }
+
+        const appOutDir = context.appOutDir;
+        const productName = context.packager.appInfo.productFilename;
         const appPath = path.join(appOutDir, `${productName}.app`);
         console.log("afterPack hook running for:", appPath);
 
