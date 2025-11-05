@@ -159,6 +159,19 @@ jobs:
             - name: Display structure of downloaded files
               run: ls -R artifacts
 
+            - name: Prepare release files
+              run: |
+                  echo "📦 Preparing release files..."
+                  mkdir -p release-files
+
+                  # Copy installer files and latest*.yml files (needed for electron-updater)
+                  # Exclude builder-debug.yml files (duplicate names across platforms)
+                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+
+                  echo "✅ Release files prepared"
+                  ls -lh release-files/
+              shell: bash
+
             - name: Generate release notes
               id: notes
               run: |
@@ -166,13 +179,24 @@ jobs:
                   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
                   if [ -z "$LAST_TAG" ]; then
+                    echo "No previous tag found, showing last 20 commits"
                     COMMITS=$(git log --oneline --no-merges | head -20)
                   else
+                    echo "Generating commits since $LAST_TAG"
                     COMMITS=$(git log --oneline --no-merges $LAST_TAG..HEAD)
                   fi
 
-                  # Save commits to a file
-                  echo "$COMMITS" > commits.txt
+                  # Format commits for markdown and save to output
+                  if [ -z "$COMMITS" ]; then
+                    NOTES="No new commits since last release."
+                  else
+                    NOTES=$(echo "$COMMITS" | sed 's/^/- /')
+                  fi
+
+                  # Use multiline output syntax for GitHub Actions
+                  echo "commits<<EOF" >> $GITHUB_OUTPUT
+                  echo "$NOTES" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
               shell: bash
 
             - name: Create stable release
@@ -210,6 +234,8 @@ jobs:
 
                       ## ✨ What's Changed
 
+                      ${{ steps.notes.outputs.commits }}
+
                       See the [full changelog](${{ github.server_url }}/${{ github.repository }}/compare/v${{ steps.info.outputs.version }}...dev) for all changes.
 
                       ## 🔄 Auto-Update
@@ -229,8 +255,9 @@ jobs:
                       ---
                       *This release was automatically generated from PR merge to main.*
                   files: |
-                      artifacts/**/*
+                      release-files/*
                   prerelease: false
                   draft: false
+                  fail_on_unmatched_files: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
