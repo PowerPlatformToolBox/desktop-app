@@ -82,12 +82,10 @@ export class ConnectionsManager {
    */
   addConnection(connection: DataverseConnection): void {
     const connections = this.store.get('connections');
-    // If this is the first connection or marked as active, make it active
-    if (connections.length === 0 || connection.isActive) {
-      // Deactivate all other connections
-      connections.forEach(c => c.isActive = false);
-      connection.isActive = true;
-    }
+    
+    // Ensure connection is not marked as active when first added
+    // Connection should only be marked active after successful authentication
+    connection.isActive = false;
     
     // Encrypt sensitive fields before storing
     const encryptedConnection = this.encryptionManager.encryptFields(
