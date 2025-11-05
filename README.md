@@ -37,6 +37,17 @@
     </a>
 </p>
 
+<p align="center">
+    <span style="font-size:large;font-weight:bold">Download</span><br /><br />
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
+    <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box.dmg">
+    <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+  </a>
+</p>
+
 <h3 align="center">
   <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issues-form-feature-request.yaml">Feature request</a>
   <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
@@ -48,6 +59,10 @@
 </h3>
 
 <hr />
+
+> [!IMPORTANT]
+> macOS users, after installing the app using the .dmg file make sure to run the following command in the terminal to mark it as "safe"
+> `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
 -   [Features Overview](#features-overview)
 -   [Architecture](#architecture)

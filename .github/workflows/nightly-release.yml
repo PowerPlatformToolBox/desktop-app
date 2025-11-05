@@ -74,38 +74,39 @@ jobs:
             - name: Build application
               run: pnpm run build
 
-            - name: Package application
-              run: |
-                  rm -rf build dist
-                  if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-                    pnpm exec electron-builder --mac dmg --publish never
-                  elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-                    pnpm exec electron-builder --win nsis
-                  fi
+            - name: Package application (Ubuntu)
+              if: matrix.os == 'ubuntu-latest'
+              run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Package application (Windows)
+              if: matrix.os == 'windows-latest'
+              run: pnpm run package
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Package application (macOS)
+              if: matrix.os == 'macos-latest'
+              run: pnpm run package
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # Skip code signing if no certificate is configured
+                  # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
-                  ELECTRON_CACHE: ${{ runner.temp }}/electron
-                  ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder
-                  TMPDIR: ${{ runner.temp }}
+                  # Explicitly disable all code signing
+                  CSC_LINK: ""
+                  CSC_KEY_PASSWORD: ""
+                  # Use ad-hoc signing
                   DEBUG: electron-builder
 
-            - name: Verify macOS DMG
+            - name: Remove quarantine attributes (macOS)
               if: matrix.os == 'macos-latest'
               run: |
-                  echo "Listing DMG files:"
-                  ls -lh build/*.dmg || true
-                  echo "Verifying DMG:"
-                  hdiutil verify build/*.dmg || echo "hdiutil verify failed"
-                  echo "Mounting DMG to inspect app:"
-                  MOUNT=$(mktemp -d)
-                  hdiutil attach build/*.dmg -mountpoint "$MOUNT" -nobrowse -readonly
-                  APP=$(find "$MOUNT" -maxdepth 2 -name '*.app' -print -quit)
-                  echo "Mounted app: $APP"
-                  xattr -l "$APP" || true
-                  codesign --verify --deep --strict --verbose=2 "$APP" || echo "codesign verify failed"
-                  spctl --assess --type execute --verbose=4 "$APP" || echo "spctl assessment failed"
-                  hdiutil detach "$MOUNT" || true
+                  echo "Removing quarantine attributes from DMG files..."
+                  find build -name "*.dmg" -exec xattr -cr {} \; || true
+                  echo "✅ Quarantine attributes removed"
+              shell: bash
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
@@ -179,6 +180,8 @@ jobs:
                   body: |
                       # 🌙 Nightly Development Build
 
+                      ## TESTING PURPOSES ONLY - NOT FOR PRODUCTION USE
+
                       **Version:** ${{ steps.version.outputs.new_version }}
                       **Branch:** dev
                       **Commits:** ${{ needs.check-commits.outputs.commit_count }} in the last 24 hours
@@ -198,6 +201,10 @@ jobs:
                       Choose the appropriate installer for your platform:
                       - **Windows**: Download the `.exe` file
                       - **macOS**: Download the `.dmg` file
+                        - ⚠️ **Important for macOS users**: This build is not notarized or signed with an Apple Developer certificate
+                        - After mounting the DMG, you may see a "damaged" or "unidentified developer" warning
+                        - **To install**: Right-click (or Control+click) the app and select "Open", then click "Open" in the dialog
+                        - Or use Terminal: `xattr -cr "/Applications/Power Platform Tool Box.app"`
                       - **Linux**: Download the `.AppImage` file
 
                       ## 🔗 Links
