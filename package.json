@@ -80,32 +80,15 @@
       "category": "public.app-category.developer-tools",
       "icon": "icons/icon.icns",
       "identity": null,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
+      "type": "distribution",
+      "entitlements": "config/entitlements.mac.plist",
+      "entitlementsInherit": "config/entitlements.mac.plist"
     },
     "dmg": {
       "sign": false,
-      "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    },
-    "afterPack": "scripts/afterPack.js",
-    "nsis": {
-      "oneClick": false,
-      "perMachine": true,
-      "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Power Platform Tool Box"
+      "writeUpdateInfo": false
     }
   }
 }
