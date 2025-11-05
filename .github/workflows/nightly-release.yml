@@ -180,6 +180,8 @@ jobs:
                   body: |
                       # 🌙 Nightly Development Build
 
+                      ## TESTING PURPOSES ONLY - NOT FOR PRODUCTION USE
+
                       **Version:** ${{ steps.version.outputs.new_version }}
                       **Branch:** dev
                       **Commits:** ${{ needs.check-commits.outputs.commit_count }} in the last 24 hours
