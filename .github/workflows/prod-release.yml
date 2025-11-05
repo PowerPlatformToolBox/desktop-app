@@ -93,6 +93,7 @@ jobs:
                       build/*.snap
                       build/*.deb
                       build/*.rpm
+                      build/*.yml
                   retention-days: 90
 
             - name: Upload artifacts (Windows)
@@ -103,6 +104,7 @@ jobs:
                   path: |
                       build/*.exe
                       build/*.msi
+                      build/*.yml
                   retention-days: 90
 
             - name: Upload artifacts (macOS)
@@ -113,6 +115,7 @@ jobs:
                   path: |
                       build/*.dmg
                       build/*.pkg
+                      build/*.yml
                   retention-days: 90
 
     create-release:

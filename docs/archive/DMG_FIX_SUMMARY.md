@@ -19,7 +19,9 @@ Added proper macOS build settings for unsigned builds:
 -   `"hardenedRuntime": false` - Disables hardened runtime (not needed for unsigned builds)
 -   `"type": "distribution"` - Specifies distribution build type
 -   `"entitlements"` - Points to custom entitlements file
--   `"writeUpdateInfo": false` - Prevents DMG signing issues in auto-updater
+-   `"sign": false` in dmg config - Prevents DMG signing (which would fail without Apple Developer certificate)
+
+**Note**: `writeUpdateInfo` was initially set to `false` to prevent DMG signing issues, but this broke auto-update functionality. The actual fix for DMG signing issues is `"sign": false` in the dmg configuration, which allows `writeUpdateInfo` to remain enabled (default behavior) so that electron-updater can check for updates properly.
 
 ### 2. Created Entitlements File
 
