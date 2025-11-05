@@ -249,6 +249,9 @@ Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mohsinonxrm"><img src="https://avatars.githubusercontent.com/u/21046804?v=4?s=100" width="100px;" alt="mohsinonxrm"/><br /><sub><b>mohsinonxrm</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mohsinonxrm" title="Code">💻</a> <a href="#ideas-mohsinonxrm" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-mohsinonxrm" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/uofirob"><img src="https://avatars.githubusercontent.com/u/1754842?v=4?s=100" width="100px;" alt="Rob Montague"/><br /><sub><b>Rob Montague</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=uofirob" title="Code">💻</a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.oliverflint.co.uk/"><img src="https://avatars.githubusercontent.com/u/8300688?v=4?s=100" width="100px;" alt="Oliver Flint"/><br /><sub><b>Oliver Flint</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OliverFlint" title="Code">💻</a></td>
+    </tr>
   </tbody>
 </table>
 
