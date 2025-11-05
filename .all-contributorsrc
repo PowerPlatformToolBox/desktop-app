@@ -3,9 +3,7 @@
     "projectOwner": "Power-Maverick",
     "repoType": "github",
     "repoHost": "https://github.com",
-    "files": [
-        "README.md"
-    ],
+    "files": ["README.md"],
     "imageSize": 100,
     "commit": true,
     "commitConvention": "eslint",
@@ -15,19 +13,16 @@
             "name": "Danish Naglekar",
             "avatar_url": "https://avatars.githubusercontent.com/u/36135520?v=4",
             "profile": "https://powermaverick.dev/",
-            "contributions": [
-                "question",
-                "code",
-                "content",
-                "design",
-                "doc",
-                "infra",
-                "security",
-                "test",
-                "tool",
-                "tutorial"
-            ]
+            "contributions": ["question", "code", "content", "design", "doc", "infra", "security", "test", "tool", "tutorial"]
+        },
+        {
+            "login": "MattBerg11",
+            "name": "Matt Berg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/25282996?v=4",
+            "profile": "https://github.com/MattBerg11",
+            "contributions": ["content", "doc", "example"]
         }
     ],
     "contributorsPerLine": 7
 }
+
