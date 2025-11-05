@@ -1,6 +1,6 @@
 {
   "name": "powerplatform-toolbox",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
@@ -76,7 +76,10 @@
       "icon": "icons/icon.ico"
     },
     "mac": {
-      "target": ["zip", "dmg"],
+      "target": [
+        "zip",
+        "dmg"
+      ],
       "category": "public.app-category.developer-tools",
       "icon": "icons/icon.icns",
       "identity": null,
