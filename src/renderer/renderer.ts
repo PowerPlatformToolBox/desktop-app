@@ -1646,6 +1646,13 @@ function applyTerminalFont(fontFamily: string) {
     });
 }
 
+function applyDebugMenuVisibility(showDebugMenu: boolean) {
+    const debugActivityItem = document.querySelector('[data-sidebar="debug"]') as HTMLElement;
+    if (debugActivityItem) {
+        debugActivityItem.style.display = showDebugMenu ? "" : "none";
+    }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
@@ -2427,14 +2434,16 @@ function convertMarkdownToHtml(markdown: string): string {
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
-    if (themeSelect && autoUpdateCheck && terminalFontSelect) {
+    if (themeSelect && autoUpdateCheck && showDebugMenuCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
+        showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
 
         const terminalFont = settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace";
 
@@ -2463,10 +2472,11 @@ async function loadSidebarSettings() {
 async function saveSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
+    const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
 
-    if (!themeSelect || !autoUpdateCheck || !terminalFontSelect) return;
+    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !terminalFontSelect) return;
 
     let terminalFont = terminalFontSelect.value;
 
@@ -2478,12 +2488,14 @@ async function saveSidebarSettings() {
     const settings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
+        showDebugMenu: showDebugMenuCheck.checked,
         terminalFont: terminalFont,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont);
+    applyDebugMenuVisibility(settings.showDebugMenu);
 
     await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
@@ -3184,6 +3196,7 @@ async function init() {
     const settings = await window.toolboxAPI.getUserSettings();
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace");
+    applyDebugMenuVisibility(settings.showDebugMenu ?? false);
 
     // Load tools library from JSON
     await loadToolsLibrary();
