@@ -87,8 +87,7 @@
       "entitlementsInherit": "config/entitlements.mac.plist"
     },
     "dmg": {
-      "sign": false,
-      "writeUpdateInfo": false
+      "sign": false
     }
   }
 }
