@@ -17,6 +17,7 @@ export class SettingsManager {
         language: 'en',
         autoUpdate: true,
         terminalFont: "'Consolas', 'Monaco', 'Courier New', monospace",
+        showDebugMenu: false,
         lastUsedTools: [],
         connections: [], // Kept for backwards compatibility, but use ConnectionsManager instead
         installedTools: [],

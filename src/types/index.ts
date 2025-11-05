@@ -66,6 +66,7 @@ export interface UserSettings {
   language: string;
   autoUpdate: boolean;
   terminalFont: string;
+  showDebugMenu: boolean;
   lastUsedTools: string[];
   connections: DataverseConnection[];
   installedTools: string[]; // List of installed tool package names
