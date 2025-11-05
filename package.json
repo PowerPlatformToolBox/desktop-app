@@ -76,7 +76,7 @@
       "icon": "icons/icon.ico"
     },
     "mac": {
-      "target": "dmg",
+      "target": ["zip", "dmg"],
       "category": "public.app-category.developer-tools",
       "icon": "icons/icon.icns",
       "identity": null,
