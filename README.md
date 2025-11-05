@@ -61,7 +61,7 @@
 <hr />
 
 > [!IMPORTANT]
-> macOS users, after installing the app using the .dmg file make sure to run the following command in the terminal to mark it as "safe"
+> macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
 -   [Features Overview](#features-overview)
