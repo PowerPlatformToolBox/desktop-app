@@ -170,6 +170,10 @@ jobs:
                   done
 
                   echo "✅ Pre-release cleanup completed"
+                  
+                  # Wait a moment for GitHub API to process deletions
+                  echo "⏳ Waiting for deletion to propagate..."
+                  sleep 5
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -219,5 +223,7 @@ jobs:
                       artifacts/**/*
                   prerelease: true
                   draft: false
+                  fail_on_unmatched_files: false
+                  make_latest: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

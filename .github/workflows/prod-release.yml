@@ -232,5 +232,6 @@ jobs:
                       artifacts/**/*
                   prerelease: false
                   draft: false
+                  fail_on_unmatched_files: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
