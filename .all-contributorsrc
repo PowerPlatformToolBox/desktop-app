@@ -28,6 +28,13 @@
             "avatar_url": "https://avatars.githubusercontent.com/u/17760686?v=4",
             "profile": "https://www.dancingwithcrm.com/",
             "contributions": ["code", "design", "ideas", "maintenance"]
+        },
+        {
+            "login": "ramblingreece",
+            "name": "Reece",
+            "avatar_url": "https://avatars.githubusercontent.com/u/51825794?v=4",
+            "profile": "https://ramblingreece.co.uk/",
+            "contributions": ["ideas", "projectManagement"]
         }
     ],
     "contributorsPerLine": 7
