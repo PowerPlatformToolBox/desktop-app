@@ -1230,7 +1230,7 @@ async function loadConnections() {
         // Add event listeners to all connection action buttons
         connectionsList.querySelectorAll(".connection-actions button").forEach((button) => {
             button.addEventListener("click", (e) => {
-                const target = e.target as HTMLButtonElement;
+                const target = e.currentTarget as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
                 const connectionId = target.getAttribute("data-connection-id");
 
@@ -2105,7 +2105,7 @@ async function loadSidebarConnections() {
         // Add event listeners
         connectionsList.querySelectorAll("button").forEach((button) => {
             button.addEventListener("click", async (e) => {
-                const target = e.target as HTMLButtonElement;
+                const target = e.currentTarget as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
                 const connectionId = target.getAttribute("data-connection-id");
 
