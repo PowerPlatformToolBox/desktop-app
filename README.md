@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml" alt="Nightly Pre-Release">
-      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-build.yml/badge.svg?branch=main"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-release.yml" alt="Nightly Pre-Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/nightly-release.yml/badge.svg"/>
     </a>
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml" alt="Prod Release">
-      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/release.yml/badge.svg"/>
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml" alt="Prod Release">
+      <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml/badge.svg"/>
     </a>
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/blob/master/LICENSE" alt="License">
       <img src="https://img.shields.io/github/license/PowerPlatformToolBox/desktop-app"/>
@@ -37,6 +37,17 @@
     </a>
 </p>
 
+<p align="center">
+    <span style="font-size:large;font-weight:bold">Download</span><br /><br />
+    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
+    <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box.dmg">
+    <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+  </a>
+</p>
+
 <h3 align="center">
   <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issues-form-feature-request.yaml">Feature request</a>
   <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
@@ -49,10 +60,15 @@
 
 <hr />
 
+> [!IMPORTANT]
+> macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
+> `xattr -cr "/Applications/Power Platform Tool Box.app"`
+
 -   [Features Overview](#features-overview)
 -   [Architecture](#architecture)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
+    -   [Testing Tools Locally](#testing-tools-locally)
     -   [Sample Tools Repository](#sample-tools-repository)
 -   [ToolBox development](#toolbox-development)
     -   [Installing Tools](#installing-tools)

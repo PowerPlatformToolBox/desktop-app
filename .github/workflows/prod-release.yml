@@ -13,8 +13,8 @@ permissions:
 jobs:
     release:
         if: >
-          ${{ github.event.pull_request.merged == true ||
-          github.event_name == 'workflow_dispatch' }}
+            ${{ github.event.pull_request.merged == true ||
+            github.event_name == 'workflow_dispatch' }}
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
@@ -69,6 +69,19 @@ jobs:
                   # Skip code signing if no certificate is configured
                   # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
+                  # Explicitly disable all code signing
+                  CSC_LINK: ""
+                  CSC_KEY_PASSWORD: ""
+                  # Use ad-hoc signing
+                  DEBUG: electron-builder
+
+            - name: Remove quarantine attributes (macOS)
+              if: matrix.os == 'macos-latest'
+              run: |
+                  echo "Removing quarantine attributes from DMG files..."
+                  find build -name "*.dmg" -exec xattr -cr {} \; || true
+                  echo "✅ Quarantine attributes removed"
+              shell: bash
 
             - name: Upload artifacts (Linux)
               if: matrix.os == 'ubuntu-latest'
@@ -181,6 +194,11 @@ jobs:
                       ### macOS
                       - Download the `.dmg` file
                       - Open the DMG and drag the app to Applications
+                      - ⚠️ **Important**: This build is not notarized or signed with an Apple Developer certificate
+                      - **If you see a "damaged" or "unidentified developer" warning:**
+                        1. Right-click (or Control+click) the app in Applications and select "Open"
+                        2. Click "Open" in the confirmation dialog
+                        3. Or use Terminal: `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
                       ### Linux
                       - Download the `.AppImage` file

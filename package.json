@@ -1,6 +1,6 @@
 {
   "name": "powerplatform-toolbox",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
@@ -77,13 +77,18 @@
     },
     "mac": {
       "target": "dmg",
+      "category": "public.app-category.developer-tools",
       "icon": "icons/icon.icns",
       "identity": null,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
+      "type": "distribution",
+      "entitlements": "config/entitlements.mac.plist",
+      "entitlementsInherit": "config/entitlements.mac.plist"
     },
     "dmg": {
-      "sign": false
-    },
-    "afterSign": "scripts/removeQuarantine.js"
+      "sign": false,
+      "writeUpdateInfo": false
+    }
   }
 }
