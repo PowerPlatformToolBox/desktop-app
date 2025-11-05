@@ -21,6 +21,13 @@
             "avatar_url": "https://avatars.githubusercontent.com/u/25282996?v=4",
             "profile": "https://github.com/MattBerg11",
             "contributions": ["content", "doc", "example"]
+        },
+        {
+            "login": "OOlashyn",
+            "name": "Oleksandr Olashyn (dancingwithcrm)",
+            "avatar_url": "https://avatars.githubusercontent.com/u/17760686?v=4",
+            "profile": "https://www.dancingwithcrm.com/",
+            "contributions": ["code", "design", "ideas", "maintenance"]
         }
     ],
     "contributorsPerLine": 7
