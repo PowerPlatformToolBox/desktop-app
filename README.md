@@ -89,7 +89,7 @@
 
 ## Known Issues
 
--   Auto-Update does not work for macOS users
+-   Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
 
 ## Features Overview
 
