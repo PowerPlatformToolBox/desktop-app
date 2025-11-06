@@ -21,10 +21,10 @@ jobs:
                 os: [ubuntu-latest, windows-latest, macos-latest]
 
         steps:
-            - name: Checkout copilot/add-zip-file-for-auto-update branch
+            - name: Checkout main branch
               uses: actions/checkout@v4
               with:
-                  ref: copilot/add-zip-file-for-auto-update
+                  ref: main
                   fetch-depth: 0
 
             - name: Setup Node.js
@@ -124,10 +124,10 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - name: Checkout copilot/add-zip-file-for-auto-update branch
+            - name: Checkout main branch
               uses: actions/checkout@v4
               with:
-                  ref: copilot/add-zip-file-for-auto-update
+                  ref: main
                   fetch-depth: 0
 
             - name: Setup Node.js
