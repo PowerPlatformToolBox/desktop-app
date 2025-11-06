@@ -12,7 +12,7 @@ const platform = os.platform();
 
 switch (platform) {
     case "darwin": // macOS
-        run("electron-builder --mac zip dmg --config.mac.identity=null --config.dmg.sign=false");
+        run("electron-builder --mac=zip,dmg --config.mac.identity=null --config.dmg.sign=false");
         break;
 
     case "win32": // Windows
