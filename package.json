@@ -10,7 +10,7 @@
     "watch": "vite build --watch",
     "lint": "eslint src --ext .ts",
     "start": "electron .",
-    "package": "pnpm run build && node ./scripts/package.js",
+    "package": "pnpm run build && node ./buildScripts/package.js",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"
@@ -58,6 +58,7 @@
   "build": {
     "appId": "com.powerplatform.toolbox",
     "productName": "Power Platform Tool Box",
+    "artifactName": "Power-Platform-Tool-Box-${version}-${arch}-${os}.${ext}",
     "directories": {
       "output": "build"
     },
@@ -85,9 +86,7 @@
       "identity": null,
       "gatekeeperAssess": false,
       "hardenedRuntime": false,
-      "type": "distribution",
-      "entitlements": "config/entitlements.mac.plist",
-      "entitlementsInherit": "config/entitlements.mac.plist"
+      "type": "distribution"
     },
     "dmg": {
       "sign": false

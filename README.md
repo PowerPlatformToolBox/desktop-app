@@ -64,6 +64,7 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
+-   [Known Issues](#known-issues)
 -   [Features Overview](#features-overview)
 -   [Architecture](#architecture)
 -   [Security Model](#security-model)
@@ -85,6 +86,10 @@
 -   [Discussions](#discussions)
 -   [License](#license)
 -   [Contributing](#contributing)
+
+## Known Issues
+
+-   Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
 
 ## Features Overview
 
