@@ -86,9 +86,7 @@
       "identity": null,
       "gatekeeperAssess": false,
       "hardenedRuntime": false,
-      "type": "distribution",
-      "entitlements": "config/entitlements.mac.plist",
-      "entitlementsInherit": "config/entitlements.mac.plist"
+      "type": "distribution"
     },
     "dmg": {
       "sign": false
