@@ -58,6 +58,7 @@
   "build": {
     "appId": "com.powerplatform.toolbox",
     "productName": "Power Platform Tool Box",
+    "artifactName": "Power-Platform-Tool-Box-${version}-${arch}-${os}.${ext}",
     "directories": {
       "output": "build"
     },
