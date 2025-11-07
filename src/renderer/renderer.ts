@@ -148,7 +148,7 @@ window.addEventListener("message", async (event) => {
                 // Handle parallel execution of multiple API methods
                 const operations = args?.[0];
                 if (!Array.isArray(operations)) {
-                    throw new Error("executeParallel requires an array of operations");
+                    throw new Error("executeParallel requires an array of operation objects with format: { method: string, args?: any[] }");
                 }
 
                 // Define interface for operation to improve type safety
@@ -3276,7 +3276,7 @@ async function init() {
     });
 
     // Set up loading screen listeners from main process
-    window.api.on("show-loading-screen", (_event: any, message: string) => {
+    window.api.on("show-loading-screen", (_event, message: string) => {
         const loadingScreen = document.getElementById("loading-screen");
         const loadingMessage = document.getElementById("loading-message");
         if (loadingScreen && loadingMessage) {
