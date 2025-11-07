@@ -1893,11 +1893,17 @@ async function loadSidebarTools() {
         return;
     }
 
-    // Check for updates for all tools
+    // Check for updates for all tools and get favorite status
+    const favoriteTools = await window.toolboxAPI.getFavoriteTools();
     const toolsWithUpdateInfo = await Promise.all(
         tools.map(async (tool) => {
             const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
-            return { ...tool, latestVersion: updateInfo.latestVersion, hasUpdate: updateInfo.hasUpdate };
+            return { 
+                ...tool, 
+                latestVersion: updateInfo.latestVersion, 
+                hasUpdate: updateInfo.hasUpdate,
+                isFavorite: favoriteTools.includes(tool.id),
+            };
         }),
     );
 
@@ -1931,10 +1937,22 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         return;
     }
 
-    toolsList.innerHTML = filteredTools
+    // Sort tools: favorites first (sorted by name), then non-favorites (sorted by name)
+    // Create a copy to avoid mutating the filtered array
+    const sortedTools = [...filteredTools].sort((a, b) => {
+        if (a.isFavorite && !b.isFavorite) return -1;
+        if (!a.isFavorite && b.isFavorite) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    toolsList.innerHTML = sortedTools
         .map((tool) => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+            const starIconPath = tool.isFavorite 
+                ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg")
+                : (isDarkTheme ? "icons/dark/star-regular.svg" : "icons/light/star-regular.svg");
+            const favoriteTitle = tool.isFavorite ? "Remove from favorites" : "Add to favorites";
             return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
@@ -1943,6 +1961,9 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                     ${tool.name}
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
+                <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
+                    <img src="${starIconPath}" alt="${tool.isFavorite ? 'Favorited' : 'Not favorite'}" />
+                </button>
             </div>
             <div class="tool-item-description-vscode">${tool.description}</div>
             <div class="tool-item-version-vscode">
@@ -1973,7 +1994,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         });
     });
 
-    toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-actions-vscode button, .tool-favorite-btn").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation();
             const target = e.target as HTMLElement;
@@ -1990,6 +2011,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 await uninstallToolFromSidebar(toolId);
             } else if (action === "update") {
                 await updateToolFromSidebar(toolId);
+            } else if (action === "favorite") {
+                await toggleFavoriteTool(toolId);
             }
         });
     });
@@ -2058,6 +2081,25 @@ async function updateToolFromSidebar(toolId: string) {
         await window.toolboxAPI.utils.showNotification({
             title: "Update Failed",
             body: `Failed to update tool: ${(error as Error).message}`,
+            type: "error",
+        });
+    }
+}
+
+async function toggleFavoriteTool(toolId: string) {
+    try {
+        const isFavorite = await window.toolboxAPI.toggleFavoriteTool(toolId);
+        const message = isFavorite ? "Added to favorites" : "Removed from favorites";
+        window.toolboxAPI.utils.showNotification({
+            title: "Favorites Updated",
+            body: message,
+            type: "success",
+        });
+        await loadSidebarTools();
+    } catch (error) {
+        window.toolboxAPI.utils.showNotification({
+            title: "Error",
+            body: `Failed to update favorites: ${error}`,
             type: "error",
         });
     }

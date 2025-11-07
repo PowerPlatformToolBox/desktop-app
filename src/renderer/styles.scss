@@ -12,6 +12,7 @@
     --border-color: #edebe9;
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
+    --favorite-star-color: #{$favorite-star-color};
 
     --app-footer-height: 32px;
 }
@@ -23,6 +24,7 @@ body.dark-theme {
     --sidebar-bg: #{$dark-sidebar-bg};
     --border-color: #{$dark-border-color};
     --secondary-color: #{$dark-secondary-color};
+    --favorite-star-color: #{$favorite-star-color-dark};
 }
 
 * {
@@ -1283,6 +1285,32 @@ body {
     font-weight: 500;
     font-size: 13px;
     flex: 1;
+}
+
+.tool-favorite-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    transition: transform 0.2s, opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.tool-favorite-btn img {
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 0 1px var(--favorite-star-color));
+}
+
+.tool-favorite-btn:hover {
+    transform: scale(1.2);
+}
+
+.tool-favorite-btn:active {
+    transform: scale(0.95);
 }
 
 .tool-item-description-vscode {

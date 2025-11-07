@@ -141,6 +141,27 @@ class ToolBoxApp {
             this.settingsManager.setSetting(key, value);
         });
 
+        // Favorite tools
+        ipcMain.handle("add-favorite-tool", (_, toolId) => {
+            return this.settingsManager.addFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("remove-favorite-tool", (_, toolId) => {
+            return this.settingsManager.removeFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("get-favorite-tools", () => {
+            return this.settingsManager.getFavoriteTools();
+        });
+
+        ipcMain.handle("is-favorite-tool", (_, toolId) => {
+            return this.settingsManager.isFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("toggle-favorite-tool", (_, toolId) => {
+            return this.settingsManager.toggleFavoriteTool(toolId);
+        });
+
         // Connection handlers
         ipcMain.handle("add-connection", (_, connection) => {
             this.connectionsManager.addConnection(connection);
