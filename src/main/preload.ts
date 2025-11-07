@@ -33,6 +33,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke("get-tool-context", packageName, connectionUrl),
 
+    // Favorite tools - Only for PPTB UI
+    addFavoriteTool: (toolId: string) => ipcRenderer.invoke("add-favorite-tool", toolId),
+    removeFavoriteTool: (toolId: string) => ipcRenderer.invoke("remove-favorite-tool", toolId),
+    getFavoriteTools: () => ipcRenderer.invoke("get-favorite-tools"),
+    isFavoriteTool: (toolId: string) => ipcRenderer.invoke("is-favorite-tool", toolId),
+    toggleFavoriteTool: (toolId: string) => ipcRenderer.invoke("toggle-favorite-tool", toolId),
+
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => ipcRenderer.invoke("load-local-tool", localPath),
     getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke("get-local-tool-webview-html", localPath),
