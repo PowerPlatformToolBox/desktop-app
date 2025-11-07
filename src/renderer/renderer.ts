@@ -1938,7 +1938,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     }
 
     // Sort tools: favorites first (sorted by name), then non-favorites (sorted by name)
-    const sortedTools = filteredTools.sort((a, b) => {
+    // Create a copy to avoid mutating the filtered array
+    const sortedTools = [...filteredTools].sort((a, b) => {
         if (a.isFavorite && !b.isFavorite) return -1;
         if (!a.isFavorite && b.isFavorite) return 1;
         return a.name.localeCompare(b.name);
@@ -1948,7 +1949,9 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         .map((tool) => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-            const favoriteIcon = tool.isFavorite ? "⭐" : "☆";
+            const starIconPath = tool.isFavorite 
+                ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg")
+                : (isDarkTheme ? "icons/dark/star-regular.svg" : "icons/light/star-regular.svg");
             const favoriteTitle = tool.isFavorite ? "Remove from favorites" : "Add to favorites";
             return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
@@ -1959,7 +1962,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
                 <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
-                    ${favoriteIcon}
+                    <img src="${starIconPath}" alt="${tool.isFavorite ? 'Favorited' : 'Not favorite'}" />
                 </button>
             </div>
             <div class="tool-item-description-vscode">${tool.description}</div>
