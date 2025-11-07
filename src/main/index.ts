@@ -365,6 +365,20 @@ class ToolBoxApp {
             return await this.api.saveFile(defaultPath, content);
         });
 
+        // Show loading handler
+        ipcMain.handle("show-loading", (_, message) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send("show-loading-screen", message || "Loading...");
+            }
+        });
+
+        // Hide loading handler
+        ipcMain.handle("hide-loading", () => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send("hide-loading-screen");
+            }
+        });
+
         // Get current theme handler
         ipcMain.handle("get-current-theme", () => {
             const settings = this.settingsManager.getUserSettings();

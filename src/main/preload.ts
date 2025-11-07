@@ -60,6 +60,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
         getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
+        executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
+            // Convert any functions to promises and execute all in parallel
+            const promises = operations.map((op) => (typeof op === "function" ? op() : op));
+            return Promise.all(promises);
+        },
+        showLoading: (message?: string) => ipcRenderer.invoke("show-loading", message),
+        hideLoading: () => ipcRenderer.invoke("hide-loading"),
     },
 
     // External URL - Only for PPTB UI
@@ -144,5 +151,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
         getSolutions: (selectColumns: string[]) => ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
         queryData: (odataQuery: string) => ipcRenderer.invoke("dataverse.queryData", odataQuery),
+    },
+});
+
+// Expose a simple API namespace for renderer IPC events
+contextBridge.exposeInMainWorld("api", {
+    on: (channel: string, callback: (...args: unknown[]) => void) => {
+        ipcRenderer.on(channel, callback);
+    },
+    invoke: (channel: string, ...args: unknown[]) => {
+        return ipcRenderer.invoke(channel, ...args);
     },
 });

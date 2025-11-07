@@ -3278,6 +3278,27 @@ async function init() {
         openModal("auth-error-modal");
     });
 
+    // Set up loading screen listeners from main process
+    window.api.on("show-loading-screen", (_event, message: string) => {
+        const loadingScreen = document.getElementById("loading-screen");
+        const loadingMessage = document.getElementById("loading-message");
+        if (loadingScreen && loadingMessage) {
+            loadingMessage.textContent = message || "Loading...";
+            loadingScreen.style.display = "flex";
+            loadingScreen.classList.remove("fade-out");
+        }
+    });
+
+    window.api.on("hide-loading-screen", () => {
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+            loadingScreen.classList.add("fade-out");
+            setTimeout(() => {
+                loadingScreen.style.display = "none";
+            }, 200); // Match animation duration
+        }
+    });
+
     // Listen for toolbox events and react to them
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);

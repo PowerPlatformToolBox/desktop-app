@@ -562,6 +562,33 @@ if (filePath) {
 // Get current theme and adjust UI
 const theme = await toolboxAPI.utils.getCurrentTheme();
 document.body.classList.add(`theme-${theme}`);
+
+// Execute multiple operations in parallel
+const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+    dataverseAPI.retrieve('account', accountId, ['name']),
+    dataverseAPI.retrieve('contact', contactId, ['fullname']),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+);
+
+console.log('All data fetched in parallel:', account, contact, opportunities);
+
+// Show loading screen while performing operations
+await toolboxAPI.utils.showLoading('Fetching data from Dataverse...');
+
+try {
+    // Perform long-running operations
+    const data = await fetchLargeDataset();
+    processData(data);
+    
+    await toolboxAPI.utils.showNotification({
+        title: "Success",
+        body: "Data processed successfully",
+        type: "success",
+    });
+} finally {
+    // Always hide loading screen
+    await toolboxAPI.utils.hideLoading();
+}
 ```
 
 #### Tool Settings Storage

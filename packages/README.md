@@ -106,6 +106,24 @@ if (filePath) {
 // Get current theme
 const theme = await toolboxAPI.utils.getCurrentTheme();
 console.log("Current theme:", theme); // "light" or "dark"
+
+// Execute multiple operations in parallel
+const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+    dataverseAPI.retrieve('account', accountId, ['name']),
+    dataverseAPI.retrieve('contact', contactId, ['fullname']),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+);
+console.log('All data fetched:', account, contact, opportunities);
+
+// Show loading screen during operations
+await toolboxAPI.utils.showLoading('Processing data...');
+try {
+    // Perform operations
+    await processData();
+} finally {
+    // Always hide loading
+    await toolboxAPI.utils.hideLoading();
+}
 ```
 
 ### Terminal Operations
@@ -265,7 +283,32 @@ Core platform features organized into namespaces:
     -   Opens a save dialog and writes the content. Returns the saved file path or null if canceled
 
 -   **getCurrentTheme()**: Promise<"light" | "dark">
+
     -   Returns the current UI theme setting
+
+-   **executeParallel(...operations)**: Promise<T[]>
+
+    -   Executes multiple async operations in parallel using Promise.all
+    -   Accepts promises or functions that return promises as variadic arguments
+    -   Returns an array of results in the same order as the operations
+    -   Example:
+        ```typescript
+        const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+            dataverseAPI.retrieve('account', id1),
+            dataverseAPI.retrieve('contact', id2),
+            dataverseAPI.fetchXmlQuery(fetchXml)
+        );
+        ```
+
+-   **showLoading(message?: string)**: Promise<void>
+
+    -   Displays a loading overlay with spinner in the tool's context
+    -   Optional message parameter (defaults to "Loading...")
+    -   Example: `await toolboxAPI.utils.showLoading('Fetching records...');`
+
+-   **hideLoading()**: Promise<void>
+    -   Hides the loading overlay
+    -   Should be called in a finally block to ensure it's always hidden
 
 #### Terminal
 
