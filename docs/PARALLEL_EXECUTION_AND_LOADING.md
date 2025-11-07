@@ -12,15 +12,15 @@ Execute multiple API operations concurrently using `Promise.all` under the hood.
 
 ```javascript
 // Execute multiple Dataverse queries in parallel
-const results = await toolboxAPI.utils.executeParallel([
-  { method: 'dataverse.retrieve', args: ['account', 'account-id-123', ['name', 'accountnumber']] },
-  { method: 'dataverse.retrieve', args: ['contact', 'contact-id-456', ['fullname', 'emailaddress1']] },
-  { method: 'dataverse.fetchXmlQuery', args: ['<fetch><entity name="opportunity">...</entity></fetch>'] }
-]);
+const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+  dataverseAPI.retrieve('account', 'account-id-123', ['name', 'accountnumber']),
+  dataverseAPI.retrieve('contact', 'contact-id-456', ['fullname', 'emailaddress1']),
+  dataverseAPI.fetchXmlQuery('<fetch><entity name="opportunity">...</entity></fetch>')
+);
 
-// results[0] = account record
-// results[1] = contact record
-// results[2] = opportunity query results
+console.log('Account:', account);
+console.log('Contact:', contact);
+console.log('Opportunities:', opportunities);
 ```
 
 #### Benefits
@@ -28,17 +28,19 @@ const results = await toolboxAPI.utils.executeParallel([
 - **Performance**: Reduces total execution time by running operations concurrently
 - **Simplicity**: Single function call instead of managing multiple promises manually
 - **Error Handling**: If any operation fails, the entire `executeParallel` call will reject
+- **Type Safety**: Generic type support for strongly-typed results
 
 #### Method Signature
 
 ```typescript
-executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promise<any[]>
+executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>
 ```
 
 **Parameters:**
-- `operations`: Array of operation descriptors, each containing:
-  - `method`: String representing the API method to call (e.g., 'dataverse.retrieve', 'utils.showNotification')
-  - `args`: Optional array of arguments to pass to the method
+- `...operations`: Variable number of promises or functions that return promises
+  - Can pass already-started promises (function calls with parentheses)
+  - Can pass functions that will be called to create promises
+  - All operations execute in parallel immediately
 
 **Returns:** Promise that resolves to an array of results in the same order as the operations
 
@@ -51,11 +53,11 @@ executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promis
 await toolboxAPI.utils.showLoading('Fetching records...');
 
 try {
-  const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel([
-    { method: 'dataverse.retrieve', args: ['account', accountId, ['name']] },
-    { method: 'dataverse.retrieve', args: ['contact', contactId, ['fullname']] },
-    { method: 'dataverse.fetchXmlQuery', args: [opportunityFetchXml] }
-  ]);
+  const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+    dataverseAPI.retrieve('account', accountId, ['name']),
+    dataverseAPI.retrieve('contact', contactId, ['fullname']),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+  );
   
   console.log('Account:', account);
   console.log('Contact:', contact);
@@ -68,13 +70,15 @@ try {
 **Example 2: Combine Different API Operations**
 
 ```javascript
-const results = await toolboxAPI.utils.executeParallel([
-  { method: 'connections.getActiveConnection' },
-  { method: 'settings.getSettings' },
-  { method: 'dataverse.getAllEntitiesMetadata' }
-]);
+const [connection, settings, entities] = await toolboxAPI.utils.executeParallel(
+  toolboxAPI.connections.getActiveConnection(),
+  toolboxAPI.settings.getSettings(),
+  dataverseAPI.getAllEntitiesMetadata()
+);
 
-const [connection, settings, entities] = results;
+console.log('Connection:', connection);
+console.log('Settings:', settings);
+console.log('Entities:', entities);
 ```
 
 ### 2. Loading Screen (`showLoading` / `hideLoading`)
@@ -128,11 +132,11 @@ async function fetchAndProcessData() {
   
   try {
     // Fetch multiple records in parallel
-    const [accounts, contacts, opportunities] = await toolboxAPI.utils.executeParallel([
-      { method: 'dataverse.fetchXmlQuery', args: [accountsFetchXml] },
-      { method: 'dataverse.fetchXmlQuery', args: [contactsFetchXml] },
-      { method: 'dataverse.fetchXmlQuery', args: [opportunitiesFetchXml] }
-    ]);
+    const [accounts, contacts, opportunities] = await toolboxAPI.utils.executeParallel(
+      dataverseAPI.fetchXmlQuery(accountsFetchXml),
+      dataverseAPI.fetchXmlQuery(contactsFetchXml),
+      dataverseAPI.fetchXmlQuery(opportunitiesFetchXml)
+    );
     
     // Update loading message for processing
     await toolboxAPI.utils.showLoading('Processing results...');
@@ -242,11 +246,11 @@ try {
 ### After
 
 ```javascript
-// Using executeParallel
-const [account, contact] = await toolboxAPI.utils.executeParallel([
-  { method: 'dataverse.retrieve', args: ['account', accountId] },
-  { method: 'dataverse.retrieve', args: ['contact', contactId] }
-]);
+// Using executeParallel - much simpler!
+const [account, contact] = await toolboxAPI.utils.executeParallel(
+  dataverseAPI.retrieve('account', accountId),
+  dataverseAPI.retrieve('contact', contactId)
+);
 
 // Using showLoading/hideLoading
 await toolboxAPI.utils.showLoading('Fetching data...');
@@ -263,7 +267,7 @@ All new methods are available in the `toolboxAPI.utils` namespace:
 
 | Method | Parameters | Returns | Description |
 |--------|------------|---------|-------------|
-| `executeParallel` | `operations: Array<{method: string, args?: any[]}>` | `Promise<any[]>` | Execute multiple API methods in parallel |
+| `executeParallel` | `...operations: Array<Promise<T> \| (() => Promise<T>)>` | `Promise<T[]>` | Execute multiple promises in parallel |
 | `showLoading` | `message?: string` | `Promise<void>` | Show loading screen with optional message |
 | `hideLoading` | none | `Promise<void>` | Hide loading screen |
 

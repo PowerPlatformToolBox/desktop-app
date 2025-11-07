@@ -105,11 +105,10 @@ await toolboxAPI.utils.hideLoading();
         <button onclick="testParallelExecution()">Test Parallel Execution</button>
         <div class="code">
 // Execute multiple operations in parallel
-const results = await toolboxAPI.utils.executeParallel([
-  { method: 'utils.showNotification', args: [options1] },
-  { method: 'utils.getCurrentTheme' },
-  { method: 'connections.getActiveConnection' }
-]);
+const [theme, connection] = await toolboxAPI.utils.executeParallel(
+  toolboxAPI.utils.getCurrentTheme(),
+  toolboxAPI.connections.getActiveConnection()
+);
         </div>
         <div id="parallel-result" class="result" style="display:none;"></div>
     </div>
@@ -127,10 +126,10 @@ await toolboxAPI.utils.showLoading('Fetching data...');
 
 try {
   // Execute operations in parallel
-  const results = await toolboxAPI.utils.executeParallel([
-    { method: 'utils.getCurrentTheme' },
-    { method: 'connections.getActiveConnection' }
-  ]);
+  const [theme, connection] = await toolboxAPI.utils.executeParallel(
+    toolboxAPI.utils.getCurrentTheme(),
+    toolboxAPI.connections.getActiveConnection()
+  );
   
   // Process results...
 } finally {
@@ -201,23 +200,44 @@ try {
             }
         }
 
-        // Test 2: Parallel Execution (Mock - will fail in main UI, needs to be in tool iframe)
+        // Test 2: Parallel Execution
         async function testParallelExecution() {
             try {
                 showResult('parallel-result', 'Executing operations in parallel...');
                 
-                // Note: This will show an error in the main UI context
-                // In a real tool (iframe), this would work with actual API methods
-                const results = await window.toolboxAPI.utils.executeParallel([
-                    { method: 'utils.getCurrentTheme' },
-                    { method: 'connections.getActiveConnection' }
-                ]);
+                // Create some simple async operations
+                const operation1 = async () => {
+                    await delay(1000);
+                    return 'Result 1';
+                };
                 
-                showResult('parallel-result', `Success! Results:\n${JSON.stringify(results, null, 2)}`);
-            } catch (error) {
+                const operation2 = async () => {
+                    await delay(1500);
+                    return 'Result 2';
+                };
+                
+                const operation3 = async () => {
+                    await delay(500);
+                    return 'Result 3';
+                };
+                
+                // Execute in parallel - all should complete in ~1.5 seconds (not 3 seconds)
+                const startTime = Date.now();
+                const [result1, result2, result3] = await window.toolboxAPI.utils.executeParallel(
+                    operation1(),
+                    operation2(),
+                    operation3()
+                );
+                const duration = Date.now() - startTime;
+                
                 showResult('parallel-result', 
-                    `Expected Error in main UI context:\n${error.message}\n\n` +
-                    `This function should be called from a tool's iframe context.`);
+                    `Success! Completed in ${duration}ms (should be ~1500ms, not 3000ms)\n\n` +
+                    `Results:\n${result1}\n${result2}\n${result3}\n\n` +
+                    `In a real tool, you would pass actual API calls like:\n` +
+                    `dataverseAPI.retrieve('account', id),\n` +
+                    `dataverseAPI.retrieve('contact', id)`);
+            } catch (error) {
+                showResult('parallel-result', `Error: ${error.message}`);
             }
         }
 

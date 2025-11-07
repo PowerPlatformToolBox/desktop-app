@@ -24,7 +24,7 @@ export interface UtilsAPI {
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
     getCurrentTheme: () => Promise<"light" | "dark">;
-    executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promise<any[]>;
+    executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
     showLoading: (message?: string) => Promise<void>;
     hideLoading: () => Promise<void>;
 }

@@ -148,16 +148,17 @@ declare namespace ToolBoxAPI {
 
         /**
          * Execute multiple async operations in parallel using Promise.all
-         * @param operations Array of operation descriptors with method names and arguments
-         * @returns Promise that resolves when all operations complete
+         * @param operations Variable number of promises or async function calls
+         * @returns Promise that resolves when all operations complete with an array of results
          * @example
          * // Execute multiple API calls in parallel
-         * const results = await toolboxAPI.utils.executeParallel([
-         *   { method: 'dataverse.retrieve', args: ['account', '123'] },
-         *   { method: 'dataverse.retrieve', args: ['contact', '456'] }
-         * ]);
+         * const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+         *   dataverseAPI.retrieve('account', '123'),
+         *   dataverseAPI.retrieve('contact', '456'),
+         *   dataverseAPI.fetchXmlQuery(fetchXml)
+         * );
          */
-        executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promise<any[]>;
+        executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
 
         /**
          * Show a loading screen in the tool's context

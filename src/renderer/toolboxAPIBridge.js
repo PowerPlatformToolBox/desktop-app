@@ -107,8 +107,15 @@
             getCurrentTheme: function () {
                 return callParentAPI("utils.getCurrentTheme");
             },
-            executeParallel: function (operations) {
-                return callParentAPI("utils.executeParallel", operations);
+            executeParallel: function () {
+                // Convert arguments to array and handle both promises and functions
+                var operations = Array.prototype.slice.call(arguments);
+                var promises = operations.map(function (op) {
+                    // If it's a function, call it; otherwise assume it's already a promise
+                    return typeof op === "function" ? op() : op;
+                });
+                // Execute all promises in parallel using Promise.all
+                return Promise.all(promises);
             },
             showLoading: function (message) {
                 return callParentAPI("utils.showLoading", message);
