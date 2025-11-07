@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolBox API Test - Parallel Execution & Loading Screen</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #0078d4;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #0078d4;
+            margin-top: 0;
+        }
+        button {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #005a9e;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-left: 4px solid #0078d4;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .code {
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ToolBox API Test - Parallel Execution & Loading Screen</h1>
+
+    <div class="card">
+        <h2>1. Loading Screen Test</h2>
+        <p class="description">
+            Test the showLoading and hideLoading functions. The loading screen should appear with a spinner
+            and custom message, then disappear after 3 seconds.
+        </p>
+        <button onclick="testLoadingScreen()">Test Loading Screen</button>
+        <button onclick="testLoadingWithCustomMessage()">Test with Custom Message</button>
+        <div class="code">
+// Show loading
+await toolboxAPI.utils.showLoading('Processing...');
+
+// Simulate work
+await delay(3000);
+
+// Hide loading
+await toolboxAPI.utils.hideLoading();
+        </div>
+        <div id="loading-result" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>2. Parallel Execution Test (Mock)</h2>
+        <p class="description">
+            Test the executeParallel function with mock operations. In a real tool, you would use actual
+            API methods like dataverse.retrieve or connections.getActiveConnection.
+        </p>
+        <button onclick="testParallelExecution()">Test Parallel Execution</button>
+        <div class="code">
+// Execute multiple operations in parallel
+const results = await toolboxAPI.utils.executeParallel([
+  { method: 'utils.showNotification', args: [options1] },
+  { method: 'utils.getCurrentTheme' },
+  { method: 'connections.getActiveConnection' }
+]);
+        </div>
+        <div id="parallel-result" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>3. Combined Test</h2>
+        <p class="description">
+            Test both features together: show a loading screen while executing multiple operations in parallel.
+            This is the recommended pattern for fetching data in tools.
+        </p>
+        <button onclick="testCombined()">Test Combined Features</button>
+        <div class="code">
+// Show loading
+await toolboxAPI.utils.showLoading('Fetching data...');
+
+try {
+  // Execute operations in parallel
+  const results = await toolboxAPI.utils.executeParallel([
+    { method: 'utils.getCurrentTheme' },
+    { method: 'connections.getActiveConnection' }
+  ]);
+  
+  // Process results...
+} finally {
+  // Always hide loading
+  await toolboxAPI.utils.hideLoading();
+}
+        </div>
+        <div id="combined-result" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+        <h2>4. Error Handling Test</h2>
+        <p class="description">
+            Test error handling with try-finally to ensure loading screen is hidden even when errors occur.
+        </p>
+        <button onclick="testErrorHandling()">Test Error Handling</button>
+        <div class="code">
+await toolboxAPI.utils.showLoading('Testing error...');
+
+try {
+  // Simulate error
+  throw new Error('Test error');
+} catch (error) {
+  console.error(error);
+} finally {
+  // Loading screen should still be hidden
+  await toolboxAPI.utils.hideLoading();
+}
+        </div>
+        <div id="error-result" class="result" style="display:none;"></div>
+    </div>
+
+    <script>
+        // Helper function to simulate async delay
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Helper to display results
+        function showResult(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        // Test 1: Loading Screen
+        async function testLoadingScreen() {
+            try {
+                showResult('loading-result', 'Showing loading screen...');
+                await window.toolboxAPI.utils.showLoading('Loading...');
+                await delay(3000);
+                await window.toolboxAPI.utils.hideLoading();
+                showResult('loading-result', 'Success! Loading screen shown for 3 seconds.');
+            } catch (error) {
+                showResult('loading-result', `Error: ${error.message}`);
+            }
+        }
+
+        async function testLoadingWithCustomMessage() {
+            try {
+                showResult('loading-result', 'Showing loading screen with custom message...');
+                await window.toolboxAPI.utils.showLoading('Processing your request, please wait...');
+                await delay(3000);
+                await window.toolboxAPI.utils.hideLoading();
+                showResult('loading-result', 'Success! Custom message displayed for 3 seconds.');
+            } catch (error) {
+                showResult('loading-result', `Error: ${error.message}`);
+            }
+        }
+
+        // Test 2: Parallel Execution (Mock - will fail in main UI, needs to be in tool iframe)
+        async function testParallelExecution() {
+            try {
+                showResult('parallel-result', 'Executing operations in parallel...');
+                
+                // Note: This will show an error in the main UI context
+                // In a real tool (iframe), this would work with actual API methods
+                const results = await window.toolboxAPI.utils.executeParallel([
+                    { method: 'utils.getCurrentTheme' },
+                    { method: 'connections.getActiveConnection' }
+                ]);
+                
+                showResult('parallel-result', `Success! Results:\n${JSON.stringify(results, null, 2)}`);
+            } catch (error) {
+                showResult('parallel-result', 
+                    `Expected Error in main UI context:\n${error.message}\n\n` +
+                    `This function should be called from a tool's iframe context.`);
+            }
+        }
+
+        // Test 3: Combined
+        async function testCombined() {
+            try {
+                showResult('combined-result', 'Running combined test...');
+                
+                await window.toolboxAPI.utils.showLoading('Fetching data...');
+                
+                // Simulate parallel operations
+                await delay(2000);
+                
+                await window.toolboxAPI.utils.hideLoading();
+                
+                showResult('combined-result', 
+                    'Success! Loading screen shown while simulating parallel operations.\n\n' +
+                    'In a real tool, this would fetch multiple records from Dataverse concurrently.');
+            } catch (error) {
+                showResult('combined-result', `Error: ${error.message}`);
+            }
+        }
+
+        // Test 4: Error Handling
+        async function testErrorHandling() {
+            try {
+                showResult('error-result', 'Testing error handling...');
+                
+                await window.toolboxAPI.utils.showLoading('Testing error scenario...');
+                
+                try {
+                    // Simulate an error after 1 second
+                    await delay(1000);
+                    throw new Error('Simulated error during data fetch');
+                } catch (error) {
+                    console.error('Caught error:', error);
+                    showResult('error-result', 
+                        `Error occurred: ${error.message}\n\n` +
+                        'Loading screen will be hidden in finally block...');
+                } finally {
+                    // Wait a moment so user can see the error
+                    await delay(1500);
+                    await window.toolboxAPI.utils.hideLoading();
+                    
+                    setTimeout(() => {
+                        const current = document.getElementById('error-result').textContent;
+                        showResult('error-result', 
+                            current + '\n\nSuccess! Loading screen was properly hidden despite the error.');
+                    }, 500);
+                }
+            } catch (error) {
+                showResult('error-result', `Unexpected error: ${error.message}`);
+            }
+        }
+
+        // Display initial information
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('ToolBox API Test Page Loaded');
+            console.log('Available API:', window.toolboxAPI);
+            
+            // Check if API is available
+            if (!window.toolboxAPI) {
+                document.body.innerHTML = 
+                    '<div class="card" style="background-color: #fff3cd; border-left: 4px solid #ffc107;">' +
+                    '<h2>⚠️ ToolBox API Not Available</h2>' +
+                    '<p>This test page must be run inside the Power Platform Tool Box application.</p>' +
+                    '</div>';
+            }
+        });
+    </script>
+</body>
+</html>
