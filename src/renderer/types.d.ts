@@ -24,6 +24,9 @@ export interface UtilsAPI {
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
     getCurrentTheme: () => Promise<"light" | "dark">;
+    executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promise<any[]>;
+    showLoading: (message?: string) => Promise<void>;
+    hideLoading: () => Promise<void>;
 }
 
 export interface TerminalAPI {
@@ -114,5 +117,9 @@ declare global {
     interface Window {
         toolboxAPI: ToolboxAPI;
         TOOLBOX_CONTEXT?: ToolContext;
+        api: {
+            on: (channel: string, callback: (...args: any[]) => void) => void;
+            invoke: (channel: string, ...args: any[]) => Promise<any>;
+        };
     }
 }

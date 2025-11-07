@@ -145,6 +145,30 @@ declare namespace ToolBoxAPI {
          * Get the current UI theme (light or dark)
          */
         getCurrentTheme: () => Promise<"light" | "dark">;
+
+        /**
+         * Execute multiple async operations in parallel using Promise.all
+         * @param operations Array of operation descriptors with method names and arguments
+         * @returns Promise that resolves when all operations complete
+         * @example
+         * // Execute multiple API calls in parallel
+         * const results = await toolboxAPI.utils.executeParallel([
+         *   { method: 'dataverse.retrieve', args: ['account', '123'] },
+         *   { method: 'dataverse.retrieve', args: ['contact', '456'] }
+         * ]);
+         */
+        executeParallel: (operations: Array<{ method: string; args?: any[] }>) => Promise<any[]>;
+
+        /**
+         * Show a loading screen in the tool's context
+         * @param message Optional message to display (default: "Loading...")
+         */
+        showLoading: (message?: string) => Promise<void>;
+
+        /**
+         * Hide the loading screen in the tool's context
+         */
+        hideLoading: () => Promise<void>;
     }
 
     /**

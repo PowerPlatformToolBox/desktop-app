@@ -107,6 +107,15 @@
             getCurrentTheme: function () {
                 return callParentAPI("utils.getCurrentTheme");
             },
+            executeParallel: function (operations) {
+                return callParentAPI("utils.executeParallel", operations);
+            },
+            showLoading: function (message) {
+                return callParentAPI("utils.showLoading", message);
+            },
+            hideLoading: function () {
+                return callParentAPI("utils.hideLoading");
+            },
         },
 
         // Context API - get tool's own context (context-aware)

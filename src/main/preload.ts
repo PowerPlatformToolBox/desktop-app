@@ -53,6 +53,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
         getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
+        executeParallel: async (operations: Array<{ method: string; args?: unknown[] }>) => {
+            // Execute all operations in parallel
+            // When called from main UI, we can directly execute the operations
+            const promises = operations.map(async () => {
+                // This is a simplified version - full implementation is in renderer.ts for iframe calls
+                // For direct calls from main UI, we can just return a placeholder
+                // In practice, tools will call this via the iframe bridge which is handled in renderer.ts
+                throw new Error("executeParallel should be called from tool context via iframe bridge");
+            });
+            return Promise.all(promises);
+        },
+        showLoading: (message?: string) => ipcRenderer.invoke("show-loading", message),
+        hideLoading: () => ipcRenderer.invoke("hide-loading"),
     },
 
     // External URL - Only for PPTB UI
@@ -137,5 +150,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
         getSolutions: (selectColumns: string[]) => ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
         queryData: (odataQuery: string) => ipcRenderer.invoke("dataverse.queryData", odataQuery),
+    },
+});
+
+// Expose a simple API namespace for renderer IPC events
+contextBridge.exposeInMainWorld("api", {
+    on: (channel: string, callback: (...args: unknown[]) => void) => {
+        ipcRenderer.on(channel, callback);
+    },
+    invoke: (channel: string, ...args: unknown[]) => {
+        return ipcRenderer.invoke(channel, ...args);
     },
 });

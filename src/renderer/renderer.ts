@@ -144,6 +144,38 @@ window.addEventListener("message", async (event) => {
                 }
                 await window.api.invoke("tool-settings-set-all", toolId, settings);
                 result = undefined; // void return
+            } else if (method === "utils.executeParallel") {
+                // Handle parallel execution of multiple API methods
+                const operations = args && args[0];
+                if (!Array.isArray(operations)) {
+                    throw new Error("executeParallel requires an array of operations");
+                }
+
+                // Execute all operations in parallel
+                const promises = operations.map(async (op: any) => {
+                    const opMethod = op.method;
+                    const opArgs = op.args || [];
+
+                    // Recursively call the same handler for each operation
+                    const methodParts = opMethod.split(".");
+                    let target: any = window.toolboxAPI;
+
+                    for (let i = 0; i < methodParts.length - 1; i++) {
+                        target = target[methodParts[i]];
+                        if (!target) {
+                            throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join(".")}`);
+                        }
+                    }
+
+                    const finalMethod = methodParts[methodParts.length - 1];
+                    if (typeof target[finalMethod] !== "function") {
+                        throw new Error(`API method not found: ${opMethod}`);
+                    }
+
+                    return await target[finalMethod](...opArgs);
+                });
+
+                result = await Promise.all(promises);
             } else {
                 // Handle regular API methods
                 const methodParts = method.split(".");
@@ -3234,6 +3266,27 @@ async function init() {
             messageElement.textContent = message;
         }
         openModal("auth-error-modal");
+    });
+
+    // Set up loading screen listeners from main process
+    window.api.on("show-loading-screen", (_event: any, message: string) => {
+        const loadingScreen = document.getElementById("loading-screen");
+        const loadingMessage = document.getElementById("loading-message");
+        if (loadingScreen && loadingMessage) {
+            loadingMessage.textContent = message || "Loading...";
+            loadingScreen.style.display = "flex";
+            loadingScreen.classList.remove("fade-out");
+        }
+    });
+
+    window.api.on("hide-loading-screen", () => {
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+            loadingScreen.classList.add("fade-out");
+            setTimeout(() => {
+                loadingScreen.style.display = "none";
+            }, 200); // Match animation duration
+        }
     });
 
     // Listen for toolbox events and react to them
