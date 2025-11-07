@@ -146,33 +146,40 @@ window.addEventListener("message", async (event) => {
                 result = undefined; // void return
             } else if (method === "utils.executeParallel") {
                 // Handle parallel execution of multiple API methods
-                const operations = args && args[0];
+                const operations = args?.[0];
                 if (!Array.isArray(operations)) {
                     throw new Error("executeParallel requires an array of operations");
                 }
 
+                // Define interface for operation to improve type safety
+                interface Operation {
+                    method: string;
+                    args?: unknown[];
+                }
+
                 // Execute all operations in parallel
-                const promises = operations.map(async (op: any) => {
+                const promises = operations.map(async (op: Operation) => {
                     const opMethod = op.method;
                     const opArgs = op.args || [];
 
                     // Recursively call the same handler for each operation
                     const methodParts = opMethod.split(".");
-                    let target: any = window.toolboxAPI;
+                    let target: unknown = window.toolboxAPI;
 
                     for (let i = 0; i < methodParts.length - 1; i++) {
-                        target = target[methodParts[i]];
+                        target = (target as Record<string, unknown>)[methodParts[i]];
                         if (!target) {
                             throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join(".")}`);
                         }
                     }
 
                     const finalMethod = methodParts[methodParts.length - 1];
-                    if (typeof target[finalMethod] !== "function") {
+                    const targetObj = target as Record<string, unknown>;
+                    if (typeof targetObj[finalMethod] !== "function") {
                         throw new Error(`API method not found: ${opMethod}`);
                     }
 
-                    return await target[finalMethod](...opArgs);
+                    return await (targetObj[finalMethod] as (...args: unknown[]) => Promise<unknown>)(...opArgs);
                 });
 
                 result = await Promise.all(promises);

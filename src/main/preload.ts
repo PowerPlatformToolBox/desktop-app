@@ -53,16 +53,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
         getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         executeParallel: async (operations: Array<{ method: string; args?: unknown[] }>) => {
-            // Execute all operations in parallel
-            // When called from main UI, we can directly execute the operations
-            const promises = operations.map(async () => {
-                // This is a simplified version - full implementation is in renderer.ts for iframe calls
-                // For direct calls from main UI, we can just return a placeholder
-                // In practice, tools will call this via the iframe bridge which is handled in renderer.ts
-                throw new Error("executeParallel should be called from tool context via iframe bridge");
-            });
-            return Promise.all(promises);
+            // Execute parallel operations via the renderer's message handler
+            // This is only meaningful when called from tool iframes
+            // Direct calls from main UI should not use this pattern
+            // Tools will call this via iframe bridge which routes through renderer.ts
+            return Promise.reject(new Error("executeParallel should be called from tool context via iframe bridge"));
         },
         showLoading: (message?: string) => ipcRenderer.invoke("show-loading", message),
         hideLoading: () => ipcRenderer.invoke("hide-loading"),
