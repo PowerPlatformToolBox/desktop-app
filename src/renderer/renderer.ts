@@ -1646,6 +1646,37 @@ function applyTheme(theme: string) {
         body.classList.add("light-theme");
         body.classList.remove("dark-theme");
     }
+    
+    // Update pin icons in tabs when theme changes
+    updatePinIconsForTheme();
+    
+    // Reload sidebar to update tool icons with correct theme
+    const activeSidebar = document.querySelector(".sidebar-content.active");
+    if (activeSidebar) {
+        const sidebarId = activeSidebar.id.replace("sidebar-", "");
+        if (sidebarId === "tools") {
+            loadSidebarTools();
+        } else if (sidebarId === "marketplace") {
+            loadMarketplace();
+        }
+    }
+}
+
+function updatePinIconsForTheme() {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    
+    // Update all pin icons in tabs
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
+        if (pinBtn) {
+            const isPinned = tab.classList.contains("pinned");
+            if (isPinned) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin-filled.svg" : "icons/light/pin-filled.svg";
+            } else {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+            }
+        }
+    });
 }
 
 function applyTerminalFont(fontFamily: string) {
