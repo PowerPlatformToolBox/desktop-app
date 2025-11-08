@@ -4,7 +4,8 @@
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json",
+    "build": "pnpm run typecheck && vite build",
     "build:debug": "vite build --mode development",
     "dev": "vite",
     "watch": "vite build --watch",

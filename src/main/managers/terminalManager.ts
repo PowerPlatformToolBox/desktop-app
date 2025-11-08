@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto";
 import { Terminal, TerminalOptions, TerminalCommandResult } from "../../types";
 
 /**
@@ -42,7 +42,7 @@ export class TerminalManager extends EventEmitter {
      * Create a new terminal for a tool
      */
     async createTerminal(toolId: string, options: TerminalOptions): Promise<Terminal> {
-        const terminalId = uuidv4();
+        const terminalId = randomUUID();
         let shell = options.shell || this.defaultShell;
 
         // Verify shell exists, fallback to default if not
@@ -284,7 +284,7 @@ class TerminalInstance extends EventEmitter {
      * Execute a command in the terminal
      */
     async executeCommand(command: string): Promise<TerminalCommandResult> {
-        const commandId = uuidv4();
+        const commandId = randomUUID();
 
         return new Promise<TerminalCommandResult>((resolve, reject) => {
             this.commandQueue.push({ command, commandId, resolve, reject });
