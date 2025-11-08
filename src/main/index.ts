@@ -733,11 +733,8 @@ class ToolBoxApp {
         await app.whenReady();
         this.createWindow();
 
-        // Load all installed tools
-        const installedTools = this.settingsManager.getInstalledTools();
-        if (installedTools.length > 0) {
-            await this.toolManager.loadInstalledTools(installedTools);
-        }
+        // Load all installed tools from registry
+        await this.toolManager.loadAllInstalledTools();
 
         // Check if auto-update is enabled
         const autoUpdate = this.settingsManager.getSetting("autoUpdate");
