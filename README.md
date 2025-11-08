@@ -257,6 +257,7 @@ Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://www.oliverflint.co.uk/"><img src="https://avatars.githubusercontent.com/u/8300688?v=4?s=100" width="100px;" alt="Oliver Flint"/><br /><sub><b>Oliver Flint</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OliverFlint" title="Code">💻</a> <a href="#design-OliverFlint" title="Design">🎨</a> <a href="#ideas-OliverFlint" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OliverFlint" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://www.dotnetdust.blogspot.com/"><img src="https://avatars.githubusercontent.com/u/9728423?v=4?s=100" width="100px;" alt="Daryl LaBar"/><br /><sub><b>Daryl LaBar</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=daryllabar" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mikefactorial"><img src="https://avatars.githubusercontent.com/u/42348035?v=4?s=100" width="100px;" alt="Mike!"/><br /><sub><b>Mike!</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mikefactorial" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
