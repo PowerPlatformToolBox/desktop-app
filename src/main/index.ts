@@ -272,6 +272,11 @@ class ToolBoxApp {
             return await this.toolManager.checkForUpdates(toolId);
         });
 
+        // Update a tool to the latest version
+        ipcMain.handle("update-tool", async (_, toolId) => {
+            return await this.toolManager.updateTool(toolId);
+        });
+
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle("install-tool", async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);
