@@ -1145,6 +1145,15 @@ body {
     border-radius: 3px;
     opacity: 0;
     transition: opacity 0.2s, background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-tab-pin img {
+    width: 14px;
+    height: 14px;
+    filter: brightness(0) saturate(100%) invert(53%) sepia(1%) saturate(0%) hue-rotate(165deg) brightness(96%) contrast(87%);
 }
 
 .tool-tab:hover .tool-tab-pin {
@@ -1157,7 +1166,10 @@ body {
 
 .tool-tab.pinned .tool-tab-pin {
     opacity: 1;
-    color: var(--primary-color);
+}
+
+.tool-tab.pinned .tool-tab-pin img {
+    filter: brightness(0) saturate(100%) invert(43%) sepia(96%) saturate(1352%) hue-rotate(187deg) brightness(101%) contrast(101%);
 }
 
 .tool-tab.pinned .tool-tab-close {
@@ -1278,7 +1290,23 @@ body {
 .tool-item-icon-vscode {
     font-size: 16px;
     width: 20px;
+    height: 20px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tool-item-icon-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.tool-item-icon-text {
+    font-size: 16px;
+    line-height: 1;
 }
 
 .tool-item-name-vscode {
@@ -1398,9 +1426,31 @@ body {
 
 .marketplace-item-header-vscode {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
+    gap: 8px;
     margin-bottom: 8px;
+}
+
+.marketplace-item-icon-vscode {
+    font-size: 16px;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.marketplace-item-icon-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.marketplace-item-icon-text {
+    font-size: 16px;
+    line-height: 1;
 }
 
 .marketplace-item-info-vscode {
@@ -1436,6 +1486,12 @@ body {
     color: #8a8886;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.marketplace-item-tags {
+    display: flex;
+    gap: 6px;
+    align-items: center;
 }
 
 .marketplace-item-category-vscode {
@@ -2057,7 +2113,6 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
 }
 
 .marketplace-item-installed-badge::before {
