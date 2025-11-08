@@ -3,7 +3,9 @@
     "projectOwner": "Power-Maverick",
     "repoType": "github",
     "repoHost": "https://github.com",
-    "files": ["README.md"],
+    "files": [
+        "README.md"
+    ],
     "imageSize": 100,
     "commit": true,
     "commitConvention": "eslint",
@@ -13,72 +15,124 @@
             "name": "Danish Naglekar",
             "avatar_url": "https://avatars.githubusercontent.com/u/36135520?v=4",
             "profile": "https://powermaverick.dev/",
-            "contributions": ["question", "code", "content", "design", "doc", "infra", "security", "test", "tool", "tutorial"]
+            "contributions": [
+                "question",
+                "code",
+                "content",
+                "design",
+                "doc",
+                "infra",
+                "security",
+                "test",
+                "tool",
+                "tutorial"
+            ]
         },
         {
             "login": "MattBerg11",
             "name": "Matt Berg",
             "avatar_url": "https://avatars.githubusercontent.com/u/25282996?v=4",
             "profile": "https://github.com/MattBerg11",
-            "contributions": ["content", "doc", "example"]
+            "contributions": [
+                "content",
+                "doc",
+                "example"
+            ]
         },
         {
             "login": "OOlashyn",
             "name": "Oleksandr Olashyn (dancingwithcrm)",
             "avatar_url": "https://avatars.githubusercontent.com/u/17760686?v=4",
             "profile": "https://www.dancingwithcrm.com/",
-            "contributions": ["code", "design", "ideas", "maintenance"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         },
         {
             "login": "ramblingreece",
             "name": "Reece",
             "avatar_url": "https://avatars.githubusercontent.com/u/51825794?v=4",
             "profile": "https://ramblingreece.co.uk/",
-            "contributions": ["ideas", "projectManagement"]
+            "contributions": [
+                "ideas",
+                "projectManagement"
+            ]
         },
         {
             "login": "LinkeD365",
             "name": "LinkeD365",
             "avatar_url": "https://avatars.githubusercontent.com/u/43988771?v=4",
             "profile": "https://github.com/LinkeD365",
-            "contributions": ["bug", "ideas", "test", "userTesting"]
+            "contributions": [
+                "bug",
+                "ideas",
+                "test",
+                "userTesting"
+            ]
         },
         {
             "login": "mohsinonxrm",
             "name": "mohsinonxrm",
             "avatar_url": "https://avatars.githubusercontent.com/u/21046804?v=4",
             "profile": "https://github.com/mohsinonxrm",
-            "contributions": ["code", "design", "ideas", "maintenance"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         },
         {
             "login": "uofirob",
             "name": "Rob Montague",
             "avatar_url": "https://avatars.githubusercontent.com/u/1754842?v=4",
             "profile": "https://github.com/uofirob",
-            "contributions": ["code", "design", "ideas", "maintenance"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         },
         {
             "login": "OliverFlint",
             "name": "Oliver Flint",
             "avatar_url": "https://avatars.githubusercontent.com/u/8300688?v=4",
             "profile": "https://www.oliverflint.co.uk/",
-            "contributions": ["code", "design", "ideas", "maintenance"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         },
         {
             "login": "daryllabar",
             "name": "Daryl LaBar",
             "avatar_url": "https://avatars.githubusercontent.com/u/9728423?v=4",
             "profile": "http://www.dotnetdust.blogspot.com/",
-            "contributions": ["code"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         },
         {
             "login": "mikefactorial",
             "name": "Mike!",
             "avatar_url": "https://avatars.githubusercontent.com/u/42348035?v=4",
             "profile": "https://github.com/mikefactorial",
-            "contributions": ["code"]
+            "contributions": [
+                "code",
+                "design",
+                "ideas",
+                "maintenance"
+            ]
         }
     ],
     "contributorsPerLine": 7
 }
-
