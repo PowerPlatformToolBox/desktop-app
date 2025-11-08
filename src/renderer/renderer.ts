@@ -2296,21 +2296,41 @@ async function loadMarketplace() {
         .map((tool) => {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            
+            // Determine tool icon: use URL if provided, otherwise use default icon
+            const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+            let toolIconHtml = "";
+            if (tool.icon) {
+                // Check if icon is a URL (starts with http:// or https://)
+                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="marketplace-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                } else {
+                    // Assume it's an emoji or text
+                    toolIconHtml = `<span class="marketplace-item-icon-text">${tool.icon}</span>`;
+                }
+            } else {
+                // Use default icon
+                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="marketplace-item-icon-img" />`;
+            }
 
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
+                <span class="marketplace-item-icon-vscode">${toolIconHtml}</span>
                 <div class="marketplace-item-info-vscode">
                     <div class="marketplace-item-name-vscode">
                         ${tool.name}
-                        ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
                     </div>
                     <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
             </div>
             <div class="marketplace-item-description-vscode">${tool.description}</div>
             <div class="marketplace-item-footer-vscode">
-                <span class="marketplace-item-category-vscode">${tool.category}</span>
+                <div class="marketplace-item-tags">
+                    <span class="marketplace-item-category-vscode">${tool.category}</span>
+                    ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
+                </div>
                 <div class="marketplace-item-actions-vscode">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
