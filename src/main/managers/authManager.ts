@@ -79,8 +79,8 @@ export class AuthManager {
 
             return {
                 accessToken: response.accessToken,
-                // Use the actual refresh token if available; fallback to homeAccountId only if necessary (not a real refresh token)
-                refreshToken: response.refreshToken ?? response.account?.homeAccountId,
+                // TODO: MSAL Node does not expose refresh token directly. Need to verify if refresh tokens are handled internally.
+                refreshToken: response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
@@ -222,6 +222,7 @@ export class AuthManager {
             console.error("Client secret authentication failed:", error);
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (typeof (error as any).showDialog !== "undefined") {
                 this.showErrorDialog(errorMessage);
             }
@@ -267,6 +268,7 @@ export class AuthManager {
             console.error("Username/password authentication failed:", error);
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (typeof (error as any).showDialog !== "undefined") {
                 this.showErrorDialog(errorMessage);
             }
