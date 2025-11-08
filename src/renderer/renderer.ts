@@ -638,8 +638,14 @@ function createTab(toolId: string, tool: any) {
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
-    pinBtn.textContent = "📌";
     pinBtn.title = "Pin tab";
+    
+    // Create pin icon
+    const pinIcon = document.createElement("img");
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    pinIcon.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+    pinIcon.alt = "Pin";
+    pinBtn.appendChild(pinIcon);
 
     pinBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -785,10 +791,19 @@ function togglePinTab(toolId: string) {
 
     const tab = document.getElementById(`tool-tab-${toolId}`);
     if (tab) {
+        const isDarkTheme = document.body.classList.contains("dark-theme");
+        const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
+        
         if (openTool.isPinned) {
             tab.classList.add("pinned");
+            if (pinBtn) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin-filled.svg" : "icons/light/pin-filled.svg";
+            }
         } else {
             tab.classList.remove("pinned");
+            if (pinBtn) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+            }
         }
     }
 
@@ -1948,15 +1963,32 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
     toolsList.innerHTML = sortedTools
         .map((tool) => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+            const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
             const starIconPath = tool.isFavorite 
                 ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg")
                 : (isDarkTheme ? "icons/dark/star-regular.svg" : "icons/light/star-regular.svg");
             const favoriteTitle = tool.isFavorite ? "Remove from favorites" : "Add to favorites";
+            
+            // Determine tool icon: use URL if provided, otherwise use default icon
+            const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+            let toolIconHtml = "";
+            if (tool.icon) {
+                // Check if icon is a URL (starts with http:// or https://)
+                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                } else {
+                    // Assume it's an emoji or text
+                    toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
+                }
+            } else {
+                // Use default icon
+                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
+            }
+            
             return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
-                <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
+                <span class="tool-item-icon-vscode">${toolIconHtml}</span>
                 <div class="tool-item-name-vscode">
                     ${tool.name}
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
@@ -1973,7 +2005,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                    <img src="${iconPath}" alt="Delete" />
+                    <img src="${trashIconPath}" alt="Delete" />
                 </button>
             </div>
         </div>
