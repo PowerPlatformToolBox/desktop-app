@@ -26,8 +26,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest" alt="GH Prod Release">
-      <img src="https://img.shields.io/github/downloads/PowerPlatformToolBox/desktop-app/latest/total?label=Production%20Build" />
+    <a href="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml" alt="Tool Update Status">
+      <img src="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml/badge.svg" />
     </a>
     <a href="https://www.powerplatformtoolbox.com" alt="Website">
       <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
