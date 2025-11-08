@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     fetchRegistryTools: () => ipcRenderer.invoke("fetch-registry-tools"),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke("install-tool-from-registry", toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke("check-tool-updates", toolId),
+    updateTool: (toolId: string) => ipcRenderer.invoke("update-tool", toolId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
