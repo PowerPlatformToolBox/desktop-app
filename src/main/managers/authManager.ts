@@ -79,7 +79,7 @@ export class AuthManager {
 
             return {
                 accessToken: response.accessToken,
-                refreshToken: response.refreshToken || response.account?.homeAccountId,
+                refreshToken: response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {

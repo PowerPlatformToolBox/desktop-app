@@ -4,13 +4,14 @@
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
-    "build": "vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json",
+    "build": "npm run typecheck && vite build",
     "build:debug": "vite build --mode development",
     "dev": "vite",
     "watch": "vite build --watch",
     "lint": "eslint src --ext .ts",
     "start": "electron .",
-    "package": "pnpm run build && node ./buildScripts/package.js",
+    "package": "npm run build && node ./buildScripts/package.js",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"

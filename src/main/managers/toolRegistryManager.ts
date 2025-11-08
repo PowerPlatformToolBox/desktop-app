@@ -162,11 +162,11 @@ export class ToolRegistryManager extends EventEmitter {
                 const tar = spawn("tar", ["-xzf", archivePath, "-C", targetPath]);
 
                 let stderr = "";
-                tar.stderr.on("data", (data) => {
+                tar.stderr.on("data", (data: Buffer) => {
                     stderr += data.toString();
                 });
 
-                tar.on("close", (code) => {
+                tar.on("close", (code: number | null) => {
                     if (code === 0) {
                         resolve();
                     } else {
@@ -174,7 +174,7 @@ export class ToolRegistryManager extends EventEmitter {
                     }
                 });
 
-                tar.on("error", (err) => {
+                tar.on("error", (err: Error) => {
                     reject(err);
                 });
             });

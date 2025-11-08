@@ -80,6 +80,23 @@ export interface ToolboxAPI {
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
 
+    // Favorite tools
+    addFavoriteTool: (toolId: string) => Promise<void>;
+    removeFavoriteTool: (toolId: string) => Promise<void>;
+    getFavoriteTools: () => Promise<string[]>;
+    isFavoriteTool: (toolId: string) => Promise<boolean>;
+    toggleFavoriteTool: (toolId: string) => Promise<boolean>;
+
+    // Local tool development (DEBUG MODE)
+    loadLocalTool: (localPath: string) => Promise<any>;
+    getLocalToolWebviewHtml: (localPath: string) => Promise<string | null>;
+    openDirectoryPicker: () => Promise<string | null>;
+
+    // Registry-based tools (new primary method)
+    fetchRegistryTools: () => Promise<any[]>;
+    installToolFromRegistry: (toolId: string) => Promise<any>;
+    checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
+
     // Utils namespace
     utils: UtilsAPI;
 
