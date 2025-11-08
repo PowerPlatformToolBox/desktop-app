@@ -620,10 +620,6 @@ function createTab(toolId: string, tool: any) {
     tab.setAttribute("data-tool-id", toolId);
     tab.setAttribute("draggable", "true");
 
-    const icon = document.createElement("span");
-    icon.className = "tool-tab-icon";
-    icon.textContent = tool.icon || "🔧";
-
     const name = document.createElement("span");
     name.className = "tool-tab-name";
     name.textContent = tool.name;
@@ -639,7 +635,7 @@ function createTab(toolId: string, tool: any) {
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
     pinBtn.title = "Pin tab";
-    
+
     // Create pin icon
     const pinIcon = document.createElement("img");
     const isDarkTheme = document.body.classList.contains("dark-theme");
@@ -672,7 +668,6 @@ function createTab(toolId: string, tool: any) {
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
-    tab.appendChild(icon);
     tab.appendChild(name);
     tab.appendChild(connectionBadge);
     tab.appendChild(pinBtn);
@@ -793,7 +788,7 @@ function togglePinTab(toolId: string) {
     if (tab) {
         const isDarkTheme = document.body.classList.contains("dark-theme");
         const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
-        
+
         if (openTool.isPinned) {
             tab.classList.add("pinned");
             if (pinBtn) {
@@ -1646,10 +1641,10 @@ function applyTheme(theme: string) {
         body.classList.add("light-theme");
         body.classList.remove("dark-theme");
     }
-    
+
     // Update pin icons in tabs when theme changes
     updatePinIconsForTheme();
-    
+
     // Reload sidebar to update tool icons with correct theme
     const activeSidebar = document.querySelector(".sidebar-content.active");
     if (activeSidebar) {
@@ -1664,7 +1659,7 @@ function applyTheme(theme: string) {
 
 function updatePinIconsForTheme() {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    
+
     // Update all pin icons in tabs
     document.querySelectorAll(".tool-tab").forEach((tab) => {
         const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
@@ -1944,9 +1939,9 @@ async function loadSidebarTools() {
     const toolsWithUpdateInfo = await Promise.all(
         tools.map(async (tool) => {
             const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
-            return { 
-                ...tool, 
-                latestVersion: updateInfo.latestVersion, 
+            return {
+                ...tool,
+                latestVersion: updateInfo.latestVersion,
                 hasUpdate: updateInfo.hasUpdate,
                 isFavorite: favoriteTools.includes(tool.id),
             };
@@ -1995,11 +1990,15 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         .map((tool) => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-            const starIconPath = tool.isFavorite 
-                ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg")
-                : (isDarkTheme ? "icons/dark/star-regular.svg" : "icons/light/star-regular.svg");
+            const starIconPath = tool.isFavorite
+                ? isDarkTheme
+                    ? "icons/dark/star-filled.svg"
+                    : "icons/light/star-filled.svg"
+                : isDarkTheme
+                ? "icons/dark/star-regular.svg"
+                : "icons/light/star-regular.svg";
             const favoriteTitle = tool.isFavorite ? "Remove from favorites" : "Add to favorites";
-            
+
             // Determine tool icon: use URL if provided, otherwise use default icon
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
@@ -2015,7 +2014,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 // Use default icon
                 toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
             }
-            
+
             return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
@@ -2025,7 +2024,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
                 <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
-                    <img src="${starIconPath}" alt="${tool.isFavorite ? 'Favorited' : 'Not favorite'}" />
+                    <img src="${starIconPath}" alt="${tool.isFavorite ? "Favorited" : "Not favorite"}" />
                 </button>
             </div>
             <div class="tool-item-description-vscode">${tool.description}</div>
@@ -2297,7 +2296,7 @@ async function loadMarketplace() {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            
+
             // Determine tool icon: use URL if provided, otherwise use default icon
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
