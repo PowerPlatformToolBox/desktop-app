@@ -79,7 +79,8 @@ export class AuthManager {
 
             return {
                 accessToken: response.accessToken,
-                refreshToken: response.account?.homeAccountId,
+                // Use the actual refresh token if available; fallback to homeAccountId only if necessary (not a real refresh token)
+                refreshToken: response.refreshToken ?? response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
