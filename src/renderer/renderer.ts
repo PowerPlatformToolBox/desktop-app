@@ -1645,6 +1645,9 @@ function applyTheme(theme: string) {
     // Update pin icons in tabs when theme changes
     updatePinIconsForTheme();
 
+    // Update activity bar icons when theme changes
+    updateActivityBarIconsForTheme();
+
     // Reload sidebar to update tool icons with correct theme
     const activeSidebar = document.querySelector(".sidebar-content.active");
     if (activeSidebar) {
@@ -1672,6 +1675,26 @@ function updatePinIconsForTheme() {
             }
         }
     });
+}
+
+function updateActivityBarIconsForTheme() {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const prefix = isDarkTheme ? "icons/dark" : "icons/light";
+
+    const map: Array<{ id: string; file: string }> = [
+        { id: "tools-icon", file: "tools.svg" },
+        { id: "connections-icon", file: "connections.svg" },
+        { id: "marketplace-icon", file: "marketplace.svg" },
+        { id: "debug-icon", file: "debug.svg" },
+        { id: "settings-icon", file: "settings.svg" },
+    ];
+
+    for (const m of map) {
+        const el = document.getElementById(m.id) as HTMLImageElement | null;
+        if (el) {
+            el.src = `${prefix}/${m.file}`;
+        }
+    }
 }
 
 function applyTerminalFont(fontFamily: string) {
