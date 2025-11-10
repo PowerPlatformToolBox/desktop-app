@@ -3442,6 +3442,10 @@ async function init() {
 
     // Update footer connection info
     await updateFooterConnection();
+    
+    // Update footer connection status
+    const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+    updateFooterConnectionStatus(activeConnection);
 
     // Restore previous session
     await restoreSession();
