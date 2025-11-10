@@ -258,11 +258,9 @@ async function updateFooterConnection() {
                 const now = new Date();
                 isExpired = expiryDate.getTime() <= now.getTime();
             }
-            
-            const warningIcon = isExpired 
-                ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>`
-                : '';
-            
+
+            const warningIcon = isExpired ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
+
             footerConnectionName.innerHTML = `${activeConn.name} (${activeConn.environment})${warningIcon}`;
             if (footerChangeBtn) {
                 footerChangeBtn.style.display = "inline";
@@ -1353,29 +1351,29 @@ async function handleReauthentication(connectionId: string) {
     try {
         // First try to refresh using the refresh token
         await window.toolboxAPI.connections.refreshToken(connectionId);
-        
+
         await window.toolboxAPI.utils.showNotification({
             title: "Re-authenticated",
             body: "Successfully refreshed your connection token.",
             type: "success",
         });
-        
+
         // Reload connections to update UI
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
         console.error("Token refresh failed, trying full re-authentication:", error);
-        
+
         // If refresh fails, prompt for full re-authentication
         try {
             await window.toolboxAPI.connections.setActive(connectionId);
-            
+
             await window.toolboxAPI.utils.showNotification({
                 title: "Re-authenticated",
                 body: "Successfully re-authenticated with the environment.",
                 type: "success",
             });
-            
+
             // Reload connections to update UI
             await loadSidebarConnections();
             await updateFooterConnection();
@@ -2277,7 +2275,7 @@ async function loadSidebarConnections() {
             .map((conn: any) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-                
+
                 // Check if token is expired
                 let isExpired = false;
                 if (conn.isActive && conn.tokenExpiry) {
@@ -2285,11 +2283,9 @@ async function loadSidebarConnections() {
                     const now = new Date();
                     isExpired = expiryDate.getTime() <= now.getTime();
                 }
-                
-                const warningIcon = isExpired 
-                    ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>`
-                    : '';
-                
+
+                const warningIcon = isExpired ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>` : "";
+
                 return `
                 <div class="connection-item-vscode ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
                     <div class="connection-item-header-vscode">
@@ -3442,7 +3438,7 @@ async function init() {
 
     // Update footer connection info
     await updateFooterConnection();
-    
+
     // Update footer connection status
     const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
     updateFooterConnectionStatus(activeConnection);
@@ -3475,7 +3471,7 @@ async function init() {
     // Listen for token expiry events
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
         console.log("Token expired for connection:", data);
-        
+
         // Show warning notification with re-authenticate button
         const toastHtml = `
             <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -3494,7 +3490,7 @@ async function init() {
                 </button>
             </div>
         `;
-        
+
         const toast = toastr.warning(toastHtml, "", {
             timeOut: 30000, // Auto-dismiss after 30 seconds
             extendedTimeOut: 10000, // Extra 10 seconds if user hovers
