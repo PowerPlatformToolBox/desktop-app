@@ -1,4 +1,10 @@
 <p align="center">
+    <p align="center">
+        <img src="assets/icon.png" height=200 width=200/>
+    </p>
+</p>
+
+<p align="center">
     <h1 align="center">
         Power Platform Tool Box
     </h1>
