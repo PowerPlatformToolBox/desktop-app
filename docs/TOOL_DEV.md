@@ -34,9 +34,10 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
     -   [Publishing Your Tool](#publishing-your-tool)
         -   [1. Build your tool](#1-build-your-tool)
         -   [2. Prepare for Publishing](#2-prepare-for-publishing)
-        -   [3. Publish to npm](#3-publish-to-npm)
-        -   [4. Test Published Version](#4-test-published-version)
-        -   [5. Submitting the tool to the Tool Box registry](#5-submitting-the-tool-to-the-tool-box-registry)
+        -   [3. Finalize package for publishing](#3-finalize-package-for-publishing)
+        -   [4. Publish to npm](#4-publish-to-npm)
+        -   [5. Test Published Version](#5-test-published-version)
+        -   [6. Submitting the tool to the Tool Box registry](#6-submitting-the-tool-to-the-tool-box-registry)
     -   [Comprehensive API Examples](#comprehensive-api-examples)
         -   [ToolBox API](#toolbox-api)
             -   [Working with Connections](#working-with-connections)
@@ -462,19 +463,24 @@ Ensure your `package.json` has all required fields:
 }
 ```
 
-### 3. Publish to npm
+### 3. Finalize package for publishing
 
 ```bash
-cd my-tool
+npm run finalize-package
+```
+
+### 4. Publish to npm
+
+```bash
 npm login
 npm publish --access public
 ```
 
-### 4. Test Published Version
+### 5. Test Published Version
 
 You can test the published version by installing it from npm via the ToolBox **Debug** menu "Install Tool by Package Name" section.
 
-### 5. Submitting the tool to the Tool Box registry
+### 6. Submitting the tool to the Tool Box registry
 
 **Submit your tool to the registry** by following the [Tool Intake Process](TOOL_INTAKE_PROCESS.md).
 
@@ -562,6 +568,33 @@ if (filePath) {
 // Get current theme and adjust UI
 const theme = await toolboxAPI.utils.getCurrentTheme();
 document.body.classList.add(`theme-${theme}`);
+
+// Execute multiple operations in parallel
+const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
+    dataverseAPI.retrieve("account", accountId, ["name"]),
+    dataverseAPI.retrieve("contact", contactId, ["fullname"]),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml),
+);
+
+console.log("All data fetched in parallel:", account, contact, opportunities);
+
+// Show loading screen while performing operations
+await toolboxAPI.utils.showLoading("Fetching data from Dataverse...");
+
+try {
+    // Perform long-running operations
+    const data = await fetchLargeDataset();
+    processData(data);
+
+    await toolboxAPI.utils.showNotification({
+        title: "Success",
+        body: "Data processed successfully",
+        type: "success",
+    });
+} finally {
+    // Always hide loading screen
+    await toolboxAPI.utils.hideLoading();
+}
 ```
 
 #### Tool Settings Storage

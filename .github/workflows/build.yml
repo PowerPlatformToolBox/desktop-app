@@ -24,7 +24,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
-                  cache: "npm"
 
             - name: Install pnpm globally
               run: npm install -g pnpm@10.18.3
@@ -33,7 +32,10 @@ jobs:
               run: pnpm install
 
             - name: Run linter
-              run: npm run lint
+              run: pnpm run lint
+
+            - name: Run type check
+              run: pnpm run typecheck
 
             - name: Build
-              run: npm run build
+              run: pnpm run build

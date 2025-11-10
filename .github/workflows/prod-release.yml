@@ -116,6 +116,7 @@ jobs:
                       build/*.dmg
                       build/*.pkg
                       build/*.yml
+                      build/*.zip
                   retention-days: 90
 
     create-release:
@@ -166,7 +167,7 @@ jobs:
 
                   # Copy installer files and latest*.yml files (needed for electron-updater)
                   # Exclude builder-debug.yml files (duplicate names across platforms)
-                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
 
                   echo "✅ Release files prepared"
                   ls -lh release-files/

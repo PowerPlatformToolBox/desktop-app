@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
         disconnect: () => ipcRenderer.invoke("disconnect-connection"),
         test: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
+        isTokenExpired: (connectionId: string) => ipcRenderer.invoke("is-connection-token-expired", connectionId),
+        refreshToken: (connectionId: string) => ipcRenderer.invoke("refresh-connection-token", connectionId),
     },
 
     // Tools - Only for PPTB UI
@@ -33,6 +35,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke("get-tool-context", packageName, connectionUrl),
 
+    // Favorite tools - Only for PPTB UI
+    addFavoriteTool: (toolId: string) => ipcRenderer.invoke("add-favorite-tool", toolId),
+    removeFavoriteTool: (toolId: string) => ipcRenderer.invoke("remove-favorite-tool", toolId),
+    getFavoriteTools: () => ipcRenderer.invoke("get-favorite-tools"),
+    isFavoriteTool: (toolId: string) => ipcRenderer.invoke("is-favorite-tool", toolId),
+    toggleFavoriteTool: (toolId: string) => ipcRenderer.invoke("toggle-favorite-tool", toolId),
+
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => ipcRenderer.invoke("load-local-tool", localPath),
     getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke("get-local-tool-webview-html", localPath),
@@ -42,6 +51,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     fetchRegistryTools: () => ipcRenderer.invoke("fetch-registry-tools"),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke("install-tool-from-registry", toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke("check-tool-updates", toolId),
+    updateTool: (toolId: string) => ipcRenderer.invoke("update-tool", toolId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
@@ -53,6 +63,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
         getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
+        executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
+            // Convert any functions to promises and execute all in parallel
+            const promises = operations.map((op) => (typeof op === "function" ? op() : op));
+            return Promise.all(promises);
+        },
+        showLoading: (message?: string) => ipcRenderer.invoke("show-loading", message),
+        hideLoading: () => ipcRenderer.invoke("hide-loading"),
     },
 
     // External URL - Only for PPTB UI
@@ -120,6 +137,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
     },
 
+    // Token expiry event
+    onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => {
+        ipcRenderer.on("token-expired", (_, data) => callback(data));
+    },
+
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
         create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke("dataverse.create", entityLogicalName, record),
@@ -137,5 +159,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
         getSolutions: (selectColumns: string[]) => ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
         queryData: (odataQuery: string) => ipcRenderer.invoke("dataverse.queryData", odataQuery),
+    },
+});
+
+// Expose a simple API namespace for renderer IPC events
+contextBridge.exposeInMainWorld("api", {
+    on: (channel: string, callback: (...args: unknown[]) => void) => {
+        ipcRenderer.on(channel, callback);
+    },
+    invoke: (channel: string, ...args: unknown[]) => {
+        return ipcRenderer.invoke(channel, ...args);
     },
 });
