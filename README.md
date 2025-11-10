@@ -38,8 +38,14 @@
 </p>
 
 <p align="center">
-    <span style="font-size:large;font-weight:bold">Download</span><br /><br />
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
+  <a href="docs/TOOL_DEV.md">
+    <img src="https://img.shields.io/badge/build_your_own_tool-getting_started-a541ff?style=for-the-badge&logo=npm&labelColor=0354a3" alt="Download for Windows" />
+  </a>
+</p>
+
+<p align="center">
+  <span style="font-size:large;font-weight:bold">Downloads</span><br /><br />
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
     <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
   </a>
   &nbsp;&nbsp;
@@ -69,7 +75,6 @@
 -   [Architecture](#architecture)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
-    -   [Testing Tools Locally](#testing-tools-locally)
     -   [Sample Tools Repository](#sample-tools-repository)
 -   [ToolBox development](#toolbox-development)
     -   [Installing Tools](#installing-tools)
@@ -122,17 +127,6 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
 Power Platform Tool Box uses a secure, extensible Tool Host architecture that allows developers to create custom tools as npm packages. Tools run in isolated processes and communicate with the ToolBox through a secure API.
 
 See **[TOOL_DEV.md](docs/TOOL_DEV.md)** for the complete guide on creating tools.
-
-### Testing Tools Locally
-
-You can test your tools locally during development without publishing to npm. This enables rapid iteration using watch mode:
-
-1. Navigate to the **Debug** section in ToolBox
-2. Use **Load Local Tool** to select your tool directory
-3. Make changes with watch mode running (`npm run build -- --watch`)
-4. Reload the tool in ToolBox to see updates
-
-See **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** for a complete step-by-step guide.
 
 ### Sample Tools Repository
 
@@ -213,7 +207,6 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
 -   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
--   **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** - Step-by-step guide for testing tools locally without publishing
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 
 ### Porting XrmToolBox Tools
@@ -238,7 +231,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 > If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
 
-Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
+**Offical Team** ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
