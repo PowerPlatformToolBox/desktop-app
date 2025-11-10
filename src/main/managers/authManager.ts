@@ -80,7 +80,7 @@ export class AuthManager {
             return {
                 accessToken: response.accessToken,
                 // MSAL Node does not expose refresh tokens directly. The homeAccountId is returned here for account identification in future token operations.
-                homeAccountId: response.account?.homeAccountId,
+                refreshToken: response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
