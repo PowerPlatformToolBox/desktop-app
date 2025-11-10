@@ -17,6 +17,8 @@ export interface ConnectionsAPI {
     getActiveConnection: () => Promise<any | null>;
     disconnect: () => Promise<void>;
     test: (connection: any) => Promise<{ success: boolean; error?: string }>;
+    isTokenExpired: (connectionId: string) => Promise<boolean>;
+    refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
 }
 
 export interface UtilsAPI {
@@ -105,6 +107,9 @@ export interface ToolboxAPI {
     onShowDeviceCodeDialog: (callback: (message: string) => void) => void;
     onCloseDeviceCodeDialog: (callback: () => void) => void;
     onShowAuthErrorDialog: (callback: (message: string) => void) => void;
+
+    // Token expiry
+    onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => void;
 
     // Dataverse namespace
     dataverse: DataverseAPI;

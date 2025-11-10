@@ -20,6 +20,7 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
 
     constructor() {
         this.settingsManager = new SettingsManager();
@@ -214,6 +215,41 @@ class ToolBoxApp {
 
         ipcMain.handle("disconnect-connection", () => {
             this.connectionsManager.disconnectActiveConnection();
+        });
+
+        // Check if connection token is expired
+        ipcMain.handle("is-connection-token-expired", (_, connectionId) => {
+            return this.connectionsManager.isConnectionTokenExpired(connectionId);
+        });
+
+        // Re-authenticate connection (refresh token flow)
+        ipcMain.handle("refresh-connection-token", async (_, connectionId) => {
+            const connection = this.connectionsManager.getConnectionById(connectionId);
+            if (!connection) {
+                throw new Error("Connection not found");
+            }
+
+            if (!connection.refreshToken) {
+                throw new Error("No refresh token available. Please reconnect.");
+            }
+
+            try {
+                const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                
+                // Update the connection with new tokens
+                this.connectionsManager.setActiveConnection(connectionId, {
+                    accessToken: authResult.accessToken,
+                    refreshToken: authResult.refreshToken,
+                    expiresOn: authResult.expiresOn,
+                });
+
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+                
+                return { success: true };
+            } catch (error) {
+                console.error("Token refresh failed:", error);
+                throw new Error(`Token refresh failed: ${(error as Error).message}`);
+            }
         });
 
         // Tool handlers
@@ -651,6 +687,51 @@ class ToolBoxApp {
     }
 
     /**
+     * Check for token expiry and notify user
+     */
+    private checkTokenExpiry(): void {
+        const activeConnection = this.connectionsManager.getActiveConnection();
+        
+        if (!activeConnection || !activeConnection.tokenExpiry) {
+            return;
+        }
+
+        const expiryDate = new Date(activeConnection.tokenExpiry);
+        const now = new Date();
+        
+        // Check if token has expired
+        if (expiryDate.getTime() <= now.getTime()) {
+            // Token has expired - notify the user
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send("token-expired", {
+                    connectionId: activeConnection.id,
+                    connectionName: activeConnection.name,
+                });
+            }
+        }
+    }
+
+    /**
+     * Start periodic token expiry checks
+     */
+    private startTokenExpiryChecks(): void {
+        // Check every minute
+        this.tokenExpiryCheckInterval = setInterval(() => {
+            this.checkTokenExpiry();
+        }, 60 * 1000);
+    }
+
+    /**
+     * Stop periodic token expiry checks
+     */
+    private stopTokenExpiryChecks(): void {
+        if (this.tokenExpiryCheckInterval) {
+            clearInterval(this.tokenExpiryCheckInterval);
+            this.tokenExpiryCheckInterval = null;
+        }
+    }
+
+    /**
      * Create the main application window
      */
     private createWindow(): void {
@@ -711,6 +792,9 @@ class ToolBoxApp {
             this.autoUpdateManager.enableAutoUpdateChecks(6);
         }
 
+        // Start token expiry checks
+        this.startTokenExpiryChecks();
+
         app.on("activate", () => {
             if (BrowserWindow.getAllWindows().length === 0) {
                 this.createWindow();
@@ -726,6 +810,8 @@ class ToolBoxApp {
         app.on("before-quit", () => {
             // Clean up update checks
             this.autoUpdateManager.disableAutoUpdateChecks();
+            // Clean up token expiry checks
+            this.stopTokenExpiryChecks();
         });
     }
 }

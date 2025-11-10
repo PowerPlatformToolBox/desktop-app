@@ -251,7 +251,19 @@ async function updateFooterConnection() {
         const activeConn = await window.toolboxAPI.connections.getActiveConnection();
 
         if (activeConn) {
-            footerConnectionName.textContent = `${activeConn.name} (${activeConn.environment})`;
+            // Check if token is expired
+            let isExpired = false;
+            if (activeConn.tokenExpiry) {
+                const expiryDate = new Date(activeConn.tokenExpiry);
+                const now = new Date();
+                isExpired = expiryDate.getTime() <= now.getTime();
+            }
+            
+            const warningIcon = isExpired 
+                ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>`
+                : '';
+            
+            footerConnectionName.innerHTML = `${activeConn.name} (${activeConn.environment})${warningIcon}`;
             if (footerChangeBtn) {
                 footerChangeBtn.style.display = "inline";
             }
@@ -1314,6 +1326,46 @@ async function disconnectConnection() {
     }
 }
 
+async function handleReauthentication(connectionId: string) {
+    try {
+        // First try to refresh using the refresh token
+        await window.toolboxAPI.connections.refreshToken(connectionId);
+        
+        await window.toolboxAPI.utils.showNotification({
+            title: "Re-authenticated",
+            body: "Successfully refreshed your connection token.",
+            type: "success",
+        });
+        
+        // Reload connections to update UI
+        await loadSidebarConnections();
+        await updateFooterConnection();
+    } catch (error) {
+        console.error("Token refresh failed, trying full re-authentication:", error);
+        
+        // If refresh fails, prompt for full re-authentication
+        try {
+            await window.toolboxAPI.connections.setActive(connectionId);
+            
+            await window.toolboxAPI.utils.showNotification({
+                title: "Re-authenticated",
+                body: "Successfully re-authenticated with the environment.",
+                type: "success",
+            });
+            
+            // Reload connections to update UI
+            await loadSidebarConnections();
+            await updateFooterConnection();
+        } catch (reauthError) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Re-authentication Failed",
+                body: (reauthError as Error).message,
+                type: "error",
+            });
+        }
+    }
+}
+
 async function addConnection() {
     const nameInput = document.getElementById("connection-name") as HTMLInputElement;
     const urlInput = document.getElementById("connection-url") as HTMLInputElement;
@@ -2085,10 +2137,23 @@ async function loadSidebarConnections() {
             .map((conn: any) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+                
+                // Check if token is expired
+                let isExpired = false;
+                if (conn.isActive && conn.tokenExpiry) {
+                    const expiryDate = new Date(conn.tokenExpiry);
+                    const now = new Date();
+                    isExpired = expiryDate.getTime() <= now.getTime();
+                }
+                
+                const warningIcon = isExpired 
+                    ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>`
+                    : '';
+                
                 return `
-                <div class="connection-item-vscode ${conn.isActive ? "active" : ""}">
+                <div class="connection-item-vscode ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
                     <div class="connection-item-header-vscode">
-                        <div class="connection-item-name-vscode">${conn.name}</div>
+                        <div class="connection-item-name-vscode">${conn.name}${warningIcon}</div>
                         <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
                     <div class="connection-item-url-vscode">${conn.url}</div>
@@ -2096,7 +2161,9 @@ async function loadSidebarConnections() {
                         <div>
                             ${
                                 conn.isActive
-                                    ? `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
+                                    ? isExpired
+                                        ? `<button class="fluent-button fluent-button-primary" data-action="reauth" data-connection-id="${conn.id}">Re-authenticate</button>`
+                                        : `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
                                     : `<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
                             }
                         </div>
@@ -2130,6 +2197,11 @@ async function loadSidebarConnections() {
                     }
                 } else if (action === "disconnect") {
                     await disconnectConnection();
+                } else if (action === "reauth" && connectionId) {
+                    // Re-authenticate expired connection
+                    target.disabled = true;
+                    target.textContent = "Re-authenticating...";
+                    await handleReauthentication(connectionId);
                 } else if (action === "delete" && connectionId) {
                     if (confirm("Are you sure you want to delete this connection?")) {
                         await window.toolboxAPI.connections.delete(connectionId);
@@ -3234,6 +3306,53 @@ async function init() {
             messageElement.textContent = message;
         }
         openModal("auth-error-modal");
+    });
+
+    // Listen for token expiry events
+    window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
+        console.log("Token expired for connection:", data);
+        
+        // Show warning notification with re-authenticate button
+        const toastHtml = `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div><strong>Connection Token Expired</strong></div>
+                <div>Your connection to "${data.connectionName}" has expired.</div>
+                <button id="reauth-btn-${data.connectionId}" 
+                        style="padding: 4px 12px; 
+                               background: #0078d4; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 2px; 
+                               cursor: pointer;
+                               font-size: 12px;
+                               margin-top: 4px;">
+                    Re-authenticate
+                </button>
+            </div>
+        `;
+        
+        const toast = toastr.warning(toastHtml, "", {
+            timeOut: 0, // Persistent notification
+            extendedTimeOut: 0,
+            closeButton: true,
+            tapToDismiss: false,
+            escapeHtml: false,
+        });
+
+        // Add click handler for re-authenticate button
+        setTimeout(() => {
+            const reauthBtn = document.getElementById(`reauth-btn-${data.connectionId}`);
+            if (reauthBtn) {
+                reauthBtn.addEventListener("click", async () => {
+                    toast.remove();
+                    await handleReauthentication(data.connectionId);
+                });
+            }
+        }, 100);
+
+        // Reload connections to update UI with expired status
+        await loadSidebarConnections();
+        await updateFooterConnection();
     });
 
     // Listen for toolbox events and react to them

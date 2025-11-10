@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
         disconnect: () => ipcRenderer.invoke("disconnect-connection"),
         test: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
+        isTokenExpired: (connectionId: string) => ipcRenderer.invoke("is-connection-token-expired", connectionId),
+        refreshToken: (connectionId: string) => ipcRenderer.invoke("refresh-connection-token", connectionId),
     },
 
     // Tools - Only for PPTB UI
@@ -118,6 +120,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     },
     onShowAuthErrorDialog: (callback: (message: string) => void) => {
         ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
+    },
+
+    // Token expiry event
+    onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => {
+        ipcRenderer.on("token-expired", (_, data) => callback(data));
     },
 
     // Dataverse API - Can be called by tools via message routing

@@ -181,4 +181,36 @@ export class ConnectionsManager {
     connections.forEach(c => c.isActive = false);
     this.store.set('connections', connections);
   }
+
+  /**
+   * Check if a connection's token is expired
+   */
+  isConnectionTokenExpired(connectionId: string): boolean {
+    const connections = this.store.get('connections');
+    const connection = connections.find(c => c.id === connectionId);
+    
+    if (!connection || !connection.tokenExpiry) {
+      return false;
+    }
+
+    const expiryDate = new Date(connection.tokenExpiry);
+    const now = new Date();
+    
+    return expiryDate.getTime() <= now.getTime();
+  }
+
+  /**
+   * Get connection by ID with decrypted sensitive fields
+   */
+  getConnectionById(id: string): DataverseConnection | null {
+    const connections = this.store.get('connections');
+    const connection = connections.find(c => c.id === id);
+    
+    if (!connection) {
+      return null;
+    }
+    
+    // Decrypt sensitive fields
+    return this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
+  }
 }
