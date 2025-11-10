@@ -833,6 +833,16 @@ body {
     color: #107c10;
 }
 
+.connection-status.expired {
+    color: #d83b01;
+    font-weight: 500;
+}
+
+.connection-status.expired::before {
+    content: "⚠";
+    color: #f59e0b;
+}
+
 .connection-status::before {
     content: "○";
     color: #8a8886;
