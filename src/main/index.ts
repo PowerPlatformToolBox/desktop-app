@@ -21,6 +21,7 @@ class ToolBoxApp {
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
+    private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
 
     constructor() {
         this.settingsManager = new SettingsManager();
@@ -214,6 +215,9 @@ class ToolBoxApp {
                     expiresOn: authResult.expiresOn,
                 });
 
+                // Clear notification tracking since we have a new active connection
+                this.notifiedExpiredTokens.clear();
+
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
             } catch (error) {
                 throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -263,6 +267,9 @@ class ToolBoxApp {
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
                 });
+
+                // Clear notification tracking for this connection since token is refreshed
+                this.notifiedExpiredTokens.clear();
 
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
                 
@@ -733,6 +740,8 @@ class ToolBoxApp {
         const activeConnection = this.connectionsManager.getActiveConnection();
         
         if (!activeConnection || !activeConnection.tokenExpiry) {
+            // Clear notification tracking if no active connection
+            this.notifiedExpiredTokens.clear();
             return;
         }
 
@@ -741,13 +750,25 @@ class ToolBoxApp {
         
         // Check if token has expired
         if (expiryDate.getTime() <= now.getTime()) {
-            // Token has expired - notify the user
-            if (this.mainWindow) {
-                this.mainWindow.webContents.send("token-expired", {
-                    connectionId: activeConnection.id,
-                    connectionName: activeConnection.name,
-                });
+            // Only notify if we haven't already notified about this expired token
+            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
+            
+            if (!this.notifiedExpiredTokens.has(notificationKey)) {
+                // Token has expired - notify the user
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send("token-expired", {
+                        connectionId: activeConnection.id,
+                        connectionName: activeConnection.name,
+                    });
+                    
+                    // Mark this token as notified
+                    this.notifiedExpiredTokens.add(notificationKey);
+                }
             }
+        } else {
+            // Token is not expired, clear any previous notifications for this connection
+            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
+            this.notifiedExpiredTokens.delete(notificationKey);
         }
     }
 

@@ -3496,8 +3496,8 @@ async function init() {
         `;
         
         const toast = toastr.warning(toastHtml, "", {
-            timeOut: 0, // Persistent notification
-            extendedTimeOut: 0,
+            timeOut: 30000, // Auto-dismiss after 30 seconds
+            extendedTimeOut: 10000, // Extra 10 seconds if user hovers
             closeButton: true,
             tapToDismiss: false,
             escapeHtml: false,
