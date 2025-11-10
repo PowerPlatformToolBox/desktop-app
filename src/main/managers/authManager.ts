@@ -79,8 +79,8 @@ export class AuthManager {
 
             return {
                 accessToken: response.accessToken,
-                // TODO: MSAL Node does not expose refresh token directly. Need to verify if refresh tokens are handled internally.
-                refreshToken: response.account?.homeAccountId,
+                // MSAL Node does not expose refresh tokens directly. The homeAccountId is returned here for account identification in future token operations.
+                homeAccountId: response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
