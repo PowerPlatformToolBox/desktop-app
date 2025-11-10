@@ -1285,8 +1285,21 @@ function updateFooterConnectionStatus(connection: any | null) {
     if (!statusElement) return;
 
     if (connection) {
-        statusElement.textContent = `Connected to: ${connection.name} (${connection.environment})`;
-        statusElement.className = "connection-status connected";
+        // Check if token is expired
+        let isExpired = false;
+        if (connection.tokenExpiry) {
+            const expiryDate = new Date(connection.tokenExpiry);
+            const now = new Date();
+            isExpired = expiryDate.getTime() <= now.getTime();
+        }
+
+        if (isExpired) {
+            statusElement.textContent = `Token Expired: ${connection.name} (${connection.environment})`;
+            statusElement.className = "connection-status expired";
+        } else {
+            statusElement.textContent = `Connected to: ${connection.name} (${connection.environment})`;
+            statusElement.className = "connection-status connected";
+        }
     } else {
         statusElement.textContent = "No active connection";
         statusElement.className = "connection-status";
