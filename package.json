@@ -1,6 +1,6 @@
 {
   "name": "powerplatform-toolbox",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
