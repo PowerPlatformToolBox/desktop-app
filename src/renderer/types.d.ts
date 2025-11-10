@@ -26,6 +26,9 @@ export interface UtilsAPI {
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: any) => Promise<string | null>;
     getCurrentTheme: () => Promise<"light" | "dark">;
+    executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
+    showLoading: (message?: string) => Promise<void>;
+    hideLoading: () => Promise<void>;
 }
 
 export interface TerminalAPI {
@@ -79,6 +82,23 @@ export interface ToolboxAPI {
     getToolSettings: (toolId: string) => Promise<any>;
     updateToolSettings: (toolId: string, settings: any) => Promise<void>;
 
+    // Favorite tools
+    addFavoriteTool: (toolId: string) => Promise<void>;
+    removeFavoriteTool: (toolId: string) => Promise<void>;
+    getFavoriteTools: () => Promise<string[]>;
+    isFavoriteTool: (toolId: string) => Promise<boolean>;
+    toggleFavoriteTool: (toolId: string) => Promise<boolean>;
+
+    // Local tool development (DEBUG MODE)
+    loadLocalTool: (localPath: string) => Promise<any>;
+    getLocalToolWebviewHtml: (localPath: string) => Promise<string | null>;
+    openDirectoryPicker: () => Promise<string | null>;
+
+    // Registry-based tools (new primary method)
+    fetchRegistryTools: () => Promise<any[]>;
+    installToolFromRegistry: (toolId: string) => Promise<any>;
+    checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
+
     // Utils namespace
     utils: UtilsAPI;
 
@@ -119,5 +139,9 @@ declare global {
     interface Window {
         toolboxAPI: ToolboxAPI;
         TOOLBOX_CONTEXT?: ToolContext;
+        api: {
+            on: (channel: string, callback: (...args: any[]) => void) => void;
+            invoke: (channel: string, ...args: any[]) => Promise<any>;
+        };
     }
 }

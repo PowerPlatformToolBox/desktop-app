@@ -70,6 +70,7 @@ export interface UserSettings {
   lastUsedTools: string[];
   connections: DataverseConnection[];
   installedTools: string[]; // List of installed tool package names
+  favoriteTools: string[]; // List of favorite tool IDs
 }
 
 /**

@@ -632,10 +632,6 @@ function createTab(toolId: string, tool: any) {
     tab.setAttribute("data-tool-id", toolId);
     tab.setAttribute("draggable", "true");
 
-    const icon = document.createElement("span");
-    icon.className = "tool-tab-icon";
-    icon.textContent = tool.icon || "🔧";
-
     const name = document.createElement("span");
     name.className = "tool-tab-name";
     name.textContent = tool.name;
@@ -650,8 +646,14 @@ function createTab(toolId: string, tool: any) {
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
-    pinBtn.textContent = "📌";
     pinBtn.title = "Pin tab";
+
+    // Create pin icon
+    const pinIcon = document.createElement("img");
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    pinIcon.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+    pinIcon.alt = "Pin";
+    pinBtn.appendChild(pinIcon);
 
     pinBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -678,7 +680,6 @@ function createTab(toolId: string, tool: any) {
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
-    tab.appendChild(icon);
     tab.appendChild(name);
     tab.appendChild(connectionBadge);
     tab.appendChild(pinBtn);
@@ -797,10 +798,19 @@ function togglePinTab(toolId: string) {
 
     const tab = document.getElementById(`tool-tab-${toolId}`);
     if (tab) {
+        const isDarkTheme = document.body.classList.contains("dark-theme");
+        const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
+
         if (openTool.isPinned) {
             tab.classList.add("pinned");
+            if (pinBtn) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin-filled.svg" : "icons/light/pin-filled.svg";
+            }
         } else {
             tab.classList.remove("pinned");
+            if (pinBtn) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+            }
         }
     }
 
@@ -1683,6 +1693,60 @@ function applyTheme(theme: string) {
         body.classList.add("light-theme");
         body.classList.remove("dark-theme");
     }
+
+    // Update pin icons in tabs when theme changes
+    updatePinIconsForTheme();
+
+    // Update activity bar icons when theme changes
+    updateActivityBarIconsForTheme();
+
+    // Reload sidebar to update tool icons with correct theme
+    const activeSidebar = document.querySelector(".sidebar-content.active");
+    if (activeSidebar) {
+        const sidebarId = activeSidebar.id.replace("sidebar-", "");
+        if (sidebarId === "tools") {
+            loadSidebarTools();
+        } else if (sidebarId === "marketplace") {
+            loadMarketplace();
+        }
+    }
+}
+
+function updatePinIconsForTheme() {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
+    // Update all pin icons in tabs
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
+        if (pinBtn) {
+            const isPinned = tab.classList.contains("pinned");
+            if (isPinned) {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin-filled.svg" : "icons/light/pin-filled.svg";
+            } else {
+                pinBtn.src = isDarkTheme ? "icons/dark/pin.svg" : "icons/light/pin.svg";
+            }
+        }
+    });
+}
+
+function updateActivityBarIconsForTheme() {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const prefix = isDarkTheme ? "icons/dark" : "icons/light";
+
+    const map: Array<{ id: string; file: string }> = [
+        { id: "tools-icon", file: "tools.svg" },
+        { id: "connections-icon", file: "connections.svg" },
+        { id: "marketplace-icon", file: "marketplace.svg" },
+        { id: "debug-icon", file: "debug.svg" },
+        { id: "settings-icon", file: "settings.svg" },
+    ];
+
+    for (const m of map) {
+        const el = document.getElementById(m.id) as HTMLImageElement | null;
+        if (el) {
+            el.src = `${prefix}/${m.file}`;
+        }
+    }
 }
 
 function applyTerminalFont(fontFamily: string) {
@@ -1945,11 +2009,17 @@ async function loadSidebarTools() {
         return;
     }
 
-    // Check for updates for all tools
+    // Check for updates for all tools and get favorite status
+    const favoriteTools = await window.toolboxAPI.getFavoriteTools();
     const toolsWithUpdateInfo = await Promise.all(
         tools.map(async (tool) => {
             const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
-            return { ...tool, latestVersion: updateInfo.latestVersion, hasUpdate: updateInfo.hasUpdate };
+            return {
+                ...tool,
+                latestVersion: updateInfo.latestVersion,
+                hasUpdate: updateInfo.hasUpdate,
+                isFavorite: favoriteTools.includes(tool.id),
+            };
         }),
     );
 
@@ -1983,18 +2053,54 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         return;
     }
 
-    toolsList.innerHTML = filteredTools
+    // Sort tools: favorites first (sorted by name), then non-favorites (sorted by name)
+    // Create a copy to avoid mutating the filtered array
+    const sortedTools = [...filteredTools].sort((a, b) => {
+        if (a.isFavorite && !b.isFavorite) return -1;
+        if (!a.isFavorite && b.isFavorite) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    toolsList.innerHTML = sortedTools
         .map((tool) => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+            const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+            const starIconPath = tool.isFavorite
+                ? isDarkTheme
+                    ? "icons/dark/star-filled.svg"
+                    : "icons/light/star-filled.svg"
+                : isDarkTheme
+                ? "icons/dark/star-regular.svg"
+                : "icons/light/star-regular.svg";
+            const favoriteTitle = tool.isFavorite ? "Remove from favorites" : "Add to favorites";
+
+            // Determine tool icon: use URL if provided, otherwise use default icon
+            const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+            let toolIconHtml = "";
+            if (tool.icon) {
+                // Check if icon is a URL (starts with http:// or https://)
+                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                } else {
+                    // Assume it's an emoji or text
+                    toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
+                }
+            } else {
+                // Use default icon
+                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
+            }
+
             return `
         <div class="tool-item-vscode" data-tool-id="${tool.id}">
             <div class="tool-item-header-vscode">
-                <span class="tool-item-icon-vscode">${tool.icon || "🔧"}</span>
+                <span class="tool-item-icon-vscode">${toolIconHtml}</span>
                 <div class="tool-item-name-vscode">
                     ${tool.name}
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
+                <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
+                    <img src="${starIconPath}" alt="${tool.isFavorite ? "Favorited" : "Not favorite"}" />
+                </button>
             </div>
             <div class="tool-item-description-vscode">${tool.description}</div>
             <div class="tool-item-version-vscode">
@@ -2004,7 +2110,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                    <img src="${iconPath}" alt="Delete" />
+                    <img src="${trashIconPath}" alt="Delete" />
                 </button>
             </div>
         </div>
@@ -2025,7 +2131,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         });
     });
 
-    toolsList.querySelectorAll(".tool-item-actions-vscode button").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-actions-vscode button, .tool-favorite-btn").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation();
             const target = e.target as HTMLElement;
@@ -2042,6 +2148,8 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                 await uninstallToolFromSidebar(toolId);
             } else if (action === "update") {
                 await updateToolFromSidebar(toolId);
+            } else if (action === "favorite") {
+                await toggleFavoriteTool(toolId);
             }
         });
     });
@@ -2110,6 +2218,25 @@ async function updateToolFromSidebar(toolId: string) {
         await window.toolboxAPI.utils.showNotification({
             title: "Update Failed",
             body: `Failed to update tool: ${(error as Error).message}`,
+            type: "error",
+        });
+    }
+}
+
+async function toggleFavoriteTool(toolId: string) {
+    try {
+        const isFavorite = await window.toolboxAPI.toggleFavoriteTool(toolId);
+        const message = isFavorite ? "Added to favorites" : "Removed from favorites";
+        window.toolboxAPI.utils.showNotification({
+            title: "Favorites Updated",
+            body: message,
+            type: "success",
+        });
+        await loadSidebarTools();
+    } catch (error) {
+        window.toolboxAPI.utils.showNotification({
+            title: "Error",
+            body: `Failed to update favorites: ${error}`,
             type: "error",
         });
     }
@@ -2263,21 +2390,41 @@ async function loadMarketplace() {
         .map((tool) => {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+
+            // Determine tool icon: use URL if provided, otherwise use default icon
+            const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+            let toolIconHtml = "";
+            if (tool.icon) {
+                // Check if icon is a URL (starts with http:// or https://)
+                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="marketplace-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                } else {
+                    // Assume it's an emoji or text
+                    toolIconHtml = `<span class="marketplace-item-icon-text">${tool.icon}</span>`;
+                }
+            } else {
+                // Use default icon
+                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="marketplace-item-icon-img" />`;
+            }
 
             return `
         <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
+                <span class="marketplace-item-icon-vscode">${toolIconHtml}</span>
                 <div class="marketplace-item-info-vscode">
                     <div class="marketplace-item-name-vscode">
                         ${tool.name}
-                        ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
                     </div>
                     <div class="marketplace-item-author-vscode">by ${tool.author}</div>
                 </div>
             </div>
             <div class="marketplace-item-description-vscode">${tool.description}</div>
             <div class="marketplace-item-footer-vscode">
-                <span class="marketplace-item-category-vscode">${tool.category}</span>
+                <div class="marketplace-item-tags">
+                    <span class="marketplace-item-category-vscode">${tool.category}</span>
+                    ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
+                </div>
                 <div class="marketplace-item-actions-vscode">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
@@ -3353,6 +3500,27 @@ async function init() {
         // Reload connections to update UI with expired status
         await loadSidebarConnections();
         await updateFooterConnection();
+    });
+
+    // Set up loading screen listeners from main process
+    window.api.on("show-loading-screen", (_event, message: string) => {
+        const loadingScreen = document.getElementById("loading-screen");
+        const loadingMessage = document.getElementById("loading-message");
+        if (loadingScreen && loadingMessage) {
+            loadingMessage.textContent = message || "Loading...";
+            loadingScreen.style.display = "flex";
+            loadingScreen.classList.remove("fade-out");
+        }
+    });
+
+    window.api.on("hide-loading-screen", () => {
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+            loadingScreen.classList.add("fade-out");
+            setTimeout(() => {
+                loadingScreen.style.display = "none";
+            }, 200); // Match animation duration
+        }
     });
 
     // Listen for toolbox events and react to them

@@ -21,6 +21,7 @@ export class SettingsManager {
         lastUsedTools: [],
         connections: [], // Kept for backwards compatibility, but use ConnectionsManager instead
         installedTools: [],
+        favoriteTools: [],
       },
     });
 
@@ -106,5 +107,53 @@ export class SettingsManager {
    */
   getInstalledTools(): string[] {
     return this.store.get('installedTools') || [];
+  }
+
+  /**
+   * Add a tool to favorites
+   */
+  addFavoriteTool(toolId: string): void {
+    const favoriteTools = this.store.get('favoriteTools') || [];
+    if (!favoriteTools.includes(toolId)) {
+      favoriteTools.push(toolId);
+      this.store.set('favoriteTools', favoriteTools);
+    }
+  }
+
+  /**
+   * Remove a tool from favorites
+   */
+  removeFavoriteTool(toolId: string): void {
+    const favoriteTools = this.store.get('favoriteTools') || [];
+    const filtered = favoriteTools.filter(t => t !== toolId);
+    this.store.set('favoriteTools', filtered);
+  }
+
+  /**
+   * Get all favorite tools
+   */
+  getFavoriteTools(): string[] {
+    return this.store.get('favoriteTools') || [];
+  }
+
+  /**
+   * Check if a tool is favorited
+   */
+  isFavoriteTool(toolId: string): boolean {
+    const favoriteTools = this.store.get('favoriteTools') || [];
+    return favoriteTools.includes(toolId);
+  }
+
+  /**
+   * Toggle favorite status for a tool
+   */
+  toggleFavoriteTool(toolId: string): boolean {
+    if (this.isFavoriteTool(toolId)) {
+      this.removeFavoriteTool(toolId);
+      return false;
+    } else {
+      this.addFavoriteTool(toolId);
+      return true;
+    }
   }
 }

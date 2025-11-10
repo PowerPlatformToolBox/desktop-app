@@ -142,6 +142,27 @@ class ToolBoxApp {
             this.settingsManager.setSetting(key, value);
         });
 
+        // Favorite tools
+        ipcMain.handle("add-favorite-tool", (_, toolId) => {
+            return this.settingsManager.addFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("remove-favorite-tool", (_, toolId) => {
+            return this.settingsManager.removeFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("get-favorite-tools", () => {
+            return this.settingsManager.getFavoriteTools();
+        });
+
+        ipcMain.handle("is-favorite-tool", (_, toolId) => {
+            return this.settingsManager.isFavoriteTool(toolId);
+        });
+
+        ipcMain.handle("toggle-favorite-tool", (_, toolId) => {
+            return this.settingsManager.toggleFavoriteTool(toolId);
+        });
+
         // Connection handlers
         ipcMain.handle("add-connection", (_, connection) => {
             this.connectionsManager.addConnection(connection);
@@ -287,6 +308,11 @@ class ToolBoxApp {
             return await this.toolManager.checkForUpdates(toolId);
         });
 
+        // Update a tool to the latest version
+        ipcMain.handle("update-tool", async (_, toolId) => {
+            return await this.toolManager.updateTool(toolId);
+        });
+
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle("install-tool", async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);
@@ -378,6 +404,20 @@ class ToolBoxApp {
         // Save file handler
         ipcMain.handle("save-file", async (_, defaultPath, content) => {
             return await this.api.saveFile(defaultPath, content);
+        });
+
+        // Show loading handler
+        ipcMain.handle("show-loading", (_, message) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send("show-loading-screen", message || "Loading...");
+            }
+        });
+
+        // Hide loading handler
+        ipcMain.handle("hide-loading", () => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send("hide-loading-screen");
+            }
         });
 
         // Get current theme handler
@@ -779,11 +819,8 @@ class ToolBoxApp {
         await app.whenReady();
         this.createWindow();
 
-        // Load all installed tools
-        const installedTools = this.settingsManager.getInstalledTools();
-        if (installedTools.length > 0) {
-            await this.toolManager.loadInstalledTools(installedTools);
-        }
+        // Load all installed tools from registry
+        await this.toolManager.loadAllInstalledTools();
 
         // Check if auto-update is enabled
         const autoUpdate = this.settingsManager.getSetting("autoUpdate");

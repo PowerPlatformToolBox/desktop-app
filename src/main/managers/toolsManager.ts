@@ -160,6 +160,26 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Update a tool to the latest version from the registry
+     */
+    async updateTool(toolId: string): Promise<ToolManifest> {
+        console.log(`[ToolManager] Updating tool: ${toolId}`);
+        
+        // Unload the tool first if it's loaded
+        if (this.isToolLoaded(toolId)) {
+            this.unloadTool(toolId);
+        }
+        
+        // Re-install the tool (this will fetch the latest version from registry)
+        const manifest = await this.registryManager.installTool(toolId);
+        
+        // Load the updated tool
+        await this.loadTool(toolId);
+        
+        return manifest;
+    }
+
+    /**
      * Uninstall a tool from registry
      */
     async uninstallTool(toolId: string): Promise<void> {

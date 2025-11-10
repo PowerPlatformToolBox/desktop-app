@@ -26,8 +26,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest" alt="GH Prod Release">
-      <img src="https://img.shields.io/github/downloads/PowerPlatformToolBox/desktop-app/latest/total?label=Production%20Build" />
+    <a href="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml" alt="Tool Update Status">
+      <img src="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml/badge.svg" />
     </a>
     <a href="https://www.powerplatformtoolbox.com" alt="Website">
       <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
@@ -38,8 +38,14 @@
 </p>
 
 <p align="center">
-    <span style="font-size:large;font-weight:bold">Download</span><br /><br />
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
+  <a href="docs/TOOL_DEV.md">
+    <img src="https://img.shields.io/badge/build_your_own_tool-getting_started-a541ff?style=for-the-badge&logo=npm&labelColor=0354a3" alt="Download for Windows" />
+  </a>
+</p>
+
+<p align="center">
+  <span style="font-size:large;font-weight:bold">Downloads</span><br /><br />
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
     <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
   </a>
   &nbsp;&nbsp;
@@ -64,11 +70,11 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
+-   [Known Issues](#known-issues)
 -   [Features Overview](#features-overview)
 -   [Architecture](#architecture)
 -   [Security Model](#security-model)
 -   [Tool Development](#tool-development)
-    -   [Testing Tools Locally](#testing-tools-locally)
     -   [Sample Tools Repository](#sample-tools-repository)
 -   [ToolBox development](#toolbox-development)
     -   [Installing Tools](#installing-tools)
@@ -85,6 +91,10 @@
 -   [Discussions](#discussions)
 -   [License](#license)
 -   [Contributing](#contributing)
+
+## Known Issues
+
+-   Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
 
 ## Features Overview
 
@@ -117,17 +127,6 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
 Power Platform Tool Box uses a secure, extensible Tool Host architecture that allows developers to create custom tools as npm packages. Tools run in isolated processes and communicate with the ToolBox through a secure API.
 
 See **[TOOL_DEV.md](docs/TOOL_DEV.md)** for the complete guide on creating tools.
-
-### Testing Tools Locally
-
-You can test your tools locally during development without publishing to npm. This enables rapid iteration using watch mode:
-
-1. Navigate to the **Debug** section in ToolBox
-2. Use **Load Local Tool** to select your tool directory
-3. Make changes with watch mode running (`npm run build -- --watch`)
-4. Reload the tool in ToolBox to see updates
-
-See **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** for a complete step-by-step guide.
 
 ### Sample Tools Repository
 
@@ -208,7 +207,6 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
 -   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
--   **[LOCAL_TOOL_TESTING.md](docs/LOCAL_TOOL_TESTING.md)** - Step-by-step guide for testing tools locally without publishing
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 
 ### Porting XrmToolBox Tools
@@ -233,7 +231,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 > If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
 
-Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
+**Offical Team** ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -242,6 +240,17 @@ Offical Team ([emoji key](https://allcontributors.org/docs/en/emoji-key)) are:
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://powermaverick.dev/"><img src="https://avatars.githubusercontent.com/u/36135520?v=4?s=100" width="100px;" alt="Danish Naglekar"/><br /><sub><b>Danish Naglekar</b></sub></a><br /><a href="#question-Power-Maverick" title="Answering Questions">💬</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Code">💻</a> <a href="#content-Power-Maverick" title="Content">🖋</a> <a href="#design-Power-Maverick" title="Design">🎨</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Documentation">📖</a> <a href="#infra-Power-Maverick" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#security-Power-Maverick" title="Security">🛡️</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Tests">⚠️</a> <a href="#tool-Power-Maverick" title="Tools">🔧</a> <a href="#tutorial-Power-Maverick" title="Tutorials">✅</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MattBerg11"><img src="https://avatars.githubusercontent.com/u/25282996?v=4?s=100" width="100px;" alt="Matt Berg"/><br /><sub><b>Matt Berg</b></sub></a><br /><a href="#content-MattBerg11" title="Content">🖋</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MattBerg11" title="Documentation">📖</a> <a href="#example-MattBerg11" title="Examples">💡</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.dancingwithcrm.com/"><img src="https://avatars.githubusercontent.com/u/17760686?v=4?s=100" width="100px;" alt="Oleksandr Olashyn (dancingwithcrm)"/><br /><sub><b>Oleksandr Olashyn (dancingwithcrm)</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OOlashyn" title="Code">💻</a> <a href="#design-OOlashyn" title="Design">🎨</a> <a href="#ideas-OOlashyn" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OOlashyn" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://ramblingreece.co.uk/"><img src="https://avatars.githubusercontent.com/u/51825794?v=4?s=100" width="100px;" alt="Reece"/><br /><sub><b>Reece</b></sub></a><br /><a href="#ideas-ramblingreece" title="Ideas, Planning, & Feedback">🤔</a> <a href="#projectManagement-ramblingreece" title="Project Management">📆</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LinkeD365"><img src="https://avatars.githubusercontent.com/u/43988771?v=4?s=100" width="100px;" alt="LinkeD365"/><br /><sub><b>LinkeD365</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/issues?q=author%3ALinkeD365" title="Bug reports">🐛</a> <a href="#ideas-LinkeD365" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=LinkeD365" title="Tests">⚠️</a> <a href="#userTesting-LinkeD365" title="User Testing">📓</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mohsinonxrm"><img src="https://avatars.githubusercontent.com/u/21046804?v=4?s=100" width="100px;" alt="mohsinonxrm"/><br /><sub><b>mohsinonxrm</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mohsinonxrm" title="Code">💻</a> <a href="#design-mohsinonxrm" title="Design">🎨</a> <a href="#ideas-mohsinonxrm" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-mohsinonxrm" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/uofirob"><img src="https://avatars.githubusercontent.com/u/1754842?v=4?s=100" width="100px;" alt="Rob Montague"/><br /><sub><b>Rob Montague</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=uofirob" title="Code">💻</a> <a href="#design-uofirob" title="Design">🎨</a> <a href="#ideas-uofirob" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-uofirob" title="Maintenance">🚧</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.oliverflint.co.uk/"><img src="https://avatars.githubusercontent.com/u/8300688?v=4?s=100" width="100px;" alt="Oliver Flint"/><br /><sub><b>Oliver Flint</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OliverFlint" title="Code">💻</a> <a href="#design-OliverFlint" title="Design">🎨</a> <a href="#ideas-OliverFlint" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OliverFlint" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.dotnetdust.blogspot.com/"><img src="https://avatars.githubusercontent.com/u/9728423?v=4?s=100" width="100px;" alt="Daryl LaBar"/><br /><sub><b>Daryl LaBar</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=daryllabar" title="Code">💻</a> <a href="#design-daryllabar" title="Design">🎨</a> <a href="#ideas-daryllabar" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-daryllabar" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mikefactorial"><img src="https://avatars.githubusercontent.com/u/42348035?v=4?s=100" width="100px;" alt="Mike!"/><br /><sub><b>Mike!</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mikefactorial" title="Code">💻</a> <a href="#design-mikefactorial" title="Design">🎨</a> <a href="#ideas-mikefactorial" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-mikefactorial" title="Maintenance">🚧</a></td>
     </tr>
   </tbody>
 </table>
