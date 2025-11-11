@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.0.6 (2025-11-11)
+
+### Bug Fix - Windows Antivirus False Positive
+
+-   **Fixed antivirus false positive detection in v1.0.5**
+
+    -   Rebuilt `icons/icon.ico` with multiple icon sizes (16, 32, 48, 64, 96, 128, 256)
+    -   Previous v1.0.5 icon had only a single 256x256 PNG which triggered false positives
+    -   New icon follows Microsoft Windows icon guidelines with proper multi-resolution format
+    -   Icon file size increased from 20KB to 154KB to include all required resolutions
+    -   This fix addresses Windows Defender and other antivirus software flagging the installer as malicious
+
+-   **Technical Details**
+    -   Used ImageMagick to generate properly formatted ICO file from source PNG
+    -   Included standard Windows icon sizes for proper display at all resolutions
+    -   Follows industry best practices for Electron application icons
+
 ## Recent Updates (2025-10-19)
 
 ### CSS Organization and CI/CD Improvements
