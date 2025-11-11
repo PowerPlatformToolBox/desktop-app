@@ -132,7 +132,7 @@ ls -lh icons/
 
 ## References
 
-- [Microsoft Windows Icon Guidelines](https://docs.microsoft.com/en-us/windows/win32/uxguide/vis-icons)
+- [Microsoft Windows Icon Guidelines](https://learn.microsoft.com/en-us/windows/win32/uxguide/vis-icons)
 - [Apple Human Interface Guidelines - App Icon](https://developer.apple.com/design/human-interface-guidelines/app-icons)
 - [Electron Builder Icon Documentation](https://www.electron.build/icons)
 - [ImageMagick ICO Format](https://imagemagick.org/script/formats.php#ico)
