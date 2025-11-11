@@ -607,6 +607,7 @@ class ToolBoxApp {
     private createMenu(): void {
         const isMac = process.platform === "darwin";
 
+        const appVersion = this.autoUpdateManager.getCurrentVersion();
         const template: any[] = [
             // App menu (macOS only)
             ...(isMac
@@ -709,11 +710,15 @@ class ToolBoxApp {
                             await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
                         },
                     },
+
                     {
                         label: "Documentation",
                         click: async () => {
                             await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app#readme");
                         },
+                    },
+                                        {
+                        label: `Version: ${appVersion}`,
                     },
                     { type: "separator" },
                     {
