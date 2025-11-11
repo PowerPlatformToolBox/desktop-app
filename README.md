@@ -213,6 +213,7 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
 -   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
+-   **[ICON_GUIDELINES.md](docs/ICON_GUIDELINES.md)** - Application icon requirements and best practices
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 
 ### Porting XrmToolBox Tools
