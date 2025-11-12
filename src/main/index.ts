@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
 import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
@@ -430,7 +430,14 @@ class ToolBoxApp {
         // Get current theme handler
         ipcMain.handle("get-current-theme", () => {
             const settings = this.settingsManager.getUserSettings();
-            return settings.theme || "system";
+            const theme = settings.theme || "system";
+            
+            // Resolve "system" to actual theme based on OS preference
+            if (theme === "system") {
+                return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+            }
+            
+            return theme;
         });
 
         // Event history handler
