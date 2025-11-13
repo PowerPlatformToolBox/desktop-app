@@ -106,6 +106,7 @@
 
 -   **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
 -   **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
+-   **🛡️ Per-Tool CSP**: Content Security Policy configuration with user consent for external resource access
 -   **🔗 Dataverse Connections**: Create and manage connections to Dataverse environments
 -   **⚙️ Settings Management**:
     -   User settings for the ToolBox application
@@ -127,6 +128,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
 -   **Structured IPC**: All communication via validated message protocol
 -   **Limited API Surface**: Tools only access specific ToolBox APIs
 -   **No Direct Access**: Tools cannot access file system, Electron APIs, or other tools
+-   **Per-Tool CSP**: Tools request specific Content Security Policy exceptions with user consent (see [CSP Configuration](docs/CSP_CONFIGURATION.md))
 
 ## Tool Development
 
