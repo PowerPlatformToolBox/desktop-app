@@ -3540,6 +3540,23 @@ async function init() {
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
 
+        // Forward all events to tool iframes
+        openTools.forEach((openTool) => {
+            if (openTool.webview && openTool.webview.contentWindow) {
+                try {
+                    openTool.webview.contentWindow.postMessage(
+                        {
+                            type: "TOOLBOX_EVENT",
+                            payload: payload,
+                        },
+                        "*",
+                    );
+                } catch (error) {
+                    console.error("Error forwarding event to tool iframe:", error);
+                }
+            }
+        });
+
         // Handle notifications using toastr
         if (payload.event === "notification:shown") {
             const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
