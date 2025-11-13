@@ -236,7 +236,7 @@ Due to GUI requirements, the following should be tested manually:
 - Memory usage
 
 ## Breaking Changes
-**None.** This is a fully backward-compatible addition:
+**None.** 
 - Existing tools without CSP exceptions work unchanged
 - New optional field in manifests
 - No API changes to existing functions
@@ -291,7 +291,6 @@ This implementation successfully addresses the issue described in bug#40 by:
 1. ✅ Allowing tools to specify CSP exceptions in their manifest
 2. ✅ Implementing a user consent flow for transparency and security
 3. ✅ Dynamically applying CSP to tool iframes based on granted permissions
-4. ✅ Maintaining backward compatibility with existing tools
-5. ✅ Providing comprehensive documentation for users and developers
+4. ✅ Providing comprehensive documentation for users and developers
 
 The solution balances security with functionality, ensuring tools can access the external resources they need while protecting users through explicit consent and clear communication of permissions.
