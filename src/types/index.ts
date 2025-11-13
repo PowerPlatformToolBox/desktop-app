@@ -3,6 +3,20 @@
  */
 
 /**
+ * CSP (Content Security Policy) exceptions for a tool
+ * Allows tools to specify which external resources they need to access
+ */
+export interface CspExceptions {
+  'connect-src'?: string[];
+  'script-src'?: string[];
+  'style-src'?: string[];
+  'img-src'?: string[];
+  'font-src'?: string[];
+  'frame-src'?: string[];
+  'media-src'?: string[];
+}
+
+/**
  * Represents a tool that can be loaded into the ToolBox
  */
 export interface Tool {
@@ -14,6 +28,7 @@ export interface Tool {
   icon?: string;
   settings?: ToolSettings;
   localPath?: string; // For local development tools - absolute path to tool directory
+  cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
 }
 
 /**
@@ -32,6 +47,7 @@ export interface ToolRegistryEntry {
   publishedAt: string;
   tags?: string[];
   readme?: string; // URL or relative path to README file
+  cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
 }
 
 /**
@@ -49,6 +65,7 @@ export interface ToolManifest {
   source: 'registry' | 'npm' | 'local'; // Track installation source
   sourceUrl?: string;
   readme?: string; // URL or relative path to README file
+  cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
 }
 
 /**
@@ -71,6 +88,7 @@ export interface UserSettings {
   connections: DataverseConnection[];
   installedTools: string[]; // List of installed tool package names
   favoriteTools: string[]; // List of favorite tool IDs
+  cspConsents: { [toolId: string]: boolean }; // Track CSP consent for each tool
 }
 
 /**

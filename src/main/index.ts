@@ -398,6 +398,23 @@ class ToolBoxApp {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
+        // CSP consent handlers
+        ipcMain.handle("has-csp-consent", (_, toolId) => {
+            return this.settingsManager.hasCspConsent(toolId);
+        });
+
+        ipcMain.handle("grant-csp-consent", (_, toolId) => {
+            this.settingsManager.grantCspConsent(toolId);
+        });
+
+        ipcMain.handle("revoke-csp-consent", (_, toolId) => {
+            this.settingsManager.revokeCspConsent(toolId);
+        });
+
+        ipcMain.handle("get-csp-consents", () => {
+            return this.settingsManager.getCspConsents();
+        });
+
         // Notification handler
         ipcMain.handle("show-notification", (_, options) => {
             this.api.showNotification(options);
