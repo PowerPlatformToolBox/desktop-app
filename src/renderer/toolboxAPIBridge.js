@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /**
  * ToolBox API Bridge for Iframes
  *
@@ -204,6 +205,7 @@
                     }
                 });
             },
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             off: function (callback) {
                 // Cleanup would go here
             },
