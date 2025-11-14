@@ -717,7 +717,7 @@ class ToolBoxApp {
                             await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app#readme");
                         },
                     },
-                                        {
+                    {
                         label: `Version: ${appVersion}`,
                     },
                     { type: "separator" },
