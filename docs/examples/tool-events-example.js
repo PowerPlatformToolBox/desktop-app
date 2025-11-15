@@ -25,6 +25,13 @@ if (typeof window.toolboxAPI !== 'undefined') {
                 console.log('Connection updated:', payload.data);
                 // Tool can refresh its connection-dependent data
                 // Check if it's a token refresh: payload.data.tokenRefreshed === true
+                // Check if connection was disconnected: payload.data.disconnected === true
+                if (payload.data.disconnected) {
+                    console.log('Connection disconnected');
+                    // Tool should handle loss of active connection
+                    // Clear any cached data that depends on the connection
+                    // Update UI to show disconnected state
+                }
                 break;
 
             case 'connection:deleted':
@@ -32,27 +39,16 @@ if (typeof window.toolboxAPI !== 'undefined') {
                 // Tool can clear connection-dependent state
                 break;
 
-            case 'connection:disconnected':
-                console.log('Connection disconnected');
-                // Tool should handle loss of active connection
-                // Clear any cached data that depends on the connection
-                // Update UI to show disconnected state
-                break;
-
-            // Theme Events
-            case 'theme:changed':
-                console.log('Theme changed:', payload.data);
-                // payload.data.oldTheme - previous theme ('light', 'dark', or 'system')
-                // payload.data.newTheme - new theme ('light', 'dark', or 'system')
-                // Tool can update its UI theme to match
-                updateToolTheme(payload.data.newTheme);
-                break;
-
             // Settings Events
             case 'settings:updated':
                 console.log('Settings updated:', payload.data);
                 // General settings were updated
+                // Tools can check if theme changed: payload.data.theme
                 // Tools typically don't need to handle this unless they care about global settings
+                if (payload.data.theme) {
+                    console.log('Theme changed to:', payload.data.theme);
+                    updateToolTheme(payload.data.theme);
+                }
                 break;
 
             // Tool Events (only for this tool)
