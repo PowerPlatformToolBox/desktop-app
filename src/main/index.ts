@@ -57,7 +57,9 @@ class ToolBoxApp {
             ToolBoxEvent.CONNECTION_CREATED,
             ToolBoxEvent.CONNECTION_UPDATED,
             ToolBoxEvent.CONNECTION_DELETED,
+            ToolBoxEvent.CONNECTION_DISCONNECTED,
             ToolBoxEvent.SETTINGS_UPDATED,
+            ToolBoxEvent.THEME_CHANGED,
             ToolBoxEvent.NOTIFICATION_SHOWN,
             ToolBoxEvent.TERMINAL_CREATED,
             ToolBoxEvent.TERMINAL_CLOSED,
@@ -131,7 +133,23 @@ class ToolBoxApp {
         });
 
         ipcMain.handle("update-user-settings", (_, settings) => {
-            this.settingsManager.updateUserSettings(settings);
+            // Check if theme is being updated
+            if (settings.theme !== undefined) {
+                const currentSettings = this.settingsManager.getUserSettings();
+                const oldTheme = currentSettings.theme;
+                this.settingsManager.updateUserSettings(settings);
+                
+                // Emit theme changed event if theme actually changed
+                if (oldTheme !== settings.theme) {
+                    this.api.emitEvent(ToolBoxEvent.THEME_CHANGED, { 
+                        oldTheme, 
+                        newTheme: settings.theme 
+                    });
+                }
+            } else {
+                this.settingsManager.updateUserSettings(settings);
+            }
+            
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
 
@@ -240,6 +258,7 @@ class ToolBoxApp {
 
         ipcMain.handle("disconnect-connection", () => {
             this.connectionsManager.disconnectActiveConnection();
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_DISCONNECTED, {});
         });
 
         // Check if connection token is expired
