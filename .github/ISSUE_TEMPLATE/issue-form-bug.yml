@@ -4,21 +4,15 @@ title: "[Bug]: "
 labels: ["triage"]
 type: "bug"
 projects: ["PowerPlatformToolBox/1"]
-assignees:
-  - ["Power-Maverick"]
 body:
   - type: markdown
     attributes:
       value: |
         Thanks for taking the time to fill out this bug report!
-  - type: input
-    id: contact
-    attributes:
-      label: Contact Details
-      description: How can we get in touch with you if we need more info?
-      placeholder: Email or LinkedIn profile url or Twitter handle or Power Platform Level Up Discord tag name
-    validations:
-      required: false
+
+        > [!NOTE]
+        > If you are a tool author and running into issues, after creating the bug please join the Discord server for more help using this [invite link](https://discord.gg/7ZQzVTngcN).
+        
   - type: textarea
     id: what-happened
     attributes:
