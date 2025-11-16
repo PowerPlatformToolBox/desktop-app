@@ -149,14 +149,14 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
         document.body.appendChild(modal);
         
         // Show modal
-        setTimeout(() => modal.classList.add("show"), 10);
+        setTimeout(() => modal.classList.add("active"), 10);
         
         // Handle buttons
         const acceptBtn = modal.querySelector("#csp-accept-btn");
         const declineBtn = modal.querySelector("#csp-decline-btn");
         
         const closeModal = (granted: boolean) => {
-            modal.classList.remove("show");
+            modal.classList.remove("active");
             setTimeout(() => {
                 modal.remove();
                 resolve(granted);
