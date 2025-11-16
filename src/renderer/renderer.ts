@@ -2659,6 +2659,14 @@ function convertMarkdownToHtml(markdown: string): string {
     return html;
 }
 
+// Track original settings to detect changes
+let originalSettings: {
+    theme?: string;
+    autoUpdate?: boolean;
+    showDebugMenu?: boolean;
+    terminalFont?: string;
+} = {};
+
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
@@ -2669,6 +2677,15 @@ async function loadSidebarSettings() {
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
+
+        // Store original settings for change detection
+        originalSettings = {
+            theme: settings.theme,
+            autoUpdate: settings.autoUpdate,
+            showDebugMenu: settings.showDebugMenu ?? false,
+            terminalFont: settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace",
+        };
+
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
@@ -2713,23 +2730,48 @@ async function saveSidebarSettings() {
         terminalFont = customFontInput.value.trim() || "'Consolas', 'Monaco', 'Courier New', monospace";
     }
 
-    const settings = {
+    const currentSettings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
         showDebugMenu: showDebugMenuCheck.checked,
         terminalFont: terminalFont,
     };
 
-    await window.toolboxAPI.updateUserSettings(settings);
-    applyTheme(settings.theme);
-    applyTerminalFont(settings.terminalFont);
-    applyDebugMenuVisibility(settings.showDebugMenu);
+    // Only include changed settings in the update
+    const changedSettings: any = {};
 
-    await window.toolboxAPI.utils.showNotification({
-        title: "Settings Saved",
-        body: "Your settings have been saved.",
-        type: "success",
-    });
+    if (currentSettings.theme !== originalSettings.theme) {
+        changedSettings.theme = currentSettings.theme;
+    }
+    if (currentSettings.autoUpdate !== originalSettings.autoUpdate) {
+        changedSettings.autoUpdate = currentSettings.autoUpdate;
+    }
+    if (currentSettings.showDebugMenu !== originalSettings.showDebugMenu) {
+        changedSettings.showDebugMenu = currentSettings.showDebugMenu;
+    }
+    if (currentSettings.terminalFont !== originalSettings.terminalFont) {
+        changedSettings.terminalFont = currentSettings.terminalFont;
+    }
+
+    // Only save and emit event if something changed
+    if (Object.keys(changedSettings).length > 0) {
+        await window.toolboxAPI.updateUserSettings(changedSettings);
+
+        // Apply all current settings visually (even if not all changed)
+        applyTheme(currentSettings.theme);
+        applyTerminalFont(currentSettings.terminalFont);
+        applyDebugMenuVisibility(currentSettings.showDebugMenu);
+
+        // Update original settings to reflect new state
+        originalSettings = { ...currentSettings };
+
+        await window.toolboxAPI.utils.showNotification({
+            title: "Settings Saved",
+            body: "Your settings have been saved.",
+            type: "success",
+        });
+    }
+    // If no changes, do nothing (no notification shown)
 }
 
 // ===== Terminal Management =====
@@ -3187,8 +3229,11 @@ async function init() {
         themeSelect.addEventListener("change", async () => {
             const theme = (themeSelect as any).value;
             if (theme) {
+                // Save only the changed theme setting
                 await window.toolboxAPI.updateUserSettings({ theme });
                 applyTheme(theme);
+                // Update original settings to track the change
+                originalSettings.theme = theme;
             }
         });
     }
@@ -3210,17 +3255,20 @@ async function init() {
                     if (customFontInput && customFontInput.value.trim()) {
                         await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
                         applyTerminalFont(customFontInput.value.trim());
+                        originalSettings.terminalFont = customFontInput.value.trim();
                     }
                 } else {
                     customFontContainer.style.display = "none";
                     // Apply selected preset font
                     await window.toolboxAPI.updateUserSettings({ terminalFont });
                     applyTerminalFont(terminalFont);
+                    originalSettings.terminalFont = terminalFont;
                 }
             } else if (terminalFont && terminalFont !== "custom") {
                 // Fallback if container not found
                 await window.toolboxAPI.updateUserSettings({ terminalFont });
                 applyTerminalFont(terminalFont);
+                originalSettings.terminalFont = terminalFont;
             }
         });
     }
@@ -3232,6 +3280,7 @@ async function init() {
             if (customFont) {
                 await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
                 applyTerminalFont(customFont);
+                originalSettings.terminalFont = customFont;
             }
         };
 

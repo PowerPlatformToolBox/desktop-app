@@ -240,6 +240,7 @@ class ToolBoxApp {
 
         ipcMain.handle("disconnect-connection", () => {
             this.connectionsManager.disconnectActiveConnection();
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
         });
 
         // Check if connection token is expired
@@ -260,7 +261,7 @@ class ToolBoxApp {
 
             try {
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                
+
                 // Update the connection with new tokens
                 this.connectionsManager.setActiveConnection(connectionId, {
                     accessToken: authResult.accessToken,
@@ -272,7 +273,7 @@ class ToolBoxApp {
                 this.notifiedExpiredTokens.clear();
 
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error("Token refresh failed:", error);
@@ -431,12 +432,12 @@ class ToolBoxApp {
         ipcMain.handle("get-current-theme", () => {
             const settings = this.settingsManager.getUserSettings();
             const theme = settings.theme || "system";
-            
+
             // Resolve "system" to actual theme based on OS preference
             if (theme === "system") {
                 return nativeTheme.shouldUseDarkColors ? "dark" : "light";
             }
-            
+
             return theme;
         });
 
@@ -745,7 +746,7 @@ class ToolBoxApp {
      */
     private checkTokenExpiry(): void {
         const activeConnection = this.connectionsManager.getActiveConnection();
-        
+
         if (!activeConnection || !activeConnection.tokenExpiry) {
             // Clear notification tracking if no active connection
             this.notifiedExpiredTokens.clear();
@@ -754,12 +755,12 @@ class ToolBoxApp {
 
         const expiryDate = new Date(activeConnection.tokenExpiry);
         const now = new Date();
-        
+
         // Check if token has expired
         if (expiryDate.getTime() <= now.getTime()) {
             // Only notify if we haven't already notified about this expired token
             const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-            
+
             if (!this.notifiedExpiredTokens.has(notificationKey)) {
                 // Token has expired - notify the user
                 if (this.mainWindow) {
@@ -767,7 +768,7 @@ class ToolBoxApp {
                         connectionId: activeConnection.id,
                         connectionName: activeConnection.name,
                     });
-                    
+
                     // Mark this token as notified
                     this.notifiedExpiredTokens.add(notificationKey);
                 }
