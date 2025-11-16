@@ -240,6 +240,7 @@ class ToolBoxApp {
 
         ipcMain.handle("disconnect-connection", () => {
             this.connectionsManager.disconnectActiveConnection();
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
         });
 
         // Check if connection token is expired
