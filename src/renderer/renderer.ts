@@ -2659,6 +2659,14 @@ function convertMarkdownToHtml(markdown: string): string {
     return html;
 }
 
+// Track original settings to detect changes
+let originalSettings: {
+    theme?: string;
+    autoUpdate?: boolean;
+    showDebugMenu?: boolean;
+    terminalFont?: string;
+} = {};
+
 async function loadSidebarSettings() {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
@@ -2669,6 +2677,15 @@ async function loadSidebarSettings() {
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
+        
+        // Store original settings for change detection
+        originalSettings = {
+            theme: settings.theme,
+            autoUpdate: settings.autoUpdate,
+            showDebugMenu: settings.showDebugMenu ?? false,
+            terminalFont: settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace"
+        };
+        
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
@@ -2713,23 +2730,54 @@ async function saveSidebarSettings() {
         terminalFont = customFontInput.value.trim() || "'Consolas', 'Monaco', 'Courier New', monospace";
     }
 
-    const settings = {
+    const currentSettings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
         showDebugMenu: showDebugMenuCheck.checked,
         terminalFont: terminalFont,
     };
 
-    await window.toolboxAPI.updateUserSettings(settings);
-    applyTheme(settings.theme);
-    applyTerminalFont(settings.terminalFont);
-    applyDebugMenuVisibility(settings.showDebugMenu);
+    // Only include changed settings in the update
+    const changedSettings: any = {};
+    
+    if (currentSettings.theme !== originalSettings.theme) {
+        changedSettings.theme = currentSettings.theme;
+    }
+    if (currentSettings.autoUpdate !== originalSettings.autoUpdate) {
+        changedSettings.autoUpdate = currentSettings.autoUpdate;
+    }
+    if (currentSettings.showDebugMenu !== originalSettings.showDebugMenu) {
+        changedSettings.showDebugMenu = currentSettings.showDebugMenu;
+    }
+    if (currentSettings.terminalFont !== originalSettings.terminalFont) {
+        changedSettings.terminalFont = currentSettings.terminalFont;
+    }
 
-    await window.toolboxAPI.utils.showNotification({
-        title: "Settings Saved",
-        body: "Your settings have been saved.",
-        type: "success",
-    });
+    // Only save and emit event if something changed
+    if (Object.keys(changedSettings).length > 0) {
+        await window.toolboxAPI.updateUserSettings(changedSettings);
+        
+        // Apply all current settings visually (even if not all changed)
+        applyTheme(currentSettings.theme);
+        applyTerminalFont(currentSettings.terminalFont);
+        applyDebugMenuVisibility(currentSettings.showDebugMenu);
+        
+        // Update original settings to reflect new state
+        originalSettings = { ...currentSettings };
+
+        await window.toolboxAPI.utils.showNotification({
+            title: "Settings Saved",
+            body: "Your settings have been saved.",
+            type: "success",
+        });
+    } else {
+        // No changes, just show a message
+        await window.toolboxAPI.utils.showNotification({
+            title: "No Changes",
+            body: "No settings were modified.",
+            type: "info",
+        });
+    }
 }
 
 // ===== Terminal Management =====
@@ -3181,18 +3229,22 @@ async function init() {
         });
     }
 
-    // Add change listener for theme selector to apply immediately (preview only, not saved until "Save Settings" is clicked)
+    // Add change listener for theme selector to apply immediately
     const themeSelect = document.getElementById("sidebar-theme-select");
     if (themeSelect) {
         themeSelect.addEventListener("change", async () => {
             const theme = (themeSelect as any).value;
             if (theme) {
+                // Save only the changed theme setting
+                await window.toolboxAPI.updateUserSettings({ theme });
                 applyTheme(theme);
+                // Update original settings to track the change
+                originalSettings.theme = theme;
             }
         });
     }
 
-    // Add change listener for terminal font selector to apply immediately and show/hide custom input (preview only, not saved until "Save Settings" is clicked)
+    // Add change listener for terminal font selector to apply immediately and show/hide custom input
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
@@ -3205,28 +3257,36 @@ async function init() {
             if (customFontContainer) {
                 if (terminalFont === "custom") {
                     customFontContainer.style.display = "block";
-                    // Apply custom font if available (preview only)
+                    // Apply custom font if available
                     if (customFontInput && customFontInput.value.trim()) {
+                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
                         applyTerminalFont(customFontInput.value.trim());
+                        originalSettings.terminalFont = customFontInput.value.trim();
                     }
                 } else {
                     customFontContainer.style.display = "none";
-                    // Apply selected preset font (preview only)
+                    // Apply selected preset font
+                    await window.toolboxAPI.updateUserSettings({ terminalFont });
                     applyTerminalFont(terminalFont);
+                    originalSettings.terminalFont = terminalFont;
                 }
             } else if (terminalFont && terminalFont !== "custom") {
-                // Fallback if container not found (preview only)
+                // Fallback if container not found
+                await window.toolboxAPI.updateUserSettings({ terminalFont });
                 applyTerminalFont(terminalFont);
+                originalSettings.terminalFont = terminalFont;
             }
         });
     }
 
-    // Add input listener for custom font to apply on blur or Enter key (preview only, not saved until "Save Settings" is clicked)
+    // Add input listener for custom font to apply on blur or Enter key
     if (customFontInput) {
         const applyCustomFont = async () => {
             const customFont = customFontInput.value.trim();
             if (customFont) {
+                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
                 applyTerminalFont(customFont);
+                originalSettings.terminalFont = customFont;
             }
         };
 
