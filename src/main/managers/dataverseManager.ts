@@ -212,7 +212,7 @@ export class DataverseManager {
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
-        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, undefined, ['odata.include-annotations="*"']);
+        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as FetchXmlResult;
     }
 
@@ -379,7 +379,6 @@ export class DataverseManager {
         method: string,
         accessToken: string,
         body?: Record<string, unknown>,
-        additionalHeaders?: Record<string, string>,
         preferOptions?: string[],
     ): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
@@ -406,7 +405,6 @@ export class DataverseManager {
                     "Content-Type": "application/json; charset=utf-8",
                     Prefer: preferHeader,
                     "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
-                    ...additionalHeaders, // Merge additional headers (if needed for other purposes)
                 },
             };
 
