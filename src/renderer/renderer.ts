@@ -50,6 +50,124 @@ let activeToolId: string | null = null;
 let secondaryToolId: string | null = null;
 let isSplitView = false;
 
+/**
+ * Build CSP string for a tool based on its exceptions
+ */
+function buildToolCsp(tool: any): string {
+    const cspExceptions = tool.cspExceptions || {};
+    
+    // Default CSP directives
+    const directives: { [key: string]: string[] } = {
+        'default-src': ["'self'"],
+        'script-src': ["'self'", "'unsafe-inline'"],
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'img-src': ["'self'", "data:", "https:"],
+        'font-src': ["'self'", "data:"],
+        'connect-src': ["'self'"],
+    };
+    
+    // Merge tool's CSP exceptions
+    for (const [directive, sources] of Object.entries(cspExceptions)) {
+        if (Array.isArray(sources) && sources.length > 0) {
+            // Add tool's sources to the directive
+            if (!directives[directive]) {
+                directives[directive] = ["'self'"];
+            }
+            directives[directive].push(...sources);
+        }
+    }
+    
+    // Build CSP string
+    return Object.entries(directives)
+        .map(([directive, sources]) => `${directive} ${sources.join(' ')}`)
+        .join('; ');
+}
+
+/**
+ * Show CSP consent dialog for a tool
+ * Returns true if user grants consent, false otherwise
+ */
+async function showCspConsentDialog(tool: any): Promise<boolean> {
+    return new Promise((resolve) => {
+        const modal = document.createElement("div");
+        modal.className = "modal";
+        modal.id = "csp-consent-modal";
+        
+        const cspExceptions = tool.cspExceptions || {};
+        
+        // Build list of CSP exceptions
+        let exceptionsHtml = "";
+        for (const [directive, sources] of Object.entries(cspExceptions)) {
+            if (Array.isArray(sources) && sources.length > 0) {
+                const directiveName = directive.replace('-src', '').replace('-', ' ');
+                exceptionsHtml += `
+                    <div class="csp-exception">
+                        <strong>${directiveName}:</strong>
+                        <ul>
+                            ${sources.map((source: string) => `<li><code>${source}</code></li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        modal.innerHTML = `
+            <div class="modal-content csp-consent-dialog">
+                <div class="modal-header">
+                    <h2>⚠️ Security Permissions Required</h2>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        <strong>${tool.name}</strong> by <em>${tool.author || 'Unknown'}</em> 
+                        is requesting permission to access external resources.
+                    </p>
+                    <p>
+                        This tool needs the following Content Security Policy (CSP) exceptions to function properly:
+                    </p>
+                    <div class="csp-exceptions-list">
+                        ${exceptionsHtml}
+                    </div>
+                    <div class="csp-warning">
+                        <p>
+                            ⚠️ <strong>Important:</strong> Only grant these permissions if you trust this tool and its author. 
+                            These permissions will allow the tool to:
+                        </p>
+                        <ul>
+                            <li>Make network requests to the specified domains</li>
+                            <li>Load scripts and styles from external sources</li>
+                            <li>Access external resources as specified above</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="csp-decline-btn">Decline</button>
+                    <button class="btn btn-primary" id="csp-accept-btn">Accept &amp; Continue</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Show modal
+        setTimeout(() => modal.classList.add("show"), 10);
+        
+        // Handle buttons
+        const acceptBtn = modal.querySelector("#csp-accept-btn");
+        const declineBtn = modal.querySelector("#csp-decline-btn");
+        
+        const closeModal = (granted: boolean) => {
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.remove();
+                resolve(granted);
+            }, 300);
+        };
+        
+        acceptBtn?.addEventListener("click", () => closeModal(true));
+        declineBtn?.addEventListener("click", () => closeModal(false));
+    });
+}
+
 // Set up message handler for iframe communication
 window.addEventListener("message", async (event) => {
     // Handle toolboxAPI calls from iframes
@@ -442,6 +560,30 @@ async function launchTool(toolId: string) {
         // Get tool context separately for postMessage (without accessToken)
         const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl);
 
+        // Check if tool requires CSP exceptions
+        if (tool.cspExceptions && Object.keys(tool.cspExceptions).length > 0) {
+            // Check if consent has been granted
+            const hasConsent = await window.toolboxAPI.hasCspConsent(tool.id);
+            
+            if (!hasConsent) {
+                // Show consent dialog
+                const consentGranted = await showCspConsentDialog(tool);
+                
+                if (!consentGranted) {
+                    // User declined, don't load the tool
+                    window.toolboxAPI.utils.showNotification({
+                        title: "Tool Launch Cancelled",
+                        body: `You declined the security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
+                        type: "warning",
+                    });
+                    return;
+                }
+                
+                // Grant consent
+                await window.toolboxAPI.grantCspConsent(tool.id);
+            }
+        }
+
         // Hide all views (including home view)
         document.querySelectorAll(".view").forEach((view) => {
             view.classList.remove("active");
@@ -543,6 +685,22 @@ async function launchTool(toolId: string) {
 
         // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
+
+        // Build CSP for the tool based on its exceptions
+        const cspString = buildToolCsp(tool);
+        
+        // Inject CSP meta tag into the HTML
+        const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${cspString}">`;
+        
+        // Inject CSP tag before the closing </head> tag or at the beginning if no head
+        if (injectedHtml.includes("</head>")) {
+            injectedHtml = injectedHtml.replace("</head>", cspMetaTag + "</head>");
+        } else if (injectedHtml.includes("<head>")) {
+            injectedHtml = injectedHtml.replace("<head>", "<head>" + cspMetaTag);
+        } else {
+            // If no head tag, create one
+            injectedHtml = `<!DOCTYPE html><html><head>${cspMetaTag}</head><body>${injectedHtml}</body></html>`;
+        }
 
         // Get the absolute path to the bridge script
         // The main renderer runs from dist/renderer/, so we use that as base

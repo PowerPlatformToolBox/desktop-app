@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
     updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke("update-tool-settings", toolId, settings),
 
+    // CSP consent management - Only for PPTB UI
+    hasCspConsent: (toolId: string) => ipcRenderer.invoke("has-csp-consent", toolId),
+    grantCspConsent: (toolId: string) => ipcRenderer.invoke("grant-csp-consent", toolId),
+    revokeCspConsent: (toolId: string) => ipcRenderer.invoke("revoke-csp-consent", toolId),
+    getCspConsents: () => ipcRenderer.invoke("get-csp-consents"),
+
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),

@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { Tool, ToolManifest } from "../../types";
+import { Tool, ToolManifest, CspExceptions } from "../../types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -16,6 +16,7 @@ interface ToolPackageJson {
     description?: string;
     author?: string;
     icon?: string;
+    cspExceptions?: CspExceptions;
 }
 
 /**
@@ -80,6 +81,7 @@ export class ToolManager extends EventEmitter {
             description: manifest.description,
             author: manifest.author,
             icon: manifest.icon,
+            cspExceptions: manifest.cspExceptions,
         };
 
         this.tools.set(tool.id, tool);
@@ -509,6 +511,7 @@ export class ToolManager extends EventEmitter {
             author: packageJson.author || "Local Developer",
             icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
+            cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
         };
 
         this.tools.set(toolId, tool);
