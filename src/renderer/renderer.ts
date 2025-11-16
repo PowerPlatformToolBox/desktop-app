@@ -2770,14 +2770,8 @@ async function saveSidebarSettings() {
             body: "Your settings have been saved.",
             type: "success",
         });
-    } else {
-        // No changes, just show a message
-        await window.toolboxAPI.utils.showNotification({
-            title: "No Changes",
-            body: "No settings were modified.",
-            type: "info",
-        });
     }
+    // If no changes, do nothing (no notification shown)
 }
 
 // ===== Terminal Management =====
