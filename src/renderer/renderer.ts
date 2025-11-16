@@ -51,36 +51,59 @@ let secondaryToolId: string | null = null;
 let isSplitView = false;
 
 /**
- * Build CSP string for a tool based on its exceptions
+ * Update the parent window's CSP to include tool exceptions
+ * This allows tools to inherit a permissive CSP with all granted exceptions
  */
-function buildToolCsp(tool: any): string {
+function updateParentCsp(tool: any): void {
     const cspExceptions = tool.cspExceptions || {};
     
-    // Default CSP directives
-    const directives: { [key: string]: string[] } = {
-        'default-src': ["'self'"],
-        'script-src': ["'self'", "'unsafe-inline'"],
-        'style-src': ["'self'", "'unsafe-inline'"],
-        'img-src': ["'self'", "data:", "https:"],
-        'font-src': ["'self'", "data:"],
-        'connect-src': ["'self'"],
-    };
+    if (!cspExceptions || Object.keys(cspExceptions).length === 0) {
+        return; // No exceptions to add
+    }
     
-    // Merge tool's CSP exceptions
+    // Get current CSP meta tag
+    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    if (!cspMeta) {
+        console.warn('[CSP] No CSP meta tag found in parent window');
+        return;
+    }
+    
+    const currentCsp = cspMeta.getAttribute('content') || '';
+    
+    // Parse current CSP into directives
+    const directives: { [key: string]: Set<string> } = {};
+    currentCsp.split(';').forEach(directive => {
+        const parts = directive.trim().split(/\s+/);
+        if (parts.length > 0) {
+            const name = parts[0];
+            const values = parts.slice(1);
+            if (!directives[name]) {
+                directives[name] = new Set();
+            }
+            values.forEach(v => directives[name].add(v));
+        }
+    });
+    
+    // Add tool's CSP exceptions
     for (const [directive, sources] of Object.entries(cspExceptions)) {
         if (Array.isArray(sources) && sources.length > 0) {
-            // Add tool's sources to the directive
             if (!directives[directive]) {
-                directives[directive] = ["'self'"];
+                directives[directive] = new Set(["'self'"]);
             }
-            directives[directive].push(...sources);
+            sources.forEach(source => directives[directive].add(source));
         }
     }
     
-    // Build CSP string
-    return Object.entries(directives)
-        .map(([directive, sources]) => `${directive} ${sources.join(' ')}`)
+    // Build new CSP string
+    const newCsp = Object.entries(directives)
+        .map(([name, values]) => `${name} ${Array.from(values).join(' ')}`)
         .join('; ');
+    
+    // Update CSP meta tag
+    cspMeta.setAttribute('content', newCsp);
+    
+    console.log(`[CSP] Updated parent CSP to include exceptions for tool ${tool.id}`);
+    console.log(`[CSP] New CSP:`, newCsp);
 }
 
 /**
@@ -585,6 +608,12 @@ async function launchTool(toolId: string) {
                 
                 // Grant consent
                 await window.toolboxAPI.grantCspConsent(tool.id);
+                
+                // Update parent window CSP to include this tool's exceptions
+                updateParentCsp(tool);
+            } else if (tool.cspExceptions && Object.keys(tool.cspExceptions).length > 0) {
+                // Consent already granted, ensure parent CSP includes this tool's exceptions
+                updateParentCsp(tool);
             }
         }
 
@@ -690,28 +719,6 @@ async function launchTool(toolId: string) {
         // Inject script tag to load external bridge file (avoids CSP violation)
         let injectedHtml = webviewHtml || toolHtml;
 
-        // Build CSP for the tool based on its exceptions
-        const cspString = buildToolCsp(tool);
-        
-        // Log the CSP string for debugging
-        console.log(`[CSP Debug] Building CSP for tool ${tool.id}:`, cspString);
-        console.log(`[CSP Debug] Tool CSP exceptions:`, tool.cspExceptions);
-        
-        // Inject CSP meta tag into the HTML
-        // HTML-escape the CSP string to prevent attribute injection
-        const escapedCspString = cspString.replace(/"/g, '&quot;');
-        const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${escapedCspString}">`;
-        
-        // Inject CSP tag before the closing </head> tag or at the beginning if no head
-        if (injectedHtml.includes("</head>")) {
-            injectedHtml = injectedHtml.replace("</head>", cspMetaTag + "</head>");
-        } else if (injectedHtml.includes("<head>")) {
-            injectedHtml = injectedHtml.replace("<head>", "<head>" + cspMetaTag);
-        } else {
-            // If no head tag, create one
-            injectedHtml = `<!DOCTYPE html><html><head>${cspMetaTag}</head><body>${injectedHtml}</body></html>`;
-        }
-
         // Get the absolute path to the bridge script
         // The main renderer runs from dist/renderer/, so we use that as base
         const bridgePath = window.location.href.replace(/[^/]*$/, "toolboxAPIBridge.js");
@@ -745,16 +752,9 @@ async function launchTool(toolId: string) {
             }
         });
 
-        // Use blob URL to load content into iframe
-        // This ensures the iframe has its own origin and CSP is properly applied
-        const blob = new Blob([injectedHtml], { type: 'text/html' });
-        const blobUrl = URL.createObjectURL(blob);
-        toolIframe.src = blobUrl;
-        
-        // Clean up blob URL after a delay (after iframe has loaded it)
-        setTimeout(() => {
-            URL.revokeObjectURL(blobUrl);
-        }, 5000);
+        // Use srcdoc to load content into iframe
+        // Tools inherit parent window's CSP (which includes all granted tool exceptions)
+        toolIframe.srcdoc = injectedHtml;
 
         webviewContainer.appendChild(toolIframe);
         toolPanelContent.appendChild(webviewContainer);
