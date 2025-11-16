@@ -2677,15 +2677,15 @@ async function loadSidebarSettings() {
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
-        
+
         // Store original settings for change detection
         originalSettings = {
             theme: settings.theme,
             autoUpdate: settings.autoUpdate,
             showDebugMenu: settings.showDebugMenu ?? false,
-            terminalFont: settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace"
+            terminalFont: settings.terminalFont || "'Consolas', 'Monaco', 'Courier New', monospace",
         };
-        
+
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
@@ -2739,7 +2739,7 @@ async function saveSidebarSettings() {
 
     // Only include changed settings in the update
     const changedSettings: any = {};
-    
+
     if (currentSettings.theme !== originalSettings.theme) {
         changedSettings.theme = currentSettings.theme;
     }
@@ -2756,12 +2756,12 @@ async function saveSidebarSettings() {
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
         await window.toolboxAPI.updateUserSettings(changedSettings);
-        
+
         // Apply all current settings visually (even if not all changed)
         applyTheme(currentSettings.theme);
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
-        
+
         // Update original settings to reflect new state
         originalSettings = { ...currentSettings };
 
