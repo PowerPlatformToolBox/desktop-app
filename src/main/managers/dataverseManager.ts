@@ -212,9 +212,7 @@ export class DataverseManager {
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
-        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, {
-            Prefer: 'odata.include-annotations="*"',
-        });
+        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, undefined, ['odata.include-annotations="*"']);
         return response.data as FetchXmlResult;
     }
 
@@ -382,10 +380,18 @@ export class DataverseManager {
         accessToken: string,
         body?: Record<string, unknown>,
         additionalHeaders?: Record<string, string>,
+        preferOptions?: string[],
     ): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
+
+            // Build Prefer header with multiple comma-separated values
+            const preferValues = ["return=representation"];
+            if (preferOptions && preferOptions.length > 0) {
+                preferValues.push(...preferOptions);
+            }
+            const preferHeader = preferValues.join(",");
 
             const options: https.RequestOptions = {
                 hostname: urlObj.hostname,
@@ -398,9 +404,9 @@ export class DataverseManager {
                     "OData-MaxVersion": "4.0",
                     "OData-Version": "4.0",
                     "Content-Type": "application/json; charset=utf-8",
-                    Prefer: "return=representation", // Return created/updated entity data
+                    Prefer: preferHeader,
                     "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
-                    ...additionalHeaders, // Merge additional headers, allowing overrides
+                    ...additionalHeaders, // Merge additional headers (if needed for other purposes)
                 },
             };
 
