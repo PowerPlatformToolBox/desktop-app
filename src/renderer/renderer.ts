@@ -2738,7 +2738,7 @@ async function saveSidebarSettings() {
     };
 
     // Only include changed settings in the update
-    const changedSettings: Partial<UserSettings> = {};
+    const changedSettings: any = {};
 
     if (currentSettings.theme !== originalSettings.theme) {
         changedSettings.theme = currentSettings.theme;
