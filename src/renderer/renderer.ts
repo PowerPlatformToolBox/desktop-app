@@ -3181,19 +3181,18 @@ async function init() {
         });
     }
 
-    // Add change listener for theme selector to apply immediately
+    // Add change listener for theme selector to apply immediately (preview only, not saved until "Save Settings" is clicked)
     const themeSelect = document.getElementById("sidebar-theme-select");
     if (themeSelect) {
         themeSelect.addEventListener("change", async () => {
             const theme = (themeSelect as any).value;
             if (theme) {
-                await window.toolboxAPI.updateUserSettings({ theme });
                 applyTheme(theme);
             }
         });
     }
 
-    // Add change listener for terminal font selector to apply immediately and show/hide custom input
+    // Add change listener for terminal font selector to apply immediately and show/hide custom input (preview only, not saved until "Save Settings" is clicked)
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
@@ -3206,31 +3205,27 @@ async function init() {
             if (customFontContainer) {
                 if (terminalFont === "custom") {
                     customFontContainer.style.display = "block";
-                    // Apply custom font if available
+                    // Apply custom font if available (preview only)
                     if (customFontInput && customFontInput.value.trim()) {
-                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
                         applyTerminalFont(customFontInput.value.trim());
                     }
                 } else {
                     customFontContainer.style.display = "none";
-                    // Apply selected preset font
-                    await window.toolboxAPI.updateUserSettings({ terminalFont });
+                    // Apply selected preset font (preview only)
                     applyTerminalFont(terminalFont);
                 }
             } else if (terminalFont && terminalFont !== "custom") {
-                // Fallback if container not found
-                await window.toolboxAPI.updateUserSettings({ terminalFont });
+                // Fallback if container not found (preview only)
                 applyTerminalFont(terminalFont);
             }
         });
     }
 
-    // Add input listener for custom font to apply on blur or Enter key
+    // Add input listener for custom font to apply on blur or Enter key (preview only, not saved until "Save Settings" is clicked)
     if (customFontInput) {
         const applyCustomFont = async () => {
             const customFont = customFontInput.value.trim();
             if (customFont) {
-                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
                 applyTerminalFont(customFont);
             }
         };
