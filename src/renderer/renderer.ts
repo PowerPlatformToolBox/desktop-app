@@ -525,6 +525,10 @@ async function launchTool(toolId: string) {
             });
             return;
         }
+        
+        // Log tool information for debugging
+        console.log(`[Tool Launch] Loading tool:`, tool.id, tool.name);
+        console.log(`[Tool Launch] Tool CSP exceptions:`, tool.cspExceptions);
 
         // Get active connection for passing to tool
         const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
@@ -689,8 +693,14 @@ async function launchTool(toolId: string) {
         // Build CSP for the tool based on its exceptions
         const cspString = buildToolCsp(tool);
         
+        // Log the CSP string for debugging
+        console.log(`[CSP Debug] Building CSP for tool ${tool.id}:`, cspString);
+        console.log(`[CSP Debug] Tool CSP exceptions:`, tool.cspExceptions);
+        
         // Inject CSP meta tag into the HTML
-        const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${cspString}">`;
+        // HTML-escape the CSP string to prevent attribute injection
+        const escapedCspString = cspString.replace(/"/g, '&quot;');
+        const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${escapedCspString}">`;
         
         // Inject CSP tag before the closing </head> tag or at the beginning if no head
         if (injectedHtml.includes("</head>")) {
@@ -735,9 +745,16 @@ async function launchTool(toolId: string) {
             }
         });
 
-        // Use srcdoc to load content into iframe
-        // This allows the HTML to execute properly and fire DOMContentLoaded
-        toolIframe.srcdoc = injectedHtml;
+        // Use blob URL to load content into iframe
+        // This ensures the iframe has its own origin and CSP is properly applied
+        const blob = new Blob([injectedHtml], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+        toolIframe.src = blobUrl;
+        
+        // Clean up blob URL after a delay (after iframe has loaded it)
+        setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+        }, 5000);
 
         webviewContainer.appendChild(toolIframe);
         toolPanelContent.appendChild(webviewContainer);
