@@ -18,7 +18,7 @@ body:
           label: Provide an idea you would like to see in the tool?
           description: Be as descriptive as you can be; providing mockup or screenshot will go a long way.
       validations:
-          required: false
+          required: true
     - type: textarea
       id: logs
       attributes:
