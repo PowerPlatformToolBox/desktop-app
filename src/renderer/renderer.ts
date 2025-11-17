@@ -2627,9 +2627,6 @@ async function init() {
         });
     });
 
-    // Remove old sidebar toggle logic
-    // (keeping for backwards compatibility in case needed)
-
     // Tool panel close all button
     const closeAllToolsBtn = document.getElementById("close-all-tools");
     if (closeAllToolsBtn) {
@@ -3065,9 +3062,6 @@ async function init() {
     // Load initial sidebar content (tools by default)
     await loadSidebarTools();
     await loadMarketplace();
-
-    // Load initial data - tools view is deprecated, no need to load
-    // await loadTools();
 
     // Update footer connection info
     await updateFooterConnection();
