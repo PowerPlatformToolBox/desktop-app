@@ -706,13 +706,13 @@ class ToolBoxApp {
                     {
                         label: "Learn More",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
                         },
                     },
                     {
                         label: "Documentation",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app#readme");
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app#readme");
                         },
                     },
                     { type: "separator" },

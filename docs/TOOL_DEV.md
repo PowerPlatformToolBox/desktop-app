@@ -1407,10 +1407,10 @@ Unhandled errors in your tool will be caught and displayed to the user.
 
 ## Support and Resources
 
--   **Documentation**: https://github.com/PowerPlatform-ToolBox/desktop-app
+-   **Documentation**: https://github.com/PowerPlatformToolBox/desktop-app
 -   **Sample Tools**: https://github.com/PowerPlatformToolBox/sample-tools
--   **Issues**: https://github.com/PowerPlatform-ToolBox/desktop-app/issues
--   **Discussions**: https://github.com/PowerPlatform-ToolBox/desktop-app/discussions
+-   **Issues**: https://github.com/PowerPlatformToolBox/desktop-app/issues
+-   **Discussions**: https://github.com/PowerPlatformToolBox/desktop-app/discussions
 
 ## Feature Summary
 
