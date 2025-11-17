@@ -36,7 +36,7 @@ export class WebviewProtocolManager {
                     standard: true,
                     secure: true,
                     supportFetchAPI: true,
-                    corsEnabled: true,
+                    corsEnabled: false, // Disable CORS for tool webviews (allows fetch to any domain)
                     bypassCSP: false, // Tools have their own independent CSP
                 }
             }
