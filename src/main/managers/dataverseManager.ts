@@ -367,20 +367,14 @@ export class DataverseManager {
             url += `/${cleanQuery}`;
         }
 
-        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as { value: Record<string, unknown>[] };
     }
 
     /**
      * Make an HTTP request to Dataverse Web API
      */
-    private makeHttpRequest(
-        url: string,
-        method: string,
-        accessToken: string,
-        body?: Record<string, unknown>,
-        preferOptions?: string[],
-    ): Promise<{ data: unknown; headers: Record<string, string> }> {
+    private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>, preferOptions?: string[]): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
