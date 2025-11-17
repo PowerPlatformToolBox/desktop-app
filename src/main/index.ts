@@ -10,6 +10,7 @@ import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolManager } from "./managers/toolsManager";
 import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
+import { ToolWindowManager } from "./managers/toolWindowManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -17,6 +18,7 @@ class ToolBoxApp {
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private webviewProtocolManager: WebviewProtocolManager;
+    private toolWindowManager: ToolWindowManager | null = null;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -839,11 +841,14 @@ class ToolBoxApp {
                 nodeIntegration: false,
                 contextIsolation: true,
                 preload: path.join(__dirname, "preload.js"),
-                webviewTag: true, // Enable webview tag
+                // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform Tool Box",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
+
+        // Initialize ToolWindowManager for managing tool BrowserViews
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.webviewProtocolManager);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -860,6 +865,11 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            // Cleanup tool windows
+            if (this.toolWindowManager) {
+                this.toolWindowManager.destroy();
+                this.toolWindowManager = null;
+            }
             this.mainWindow = null;
         });
     }
