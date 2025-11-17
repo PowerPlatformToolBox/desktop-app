@@ -21,6 +21,7 @@ export class ToolWindowManager {
     private webviewProtocolManager: WebviewProtocolManager;
     private toolViews: Map<string, BrowserView> = new Map();
     private activeToolId: string | null = null;
+    private boundsUpdatePending: boolean = false;
 
     constructor(mainWindow: BrowserWindow, webviewProtocolManager: WebviewProtocolManager) {
         this.mainWindow = mainWindow;
@@ -55,6 +56,13 @@ export class ToolWindowManager {
         // Get all open tool IDs
         ipcMain.handle("tool-window:get-open-tools", async () => {
             return Array.from(this.toolViews.keys());
+        });
+
+        // Handle tool panel bounds response from renderer
+        ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
+            if (bounds && bounds.width > 0 && bounds.height > 0 && !this.boundsUpdatePending) {
+                this.applyToolViewBounds(bounds);
+            }
         });
 
         // Update tool window bounds when parent window resizes
@@ -185,28 +193,45 @@ export class ToolWindowManager {
 
     /**
      * Update the bounds of the active tool view to match the tool panel area
+     * Bounds are calculated dynamically based on actual DOM element positions
      */
     private updateToolViewBounds(): void {
+        if (!this.activeToolId || this.boundsUpdatePending) return;
+
+        const toolView = this.toolViews.get(this.activeToolId);
+        if (!toolView) return;
+
+        try {
+            // Request bounds from renderer
+            this.boundsUpdatePending = true;
+            this.mainWindow.webContents.send("get-tool-panel-bounds-request");
+            
+            // Reset pending flag after timeout
+            setTimeout(() => {
+                this.boundsUpdatePending = false;
+            }, 1000);
+        } catch (error) {
+            console.error("[ToolWindowManager] Error requesting tool view bounds:", error);
+            this.boundsUpdatePending = false;
+        }
+    }
+
+    /**
+     * Apply the bounds to the active tool view
+     */
+    private applyToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
         if (!this.activeToolId) return;
 
         const toolView = this.toolViews.get(this.activeToolId);
         if (!toolView) return;
 
-        const bounds = this.mainWindow.getBounds();
-        
-        // Calculate tool panel area based on actual UI layout:
-        // - Activity bar: 50px
-        // - Sidebar: 250px
-        // - Total left offset: 300px
-        // - Tool panel header: 40px
-        const toolPanelBounds = {
-            x: 300, // Activity bar (50px) + Sidebar (250px)
-            y: 40,  // Tool panel header height
-            width: bounds.width - 300,  // Remaining width
-            height: bounds.height - 40 - 32, // Remaining height minus footer (32px)
-        };
-
-        toolView.setBounds(toolPanelBounds);
+        try {
+            console.log("[ToolWindowManager] Applying bounds to tool view:", bounds);
+            toolView.setBounds(bounds);
+            this.boundsUpdatePending = false;
+        } catch (error) {
+            console.error("[ToolWindowManager] Error applying tool view bounds:", error);
+        }
     }
 
     /**

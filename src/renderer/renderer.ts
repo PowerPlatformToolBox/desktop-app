@@ -3225,6 +3225,24 @@ async function init() {
         }
     });
 
+    // Handle request for tool panel bounds (for BrowserView positioning)
+    window.api.on("get-tool-panel-bounds-request", () => {
+        const toolPanelContent = document.getElementById("tool-panel-content");
+        if (toolPanelContent) {
+            const rect = toolPanelContent.getBoundingClientRect();
+            const bounds = {
+                x: Math.round(rect.left),
+                y: Math.round(rect.top),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+            };
+            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            window.api.send("get-tool-panel-bounds-response", bounds);
+        } else {
+            console.warn("[Renderer] Tool panel content element not found");
+        }
+    });
+
     // Set up terminal toggle button
     setupTerminalPanel();
 }
