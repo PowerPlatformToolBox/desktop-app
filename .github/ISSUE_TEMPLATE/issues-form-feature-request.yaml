@@ -1,41 +1,30 @@
 name: Feature Request
 description: Suggest an idea for this project
 title: "[Feature]: "
+labels: ["triage"]
 type: "feature"
-labels: [triage]
 projects: ["PowerPlatformToolBox/1"]
-assignees:
-    - Power-Maverick
 body:
-    - type: markdown
-      attributes:
-          value: |
-              Thanks for taking the time to provide an enhancement idea for the tool!
-    - type: dropdown
-      id: is-problem
-      attributes:
-          label: Is your feature request related to a problem?
-          options:
-              - "Yes"
-              - "No"
-      validations:
-          required: true
-    - type: textarea
-      id: problem
-      attributes:
-          label: Describe the problem?
-      validations:
-          required: false
-    - type: textarea
-      id: solution
-      attributes:
-          label: Provide a solution or an idea you would like to see in the tool?
-          description: Also if you can provide any alternatives you have considered that would be great!
-      validations:
-          required: false
-    - type: textarea
-      id: logs
-      attributes:
-          label: Relevant log output
-          description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
-          render: shell
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+        > [!NOTE]
+        > If you are a tool author and running into issues, after creating the bug please join the Discord server for more help using this [invite link](https://discord.gg/7ZQzVTngcN).
+        
+  - type: textarea
+    id: solution
+    attributes:
+      label: Provide an idea you would like to see in the tool?
+      description: Be as descriptive as you can be; providing mockup or screenshot will go a long way.
+      placeholder: Tell us your idea!
+      value: "My awesome idea is..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
