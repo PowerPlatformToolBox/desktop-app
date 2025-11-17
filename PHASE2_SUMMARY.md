@@ -6,6 +6,9 @@ This document summarizes the completion of Phase 2, which updates the renderer p
 ## Problem Statement
 Phase 1 built the backend infrastructure (ToolWindowManager) to manage BrowserView instances for tools. Phase 2 needed to update the renderer to use this new system instead of the old webview/iframe approach.
 
+## Important Note
+All backward compatibility code has been removed as there are no published tools yet. The migration to BrowserView is complete and final.
+
 ## Changes Implemented
 
 ### 1. Updated OpenTool Interface
@@ -152,7 +155,26 @@ openTools.forEach((openTool) => {
 
 **Rationale**: BrowserView can only be attached to one position in the window at a time. Split view would require a different architecture approach and was deemed not essential for the initial BrowserView migration.
 
-### 7. Updated Type Definitions
+### 7. Removed All Backward Compatibility Code
+**File**: `src/renderer/renderer.ts`
+
+Since there are no published tools yet, all backward compatibility code has been removed to keep the codebase clean and maintainable.
+
+**Removed:**
+- **Window message handler** (~140 lines): Handled postMessage communication with iframe-based tools. No longer needed with BrowserView architecture where tools communicate via IPC.
+- **Deprecated function `switchView()`**: No longer used since view switching was removed.
+- **Deprecated function `loadTools()`**: Replaced by `loadSidebarTools()`.
+- **Deprecated function `installTool()`**: Functionality merged into other functions.
+- **Deprecated function `updateConnectionSelector()`**: Connection selector was removed from header.
+- **Deprecated function `loadSettings()`**: Settings are loaded inline where needed.
+
+**Updated:**
+- Tool installation now calls `loadSidebarTools()` to refresh the sidebar
+- Tool uninstallation now calls `loadSidebarTools()` to refresh the sidebar
+
+**Rationale**: With no published tools in the ecosystem, maintaining backward compatibility code adds unnecessary complexity. The clean migration to BrowserView is now complete.
+
+### 8. Updated Type Definitions
 **File**: `src/renderer/types.d.ts`
 
 **Added:**
@@ -165,7 +187,7 @@ getActiveToolWindow: () => Promise<string | null>;
 getOpenToolWindows: () => Promise<string[]>;
 ```
 
-### 8. Updated HTML Structure
+### 9. Updated HTML Structure
 **File**: `src/renderer/index.html`
 
 **Removed:**
@@ -261,16 +283,23 @@ Since this is a GUI application with visual components, the following manual tes
 ## Files Modified
 
 ### Core Files
-- `src/renderer/renderer.ts` (203 lines removed, 57 lines added)
-  - Updated tool management functions
-  - Removed split view code
-  - Removed event forwarding code
+- `src/renderer/renderer.ts` (~350 lines removed, ~60 lines added)
+  - Updated tool management functions to use IPC
+  - Removed split view code (4 functions, 2 variables)
+  - Removed event forwarding code (~140 lines)
+  - Removed all backward compatibility code:
+    - Window message handler for iframe communication
+    - Deprecated functions: `switchView()`, `loadTools()`, `installTool()`, `updateConnectionSelector()`, `loadSettings()`
+  - Updated tool installation/uninstallation to call `loadSidebarTools()`
   
 - `src/renderer/types.d.ts` (6 lines added)
   - Added BrowserView IPC method signatures
 
 - `src/renderer/index.html` (9 lines removed)
   - Removed split view UI elements
+
+- `PHASE2_SUMMARY.md` (updated)
+  - Added section documenting backward compatibility removal
 
 ### Supporting Files (No changes needed)
 - `src/main/index.ts` - ToolWindowManager already initialized

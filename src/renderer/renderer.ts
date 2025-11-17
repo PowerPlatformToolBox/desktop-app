@@ -48,150 +48,6 @@ interface OpenTool {
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null;
 
-// NOTE: With BrowserView architecture, we no longer use window.postMessage for tool communication
-// Tools communicate via IPC through the toolPreloadBridge that's injected into each BrowserView
-// The window message handler below is kept only for backward compatibility during migration
-
-// Set up message handler for iframe communication
-window.addEventListener("message", async (event) => {
-    // Handle toolboxAPI calls from iframes
-    if (event.data.type === "TOOLBOX_API_CALL") {
-        const { messageId, method, args } = event.data;
-
-        try {
-            let result;
-
-            // Handle context-aware terminal operations
-            if (method === "terminal.create") {
-                // Extract _toolId from options (injected by bridge)
-                const options = args && args[0];
-                const toolId = options?._toolId;
-
-                if (!toolId) {
-                    throw new Error("Tool ID not available - ensure tool context is initialized");
-                }
-
-                // Get tool info to use tool name as terminal name if not provided
-                const tool = await window.toolboxAPI.getTool(toolId);
-                const terminalName = options.name || (tool ? tool.name : toolId);
-
-                // Remove _toolId before passing to actual API
-                const cleanOptions = { ...options };
-                delete cleanOptions._toolId;
-                cleanOptions.name = terminalName;
-
-                result = await window.toolboxAPI.terminal.create(toolId, cleanOptions);
-            } else if (method === "terminal.list") {
-                // Get toolId from first arg (injected by bridge)
-                const toolId = args && args[0];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.toolboxAPI.terminal.list(toolId);
-            } else if (method === "events.getHistory") {
-                // Get toolId and limit from args (injected by bridge)
-                const toolId = args && args[0];
-                const limit = args && args[1];
-
-                // Get event history and filter to tool-specific events
-                const allEvents = await window.toolboxAPI.events.getHistory(limit);
-                result = allEvents.filter((eventPayload: any) => {
-                    const event = eventPayload.event;
-                    const data = eventPayload.data;
-
-                    // Terminal events - only include if terminal belongs to this tool
-                    if (event.startsWith("terminal:")) {
-                        return data && data.toolId === toolId;
-                    }
-
-                    // Tool events - only include if about this tool
-                    if (event === "tool:loaded" || event === "tool:unloaded") {
-                        return data && data.id === toolId;
-                    }
-
-                    // Connection and notification events are global
-                    return true;
-                });
-            } else if (method === "settings.getSettings") {
-                // Get toolId from first arg (injected by bridge)
-                const toolId = args && args[0];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.api.invoke("tool-settings-get-all", toolId);
-            } else if (method === "settings.getSetting") {
-                // Get toolId and key from args (injected by bridge)
-                const toolId = args && args[0];
-                const key = args && args[1];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.api.invoke("tool-settings-get", toolId, key);
-            } else if (method === "settings.setSetting") {
-                // Get toolId, key, and value from args (injected by bridge)
-                const toolId = args && args[0];
-                const key = args && args[1];
-                const value = args && args[2];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                await window.api.invoke("tool-settings-set", toolId, key, value);
-                result = undefined; // void return
-            } else if (method === "settings.setSettings") {
-                // Get toolId and settings from args (injected by bridge)
-                const toolId = args && args[0];
-                const settings = args && args[1];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                await window.api.invoke("tool-settings-set-all", toolId, settings);
-                result = undefined; // void return
-            } else {
-                // Handle regular API methods
-                const methodParts = method.split(".");
-                let target: any = window.toolboxAPI;
-
-                // Navigate through nested objects
-                for (let i = 0; i < methodParts.length - 1; i++) {
-                    target = target[methodParts[i]];
-                    if (!target) {
-                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join(".")}`);
-                    }
-                }
-
-                // Get the actual method
-                const finalMethod = methodParts[methodParts.length - 1];
-                if (typeof target[finalMethod] !== "function") {
-                    throw new Error(`API method not found: ${method}`);
-                }
-
-                // Call the actual toolboxAPI method
-                result = await target[finalMethod](...(args || []));
-            }
-
-            // Send response back to iframe
-            event.source?.postMessage(
-                {
-                    type: "TOOLBOX_API_RESPONSE",
-                    messageId,
-                    result,
-                },
-                "*" as any,
-            );
-        } catch (error) {
-            // Send error back to iframe
-            event.source?.postMessage(
-                {
-                    type: "TOOLBOX_API_RESPONSE",
-                    messageId,
-                    error: (error as Error).message,
-                },
-                "*" as any,
-            );
-        }
-    }
-});
-
 // Tool library will be loaded from the registry
 let toolLibrary: any[] = [];
 
@@ -222,16 +78,7 @@ async function loadToolsLibrary() {
     }
 }
 
-// Navigation - No longer needed since we removed the main view switching
-// Tools are now managed via the sidebar only
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function switchView(viewName: string) {
-    // Deprecated - keeping for backwards compatibility but no longer used
-    console.log("switchView is deprecated:", viewName);
-}
-
 // Update UI button visibility based on number of open tabs
-// Note: Split view has been removed
 function updateToolbarButtonVisibility() {
     // No special buttons to show/hide currently
     // Keeping this function for future toolbar features
@@ -271,13 +118,6 @@ async function updateFooterConnection() {
     } catch (error) {
         console.error("Failed to update footer connection:", error);
     }
-}
-
-async function loadTools() {
-    // This function is no longer used for the main view
-    // Tools are now displayed in the sidebar only
-    // Keeping for backwards compatibility
-    console.log("loadTools is deprecated - tools are now managed in sidebar");
 }
 
 function loadToolLibrary() {
@@ -342,7 +182,8 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
         });
 
         closeModal("install-tool-modal");
-        await loadTools();
+        // Reload sidebar tools to show newly installed tool
+        await loadSidebarTools();
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
             title: "Installation Failed",
@@ -350,12 +191,6 @@ async function installToolFromLibrary(packageName: string, toolName: string) {
             type: "error",
         });
     }
-}
-
-// Legacy function kept for compatibility - now opens tool library
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function installTool() {
-    loadToolLibrary();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -374,7 +209,8 @@ async function uninstallTool(toolId: string) {
             type: "success",
         });
 
-        await loadTools();
+        // Reload sidebar tools to update tool list
+        await loadSidebarTools();
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
             title: "Uninstall Failed",
@@ -880,40 +716,6 @@ function setupKeyboardShortcuts() {
             switchToTool(toolIds[prevIndex]);
         }
     });
-}
-
-// Connection management for tabs
-// Legacy function - no longer used since connection selector was removed from header
-// Keeping for backwards compatibility in case needed
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function updateConnectionSelector() {
-    const selector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
-    if (!selector) return;
-
-    try {
-        const connections = await window.toolboxAPI.connections.getAll();
-
-        // Clear and repopulate
-        selector.innerHTML = '<option value="">No Connection</option>';
-        connections.forEach((conn: any) => {
-            const option = document.createElement("option");
-            option.value = conn.id;
-            option.textContent = `${conn.name} (${conn.environment})`;
-            selector.appendChild(option);
-        });
-
-        // Set current selection
-        if (activeToolId && openTools.has(activeToolId)) {
-            const tool = openTools.get(activeToolId);
-            if (tool && tool.connectionId) {
-                selector.value = tool.connectionId;
-            } else {
-                selector.value = "";
-            }
-        }
-    } catch (error) {
-        console.error("Failed to update connection selector:", error);
-    }
 }
 
 function setToolConnection(toolId: string, connectionId: string | null) {
@@ -1480,28 +1282,6 @@ async function deleteConnection(id: string) {
 }
 
 // Settings Management
-// Legacy loadSettings function - kept for backwards compatibility if full settings view is needed
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function loadSettings() {
-    const settings = await window.toolboxAPI.getUserSettings();
-
-    const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
-
-    if (themeSelect) themeSelect.value = settings.theme;
-    if (autoUpdateCheck) autoUpdateCheck.checked = settings.autoUpdate;
-
-    // Load app version
-    const version = await window.toolboxAPI.getAppVersion();
-    const versionElement = document.getElementById("app-version");
-    if (versionElement) {
-        versionElement.textContent = version;
-    }
-
-    // Apply current theme
-    applyTheme(settings.theme);
-}
-
 function applyTheme(theme: string) {
     const body = document.body;
 
