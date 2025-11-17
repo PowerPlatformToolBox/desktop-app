@@ -73,8 +73,13 @@ class ToolBoxApp {
 
         eventTypes.forEach((eventType) => {
             this.api.on(eventType, (payload) => {
+                // Forward to main renderer window
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send("toolbox-event", payload);
+                }
+                // Forward to all tool windows
+                if (this.toolWindowManager) {
+                    this.toolWindowManager.forwardEventToTools(payload);
                 }
             });
         });

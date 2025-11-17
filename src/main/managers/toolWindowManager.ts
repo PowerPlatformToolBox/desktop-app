@@ -194,15 +194,16 @@ export class ToolWindowManager {
 
         const bounds = this.mainWindow.getBounds();
         
-        // Calculate tool panel area (this should match your UI layout)
-        // Adjust these values based on your actual layout:
-        // - Subtract top bar height (e.g., 50px for header)
-        // - Subtract left sidebar width (e.g., 200px for sidebar)
+        // Calculate tool panel area based on actual UI layout:
+        // - Activity bar: 50px
+        // - Sidebar: 250px
+        // - Total left offset: 300px
+        // - Tool panel header: 40px
         const toolPanelBounds = {
-            x: 200, // Left sidebar width
-            y: 50,  // Top bar height
-            width: bounds.width - 200,  // Remaining width
-            height: bounds.height - 50, // Remaining height
+            x: 300, // Activity bar (50px) + Sidebar (250px)
+            y: 40,  // Tool panel header height
+            width: bounds.width - 300,  // Remaining width
+            height: bounds.height - 40 - 32, // Remaining height minus footer (32px)
         };
 
         toolView.setBounds(toolPanelBounds);
@@ -216,12 +217,12 @@ export class ToolWindowManager {
         if (!toolView) return;
 
         try {
-            // Get tool context (this should come from your context provider)
+            // Get active connection (this will be available via IPC call in the tool)
+            // We just send basic tool info, tools can query connection via API
             const toolContext = {
                 toolId: tool.id,
                 toolName: tool.name,
                 version: tool.version,
-                // Add connection info, etc.
             };
 
             // Send to tool via IPC
@@ -238,7 +239,7 @@ export class ToolWindowManager {
         for (const [toolId, toolView] of this.toolViews) {
             try {
                 if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    // @ts-ignore - destroy method exists but might not be in types
+                    // @ts-expect-error - destroy method exists but might not be in types
                     toolView.webContents.destroy();
                 }
             } catch (error) {
@@ -247,5 +248,20 @@ export class ToolWindowManager {
         }
         this.toolViews.clear();
         this.activeToolId = null;
+    }
+
+    /**
+     * Forward an event to all open tool windows
+     */
+    forwardEventToTools(eventPayload: any): void {
+        for (const [toolId, toolView] of this.toolViews) {
+            try {
+                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
+                    toolView.webContents.send("toolbox-event", eventPayload);
+                }
+            } catch (error) {
+                console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
+            }
+        }
     }
 }
