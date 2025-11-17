@@ -36,19 +36,21 @@ toastr.options = {
 };
 
 // Tab management for multiple tools
+// With BrowserView, we no longer need to track webview elements
+// The backend ToolWindowManager handles BrowserView instances
 interface OpenTool {
     id: string;
     tool: any;
-    webviewContainer: HTMLElement;
-    webview: any;
     isPinned: boolean;
     connectionId: string | null;
 }
 
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null;
-let secondaryToolId: string | null = null;
-let isSplitView = false;
+
+// NOTE: With BrowserView architecture, we no longer use window.postMessage for tool communication
+// Tools communicate via IPC through the toolPreloadBridge that's injected into each BrowserView
+// The window message handler below is kept only for backward compatibility during migration
 
 // Set up message handler for iframe communication
 window.addEventListener("message", async (event) => {
@@ -228,16 +230,11 @@ function switchView(viewName: string) {
     console.log("switchView is deprecated:", viewName);
 }
 
-// Update split view button visibility based on number of open tabs
-function updateSplitViewButtonVisibility() {
-    const splitViewBtn = document.getElementById("split-view-btn");
-    if (splitViewBtn) {
-        if (openTools.size >= 2) {
-            splitViewBtn.style.display = "block";
-        } else {
-            splitViewBtn.style.display = "none";
-        }
-    }
+// Update UI button visibility based on number of open tabs
+// Note: Split view has been removed
+function updateToolbarButtonVisibility() {
+    // No special buttons to show/hide currently
+    // Keeping this function for future toolbar features
 }
 
 // Update footer connection information
@@ -517,13 +514,6 @@ async function launchTool(toolId: string) {
             }
         }
 
-        // Get active connection for passing to tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        const connectionUrl = activeConnection?.url;
-
-        // Get tool context for postMessage (without accessToken)
-        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl);
-
         // Hide all views (including home view)
         document.querySelectorAll(".view").forEach((view) => {
             view.classList.remove("active");
@@ -536,61 +526,25 @@ async function launchTool(toolId: string) {
             toolPanel.style.display = "flex";
         }
 
-        // Create webview container for this tool
-        const toolPanelContent = document.getElementById("tool-panel-content");
-        if (!toolPanelContent) return;
-
-        const webviewContainer = document.createElement("div");
-        webviewContainer.className = "tool-webview-container";
-        webviewContainer.id = `tool-webview-${toolId}`;
-
-        // Create webview for the tool using custom pptb-webview:// protocol
-        // Using <webview> instead of <iframe> for better support of custom protocols and CORS bypass
-        const toolWebview = document.createElement("webview") as any;
-        toolWebview.style.width = "100%";
-        toolWebview.style.height = "100%";
-        toolWebview.style.border = "none";
-        // Webview attributes for security and functionality
-        toolWebview.setAttribute("nodeintegration", "false");
-        toolWebview.setAttribute("webpreferences", "contextIsolation=true");
-        toolWebview.setAttribute("disablewebsecurity", "true"); // Disable web security to bypass CORS
-        toolWebview.setAttribute("allowpopups", "false");
-
-        // Get the webview URL using custom protocol: pptb-webview://toolId/
-        const webviewUrl = await window.toolboxAPI.getToolWebviewUrl(toolId);
+        // Launch the tool using BrowserView via IPC
+        // The backend ToolWindowManager will create a BrowserView and load the tool
+        const launched = await window.toolboxAPI.launchToolWindow(toolId, tool);
         
-        console.log(`[Tool Launch] Loading tool from: ${webviewUrl}`);
+        if (!launched) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Launch Failed",
+                body: `Failed to launch ${tool.name}`,
+                type: "error",
+            });
+            return;
+        }
 
-        // Set up event listener to post context after webview loads
-        toolWebview.addEventListener("dom-ready", () => {
-            // Post the TOOLBOX_CONTEXT to the webview after a short delay to ensure bridge is loaded
-            setTimeout(() => {
-                try {
-                    toolWebview.executeJavaScript(`
-                        window.postMessage(${JSON.stringify({
-                            type: "TOOLBOX_CONTEXT",
-                            data: toolContext,
-                        })}, '*');
-                    `);
-                } catch (e) {
-                    console.error('[Tool Launch] Failed to post context:', e);
-                }
-            }, 100);
-        });
+        console.log(`[Tool Launch] Tool window created via BrowserView: ${toolId}`);
 
-        // Load the tool using custom protocol
-        // Tool will have its own independent CSP (does not inherit from parent)
-        toolWebview.src = webviewUrl;
-
-        webviewContainer.appendChild(toolWebview);
-        toolPanelContent.appendChild(webviewContainer);
-
-        // Store the open tool
+        // Store the open tool (no webview container needed - managed by backend)
         openTools.set(toolId, {
             id: toolId,
             tool: tool,
-            webviewContainer: webviewContainer,
-            webview: toolWebview,
             isPinned: false,
             connectionId: null,
         });
@@ -598,11 +552,11 @@ async function launchTool(toolId: string) {
         // Create and add tab
         createTab(toolId, tool);
 
-        // Switch to the new tab
+        // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(toolId);
 
-        // Update split view button visibility
-        updateSplitViewButtonVisibility();
+        // Update toolbar buttons
+        updateToolbarButtonVisibility();
 
         // Update footer connection
         updateFooterConnection();
@@ -689,41 +643,25 @@ function createTab(toolId: string, tool: any) {
 function switchToTool(toolId: string) {
     if (!openTools.has(toolId)) return;
 
-    if (isSplitView) {
-        // In split view, determine if this should be primary or secondary
-        // If it's the secondary tool, keep it there, otherwise make it primary
-        if (toolId === secondaryToolId) {
-            // Just highlight it, don't move
-            updateSplitViewDisplay();
-        } else {
-            // Set as primary
-            activeToolId = toolId;
-            updateSplitViewDisplay();
-        }
-    } else {
-        // Normal single view mode
-        activeToolId = toolId;
+    // Normal single view mode
+    activeToolId = toolId;
 
-        // Update tab active states
-        document.querySelectorAll(".tool-tab").forEach((tab) => {
-            tab.classList.remove("active");
-        });
-        const activeTab = document.getElementById(`tool-tab-${toolId}`);
-        if (activeTab) {
-            activeTab.classList.add("active");
-        }
-
-        // Update webview container visibility
-        document.querySelectorAll(".tool-webview-container").forEach((container) => {
-            container.classList.remove("active");
-        });
-        const activeContainer = document.getElementById(`tool-webview-${toolId}`);
-        if (activeContainer) {
-            activeContainer.classList.add("active");
-        }
+    // Update tab active states
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        tab.classList.remove("active");
+    });
+    const activeTab = document.getElementById(`tool-tab-${toolId}`);
+    if (activeTab) {
+        activeTab.classList.add("active");
     }
 
-    // Update footer connection (no longer updating connection selector)
+    // Use IPC to switch the BrowserView in the backend
+    // The ToolWindowManager will show the appropriate BrowserView
+    window.toolboxAPI.switchToolWindow(toolId).catch((error: any) => {
+        console.error("Failed to switch tool window:", error);
+    });
+
+    // Update footer connection
     updateFooterConnection();
 }
 
@@ -747,14 +685,17 @@ function closeTool(toolId: string) {
         tab.remove();
     }
 
-    // Remove webview container
-    openTool.webviewContainer.remove();
+    // Close the tool window via IPC
+    // The ToolWindowManager will destroy the BrowserView
+    window.toolboxAPI.closeToolWindow(toolId).catch((error: any) => {
+        console.error("Failed to close tool window:", error);
+    });
 
     // Remove from open tools
     openTools.delete(toolId);
 
-    // Update split view button visibility
-    updateSplitViewButtonVisibility();
+    // Update toolbar buttons
+    updateToolbarButtonVisibility();
 
     // Save session after closing
     saveSession();
@@ -1015,135 +956,6 @@ function showHomePage() {
     }
 }
 
-// Split view management
-function toggleSplitView() {
-    isSplitView = !isSplitView;
-    const wrapper = document.getElementById("tool-panel-content-wrapper");
-
-    if (!wrapper) return;
-
-    if (isSplitView) {
-        wrapper.classList.add("split-view");
-
-        // If there are at least 2 tools, show the second tool in secondary panel
-        const toolIds = Array.from(openTools.keys());
-        if (toolIds.length >= 2) {
-            // Set secondary to first non-active tool
-            const secondaryId = toolIds.find((id) => id !== activeToolId) || toolIds[0];
-            setSecondaryTool(secondaryId);
-        }
-
-        window.toolboxAPI.utils.showNotification({
-            title: "Split View Enabled",
-            body: "Click on tabs to switch between primary and secondary panel",
-            type: "success",
-        });
-    } else {
-        wrapper.classList.remove("split-view");
-        secondaryToolId = null;
-
-        // Move all tools back to primary panel
-        const primaryPanel = document.getElementById("tool-panel-content");
-        if (primaryPanel) {
-            openTools.forEach((tool) => {
-                if (tool.webviewContainer.parentElement !== primaryPanel) {
-                    primaryPanel.appendChild(tool.webviewContainer);
-                }
-            });
-        }
-    }
-
-    updateSplitViewDisplay();
-}
-
-function setSecondaryTool(toolId: string) {
-    if (!openTools.has(toolId)) return;
-
-    secondaryToolId = toolId;
-    updateSplitViewDisplay();
-}
-
-function updateSplitViewDisplay() {
-    if (!isSplitView) return;
-
-    const primaryPanel = document.getElementById("tool-panel-content");
-    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-
-    if (!primaryPanel || !secondaryPanel) return;
-
-    // Move tools to appropriate panels
-    openTools.forEach((tool, toolId) => {
-        if (toolId === activeToolId) {
-            if (tool.webviewContainer.parentElement !== primaryPanel) {
-                primaryPanel.appendChild(tool.webviewContainer);
-            }
-            tool.webviewContainer.classList.add("active");
-        } else if (toolId === secondaryToolId) {
-            if (tool.webviewContainer.parentElement !== secondaryPanel) {
-                secondaryPanel.appendChild(tool.webviewContainer);
-            }
-            tool.webviewContainer.classList.add("active");
-        } else {
-            tool.webviewContainer.classList.remove("active");
-        }
-    });
-
-    // Update tab indicators
-    document.querySelectorAll(".tool-tab").forEach((tab) => {
-        const toolId = tab.getAttribute("data-tool-id");
-        tab.classList.remove("active", "secondary-active");
-
-        if (toolId === activeToolId) {
-            tab.classList.add("active");
-        } else if (toolId === secondaryToolId) {
-            tab.classList.add("secondary-active");
-        }
-    });
-}
-
-function setupResizeHandle() {
-    const handle = document.getElementById("resize-handle");
-    const wrapper = document.getElementById("tool-panel-content-wrapper");
-    const primaryPanel = document.getElementById("tool-panel-content");
-
-    if (!handle || !wrapper || !primaryPanel) return;
-
-    let isResizing = false;
-    let startX = 0;
-    let startWidth = 0;
-
-    handle.addEventListener("mousedown", (e) => {
-        isResizing = true;
-        startX = e.clientX;
-        startWidth = primaryPanel.offsetWidth;
-        document.body.style.cursor = "col-resize";
-        e.preventDefault();
-    });
-
-    document.addEventListener("mousemove", (e) => {
-        if (!isResizing) return;
-
-        const diff = e.clientX - startX;
-        const newWidth = startWidth + diff;
-        const wrapperWidth = wrapper.offsetWidth;
-        const percentage = (newWidth / wrapperWidth) * 100;
-
-        if (percentage >= 20 && percentage <= 80) {
-            primaryPanel.style.flex = `0 0 ${percentage}%`;
-            const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-            if (secondaryPanel) {
-                secondaryPanel.style.flex = `0 0 ${100 - percentage}%`;
-            }
-        }
-    });
-
-    document.addEventListener("mouseup", () => {
-        if (isResizing) {
-            isResizing = false;
-            document.body.style.cursor = "";
-        }
-    });
-}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function toolSettings(toolId: string) {
@@ -3049,16 +2861,7 @@ async function init() {
     // Remove connection selector logic (no longer using it in header)
     // Connection will be selected when tool is launched
 
-    // Split view button
-    const splitViewBtn = document.getElementById("split-view-btn");
-    if (splitViewBtn) {
-        splitViewBtn.addEventListener("click", () => {
-            toggleSplitView();
-        });
-    }
-
-    // Set up resize handle
-    setupResizeHandle();
+    // Split view has been removed (not compatible with BrowserView architecture)
 
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
@@ -3590,22 +3393,9 @@ async function init() {
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
 
-        // Forward all events to tool iframes
-        openTools.forEach((openTool) => {
-            if (openTool.webview && openTool.webview.contentWindow) {
-                try {
-                    openTool.webview.contentWindow.postMessage(
-                        {
-                            type: "TOOLBOX_EVENT",
-                            payload: payload,
-                        },
-                        "*",
-                    );
-                } catch (error) {
-                    console.error("Error forwarding event to tool iframe:", error);
-                }
-            }
-        });
+        // NOTE: With BrowserView, events are forwarded to tools via IPC through the toolPreloadBridge
+        // No need to forward via postMessage as tools are in separate renderer processes
+        // The backend ToolWindowManager handles event forwarding to BrowserView instances
 
         // Handle notifications using toastr
         if (payload.event === "notification:shown") {
