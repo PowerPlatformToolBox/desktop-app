@@ -89,7 +89,7 @@ export class NotificationWindowManager {
         const windowHeight = this.calculateWindowHeight();
 
         const x = mainBounds.x + mainBounds.width - this.WINDOW_WIDTH - 20;
-        const y = mainBounds.y + mainBounds.height - windowHeight - 50; // 50px from bottom
+        const y = mainBounds.y + mainBounds.height - windowHeight - 100; // 100px from bottom for more space
 
         this.notificationWindow.setBounds({
             x,

@@ -2421,9 +2421,13 @@ function setupTerminalPanel() {
             if (isVisible) {
                 terminalPanel.style.display = "none";
                 if (resizeHandle) resizeHandle.style.display = "none";
+                // Notify main process to adjust BrowserView bounds for full height
+                window.api.send("terminal-visibility-changed", false);
             } else {
                 terminalPanel.style.display = "flex";
                 if (resizeHandle) resizeHandle.style.display = "block";
+                // Notify main process to adjust BrowserView bounds for terminal
+                window.api.send("terminal-visibility-changed", true);
             }
         });
     }
@@ -2432,6 +2436,8 @@ function setupTerminalPanel() {
         terminalPanelClose.addEventListener("click", () => {
             terminalPanel.style.display = "none";
             if (resizeHandle) resizeHandle.style.display = "none";
+            // Notify main process to adjust BrowserView bounds for full height
+            window.api.send("terminal-visibility-changed", false);
         });
     }
 
@@ -3260,27 +3266,18 @@ async function init() {
     // Handle request for tool panel bounds (for BrowserView positioning)
     window.api.on("get-tool-panel-bounds-request", () => {
         const toolPanelContent = document.getElementById("tool-panel-content");
-        const terminalPanel = document.getElementById("terminal-panel");
         
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
-            let height = Math.round(rect.height);
             
-            // Adjust height if terminal panel is visible
-            // Terminal panel is inside tool-panel-content, so we need to subtract its height
-            if (terminalPanel && terminalPanel.style.display !== "none") {
-                const terminalRect = terminalPanel.getBoundingClientRect();
-                const terminalHeight = Math.round(terminalRect.height);
-                console.log("[Renderer] Terminal panel is visible, height:", terminalHeight);
-                // BrowserView should not overlay terminal, so reduce height
-                height = height - terminalHeight;
-            }
-            
+            // The tool-panel-content is inside tool-panel-content-wrapper which uses flex:1
+            // When terminal is visible, the wrapper automatically shrinks to accommodate it
+            // So we can use the actual bounds of tool-panel-content directly
             const bounds = {
                 x: Math.round(rect.left),
                 y: Math.round(rect.top),
                 width: Math.round(rect.width),
-                height: height,
+                height: Math.round(rect.height),
             };
             console.log("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
