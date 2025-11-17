@@ -127,24 +127,33 @@ export class WebviewProtocolManager {
             // Determine MIME type
             const mimeType = this.getMimeType(filePath);
 
-            // Special handling for HTML files: Inject the bridge script
+            // Special handling for HTML files: Inject CSP meta tag and bridge script
             if (filePath.endsWith('.html')) {
                 try {
                     let htmlContent = fs.readFileSync(fullPath, 'utf8');
                     
-                    // Inject the bridge script tag before the closing </head> or at the start of <body>
+                    // Build CSP for the tool based on its exceptions
+                    const cspString = this.buildToolCsp(tool);
+                    const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${this.escapeHtml(cspString)}">`;
+                    
+                    // Inject the bridge script tag
                     const bridgeScriptTag = '<script src="toolboxAPIBridge.js"></script>';
                     
+                    // Inject CSP meta tag first (in <head>)
                     if (htmlContent.includes('</head>')) {
-                        htmlContent = htmlContent.replace('</head>', `${bridgeScriptTag}\n</head>`);
+                        htmlContent = htmlContent.replace('</head>', `  ${cspMetaTag}\n  ${bridgeScriptTag}\n</head>`);
+                    } else if (htmlContent.includes('<head>')) {
+                        htmlContent = htmlContent.replace('<head>', `<head>\n  ${cspMetaTag}\n  ${bridgeScriptTag}`);
                     } else if (htmlContent.includes('<body>')) {
-                        htmlContent = htmlContent.replace('<body>', `<body>\n${bridgeScriptTag}`);
+                        // No head tag, inject at start of body
+                        htmlContent = htmlContent.replace('<body>', `<body>\n${cspMetaTag}\n${bridgeScriptTag}`);
                     } else {
-                        // No head or body tags, prepend the script
-                        htmlContent = bridgeScriptTag + '\n' + htmlContent;
+                        // No head or body tags, prepend both
+                        htmlContent = `${cspMetaTag}\n${bridgeScriptTag}\n${htmlContent}`;
                     }
                     
-                    console.log(`[pptb-webview] Injected bridge script into HTML: ${fullPath}`);
+                    console.log(`[pptb-webview] Injected CSP and bridge script into HTML: ${fullPath}`);
+                    console.log(`[pptb-webview] CSP: ${cspString}`);
                     
                     // Return the modified HTML content with proper MIME type
                     callback({
@@ -153,7 +162,7 @@ export class WebviewProtocolManager {
                     });
                     return;
                 } catch (error) {
-                    console.error(`[pptb-webview] Error injecting bridge script:`, error);
+                    console.error(`[pptb-webview] Error injecting CSP/bridge:`, error);
                     callback({ error: -2 }); // FAILED
                     return;
                 }
