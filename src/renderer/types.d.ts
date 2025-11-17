@@ -88,6 +88,9 @@ export interface ToolboxAPI {
     revokeCspConsent: (toolId: string) => Promise<void>;
     getCspConsents: () => Promise<{ [toolId: string]: boolean }>;
 
+    // Webview URL generation
+    getToolWebviewUrl: (toolId: string) => Promise<string>;
+
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
     removeFavoriteTool: (toolId: string) => Promise<void>;

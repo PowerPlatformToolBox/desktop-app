@@ -63,6 +63,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke("revoke-csp-consent", toolId),
     getCspConsents: () => ipcRenderer.invoke("get-csp-consents"),
 
+    // Webview URL generation - Only for PPTB UI
+    getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke("get-tool-webview-url", toolId),
+
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),

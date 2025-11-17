@@ -9,12 +9,14 @@ import { DataverseManager } from "./managers/dataverseManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolManager } from "./managers/toolsManager";
+import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
+    private webviewProtocolManager: WebviewProtocolManager;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -28,6 +30,7 @@ class ToolBoxApp {
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
@@ -413,6 +416,11 @@ class ToolBoxApp {
 
         ipcMain.handle("get-csp-consents", () => {
             return this.settingsManager.getCspConsents();
+        });
+
+        // Webview protocol handler
+        ipcMain.handle("get-tool-webview-url", (_, toolId) => {
+            return this.webviewProtocolManager.buildToolUrl(toolId);
         });
 
         // Notification handler
@@ -817,6 +825,10 @@ class ToolBoxApp {
     }
 
     /**
+     * Register custom pptb-webview protocol for loading tool content
+     * This provides isolation and CSP control similar to VS Code's webview protocol
+     */
+    /**
      * Create the main application window
      */
     private createWindow(): void {
@@ -861,7 +873,14 @@ class ToolBoxApp {
             app.setAppUserModelId("com.powerplatform.toolbox");
         }
 
+        // Register custom protocol scheme before app is ready
+        this.webviewProtocolManager.registerScheme();
+
         await app.whenReady();
+        
+        // Register protocol handler after app is ready
+        this.webviewProtocolManager.registerHandler();
+        
         this.createWindow();
 
         // Load all installed tools from registry
