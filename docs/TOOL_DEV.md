@@ -83,25 +83,27 @@ This guide explains how to develop external tools for the Power Platform Tool Bo
 
 The Power Platform Tool Box provides a secure, isolated environment for running tools:
 
--   **Webview-Based**: Each tool runs in a sandboxed iframe with limited API access
+-   **BrowserView-Based**: Each tool runs in its own Chromium BrowserView with complete process isolation
 -   **Organized APIs**: Namespaced APIs for connections, utilities, terminals, events, and Dataverse
--   **Secure Communication**: Structured message protocol via postMessage
+-   **Secure Communication**: Direct IPC communication through contextBridge
 -   **Context-Aware**: Tool ID and connection context automatically managed
 -   **Type-Safe**: Full TypeScript support with `@pptb/types` package
+-   **No CSP Inheritance**: Tools have independent Content Security Policies
+-   **CORS Bypass**: Tools can make external API calls without CORS restrictions
 
 ## API Architecture
 
-Tools have access to two main APIs:
+Tools have access to two main APIs exposed through Electron's contextBridge:
 
 ### 1. ToolBox API (`window.toolboxAPI`)
 
 Organized into namespaces:
 
--   **connections** - Get active Dataverse connection (read-only)
--   **utils** - Notifications, clipboard, file operations, theme
+-   **connections** - Get and manage Dataverse connections
+-   **utils** - Notifications, clipboard, file operations, theme, loading indicators
 -   **settings** - Tool-specific settings storage (context-aware)
 -   **terminal** - Create and manage terminals (context-aware)
--   **events** - Subscribe to platform events (tool-specific)
+-   **events** - Subscribe to platform events and access event history
 
 ### 2. Dataverse API (`window.dataverseAPI`)
 
@@ -109,7 +111,9 @@ Complete HTTP client for Dataverse:
 
 -   CRUD operations (create, retrieve, update, delete)
 -   FetchXML queries
--   Metadata operations
+-   OData queries
+-   Metadata operations (entities, attributes, relationships)
+-   Solutions
 -   Execute actions and functions
 
 ## Quick Start
@@ -1210,31 +1214,35 @@ For complete API documentation, see **[ToolBox API & Dataverse API Reference](..
 
 ## Security Model
 
-### Webview Isolation
+### BrowserView Isolation
 
--   Each tool runs in a sandboxed iframe with limited API access
+-   Each tool runs in its own Chromium BrowserView with complete process isolation
 -   Tools cannot directly access the main application or other tools
--   All communication goes through the secure postMessage protocol
+-   All communication goes through secure IPC (Inter-Process Communication) via contextBridge
+-   Each tool has its own independent JavaScript context
 
 ### API Restrictions
 
--   Tools only have access to namespaced `toolboxAPI` and `dataverseAPI`
+-   Tools only have access to namespaced `toolboxAPI` and `dataverseAPI` exposed via contextBridge
 -   No direct access to Electron APIs or Node.js modules
 -   No access to user settings or sensitive connection data
 -   Access tokens are managed securely by the platform
+-   Web security can be disabled for CORS bypass, but CSP is enforced via meta tags
 
 ### Context-Aware Features
 
--   Tool ID is automatically determined by the platform
+-   Tool ID is automatically determined by the platform and injected via tool context
 -   Terminal operations are scoped to the calling tool
--   Event subscriptions are filtered to relevant events only
+-   Settings operations automatically use the tool's ID
+-   Event subscriptions receive events relevant to the tool
 
-### Message Validation
+### IPC Communication
 
--   All API calls are validated for structure and content
+-   All API calls go through validated IPC channels
 -   Prevents malicious or buggy tools from compromising the app
--   Request/response pattern with timeouts
+-   Type-safe communication with structured request/response pattern
 -   Error handling with detailed messages
+-   Event forwarding from main process to all tool windows
 
 ## Best Practices
 
