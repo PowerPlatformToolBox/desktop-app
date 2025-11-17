@@ -2640,6 +2640,9 @@ function showTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "block";
     }
+    
+    // Notify main process to adjust BrowserView bounds for terminal
+    window.api.send("terminal-visibility-changed", true);
 }
 
 // Hide terminal panel
@@ -2653,6 +2656,9 @@ function hideTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "none";
     }
+    
+    // Notify main process to adjust BrowserView bounds for full height
+    window.api.send("terminal-visibility-changed", false);
 }
 
 // Initialize the application
@@ -3254,15 +3260,27 @@ async function init() {
     // Handle request for tool panel bounds (for BrowserView positioning)
     window.api.on("get-tool-panel-bounds-request", () => {
         const toolPanelContent = document.getElementById("tool-panel-content");
+        const terminalPanel = document.getElementById("terminal-panel");
+        
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
+            let height = Math.round(rect.height);
             
-            // Use full height - notifications are in separate BrowserWindow above
+            // Adjust height if terminal panel is visible
+            // Terminal panel is inside tool-panel-content, so we need to subtract its height
+            if (terminalPanel && terminalPanel.style.display !== "none") {
+                const terminalRect = terminalPanel.getBoundingClientRect();
+                const terminalHeight = Math.round(terminalRect.height);
+                console.log("[Renderer] Terminal panel is visible, height:", terminalHeight);
+                // BrowserView should not overlay terminal, so reduce height
+                height = height - terminalHeight;
+            }
+            
             const bounds = {
                 x: Math.round(rect.left),
                 y: Math.round(rect.top),
                 width: Math.round(rect.width),
-                height: Math.round(rect.height),
+                height: height,
             };
             console.log("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);

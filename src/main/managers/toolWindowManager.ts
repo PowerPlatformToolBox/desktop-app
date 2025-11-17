@@ -73,6 +73,14 @@ export class ToolWindowManager {
         this.mainWindow.on("resize", () => {
             this.updateToolViewBounds();
         });
+        
+        // Handle terminal panel visibility changes
+        // When terminal is shown/hidden, we need to adjust BrowserView bounds
+        ipcMain.on("terminal-visibility-changed", (event, isVisible: boolean) => {
+            console.log("[ToolWindowManager] Terminal visibility changed:", isVisible);
+            // Request updated bounds from renderer to account for terminal space
+            this.updateToolViewBounds();
+        });
     }
 
     /**
