@@ -46,9 +46,10 @@ export class WebviewProtocolManager {
     /**
      * Register the protocol handler
      * Must be called after app.whenReady()
+     * Using registerBufferProtocol to support both file serving and HTML injection
      */
     registerHandler(): void {
-        protocol.registerFileProtocol('pptb-webview', (request, callback) => {
+        protocol.registerBufferProtocol('pptb-webview', (request, callback) => {
             this.handleProtocolRequest(request, callback);
         });
     }
@@ -60,7 +61,7 @@ export class WebviewProtocolManager {
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
-        callback: (response: string | Electron.ProtocolResponse) => void
+        callback: (response: Buffer | Electron.ProtocolResponse) => void
     ): void {
         try {
             // Parse the URL: pptb-webview://toolId/path/to/file
@@ -81,7 +82,11 @@ export class WebviewProtocolManager {
                 }
                 
                 console.log(`[pptb-webview] Serving bridge script: ${bridgePath}`);
-                callback({ path: bridgePath });
+                const content = fs.readFileSync(bridgePath);
+                callback({
+                    mimeType: 'application/javascript',
+                    data: content
+                });
                 return;
             }
 
@@ -119,6 +124,9 @@ export class WebviewProtocolManager {
                 return;
             }
 
+            // Determine MIME type
+            const mimeType = this.getMimeType(filePath);
+
             // Special handling for HTML files: Inject the bridge script
             if (filePath.endsWith('.html')) {
                 try {
@@ -146,17 +154,47 @@ export class WebviewProtocolManager {
                     return;
                 } catch (error) {
                     console.error(`[pptb-webview] Error injecting bridge script:`, error);
-                    // Fall back to serving the file as-is
+                    callback({ error: -2 }); // FAILED
+                    return;
                 }
             }
 
+            // Read and serve the file
             console.log(`[pptb-webview] Serving: ${fullPath}`);
-            callback({ path: fullPath });
+            const content = fs.readFileSync(fullPath);
+            callback({
+                mimeType,
+                data: content
+            });
 
         } catch (error) {
             console.error(`[pptb-webview] Error handling protocol request:`, error);
             callback({ error: -2 }); // FAILED
         }
+    }
+
+    /**
+     * Get MIME type for a file based on extension
+     */
+    private getMimeType(filePath: string): string {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: { [key: string]: string } = {
+            '.html': 'text/html',
+            '.js': 'application/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.ico': 'image/x-icon',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+            '.ttf': 'font/ttf',
+            '.eot': 'application/vnd.ms-fontobject',
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
     }
 
     /**
