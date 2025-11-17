@@ -56,6 +56,7 @@ export class WebviewProtocolManager {
     /**
      * Handle protocol requests for pptb-webview://
      * URL format: pptb-webview://toolId/path/to/file
+     * Special handling: When serving index.html, automatically inject toolboxAPIBridge.js
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
@@ -68,6 +69,21 @@ export class WebviewProtocolManager {
             const filePath = pathParts.join('/') || 'index.html';
 
             console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
+
+            // Special case: Serve toolboxAPIBridge.js from the renderer directory
+            if (filePath === 'toolboxAPIBridge.js') {
+                const bridgePath = path.join(__dirname, '../renderer/toolboxAPIBridge.js');
+                
+                if (!fs.existsSync(bridgePath)) {
+                    console.error(`[pptb-webview] Bridge script not found: ${bridgePath}`);
+                    callback({ error: -6 }); // FILE_NOT_FOUND
+                    return;
+                }
+                
+                console.log(`[pptb-webview] Serving bridge script: ${bridgePath}`);
+                callback({ path: bridgePath });
+                return;
+            }
 
             // Get the tool
             const tool = this.toolManager.getAllTools().find(t => t.id === toolId);
@@ -101,6 +117,37 @@ export class WebviewProtocolManager {
                 console.error(`[pptb-webview] File not found: ${fullPath}`);
                 callback({ error: -6 });
                 return;
+            }
+
+            // Special handling for HTML files: Inject the bridge script
+            if (filePath.endsWith('.html')) {
+                try {
+                    let htmlContent = fs.readFileSync(fullPath, 'utf8');
+                    
+                    // Inject the bridge script tag before the closing </head> or at the start of <body>
+                    const bridgeScriptTag = '<script src="toolboxAPIBridge.js"></script>';
+                    
+                    if (htmlContent.includes('</head>')) {
+                        htmlContent = htmlContent.replace('</head>', `${bridgeScriptTag}\n</head>`);
+                    } else if (htmlContent.includes('<body>')) {
+                        htmlContent = htmlContent.replace('<body>', `<body>\n${bridgeScriptTag}`);
+                    } else {
+                        // No head or body tags, prepend the script
+                        htmlContent = bridgeScriptTag + '\n' + htmlContent;
+                    }
+                    
+                    console.log(`[pptb-webview] Injected bridge script into HTML: ${fullPath}`);
+                    
+                    // Return the modified HTML content with proper MIME type
+                    callback({
+                        mimeType: 'text/html',
+                        data: Buffer.from(htmlContent, 'utf8')
+                    });
+                    return;
+                } catch (error) {
+                    console.error(`[pptb-webview] Error injecting bridge script:`, error);
+                    // Fall back to serving the file as-is
+                }
             }
 
             console.log(`[pptb-webview] Serving: ${fullPath}`);

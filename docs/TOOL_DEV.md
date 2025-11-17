@@ -197,6 +197,8 @@ npm install --save-dev @pptb/types
 </html>
 ```
 
+> **Note:** The `toolboxAPI` and `dataverseAPI` are automatically injected by PPTB when your tool loads. You don't need to include any bridge scripts manually.
+
 ### 5. Implement Your Tool Logic
 
 **app.ts:**
