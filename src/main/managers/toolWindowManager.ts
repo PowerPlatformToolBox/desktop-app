@@ -60,8 +60,12 @@ export class ToolWindowManager {
 
         // Handle tool panel bounds response from renderer
         ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
-            if (bounds && bounds.width > 0 && bounds.height > 0 && !this.boundsUpdatePending) {
+            if (bounds && bounds.width > 0 && bounds.height > 0) {
+                console.log("[ToolWindowManager] Received bounds from renderer:", bounds);
                 this.applyToolViewBounds(bounds);
+            } else {
+                console.warn("[ToolWindowManager] Invalid bounds received:", bounds);
+                this.boundsUpdatePending = false;
             }
         });
 
@@ -146,11 +150,15 @@ export class ToolWindowManager {
 
             // Show the new tool
             this.mainWindow.setBrowserView(toolView);
-            this.updateToolViewBounds();
-
             this.activeToolId = toolId;
 
-            console.log(`[ToolWindowManager] Switched to tool: ${toolId}`);
+            console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
+            
+            // Request bounds update (with a small delay to ensure renderer is ready)
+            setTimeout(() => {
+                this.updateToolViewBounds();
+            }, 100);
+
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error switching to tool ${toolId}:`, error);
