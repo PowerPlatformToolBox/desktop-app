@@ -35,73 +35,33 @@ toastr.options = {
     iconClasses: undefined,
 };
 
-// VS Code-style notification system
+// VS Code-style notification system using dedicated BrowserWindow
+// Notifications are displayed in an always-on-top frameless window above the BrowserView
 function showVSCodeNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
-    const container = document.getElementById("notification-container");
-    if (!container) return;
+    // Convert actions to serializable format
+    const actions = options.actions?.map((action, index) => ({
+        label: action.label,
+        callback: `action_${Date.now()}_${index}`, // Unique callback ID
+    }));
 
-    const notification = document.createElement("div");
-    notification.className = `notification ${options.type || "info"}`;
-
-    // Icon based on type
-    const icons = {
-        info: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
-        success: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm3.844 4.844a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5z"/></svg>',
-        warning: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 4h1v4h-1V4z"/><path d="M8 11a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
-        error: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zM4.646 4.646a.5.5 0 0 0 0 .708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646a.5.5 0 0 0-.708 0z"/></svg>',
-    };
-
-    const actionsHtml = options.actions
-        ? `<div class="notification-actions">
-            ${options.actions.map((action, idx) => `<button class="notification-action" data-action-idx="${idx}">${action.label}</button>`).join("")}
-           </div>`
-        : "";
-
-    notification.innerHTML = `
-        <div class="notification-icon">
-            ${icons[options.type as keyof typeof icons] || icons.info}
-        </div>
-        <div class="notification-content">
-            <div class="notification-title">${options.title}</div>
-            <div class="notification-message">${options.body}</div>
-            ${actionsHtml}
-        </div>
-        <button class="notification-close" title="Dismiss">&times;</button>
-    `;
-
-    // Add action handlers
-    if (options.actions) {
-        const actionButtons = notification.querySelectorAll(".notification-action");
-        actionButtons.forEach((btn, idx) => {
-            btn.addEventListener("click", () => {
-                if (options.actions && options.actions[idx]) {
-                    options.actions[idx].callback();
-                }
-                closeNotification(notification);
+    // Store callbacks for later invocation
+    if (options.actions && actions) {
+        actions.forEach((action, index) => {
+            const originalCallback = options.actions![index].callback;
+            window.api.on(`notification-action-${action.callback}`, () => {
+                originalCallback();
             });
         });
     }
 
-    // Close button handler
-    const closeBtn = notification.querySelector(".notification-close");
-    closeBtn?.addEventListener("click", () => closeNotification(notification));
-
-    container.appendChild(notification);
-
-    // Auto-dismiss after duration
-    const duration = options.duration || 5000;
-    if (duration > 0) {
-        setTimeout(() => {
-            closeNotification(notification);
-        }, duration);
-    }
-}
-
-function closeNotification(notification: HTMLElement): void {
-    notification.classList.add("closing");
-    setTimeout(() => {
-        notification.remove();
-    }, 200);
+    // Send to notification window manager via IPC
+    window.api.invoke("notification:show", {
+        title: options.title,
+        body: options.body,
+        type: options.type || "info",
+        duration: options.duration || 5000,
+        actions,
+    });
 }
 
 // Tab management for multiple tools
@@ -3297,18 +3257,14 @@ async function init() {
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
             
-            // Reserve space at the bottom for VS Code-style notifications
-            // Notifications are positioned at bottom: 36px (just above footer)
-            // Reserve ~350px to accommodate multiple stacked notifications
-            const NOTIFICATION_RESERVED_HEIGHT = 350;
-            
+            // Use full height - notifications are in separate BrowserWindow above
             const bounds = {
                 x: Math.round(rect.left),
                 y: Math.round(rect.top),
                 width: Math.round(rect.width),
-                height: Math.round(Math.max(rect.height - NOTIFICATION_RESERVED_HEIGHT, 200)), // Ensure min height
+                height: Math.round(rect.height),
             };
-            console.log("[Renderer] Sending tool panel bounds (with notification space reserved):", bounds);
+            console.log("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
             console.warn("[Renderer] Tool panel content element not found");

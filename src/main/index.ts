@@ -11,6 +11,7 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolManager } from "./managers/toolsManager";
 import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { NotificationWindowManager } from "./managers/notificationWindowManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -19,6 +20,7 @@ class ToolBoxApp {
     private toolManager: ToolManager;
     private webviewProtocolManager: WebviewProtocolManager;
     private toolWindowManager: ToolWindowManager | null = null;
+    private notificationWindowManager: NotificationWindowManager | null = null;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -855,6 +857,9 @@ class ToolBoxApp {
 
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.webviewProtocolManager);
+
+        // Initialize NotificationWindowManager for overlay notifications
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
