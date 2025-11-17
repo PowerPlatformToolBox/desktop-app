@@ -2508,6 +2508,9 @@ fluent-badge {
     white-space: pre-wrap;
     word-wrap: break-word;
     padding: 4px;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 .terminal-output-line {
@@ -2924,15 +2927,18 @@ body.dark-theme .csp-warning ul {
 
 .notification-container {
     position: fixed;
-    bottom: 32px; // Above footer
+    bottom: 36px; // Above footer (footer is 32px tall)
     right: 16px;
     width: 400px;
-    max-height: calc(100vh - 100px);
+    max-height: 300px; // Limit height to avoid tool panel area
     display: flex;
     flex-direction: column-reverse; // New notifications appear at bottom
     gap: 8px;
-    z-index: 999999; // Above everything including BrowserView
+    z-index: 999999; // Highest z-index in DOM
     pointer-events: none; // Allow clicks through container
+    // NOTE: BrowserView is a native component that overlays the DOM.
+    // Notifications are positioned in the bottom-right corner, outside the tool panel area.
+    // This ensures they're visible even when a tool is loaded in the BrowserView.
 }
 
 .notification {

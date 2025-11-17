@@ -2578,6 +2578,18 @@ function createTerminalTab(terminal: any) {
 
     terminalPanelContent.appendChild(outputContainer);
 
+    // Apply terminal font from settings
+    window.toolboxAPI.getUserSettings().then((settings: any) => {
+        if (settings && settings.terminalFont) {
+            const fontFamily = settings.terminalFont === "custom" && settings.terminalFontCustom
+                ? settings.terminalFontCustom
+                : settings.terminalFont || "'Cascadia Code', 'Consolas', 'Courier New', monospace";
+            outputContent.style.fontFamily = fontFamily;
+        }
+    }).catch((error: Error) => {
+        console.error("Failed to apply terminal font:", error);
+    });
+
     // Store terminal tab
     openTerminals.set(terminal.id, {
         id: terminal.id,
@@ -3284,13 +3296,19 @@ async function init() {
         const toolPanelContent = document.getElementById("tool-panel-content");
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
+            
+            // Reserve space at the bottom for VS Code-style notifications
+            // Notifications are positioned at bottom: 36px (just above footer)
+            // Reserve ~350px to accommodate multiple stacked notifications
+            const NOTIFICATION_RESERVED_HEIGHT = 350;
+            
             const bounds = {
                 x: Math.round(rect.left),
                 y: Math.round(rect.top),
                 width: Math.round(rect.width),
-                height: Math.round(rect.height),
+                height: Math.round(Math.max(rect.height - NOTIFICATION_RESERVED_HEIGHT, 200)), // Ensure min height
             };
-            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            console.log("[Renderer] Sending tool panel bounds (with notification space reserved):", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
             console.warn("[Renderer] Tool panel content element not found");
