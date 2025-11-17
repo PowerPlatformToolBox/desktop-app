@@ -2578,12 +2578,6 @@ body.dark-theme .terminal-tab.active {
    Toastr Custom Styling (VSCode-inspired)
    ======================================== */
 
-/* Ensure toast container is above BrowserView */
-#toast-container {
-    z-index: 999999 !important;
-    position: fixed !important;
-}
-
 /* Override toastr default styles to match VSCode notification design */
 #toast-container > div {
     opacity: 1;
@@ -2922,4 +2916,162 @@ body.dark-theme .csp-warning {
 body.dark-theme .csp-warning p,
 body.dark-theme .csp-warning ul {
     color: #d4c89f;
+}
+
+/* ========================================
+   VS Code-style Notification System
+   ======================================== */
+
+.notification-container {
+    position: fixed;
+    bottom: 32px; // Above footer
+    right: 16px;
+    width: 400px;
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column-reverse; // New notifications appear at bottom
+    gap: 8px;
+    z-index: 999999; // Above everything including BrowserView
+    pointer-events: none; // Allow clicks through container
+}
+
+.notification {
+    pointer-events: auto; // But notifications themselves are clickable
+    background-color: var(--bg-color-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 4px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: slideInRight 0.3s ease-out;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    max-width: 100%;
+}
+
+.notification.closing {
+    opacity: 0;
+    transform: translateX(420px);
+}
+
+.notification-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.notification-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.notification-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin: 0 0 4px 0;
+    color: var(--text-color);
+}
+
+.notification-message {
+    font-size: 12px;
+    margin: 0;
+    color: var(--text-color-secondary);
+    word-wrap: break-word;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.notification-action {
+    padding: 4px 12px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.notification-action:hover {
+    background-color: var(--hover-color);
+}
+
+.notification-close {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+.notification.info {
+    border-left-color: #0078d4;
+}
+
+.notification.info .notification-icon {
+    color: #0078d4;
+}
+
+.notification.success {
+    border-left-color: #16c60c;
+}
+
+.notification.success .notification-icon {
+    color: #16c60c;
+}
+
+.notification.warning {
+    border-left-color: #faa21b;
+}
+
+.notification.warning .notification-icon {
+    color: #faa21b;
+}
+
+.notification.error {
+    border-left-color: #e81123;
+}
+
+.notification.error .notification-icon {
+    color: #e81123;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(420px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }

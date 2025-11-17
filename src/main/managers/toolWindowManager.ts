@@ -113,16 +113,17 @@ export class ToolWindowManager {
             // Store the view
             this.toolViews.set(toolId, toolView);
 
-            // Send tool context immediately after loading
-            // The tool preload bridge will receive this and make it available
-            await new Promise<void>((resolve) => {
-                toolView.webContents.once("did-finish-load", () => {
-                    this.sendToolContext(toolId, tool);
-                    resolve();
-                });
-            });
+            // Send tool context immediately (don't wait for did-finish-load)
+            // The preload script will receive this before the tool code runs
+            const toolContext = {
+                toolId: tool.id,
+                toolName: tool.name,
+                version: tool.version,
+            };
+            toolView.webContents.send("toolbox:context", toolContext);
+            console.log(`[ToolWindowManager] Sent tool context for ${toolId}`);
 
-            // Show this tool after context is sent
+            // Show this tool
             await this.switchToTool(toolId);
 
             console.log(`[ToolWindowManager] Tool launched successfully: ${toolId}`);
