@@ -51,6 +51,8 @@ export class NotificationWindowManager {
             closable: false,
             focusable: false,
             show: false,
+            hasShadow: false, // Remove window shadow
+            backgroundColor: "#00000000", // Fully transparent background
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
