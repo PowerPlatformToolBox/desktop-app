@@ -544,41 +544,45 @@ async function launchTool(toolId: string) {
         webviewContainer.className = "tool-webview-container";
         webviewContainer.id = `tool-webview-${toolId}`;
 
-        // Create iframe for the tool using custom pptb-webview:// protocol
-        const toolIframe = document.createElement("iframe");
-        toolIframe.style.width = "100%";
-        toolIframe.style.height = "100%";
-        toolIframe.style.border = "none";
-        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+        // Create webview for the tool using custom pptb-webview:// protocol
+        // Using <webview> instead of <iframe> for better support of custom protocols and CORS bypass
+        const toolWebview = document.createElement("webview") as any;
+        toolWebview.style.width = "100%";
+        toolWebview.style.height = "100%";
+        toolWebview.style.border = "none";
+        // Webview attributes for security and functionality
+        toolWebview.setAttribute("nodeintegration", "false");
+        toolWebview.setAttribute("webpreferences", "contextIsolation=true");
+        toolWebview.setAttribute("disablewebsecurity", "true"); // Disable web security to bypass CORS
+        toolWebview.setAttribute("allowpopups", "false");
 
         // Get the webview URL using custom protocol: pptb-webview://toolId/
         const webviewUrl = await window.toolboxAPI.getToolWebviewUrl(toolId);
         
         console.log(`[Tool Launch] Loading tool from: ${webviewUrl}`);
 
-        // Set up event listener to post context after iframe loads
-        toolIframe.addEventListener("load", () => {
-            if (toolIframe.contentWindow) {
-                // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
-                setTimeout(() => {
-                    if (toolIframe.contentWindow) {
-                        toolIframe.contentWindow.postMessage(
-                            {
-                                type: "TOOLBOX_CONTEXT",
-                                data: toolContext,
-                            },
-                            "*",
-                        );
-                    }
-                }, 100);
-            }
+        // Set up event listener to post context after webview loads
+        toolWebview.addEventListener("dom-ready", () => {
+            // Post the TOOLBOX_CONTEXT to the webview after a short delay to ensure bridge is loaded
+            setTimeout(() => {
+                try {
+                    toolWebview.executeJavaScript(`
+                        window.postMessage(${JSON.stringify({
+                            type: "TOOLBOX_CONTEXT",
+                            data: toolContext,
+                        })}, '*');
+                    `);
+                } catch (e) {
+                    console.error('[Tool Launch] Failed to post context:', e);
+                }
+            }, 100);
         });
 
         // Load the tool using custom protocol
         // Tool will have its own independent CSP (does not inherit from parent)
-        toolIframe.src = webviewUrl;
+        toolWebview.src = webviewUrl;
 
-        webviewContainer.appendChild(toolIframe);
+        webviewContainer.appendChild(toolWebview);
         toolPanelContent.appendChild(webviewContainer);
 
         // Store the open tool
@@ -586,7 +590,7 @@ async function launchTool(toolId: string) {
             id: toolId,
             tool: tool,
             webviewContainer: webviewContainer,
-            webview: toolIframe,
+            webview: toolWebview,
             isPinned: false,
             connectionId: null,
         });
