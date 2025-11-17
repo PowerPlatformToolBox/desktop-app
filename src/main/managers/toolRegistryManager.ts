@@ -222,6 +222,7 @@ export class ToolRegistryManager extends EventEmitter {
             source: "registry",
             sourceUrl: tool.downloadUrl,
             readme: tool.readme, // Include readme URL from registry
+            cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
         };
 
         // Save to manifest file

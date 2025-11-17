@@ -27,11 +27,24 @@
             "type": "chrome",
             "request": "attach",
             "port": 9222,
-            "webRoot": "${workspaceFolder}/src/renderer",
+            "webRoot": "${workspaceFolder}",
             "sourceMaps": true,
             "timeout": 30000,
             // When multiple BrowserWindows are open, let me pick the target
-            "targetSelection": "pick"
+            "targetSelection": "pick",
+            // Help VS Code map bundled code back to TS sources when using Vite
+            "sourceMapPathOverrides": {
+                "webpack:///*": "${webRoot}/*",
+                "vite:///*": "${webRoot}/*",
+                "*/src/*": "${workspaceFolder}/src/*",
+                "*/dist/*": "${workspaceFolder}/dist/*"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Electron: Main + Renderer",
+            "configurations": ["Debug Main Process", "Renderer (Chromium) Attach"]
         }
     ]
 }

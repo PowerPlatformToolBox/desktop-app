@@ -22,6 +22,7 @@ export class SettingsManager {
         connections: [], // Kept for backwards compatibility, but use ConnectionsManager instead
         installedTools: [],
         favoriteTools: [],
+        cspConsents: {}, // Track CSP consent for each tool
       },
     });
 
@@ -155,5 +156,38 @@ export class SettingsManager {
       this.addFavoriteTool(toolId);
       return true;
     }
+  }
+
+  /**
+   * Check if CSP consent has been granted for a tool
+   */
+  hasCspConsent(toolId: string): boolean {
+    const cspConsents = this.store.get('cspConsents') || {};
+    return cspConsents[toolId] === true;
+  }
+
+  /**
+   * Grant CSP consent for a tool
+   */
+  grantCspConsent(toolId: string): void {
+    const cspConsents = this.store.get('cspConsents') || {};
+    cspConsents[toolId] = true;
+    this.store.set('cspConsents', cspConsents);
+  }
+
+  /**
+   * Revoke CSP consent for a tool
+   */
+  revokeCspConsent(toolId: string): void {
+    const cspConsents = this.store.get('cspConsents') || {};
+    delete cspConsents[toolId];
+    this.store.set('cspConsents', cspConsents);
+  }
+
+  /**
+   * Get all tools with CSP consent
+   */
+  getCspConsents(): { [toolId: string]: boolean } {
+    return this.store.get('cspConsents') || {};
   }
 }
