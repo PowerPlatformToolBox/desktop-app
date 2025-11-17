@@ -2578,6 +2578,12 @@ body.dark-theme .terminal-tab.active {
    Toastr Custom Styling (VSCode-inspired)
    ======================================== */
 
+/* Ensure toast container is above BrowserView */
+#toast-container {
+    z-index: 999999 !important;
+    position: fixed !important;
+}
+
 /* Override toastr default styles to match VSCode notification design */
 #toast-container > div {
     opacity: 1;
