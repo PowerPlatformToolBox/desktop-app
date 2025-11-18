@@ -1,0 +1,158 @@
+/**
+ * IPC Channel Constants
+ * Centralized definition of all IPC channel names to avoid string duplication
+ */
+
+/**
+ * Settings-related IPC channels
+ */
+export const SETTINGS_CHANNELS = {
+    GET_USER_SETTINGS: "get-user-settings",
+    UPDATE_USER_SETTINGS: "update-user-settings",
+    GET_SETTING: "get-setting",
+    SET_SETTING: "set-setting",
+    ADD_FAVORITE_TOOL: "add-favorite-tool",
+    REMOVE_FAVORITE_TOOL: "remove-favorite-tool",
+    GET_FAVORITE_TOOLS: "get-favorite-tools",
+    IS_FAVORITE_TOOL: "is-favorite-tool",
+    TOGGLE_FAVORITE_TOOL: "toggle-favorite-tool",
+    GET_TOOL_SETTINGS: "get-tool-settings",
+    UPDATE_TOOL_SETTINGS: "update-tool-settings",
+    TOOL_SETTINGS_GET_ALL: "tool-settings-get-all",
+    TOOL_SETTINGS_GET: "tool-settings-get",
+    TOOL_SETTINGS_SET: "tool-settings-set",
+    TOOL_SETTINGS_SET_ALL: "tool-settings-set-all",
+    HAS_CSP_CONSENT: "has-csp-consent",
+    GRANT_CSP_CONSENT: "grant-csp-consent",
+    REVOKE_CSP_CONSENT: "revoke-csp-consent",
+    GET_CSP_CONSENTS: "get-csp-consents",
+} as const;
+
+/**
+ * Connection-related IPC channels
+ */
+export const CONNECTION_CHANNELS = {
+    ADD_CONNECTION: "add-connection",
+    UPDATE_CONNECTION: "update-connection",
+    DELETE_CONNECTION: "delete-connection",
+    GET_CONNECTIONS: "get-connections",
+    SET_ACTIVE_CONNECTION: "set-active-connection",
+    GET_ACTIVE_CONNECTION: "get-active-connection",
+    DISCONNECT_CONNECTION: "disconnect-connection",
+    TEST_CONNECTION: "test-connection",
+    IS_TOKEN_EXPIRED: "is-connection-token-expired",
+    REFRESH_TOKEN: "refresh-connection-token",
+} as const;
+
+/**
+ * Tool-related IPC channels
+ */
+export const TOOL_CHANNELS = {
+    GET_ALL_TOOLS: "get-all-tools",
+    GET_TOOL: "get-tool",
+    LOAD_TOOL: "load-tool",
+    UNLOAD_TOOL: "unload-tool",
+    INSTALL_TOOL: "install-tool",
+    UNINSTALL_TOOL: "uninstall-tool",
+    GET_TOOL_WEBVIEW_HTML: "get-tool-webview-html",
+    GET_TOOL_CONTEXT: "get-tool-context",
+    GET_TOOL_WEBVIEW_URL: "get-tool-webview-url",
+    LOAD_LOCAL_TOOL: "load-local-tool",
+    GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
+    OPEN_DIRECTORY_PICKER: "open-directory-picker",
+    FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
+    INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
+    CHECK_TOOL_UPDATES: "check-tool-updates",
+    UPDATE_TOOL: "update-tool",
+} as const;
+
+/**
+ * Tool Window-related IPC channels
+ */
+export const TOOL_WINDOW_CHANNELS = {
+    LAUNCH: "tool-window:launch",
+    SWITCH: "tool-window:switch",
+    CLOSE: "tool-window:close",
+    GET_ACTIVE: "tool-window:get-active",
+    GET_OPEN_TOOLS: "tool-window:get-open-tools",
+} as const;
+
+/**
+ * Terminal-related IPC channels
+ */
+export const TERMINAL_CHANNELS = {
+    CREATE_TERMINAL: "create-terminal",
+    EXECUTE_COMMAND: "execute-terminal-command",
+    CLOSE_TERMINAL: "close-terminal",
+    GET_TERMINAL: "get-terminal",
+    GET_TOOL_TERMINALS: "get-tool-terminals",
+    GET_ALL_TERMINALS: "get-all-terminals",
+    SET_VISIBILITY: "set-terminal-visibility",
+} as const;
+
+/**
+ * Utility-related IPC channels
+ */
+export const UTIL_CHANNELS = {
+    SHOW_NOTIFICATION: "show-notification",
+    COPY_TO_CLIPBOARD: "copy-to-clipboard",
+    SAVE_FILE: "save-file",
+    GET_CURRENT_THEME: "get-current-theme",
+    SHOW_LOADING: "show-loading",
+    HIDE_LOADING: "hide-loading",
+    OPEN_EXTERNAL: "open-external",
+    GET_EVENT_HISTORY: "get-event-history",
+} as const;
+
+/**
+ * Auto-update-related IPC channels
+ */
+export const UPDATE_CHANNELS = {
+    CHECK_FOR_UPDATES: "check-for-updates",
+    DOWNLOAD_UPDATE: "download-update",
+    QUIT_AND_INSTALL: "quit-and-install",
+    GET_APP_VERSION: "get-app-version",
+} as const;
+
+/**
+ * Dataverse-related IPC channels
+ */
+export const DATAVERSE_CHANNELS = {
+    CREATE: "dataverse.create",
+    RETRIEVE: "dataverse.retrieve",
+    UPDATE: "dataverse.update",
+    DELETE: "dataverse.delete",
+    RETRIEVE_MULTIPLE: "dataverse.retrieveMultiple",
+    EXECUTE: "dataverse.execute",
+    FETCH_XML_QUERY: "dataverse.fetchXmlQuery",
+    GET_ENTITY_METADATA: "dataverse.getEntityMetadata",
+    GET_ALL_ENTITIES_METADATA: "dataverse.getAllEntitiesMetadata",
+    GET_ENTITY_RELATED_METADATA: "dataverse.getEntityRelatedMetadata",
+    GET_SOLUTIONS: "dataverse.getSolutions",
+    QUERY_DATA: "dataverse.queryData",
+} as const;
+
+/**
+ * Event-related IPC channels (from main to renderer)
+ */
+export const EVENT_CHANNELS = {
+    TOOLBOX_EVENT: "toolbox-event",
+    UPDATE_CHECKING: "update-checking",
+    UPDATE_AVAILABLE: "update-available",
+    UPDATE_NOT_AVAILABLE: "update-not-available",
+    UPDATE_DOWNLOAD_PROGRESS: "update-download-progress",
+    UPDATE_DOWNLOADED: "update-downloaded",
+    UPDATE_ERROR: "update-error",
+    SHOW_HOME_PAGE: "show-home-page",
+    SHOW_DEVICE_CODE_DIALOG: "show-device-code-dialog",
+    CLOSE_DEVICE_CODE_DIALOG: "close-device-code-dialog",
+    SHOW_AUTH_ERROR_DIALOG: "show-auth-error-dialog",
+    TOKEN_EXPIRED: "token-expired",
+    SHOW_LOADING_SCREEN: "show-loading-screen",
+    HIDE_LOADING_SCREEN: "hide-loading-screen",
+} as const;
+
+/**
+ * Type helper to extract channel names
+ */
+export type ChannelName<T> = T[keyof T];
