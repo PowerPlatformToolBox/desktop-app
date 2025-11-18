@@ -1,17 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { ToolBoxAPI } from "../api/toolboxAPI";
 import { ToolBoxEvent } from "../types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
-import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -21,7 +21,7 @@ class ToolBoxApp {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
-    private api: ToolBoxAPI;
+    private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
@@ -32,7 +32,7 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxAPI();
+        this.api = new ToolBoxUtilityManager();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
         this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
