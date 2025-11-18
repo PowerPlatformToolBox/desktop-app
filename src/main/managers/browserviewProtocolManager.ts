@@ -61,7 +61,6 @@ export class BrowserviewProtocolManager {
     /**
      * Handle protocol requests for pptb-webview://
      * URL format: pptb-webview://toolId/path/to/file
-     * Special handling: When serving index.html, automatically inject toolboxAPIBridge.js
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
@@ -74,25 +73,6 @@ export class BrowserviewProtocolManager {
             const filePath = pathParts.join('/') || 'index.html';
 
             console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
-
-            // Special case: Serve toolboxAPIBridge.js from the renderer directory
-            if (filePath === 'toolboxAPIBridge.js') {
-                const bridgePath = path.join(__dirname, '../renderer/toolboxAPIBridge.js');
-                
-                if (!fs.existsSync(bridgePath)) {
-                    console.error(`[pptb-webview] Bridge script not found: ${bridgePath}`);
-                    callback({ error: -6 }); // FILE_NOT_FOUND
-                    return;
-                }
-                
-                console.log(`[pptb-webview] Serving bridge script: ${bridgePath}`);
-                const content = fs.readFileSync(bridgePath);
-                callback({
-                    mimeType: 'application/javascript',
-                    data: content
-                });
-                return;
-            }
 
             // Get the tool
             const tool = this.toolManager.getAllTools().find(t => t.id === toolId);

@@ -50,7 +50,6 @@ src/
 └── renderer/                        # Renderer process code only
     ├── index.html                   # Main UI HTML
     ├── renderer.ts                  # UI logic (uses -pptb CSS classes)
-    ├── toolboxAPIBridge.js          # API bridge for tools in iframes
     ├── types.d.ts                   # Renderer-specific type extensions
     ├── styles.scss                  # Main styles (uses -pptb CSS classes)
     │
@@ -172,20 +171,18 @@ All UI components now use `-pptb` suffix instead of `-vscode`:
 
 | File | Purpose | Location |
 |------|---------|----------|
-| toolboxAPIBridge.js | API bridge for tools in iframes | src/renderer/ |
 | preload.ts | Main window preload script | src/main/ |
-| toolPreloadBridge.ts | Tool window preload bridge | src/main/ |
+| toolPreloadBridge.ts | Tool window preload bridge (exposes toolboxAPI to tools via BrowserView) | src/main/ |
 | index.ts | Main app entry point | src/main/ |
 | renderer.ts | UI logic and event handlers | src/renderer/ |
 
-### Why toolboxAPIBridge.js?
+### Tool API Exposure
 
-This file is **required** for the tool execution system. It:
-- Runs inside tool iframes
-- Exposes `window.toolboxAPI` to tools
-- Proxies calls to parent window via postMessage
-- Provides security isolation for tools
-- Cannot be removed without breaking tool functionality
+Tools run in BrowserView instances (not iframes) and access the toolboxAPI through:
+- **toolPreloadBridge.ts**: Preload script that uses contextBridge to expose secure APIs
+- Direct IPC communication with the main process
+- Each tool runs in isolated BrowserView with independent webPreferences
+- No postMessage complexity - direct IPC for better performance
 
 ## Build & Test Status
 
