@@ -88,7 +88,8 @@ The Power Platform Tool Box provides a secure, isolated environment for running 
 -   **Secure Communication**: Direct IPC communication through contextBridge
 -   **Context-Aware**: Tool ID and connection context automatically managed
 -   **Type-Safe**: Full TypeScript support with `@pptb/types` package
--   **No CSP Inheritance**: Tools have independent Content Security Policies
+-   **No CSP Inheritance**: Tools have independent Content Security Policies (see [CSP Configuration](./CSP_CONFIGURATION.md))
+-   **Per-Tool CSP Exceptions**: Tools can request CSP exceptions with explicit user consent
 -   **CORS Bypass**: Tools can make external API calls without CORS restrictions
 
 ## API Architecture
@@ -1227,7 +1228,8 @@ For complete API documentation, see **[ToolBox API & Dataverse API Reference](..
 -   No direct access to Electron APIs or Node.js modules
 -   No access to user settings or sensitive connection data
 -   Access tokens are managed securely by the platform
--   Web security can be disabled for CORS bypass, but CSP is enforced via meta tags
+-   Web security can be disabled for CORS bypass, but CSP is enforced via meta tags per tool
+-   CSP exceptions can be requested in package.json with explicit user consent (see [CSP Configuration](./CSP_CONFIGURATION.md))
 
 ### Context-Aware Features
 
