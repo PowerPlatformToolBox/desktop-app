@@ -6,12 +6,12 @@ import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolManager } from "./managers/toolsManager";
-import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
-import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -707,15 +707,6 @@ class ToolBoxApp {
                 submenu: [
                     { role: "reload" },
                     { role: "forceReload" },
-                    {
-                        label: "Toggle Developer Tools",
-                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
-                        click: () => {
-                            if (this.mainWindow) {
-                                this.mainWindow.webContents.toggleDevTools();
-                            }
-                        },
-                    },
                     { type: "separator" },
                     {
                         label: "Show Home Page",
@@ -898,10 +889,10 @@ class ToolBoxApp {
         this.webviewProtocolManager.registerScheme();
 
         await app.whenReady();
-        
+
         // Register protocol handler after app is ready
         this.webviewProtocolManager.registerHandler();
-        
+
         this.createWindow();
 
         // Load all installed tools from registry

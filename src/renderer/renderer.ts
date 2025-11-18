@@ -14,7 +14,7 @@ const ansiConverter = new AnsiToHtml({
 
 // VS Code-style notification system using dedicated BrowserWindow
 // Notifications are displayed in an always-on-top frameless window above the BrowserView
-function showVSCodeNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
+function showPPTBNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
     // Convert actions to serializable format
     const actions = options.actions?.map((action, index) => ({
         label: action.label,
@@ -235,25 +235,25 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
         const modal = document.createElement("div");
         modal.className = "modal";
         modal.id = "csp-consent-modal";
-        
+
         const cspExceptions = tool.cspExceptions || {};
-        
+
         // Build list of CSP exceptions
         let exceptionsHtml = "";
         for (const [directive, sources] of Object.entries(cspExceptions)) {
             if (Array.isArray(sources) && sources.length > 0) {
-                const directiveName = directive.replace('-src', '').replace('-', ' ');
+                const directiveName = directive.replace("-src", "").replace("-", " ");
                 exceptionsHtml += `
                     <div class="csp-exception">
                         <strong>${directiveName}:</strong>
                         <ul>
-                            ${sources.map((source: string) => `<li><code>${source}</code></li>`).join('')}
+                            ${sources.map((source: string) => `<li><code>${source}</code></li>`).join("")}
                         </ul>
                     </div>
                 `;
             }
         }
-        
+
         modal.innerHTML = `
             <div class="modal-content csp-consent-dialog">
                 <div class="modal-header">
@@ -261,7 +261,7 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
                 </div>
                 <div class="modal-body">
                     <p>
-                        <strong>${tool.name}</strong> by <em>${tool.author || 'Unknown'}</em> 
+                        <strong>${tool.name}</strong> by <em>${tool.author || "Unknown"}</em> 
                         is requesting permission to access external resources.
                     </p>
                     <p>
@@ -288,16 +288,16 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
-        
+
         // Show modal
         setTimeout(() => modal.classList.add("active"), 10);
-        
+
         // Handle buttons
         const acceptBtn = modal.querySelector("#csp-accept-btn");
         const declineBtn = modal.querySelector("#csp-decline-btn");
-        
+
         const closeModal = (granted: boolean) => {
             modal.classList.remove("active");
             setTimeout(() => {
@@ -305,7 +305,7 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
                 resolve(granted);
             }, 300);
         };
-        
+
         acceptBtn?.addEventListener("click", () => closeModal(true));
         declineBtn?.addEventListener("click", () => closeModal(false));
     });
@@ -336,11 +336,11 @@ async function launchTool(toolId: string) {
         if (tool.cspExceptions && Object.keys(tool.cspExceptions).length > 0) {
             // Check if consent has been granted
             const hasConsent = await window.toolboxAPI.hasCspConsent(tool.id);
-            
+
             if (!hasConsent) {
                 // Show consent dialog
                 const consentGranted = await showCspConsentDialog(tool);
-                
+
                 if (!consentGranted) {
                     // User declined, don't load the tool
                     window.toolboxAPI.utils.showNotification({
@@ -350,7 +350,7 @@ async function launchTool(toolId: string) {
                     });
                     return;
                 }
-                
+
                 // Grant consent
                 await window.toolboxAPI.grantCspConsent(tool.id);
             }
@@ -371,7 +371,7 @@ async function launchTool(toolId: string) {
         // Launch the tool using BrowserView via IPC
         // The backend ToolWindowManager will create a BrowserView and load the tool
         const launched = await window.toolboxAPI.launchToolWindow(toolId, tool);
-        
+
         if (!launched) {
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Launch Failed",
@@ -763,7 +763,6 @@ function showHomePage() {
         homeView.classList.add("active");
     }
 }
-
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function toolSettings(toolId: string) {
@@ -2522,16 +2521,18 @@ function createTerminalTab(terminal: any) {
     terminalPanelContent.appendChild(outputContainer);
 
     // Apply terminal font from settings
-    window.toolboxAPI.getUserSettings().then((settings: any) => {
-        if (settings && settings.terminalFont) {
-            const fontFamily = settings.terminalFont === "custom" && settings.terminalFontCustom
-                ? settings.terminalFontCustom
-                : settings.terminalFont || "'Cascadia Code', 'Consolas', 'Courier New', monospace";
-            outputContent.style.fontFamily = fontFamily;
-        }
-    }).catch((error: Error) => {
-        console.error("Failed to apply terminal font:", error);
-    });
+    window.toolboxAPI
+        .getUserSettings()
+        .then((settings: any) => {
+            if (settings && settings.terminalFont) {
+                const fontFamily =
+                    settings.terminalFont === "custom" && settings.terminalFontCustom ? settings.terminalFontCustom : settings.terminalFont || "'Cascadia Code', 'Consolas', 'Courier New', monospace";
+                outputContent.style.fontFamily = fontFamily;
+            }
+        })
+        .catch((error: Error) => {
+            console.error("Failed to apply terminal font:", error);
+        });
 
     // Store terminal tab
     openTerminals.set(terminal.id, {
@@ -2623,7 +2624,7 @@ function showTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "block";
     }
-    
+
     // Notify main process to adjust BrowserView bounds for terminal
     window.api.send("terminal-visibility-changed", true);
 }
@@ -2639,7 +2640,7 @@ function hideTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "none";
     }
-    
+
     // Notify main process to adjust BrowserView bounds for full height
     window.api.send("terminal-visibility-changed", false);
 }
@@ -3130,7 +3131,7 @@ async function init() {
         console.log("Token expired for connection:", data);
 
         // Show warning notification with re-authenticate button using PPTB notification system
-        showVSCodeNotification({
+        showPPTBNotification({
             title: "Connection Token Expired",
             body: `Your connection to "${data.connectionName}" has expired.`,
             type: "warning",
@@ -3182,8 +3183,8 @@ async function init() {
         // Handle notifications using VS Code-style notification system
         if (payload.event === "notification:shown") {
             const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
-            
-            showVSCodeNotification({
+
+            showPPTBNotification({
                 title: notificationData.title,
                 body: notificationData.body,
                 type: notificationData.type || "info",
@@ -3221,10 +3222,10 @@ async function init() {
     // Handle request for tool panel bounds (for BrowserView positioning)
     window.api.on("get-tool-panel-bounds-request", () => {
         const toolPanelContent = document.getElementById("tool-panel-content");
-        
+
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
-            
+
             // The tool-panel-content is inside tool-panel-content-wrapper which uses flex:1
             // When terminal is visible, the wrapper automatically shrinks to accommodate it
             // So we can use the actual bounds of tool-panel-content directly
