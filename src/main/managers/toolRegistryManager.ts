@@ -10,7 +10,7 @@ import { TOOL_REGISTRY_URL } from "../constants";
 
 /**
  * Manages tool installation from a registry (marketplace)
- * Similar to VS Code extension marketplace
+ * Registry for discovering and managing tool installations
  */
 export class ToolRegistryManager extends EventEmitter {
     private toolsDirectory: string;

@@ -5,7 +5,7 @@
  * It exposes the toolboxAPI to the tool via contextBridge, providing
  * secure access to PPTB functionality through IPC.
  * 
- * This is similar to VS Code's extension host preload script.
+ * This is similar to extension host preload scripts, providing isolated contexts.
  */
 
 import { contextBridge, ipcRenderer } from "electron";

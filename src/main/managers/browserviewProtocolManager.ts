@@ -5,19 +5,19 @@ import { ToolManager } from "./toolsManager";
 import { SettingsManager } from "./settingsManager";
 
 /**
- * WebviewProtocolManager
- * 
+ * BrowserviewProtocolManager
+ *
  * Manages the custom pptb-webview:// protocol for loading tool content
  * in isolated webview contexts with independent CSP policies.
- * 
- * Similar to VS Code's vscode-webview:// protocol, this provides:
+ *
+ * This provides:
  * - Isolated origin for each tool
  * - Independent CSP per tool
  * - Secure file serving with path traversal protection
  * - No inheritance from parent window CSP
  * - CSP exceptions only applied with user consent
  */
-export class WebviewProtocolManager {
+export class BrowserviewProtocolManager {
     private toolManager: ToolManager;
     private settingsManager: SettingsManager;
     private toolsDir: string;

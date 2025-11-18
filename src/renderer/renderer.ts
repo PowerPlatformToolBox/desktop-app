@@ -12,7 +12,7 @@ const ansiConverter = new AnsiToHtml({
     stream: false,
 });
 
-// VS Code-style notification system using dedicated BrowserWindow
+// PPTB notification system using dedicated BrowserWindow
 // Notifications are displayed in an always-on-top frameless window above the BrowserView
 function showPPTBNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
     // Convert actions to serializable format
@@ -1946,7 +1946,7 @@ async function loadMarketplace() {
             }
 
             return `
-        <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-vscode">
                 <span class="marketplace-item-icon-vscode">${toolIconHtml}</span>
                 <div class="marketplace-item-info-vscode">
@@ -1972,7 +1972,7 @@ async function loadMarketplace() {
         .join("");
 
     // Add click handlers for marketplace items to open detail view
-    marketplaceList.querySelectorAll(".marketplace-item-vscode").forEach((item) => {
+    marketplaceList.querySelectorAll(".marketplace-item-pptb").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             // Don't open detail if clicking a button
@@ -3111,7 +3111,7 @@ async function init() {
         // No need to forward via postMessage as tools are in separate renderer processes
         // The backend ToolWindowManager handles event forwarding to BrowserView instances
 
-        // Handle notifications using VS Code-style notification system
+        // Handle notifications using PPTB notification system
         if (payload.event === "notification:shown") {
             const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
 
