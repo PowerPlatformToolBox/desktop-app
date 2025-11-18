@@ -31,8 +31,11 @@ Rather than weakening security for all tools, PPTB allows each tool to request o
 1. **First Launch**: When you launch a tool that requires CSP exceptions for the first time, you'll see a consent dialog
 2. **Review Permissions**: The dialog shows exactly what external resources the tool wants to access
 3. **Grant or Decline**: You can choose to accept or decline the permissions
+   - If you **Accept**: The tool will load with the requested CSP exceptions
+   - If you **Decline**: The tool will not load, and you'll see a notification explaining why
 4. **Stored Consent**: If you accept, your consent is stored and you won't be asked again for that tool
-5. **Revoke Consent**: You can revoke consent at any time in the settings
+5. **Security Enforcement**: The system enforces that CSP exceptions are only applied if consent has been granted
+6. **Revoke Consent**: You can revoke consent at any time via the IPC API (UI coming soon)
 
 ### For Tool Developers
 
@@ -149,6 +152,19 @@ Before requesting CSP exceptions, consider if there are alternatives:
 
 ## Security Considerations
 
+### Implementation Details
+
+**CSP Enforcement Flow:**
+1. Tool's CSP exceptions are read from `package.json` during installation/loading
+2. When a tool is launched, the system checks if it has CSP exceptions
+3. If exceptions exist, the system checks if user has granted consent
+4. If not granted, a consent dialog is shown to the user
+5. When the tool's HTML is served, `WebviewProtocolManager` checks consent status
+6. CSP exceptions are **only applied** if consent has been granted
+7. Without consent, the tool receives only the default restrictive CSP
+
+This ensures that even if a tool declares CSP exceptions, they are not applied until the user explicitly grants permission.
+
 ### For Users
 
 - **Only install tools from trusted sources**
@@ -219,8 +235,9 @@ Local tools can also specify CSP exceptions in their `package.json`. The same co
 
 **Symptom:** Want to revoke consent but can't find the option  
 **Solution:**
-1. Manually edit the settings file (in development)
-2. Full UI for consent management is planned for a future release
+1. Use the developer console: `window.toolboxAPI.revokeCspConsent('tool-id')`
+2. Manually edit the settings file located in the app's user data directory
+3. Full UI for consent management is planned for a future release
 
 ## Example: Complete Tool Manifest
 

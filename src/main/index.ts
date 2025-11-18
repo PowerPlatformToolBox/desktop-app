@@ -34,7 +34,7 @@ class ToolBoxApp {
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
-        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager);
+        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
@@ -750,7 +750,26 @@ class ToolBoxApp {
                     },
                     { type: "separator" },
                     {
-                        label: "Toggle Developer Tools",
+                        label: "Toggle Tool DevTools",
+                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                        click: () => {
+                            if (this.toolWindowManager) {
+                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                if (!opened) {
+                                    // Show notification if no active tool
+                                    dialog.showMessageBox(this.mainWindow!, {
+                                        type: "info",
+                                        title: "No Active Tool",
+                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                        buttons: ["OK"],
+                                    });
+                                }
+                            }
+                        },
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
                         click: () => {
                             if (this.mainWindow) {
