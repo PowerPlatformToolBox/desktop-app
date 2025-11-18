@@ -197,7 +197,7 @@ export class ToolWindowManager {
 
             // Destroy the BrowserView's web contents
             if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                // @ts-ignore - destroy method exists but might not be in types
+                // @ts-expect-error - destroy method exists but might not be in types
                 toolView.webContents.destroy();
             }
 

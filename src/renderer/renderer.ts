@@ -1311,15 +1311,17 @@ async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
 
-    const settings = {
-        theme: themeSelect.value,
+    const settings: Partial<import("../types").UserSettings> = {
+        theme: themeSelect.value as import("../types").Theme,
         autoUpdate: autoUpdateCheck.checked,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
 
     // Apply theme immediately
-    applyTheme(settings.theme);
+    if (settings.theme) {
+        applyTheme(settings.theme);
+    }
 
     await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
@@ -3080,7 +3082,8 @@ async function init() {
     });
 
     // Set up loading screen listeners from main process
-    window.api.on("show-loading-screen", (_event, message: string) => {
+    window.api.on("show-loading-screen", (...args: unknown[]) => {
+        const message = args[1] as string;
         const loadingScreen = document.getElementById("loading-screen");
         const loadingMessage = document.getElementById("loading-message");
         if (loadingScreen && loadingMessage) {
