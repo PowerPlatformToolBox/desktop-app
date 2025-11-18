@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { Tool, ToolManifest, CspExceptions } from "../../types";
+import { Tool, ToolManifest, CspExceptions } from "../../common/types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**

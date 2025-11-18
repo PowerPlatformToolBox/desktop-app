@@ -12,7 +12,7 @@ const ansiConverter = new AnsiToHtml({
     stream: false,
 });
 
-// VS Code-style notification system using dedicated BrowserWindow
+// PPTB notification system using dedicated BrowserWindow
 // Notifications are displayed in an always-on-top frameless window above the BrowserView
 function showPPTBNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
     // Convert actions to serializable format
@@ -1311,15 +1311,17 @@ async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
 
-    const settings = {
-        theme: themeSelect.value,
+    const settings: Partial<import("../common/types").UserSettings> = {
+        theme: themeSelect.value as import("../common/types").Theme,
         autoUpdate: autoUpdateCheck.checked,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
 
     // Apply theme immediately
-    applyTheme(settings.theme);
+    if (settings.theme) {
+        applyTheme(settings.theme);
+    }
 
     await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
@@ -1628,10 +1630,10 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
             }
 
             return `
-        <div class="tool-item-vscode" data-tool-id="${tool.id}">
-            <div class="tool-item-header-vscode">
-                <span class="tool-item-icon-vscode">${toolIconHtml}</span>
-                <div class="tool-item-name-vscode">
+        <div class="tool-item-pptb" data-tool-id="${tool.id}">
+            <div class="tool-item-header-pptb">
+                <span class="tool-item-icon-pptb">${toolIconHtml}</span>
+                <div class="tool-item-name-pptb">
                     ${tool.name}
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
@@ -1639,11 +1641,11 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                     <img src="${starIconPath}" alt="${tool.isFavorite ? "Favorited" : "Not favorite"}" />
                 </button>
             </div>
-            <div class="tool-item-description-vscode">${tool.description}</div>
-            <div class="tool-item-version-vscode">
+            <div class="tool-item-description-pptb">${tool.description}</div>
+            <div class="tool-item-version-pptb">
                 v${tool.version}${tool.hasUpdate ? ` → v${tool.latestVersion}` : ""}
             </div>
-            <div class="tool-item-actions-vscode">
+            <div class="tool-item-actions-pptb">
                 ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
@@ -1656,7 +1658,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         .join("");
 
     // Add event listeners
-    toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
+    toolsList.querySelectorAll(".tool-item-pptb").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             if (target.tagName === "BUTTON") return; // Button click will handle
@@ -1668,7 +1670,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         });
     });
 
-    toolsList.querySelectorAll(".tool-item-actions-vscode button, .tool-favorite-btn").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-actions-pptb button, .tool-favorite-btn").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation();
             const target = e.target as HTMLElement;
@@ -1813,13 +1815,13 @@ async function loadSidebarConnections() {
                 const warningIcon = isExpired ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>` : "";
 
                 return `
-                <div class="connection-item-vscode ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
-                    <div class="connection-item-header-vscode">
-                        <div class="connection-item-name-vscode">${conn.name}${warningIcon}</div>
+                <div class="connection-item-pptb ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
+                    <div class="connection-item-header-pptb">
+                        <div class="connection-item-name-pptb">${conn.name}${warningIcon}</div>
                         <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
-                    <div class="connection-item-url-vscode">${conn.url}</div>
-                    <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-actions-pptb" style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             ${
                                 conn.isActive
@@ -1944,23 +1946,23 @@ async function loadMarketplace() {
             }
 
             return `
-        <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
-            <div class="marketplace-item-header-vscode">
-                <span class="marketplace-item-icon-vscode">${toolIconHtml}</span>
-                <div class="marketplace-item-info-vscode">
-                    <div class="marketplace-item-name-vscode">
+        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
+            <div class="marketplace-item-header-pptb">
+                <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
+                <div class="marketplace-item-info-pptb">
+                    <div class="marketplace-item-name-pptb">
                         ${tool.name}
                     </div>
-                    <div class="marketplace-item-author-vscode">by ${tool.author}</div>
+                    <div class="marketplace-item-author-pptb">by ${tool.author}</div>
                 </div>
             </div>
-            <div class="marketplace-item-description-vscode">${tool.description}</div>
-            <div class="marketplace-item-footer-vscode">
+            <div class="marketplace-item-description-pptb">${tool.description}</div>
+            <div class="marketplace-item-footer-pptb">
                 <div class="marketplace-item-tags">
-                    <span class="marketplace-item-category-vscode">${tool.category}</span>
+                    <span class="marketplace-item-category-pptb">${tool.category}</span>
                     ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
                 </div>
-                <div class="marketplace-item-actions-vscode">
+                <div class="marketplace-item-actions-pptb">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
             </div>
@@ -1970,7 +1972,7 @@ async function loadMarketplace() {
         .join("");
 
     // Add click handlers for marketplace items to open detail view
-    marketplaceList.querySelectorAll(".marketplace-item-vscode").forEach((item) => {
+    marketplaceList.querySelectorAll(".marketplace-item-pptb").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             // Don't open detail if clicking a button
@@ -1988,7 +1990,7 @@ async function loadMarketplace() {
     });
 
     // Add event listeners for install and update buttons
-    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
+    marketplaceList.querySelectorAll(".marketplace-item-actions-pptb button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
             const target = e.target as HTMLButtonElement;
@@ -3080,7 +3082,8 @@ async function init() {
     });
 
     // Set up loading screen listeners from main process
-    window.api.on("show-loading-screen", (_event, message: string) => {
+    window.api.on("show-loading-screen", (...args: unknown[]) => {
+        const message = args[1] as string;
         const loadingScreen = document.getElementById("loading-screen");
         const loadingMessage = document.getElementById("loading-message");
         if (loadingScreen && loadingMessage) {
@@ -3108,7 +3111,7 @@ async function init() {
         // No need to forward via postMessage as tools are in separate renderer processes
         // The backend ToolWindowManager handles event forwarding to BrowserView instances
 
-        // Handle notifications using VS Code-style notification system
+        // Handle notifications using PPTB notification system
         if (payload.event === "notification:shown") {
             const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
 

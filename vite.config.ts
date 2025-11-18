@@ -93,16 +93,7 @@ export default defineConfig(({ mode }) => {
                         // Directory already exists
                     }
 
-                    // Copy static assets
-                    const assetsToCopy = [{ from: "src/renderer/toolboxAPIBridge.js", to: "dist/renderer/toolboxAPIBridge.js" }];
-
-                    assetsToCopy.forEach(({ from, to }) => {
-                        try {
-                            copyFileSync(from, to);
-                        } catch (e) {
-                            console.error(`Failed to copy ${from} to ${to}:`, e);
-                        }
-                    });
+                    // Note: toolboxAPIBridge.js has been removed as tools now use toolPreloadBridge.ts via BrowserView preload
 
                     // Copy entire icons directory
                     const iconsLightSourceDir = "src/renderer/icons/light";

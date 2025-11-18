@@ -14,7 +14,7 @@ interface NotificationOptions {
  * Manages a frameless, always-on-top BrowserWindow for displaying notifications.
  * This ensures notifications are always visible above BrowserView components.
  *
- * Similar to VS Code's notification system, notifications appear in a dedicated
+ * Notification system - notifications appear in a dedicated
  * window that floats above the main application.
  */
 export class NotificationWindowManager {

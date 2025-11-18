@@ -5,19 +5,19 @@ import { ToolManager } from "./toolsManager";
 import { SettingsManager } from "./settingsManager";
 
 /**
- * WebviewProtocolManager
- * 
+ * BrowserviewProtocolManager
+ *
  * Manages the custom pptb-webview:// protocol for loading tool content
  * in isolated webview contexts with independent CSP policies.
- * 
- * Similar to VS Code's vscode-webview:// protocol, this provides:
+ *
+ * This provides:
  * - Isolated origin for each tool
  * - Independent CSP per tool
  * - Secure file serving with path traversal protection
  * - No inheritance from parent window CSP
  * - CSP exceptions only applied with user consent
  */
-export class WebviewProtocolManager {
+export class BrowserviewProtocolManager {
     private toolManager: ToolManager;
     private settingsManager: SettingsManager;
     private toolsDir: string;
@@ -61,7 +61,6 @@ export class WebviewProtocolManager {
     /**
      * Handle protocol requests for pptb-webview://
      * URL format: pptb-webview://toolId/path/to/file
-     * Special handling: When serving index.html, automatically inject toolboxAPIBridge.js
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
@@ -74,25 +73,6 @@ export class WebviewProtocolManager {
             const filePath = pathParts.join('/') || 'index.html';
 
             console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
-
-            // Special case: Serve toolboxAPIBridge.js from the renderer directory
-            if (filePath === 'toolboxAPIBridge.js') {
-                const bridgePath = path.join(__dirname, '../renderer/toolboxAPIBridge.js');
-                
-                if (!fs.existsSync(bridgePath)) {
-                    console.error(`[pptb-webview] Bridge script not found: ${bridgePath}`);
-                    callback({ error: -6 }); // FILE_NOT_FOUND
-                    return;
-                }
-                
-                console.log(`[pptb-webview] Serving bridge script: ${bridgePath}`);
-                const content = fs.readFileSync(bridgePath);
-                callback({
-                    mimeType: 'application/javascript',
-                    data: content
-                });
-                return;
-            }
 
             // Get the tool
             const tool = this.toolManager.getAllTools().find(t => t.id === toolId);

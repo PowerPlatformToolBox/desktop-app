@@ -1,27 +1,27 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { ToolBoxAPI } from "../api/toolboxAPI";
-import { ToolBoxEvent } from "../types";
+import { ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
-import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
-    private webviewProtocolManager: WebviewProtocolManager;
+    private browserviewProtocolManager: BrowserviewProtocolManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
-    private api: ToolBoxAPI;
+    private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
@@ -32,9 +32,9 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxAPI();
+        this.api = new ToolBoxUtilityManager();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
-        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager, this.settingsManager);
+        this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
@@ -430,7 +430,7 @@ class ToolBoxApp {
 
         // Webview protocol handler
         ipcMain.handle("get-tool-webview-url", (_, toolId) => {
-            return this.webviewProtocolManager.buildToolUrl(toolId);
+            return this.browserviewProtocolManager.buildToolUrl(toolId);
         });
 
         // Notification handler
@@ -846,7 +846,7 @@ class ToolBoxApp {
 
     /**
      * Register custom pptb-webview protocol for loading tool content
-     * This provides isolation and CSP control similar to VS Code's webview protocol
+     * This provides isolation and CSP control for tool execution
      */
     /**
      * Create the main application window
@@ -866,7 +866,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.webviewProtocolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
@@ -905,12 +905,12 @@ class ToolBoxApp {
         }
 
         // Register custom protocol scheme before app is ready
-        this.webviewProtocolManager.registerScheme();
+        this.browserviewProtocolManager.registerScheme();
 
         await app.whenReady();
 
         // Register protocol handler after app is ready
-        this.webviewProtocolManager.registerHandler();
+        this.browserviewProtocolManager.registerHandler();
 
         this.createWindow();
 

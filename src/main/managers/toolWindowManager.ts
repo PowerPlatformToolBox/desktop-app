@@ -1,14 +1,14 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
-import { Tool } from "../../types";
-import { WebviewProtocolManager } from "./webviewProtocolManager";
+import { Tool } from "../../common/types";
+import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 
 /**
  * ToolWindowManager
- * 
+ *
  * Manages BrowserView instances for each tool, providing true process isolation
- * and independent webPreferences per tool. Similar to VS Code's extension host.
- * 
+ * and independent webPreferences per tool.
+ *
  * Key Features:
  * - Each tool runs in its own BrowserView (separate renderer process)
  * - No CSP inheritance from parent window
@@ -18,14 +18,14 @@ import { WebviewProtocolManager } from "./webviewProtocolManager";
  */
 export class ToolWindowManager {
     private mainWindow: BrowserWindow;
-    private webviewProtocolManager: WebviewProtocolManager;
+    private browserviewProtocolManager: BrowserviewProtocolManager;
     private toolViews: Map<string, BrowserView> = new Map();
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
 
-    constructor(mainWindow: BrowserWindow, webviewProtocolManager: WebviewProtocolManager) {
+    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager) {
         this.mainWindow = mainWindow;
-        this.webviewProtocolManager = webviewProtocolManager;
+        this.browserviewProtocolManager = browserviewProtocolManager;
         this.setupIpcHandlers();
     }
 
@@ -112,7 +112,7 @@ export class ToolWindowManager {
             });
 
             // Get tool URL from custom protocol
-            const toolUrl = this.webviewProtocolManager.buildToolUrl(toolId);
+            const toolUrl = this.browserviewProtocolManager.buildToolUrl(toolId);
             console.log(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
 
             // Load the tool
@@ -197,7 +197,7 @@ export class ToolWindowManager {
 
             // Destroy the BrowserView's web contents
             if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                // @ts-ignore - destroy method exists but might not be in types
+                // @ts-expect-error - destroy method exists but might not be in types
                 toolView.webContents.destroy();
             }
 
