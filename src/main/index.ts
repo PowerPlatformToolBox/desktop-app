@@ -6,11 +6,12 @@ import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolManager } from "./managers/toolsManager";
-import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { WebviewProtocolManager } from "./managers/webviewProtocolManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -19,6 +20,7 @@ class ToolBoxApp {
     private toolManager: ToolManager;
     private webviewProtocolManager: WebviewProtocolManager;
     private toolWindowManager: ToolWindowManager | null = null;
+    private notificationWindowManager: NotificationWindowManager | null = null;
     private api: ToolBoxAPI;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -73,8 +75,13 @@ class ToolBoxApp {
 
         eventTypes.forEach((eventType) => {
             this.api.on(eventType, (payload) => {
+                // Forward to main renderer window
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send("toolbox-event", payload);
+                }
+                // Forward to all tool windows
+                if (this.toolWindowManager) {
+                    this.toolWindowManager.forwardEventToTools(payload);
                 }
             });
         });
@@ -700,15 +707,6 @@ class ToolBoxApp {
                 submenu: [
                     { role: "reload" },
                     { role: "forceReload" },
-                    {
-                        label: "Toggle Developer Tools",
-                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
-                        click: () => {
-                            if (this.mainWindow) {
-                                this.mainWindow.webContents.toggleDevTools();
-                            }
-                        },
-                    },
                     { type: "separator" },
                     {
                         label: "Show Home Page",
@@ -851,6 +849,9 @@ class ToolBoxApp {
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.webviewProtocolManager);
 
+        // Initialize NotificationWindowManager for overlay notifications
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
 
@@ -888,10 +889,10 @@ class ToolBoxApp {
         this.webviewProtocolManager.registerScheme();
 
         await app.whenReady();
-        
+
         // Register protocol handler after app is ready
         this.webviewProtocolManager.registerHandler();
-        
+
         this.createWindow();
 
         // Load all installed tools from registry

@@ -15,7 +15,7 @@ export class ToolBoxAPI extends EventEmitter {
 
   /**
    * Show a notification to the user
-   * This emits an event that will be handled by the renderer process using toastr
+   * This emits an event that will be handled by the renderer process using the custom PPTB notification system
    */
   showNotification(options: NotificationOptions): void {
     // Emit event to be handled by renderer

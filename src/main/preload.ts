@@ -186,4 +186,7 @@ contextBridge.exposeInMainWorld("api", {
     invoke: (channel: string, ...args: unknown[]) => {
         return ipcRenderer.invoke(channel, ...args);
     },
+    send: (channel: string, ...args: unknown[]) => {
+        ipcRenderer.send(channel, ...args);
+    },
 });

@@ -201,22 +201,12 @@
                             <!-- Tabs will be dynamically added here -->
                         </div>
                         <div class="tool-panel-controls">
-                            <button class="btn-icon" id="split-view-btn" title="Toggle split view" style="display: none">
-                                <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                    <path d="M8 1H1v14h7V1zM7 14H2V2h5v12z" />
-                                    <path d="M9 1h7v14H9V1zm1 1v12h5V2h-5z" />
-                                </svg>
-                            </button>
                             <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
                         </div>
                     </div>
                     <div class="tool-panel-content-wrapper" id="tool-panel-content-wrapper">
                         <div class="tool-panel-content" id="tool-panel-content">
-                            <!-- Tool webviews will be dynamically added here -->
-                        </div>
-                        <div class="resize-handle" id="resize-handle" style="display: none"></div>
-                        <div class="tool-panel-content secondary" id="tool-panel-content-secondary" style="display: none">
-                            <!-- Secondary panel for split view -->
+                            <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
                         </div>
                     </div>
                     <!-- Terminal Panel -->
@@ -238,7 +228,7 @@
                         </div>
                     </div>
                     <div class="terminal-resize-handle" id="terminal-resize-handle" style="display: none"></div>
-                    <div class="tool-panel-footer" id="tool-panel-footer">
+                    <!-- <div class="tool-panel-footer" id="tool-panel-footer">
                         <div class="footer-connection-info" id="footer-connection-info">
                             <span class="footer-label">Connection:</span>
                             <span class="footer-value" id="footer-connection-name">Not Connected</span>
@@ -251,7 +241,7 @@
                             </svg>
                             Terminal
                         </button>
-                    </div>
+                    </div> -->
                 </div>
 
                 <!-- Home/Welcome View -->
@@ -601,6 +591,9 @@
             <div class="loading-spinner"></div>
             <div id="loading-message" class="loading-message">Loading...</div>
         </div>
+
+        <!-- VS Code-style Notification Container -->
+        <div id="notification-container" class="notification-container"></div>
 
         <script type="module" src="renderer.ts"></script>
     </body>

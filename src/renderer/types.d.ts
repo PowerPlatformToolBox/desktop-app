@@ -91,6 +91,13 @@ export interface ToolboxAPI {
     // Webview URL generation
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
+    // Tool Window Management (BrowserView based)
+    launchToolWindow: (toolId: string, tool: any) => Promise<boolean>;
+    switchToolWindow: (toolId: string) => Promise<boolean>;
+    closeToolWindow: (toolId: string) => Promise<boolean>;
+    getActiveToolWindow: () => Promise<string | null>;
+    getOpenToolWindows: () => Promise<string[]>;
+
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
     removeFavoriteTool: (toolId: string) => Promise<void>;
@@ -151,6 +158,7 @@ declare global {
         api: {
             on: (channel: string, callback: (...args: any[]) => void) => void;
             invoke: (channel: string, ...args: any[]) => Promise<any>;
+            send: (channel: string, ...args: any[]) => void;
         };
     }
 }

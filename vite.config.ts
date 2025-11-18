@@ -36,8 +36,11 @@ export default defineConfig(({ mode }) => {
                     },
                 },
                 preload: {
-                    // Preload script
-                    input: "src/main/preload.ts",
+                    // Preload scripts - build both main window preload and tool preload
+                    input: {
+                        preload: "src/main/preload.ts",
+                        toolPreloadBridge: "src/main/toolPreloadBridge.ts",
+                    },
                     vite: {
                         build: {
                             // Only include source maps when not building for production
@@ -45,7 +48,8 @@ export default defineConfig(({ mode }) => {
                             outDir: "dist/main",
                             rollupOptions: {
                                 output: {
-                                    entryFileNames: "preload.js",
+                                    entryFileNames: "[name].js",
+                                    inlineDynamicImports: false,
                                 },
                             },
                         },

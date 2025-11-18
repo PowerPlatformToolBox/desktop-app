@@ -21,6 +21,7 @@ export class ToolWindowManager {
     private webviewProtocolManager: WebviewProtocolManager;
     private toolViews: Map<string, BrowserView> = new Map();
     private activeToolId: string | null = null;
+    private boundsUpdatePending: boolean = false;
 
     constructor(mainWindow: BrowserWindow, webviewProtocolManager: WebviewProtocolManager) {
         this.mainWindow = mainWindow;
@@ -57,8 +58,27 @@ export class ToolWindowManager {
             return Array.from(this.toolViews.keys());
         });
 
+        // Handle tool panel bounds response from renderer
+        ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
+            if (bounds && bounds.width > 0 && bounds.height > 0) {
+                console.log("[ToolWindowManager] Received bounds from renderer:", bounds);
+                this.applyToolViewBounds(bounds);
+            } else {
+                console.warn("[ToolWindowManager] Invalid bounds received:", bounds);
+                this.boundsUpdatePending = false;
+            }
+        });
+
         // Update tool window bounds when parent window resizes
         this.mainWindow.on("resize", () => {
+            this.updateToolViewBounds();
+        });
+        
+        // Handle terminal panel visibility changes
+        // When terminal is shown/hidden, we need to adjust BrowserView bounds
+        ipcMain.on("terminal-visibility-changed", (event, isVisible: boolean) => {
+            console.log("[ToolWindowManager] Terminal visibility changed:", isVisible);
+            // Request updated bounds from renderer to account for terminal space
             this.updateToolViewBounds();
         });
     }
@@ -101,13 +121,18 @@ export class ToolWindowManager {
             // Store the view
             this.toolViews.set(toolId, toolView);
 
+            // Send tool context immediately (don't wait for did-finish-load)
+            // The preload script will receive this before the tool code runs
+            const toolContext = {
+                toolId: tool.id,
+                toolName: tool.name,
+                version: tool.version,
+            };
+            toolView.webContents.send("toolbox:context", toolContext);
+            console.log(`[ToolWindowManager] Sent tool context for ${toolId}`);
+
             // Show this tool
             await this.switchToTool(toolId);
-
-            // Send tool context to the tool after it loads
-            toolView.webContents.once("did-finish-load", () => {
-                this.sendToolContext(toolId, tool);
-            });
 
             console.log(`[ToolWindowManager] Tool launched successfully: ${toolId}`);
             return true;
@@ -138,11 +163,15 @@ export class ToolWindowManager {
 
             // Show the new tool
             this.mainWindow.setBrowserView(toolView);
-            this.updateToolViewBounds();
-
             this.activeToolId = toolId;
 
-            console.log(`[ToolWindowManager] Switched to tool: ${toolId}`);
+            console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
+            
+            // Request bounds update (with a small delay to ensure renderer is ready)
+            setTimeout(() => {
+                this.updateToolViewBounds();
+            }, 100);
+
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error switching to tool ${toolId}:`, error);
@@ -185,27 +214,45 @@ export class ToolWindowManager {
 
     /**
      * Update the bounds of the active tool view to match the tool panel area
+     * Bounds are calculated dynamically based on actual DOM element positions
      */
     private updateToolViewBounds(): void {
+        if (!this.activeToolId || this.boundsUpdatePending) return;
+
+        const toolView = this.toolViews.get(this.activeToolId);
+        if (!toolView) return;
+
+        try {
+            // Request bounds from renderer
+            this.boundsUpdatePending = true;
+            this.mainWindow.webContents.send("get-tool-panel-bounds-request");
+            
+            // Reset pending flag after timeout
+            setTimeout(() => {
+                this.boundsUpdatePending = false;
+            }, 1000);
+        } catch (error) {
+            console.error("[ToolWindowManager] Error requesting tool view bounds:", error);
+            this.boundsUpdatePending = false;
+        }
+    }
+
+    /**
+     * Apply the bounds to the active tool view
+     */
+    private applyToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
         if (!this.activeToolId) return;
 
         const toolView = this.toolViews.get(this.activeToolId);
         if (!toolView) return;
 
-        const bounds = this.mainWindow.getBounds();
-        
-        // Calculate tool panel area (this should match your UI layout)
-        // Adjust these values based on your actual layout:
-        // - Subtract top bar height (e.g., 50px for header)
-        // - Subtract left sidebar width (e.g., 200px for sidebar)
-        const toolPanelBounds = {
-            x: 200, // Left sidebar width
-            y: 50,  // Top bar height
-            width: bounds.width - 200,  // Remaining width
-            height: bounds.height - 50, // Remaining height
-        };
-
-        toolView.setBounds(toolPanelBounds);
+        try {
+            console.log("[ToolWindowManager] Applying bounds to tool view:", bounds);
+            toolView.setBounds(bounds);
+            this.boundsUpdatePending = false;
+        } catch (error) {
+            console.error("[ToolWindowManager] Error applying tool view bounds:", error);
+        }
     }
 
     /**
@@ -216,12 +263,12 @@ export class ToolWindowManager {
         if (!toolView) return;
 
         try {
-            // Get tool context (this should come from your context provider)
+            // Get active connection (this will be available via IPC call in the tool)
+            // We just send basic tool info, tools can query connection via API
             const toolContext = {
                 toolId: tool.id,
                 toolName: tool.name,
                 version: tool.version,
-                // Add connection info, etc.
             };
 
             // Send to tool via IPC
@@ -238,7 +285,7 @@ export class ToolWindowManager {
         for (const [toolId, toolView] of this.toolViews) {
             try {
                 if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    // @ts-ignore - destroy method exists but might not be in types
+                    // @ts-expect-error - destroy method exists but might not be in types
                     toolView.webContents.destroy();
                 }
             } catch (error) {
@@ -247,5 +294,20 @@ export class ToolWindowManager {
         }
         this.toolViews.clear();
         this.activeToolId = null;
+    }
+
+    /**
+     * Forward an event to all open tool windows
+     */
+    forwardEventToTools(eventPayload: any): void {
+        for (const [toolId, toolView] of this.toolViews) {
+            try {
+                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
+                    toolView.webContents.send("toolbox-event", eventPayload);
+                }
+            } catch (error) {
+                console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
+            }
+        }
     }
 }

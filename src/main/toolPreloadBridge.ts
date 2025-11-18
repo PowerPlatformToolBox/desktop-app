@@ -31,60 +31,156 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Connections API
     connections: {
-        getActiveConnection: () => ipcInvoke("connections:get-active"),
-        getAllConnections: () => ipcInvoke("connections:get-all"),
-        setActiveConnection: (connectionId: string) => ipcInvoke("connections:set-active", connectionId),
-        saveConnection: (connection: any) => ipcInvoke("connections:save", connection),
-        deleteConnection: (connectionId: string) => ipcInvoke("connections:delete", connectionId),
-        testConnection: (connectionId: string) => ipcInvoke("connections:test", connectionId),
+        getActiveConnection: () => ipcInvoke("get-active-connection"),
+        getAll: () => ipcInvoke("get-connections"),
+        setActive: (connectionId: string) => ipcInvoke("set-active-connection", connectionId),
+        add: (connection: any) => ipcInvoke("add-connection", connection),
+        update: (id: string, updates: any) => ipcInvoke("update-connection", id, updates),
+        delete: (id: string) => ipcInvoke("delete-connection", id),
+        test: (connection: any) => ipcInvoke("test-connection", connection),
+        disconnect: () => ipcInvoke("disconnect-connection"),
+        isTokenExpired: (connectionId: string) => ipcInvoke("is-connection-token-expired", connectionId),
+        refreshToken: (connectionId: string) => ipcInvoke("refresh-connection-token", connectionId),
     },
 
     // Dataverse API
     dataverse: {
-        executeRequest: (request: any) => ipcInvoke("dataverse:execute-request", request),
-        getMetadata: (connectionId: string) => ipcInvoke("dataverse:get-metadata", connectionId),
-        getEntities: (connectionId: string) => ipcInvoke("dataverse:get-entities", connectionId),
-        getEntity: (connectionId: string, entityLogicalName: string) => ipcInvoke("dataverse:get-entity", connectionId, entityLogicalName),
+        create: (entityLogicalName: string, record: Record<string, unknown>) => 
+            ipcInvoke("dataverse.create", entityLogicalName, record),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => 
+            ipcInvoke("dataverse.retrieve", entityLogicalName, id, columns),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => 
+            ipcInvoke("dataverse.update", entityLogicalName, id, record),
+        delete: (entityLogicalName: string, id: string) => 
+            ipcInvoke("dataverse.delete", entityLogicalName, id),
+        retrieveMultiple: (fetchXml: string) => 
+            ipcInvoke("dataverse.retrieveMultiple", fetchXml),
+        execute: (request: any) => 
+            ipcInvoke("dataverse.execute", request),
+        fetchXmlQuery: (fetchXml: string) => 
+            ipcInvoke("dataverse.fetchXmlQuery", fetchXml),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => 
+            ipcInvoke("dataverse.getEntityMetadata", entityLogicalName, searchByLogicalName, selectColumns),
+        getAllEntitiesMetadata: () => 
+            ipcInvoke("dataverse.getAllEntitiesMetadata"),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => 
+            ipcInvoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
+        getSolutions: (selectColumns: string[]) => 
+            ipcInvoke("dataverse.getSolutions", selectColumns),
+        queryData: (odataQuery: string) => 
+            ipcInvoke("dataverse.queryData", odataQuery),
     },
 
     // Utils API
     utils: {
-        showNotification: (options: any) => ipcInvoke("utils:show-notification", options),
-        openExternal: (url: string) => ipcInvoke("utils:open-external", url),
-        copyToClipboard: (text: string) => ipcInvoke("utils:copy-to-clipboard", text),
+        showNotification: (options: any) => ipcInvoke("show-notification", options),
+        openExternal: (url: string) => ipcInvoke("open-external", url),
+        copyToClipboard: (text: string) => ipcInvoke("copy-to-clipboard", text),
+        saveFile: (defaultPath: string, content: any) => ipcInvoke("save-file", defaultPath, content),
+        getCurrentTheme: () => ipcInvoke("get-current-theme"),
+        showLoading: (message?: string) => ipcInvoke("show-loading", message),
+        hideLoading: () => ipcInvoke("hide-loading"),
+        executeParallel: async (...operations: Array<Promise<any> | (() => Promise<any>)>) => {
+            const promises = operations.map(op => typeof op === "function" ? op() : op);
+            return Promise.all(promises);
+        },
+    },
+
+    // Terminal API
+    terminal: {
+        create: (options: any) => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("create-terminal", toolContext.toolId, options);
+        },
+        execute: (terminalId: string, command: string) => 
+            ipcInvoke("execute-terminal-command", terminalId, command),
+        close: (terminalId: string) => 
+            ipcInvoke("close-terminal", terminalId),
+        get: (terminalId: string) => 
+            ipcInvoke("get-terminal", terminalId),
+        list: () => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("get-tool-terminals", toolContext.toolId);
+        },
+        listAll: () => 
+            ipcInvoke("get-all-terminals"),
+        setVisibility: (terminalId: string, visible: boolean) => 
+            ipcInvoke("set-terminal-visibility", terminalId, visible),
     },
 
     // Events API
     events: {
-        on: (eventName: string, callback: Function) => {
-            const listener = (event: any, ...args: any[]) => callback(...args);
-            ipcRenderer.on(`toolbox:event:${eventName}`, listener);
-            return () => ipcRenderer.removeListener(`toolbox:event:${eventName}`, listener);
+        on: (callback: (event: any, payload: any) => void) => {
+            const listener = (event: any, payload: any) => callback(event, payload);
+            ipcRenderer.on("toolbox-event", listener);
+            return () => ipcRenderer.removeListener("toolbox-event", listener);
         },
-        once: (eventName: string, callback: Function) => {
-            const listener = (event: any, ...args: any[]) => callback(...args);
-            ipcRenderer.once(`toolbox:event:${eventName}`, listener);
+        off: (callback: (event: any, payload: any) => void) => {
+            ipcRenderer.removeListener("toolbox-event", callback);
         },
-        emit: (eventName: string, ...args: any[]) => {
-            return ipcInvoke("events:emit", eventName, ...args);
-        },
+        getHistory: (limit?: number) => 
+            ipcInvoke("get-event-history", limit),
     },
 
-    // Storage API (tool-specific storage)
-    storage: {
-        get: (key: string) => ipcInvoke("storage:get", toolContext?.toolId, key),
-        set: (key: string, value: any) => ipcInvoke("storage:set", toolContext?.toolId, key, value),
-        delete: (key: string) => ipcInvoke("storage:delete", toolContext?.toolId, key),
-        clear: () => ipcInvoke("storage:clear", toolContext?.toolId),
+    // Settings API (tool-specific)
+    settings: {
+        getSettings: () => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("tool-settings-get-all", toolContext.toolId);
+        },
+        getSetting: (key: string) => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("tool-settings-get", toolContext.toolId, key);
+        },
+        setSetting: (key: string, value: any) => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("tool-settings-set", toolContext.toolId, key, value);
+        },
+        setSettings: (settings: any) => {
+            if (!toolContext?.toolId) {
+                throw new Error("Tool context not initialized");
+            }
+            return ipcInvoke("tool-settings-set-all", toolContext.toolId, settings);
+        },
     },
 });
 
-// Also expose dataverseAPI as an alias for backward compatibility with existing tools
+// Also expose dataverseAPI as a direct alias (for tools that use it directly)
 contextBridge.exposeInMainWorld("dataverseAPI", {
-    executeRequest: (request: any) => ipcInvoke("dataverse:execute-request", request),
-    getMetadata: (connectionId: string) => ipcInvoke("dataverse:get-metadata", connectionId),
-    getEntities: (connectionId: string) => ipcInvoke("dataverse:get-entities", connectionId),
-    getEntity: (connectionId: string, entityLogicalName: string) => ipcInvoke("dataverse:get-entity", connectionId, entityLogicalName),
+    create: (entityLogicalName: string, record: Record<string, unknown>) => 
+        ipcInvoke("dataverse.create", entityLogicalName, record),
+    retrieve: (entityLogicalName: string, id: string, columns?: string[]) => 
+        ipcInvoke("dataverse.retrieve", entityLogicalName, id, columns),
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => 
+        ipcInvoke("dataverse.update", entityLogicalName, id, record),
+    delete: (entityLogicalName: string, id: string) => 
+        ipcInvoke("dataverse.delete", entityLogicalName, id),
+    retrieveMultiple: (fetchXml: string) => 
+        ipcInvoke("dataverse.retrieveMultiple", fetchXml),
+    execute: (request: any) => 
+        ipcInvoke("dataverse.execute", request),
+    fetchXmlQuery: (fetchXml: string) => 
+        ipcInvoke("dataverse.fetchXmlQuery", fetchXml),
+    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => 
+        ipcInvoke("dataverse.getEntityMetadata", entityLogicalName, searchByLogicalName, selectColumns),
+    getAllEntitiesMetadata: () => 
+        ipcInvoke("dataverse.getAllEntitiesMetadata"),
+    getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => 
+        ipcInvoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
+    getSolutions: (selectColumns: string[]) => 
+        ipcInvoke("dataverse.getSolutions", selectColumns),
+    queryData: (odataQuery: string) => 
+        ipcInvoke("dataverse.queryData", odataQuery),
 });
 
 console.log("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
