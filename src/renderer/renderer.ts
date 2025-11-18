@@ -2,8 +2,6 @@
 /// <reference path="types.d.ts" />
 
 import AnsiToHtml from "ansi-to-html";
-import toastr from "toastr";
-import "toastr/build/toastr.min.css";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml({
@@ -13,27 +11,6 @@ const ansiConverter = new AnsiToHtml({
     escapeXML: true,
     stream: false,
 });
-
-// Configure toastr for notifications
-toastr.options = {
-    closeButton: true,
-    debug: false,
-    newestOnTop: true,
-    progressBar: true,
-    positionClass: "toast-top-right", // Changed from bottom-right to avoid BrowserView overlay
-    preventDuplicates: false,
-    onclick: undefined,
-    showDuration: 300,
-    hideDuration: 1000,
-    timeOut: 5000,
-    extendedTimeOut: 1000,
-    showEasing: "swing",
-    hideEasing: "linear",
-    showMethod: "fadeIn",
-    hideMethod: "fadeOut",
-    iconClass: "", // Remove default icons to match VSCode style
-    iconClasses: undefined,
-};
 
 // VS Code-style notification system using dedicated BrowserWindow
 // Notifications are displayed in an always-on-top frameless window above the BrowserView
@@ -3152,43 +3129,21 @@ async function init() {
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
         console.log("Token expired for connection:", data);
 
-        // Show warning notification with re-authenticate button
-        const toastHtml = `
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div><strong>Connection Token Expired</strong></div>
-                <div>Your connection to "${data.connectionName}" has expired.</div>
-                <button id="reauth-btn-${data.connectionId}" 
-                        style="padding: 4px 12px; 
-                               background: #0078d4; 
-                               color: white; 
-                               border: none; 
-                               border-radius: 2px; 
-                               cursor: pointer;
-                               font-size: 12px;
-                               margin-top: 4px;">
-                    Re-authenticate
-                </button>
-            </div>
-        `;
-
-        const toast = toastr.warning(toastHtml, "", {
-            timeOut: 30000, // Auto-dismiss after 30 seconds
-            extendedTimeOut: 10000, // Extra 10 seconds if user hovers
-            closeButton: true,
-            tapToDismiss: false,
-            escapeHtml: false,
+        // Show warning notification with re-authenticate button using PPTB notification system
+        showVSCodeNotification({
+            title: "Connection Token Expired",
+            body: `Your connection to "${data.connectionName}" has expired.`,
+            type: "warning",
+            duration: 30000, // Auto-dismiss after 30 seconds
+            actions: [
+                {
+                    label: "Re-authenticate",
+                    callback: async () => {
+                        await handleReauthentication(data.connectionId);
+                    },
+                },
+            ],
         });
-
-        // Add click handler for re-authenticate button
-        setTimeout(() => {
-            const reauthBtn = document.getElementById(`reauth-btn-${data.connectionId}`);
-            if (reauthBtn) {
-                reauthBtn.addEventListener("click", async () => {
-                    toast.remove();
-                    await handleReauthentication(data.connectionId);
-                });
-            }
-        }, 100);
 
         // Reload connections to update UI with expired status
         await loadSidebarConnections();
