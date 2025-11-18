@@ -70,5 +70,5 @@ $favorite-star-color-dark: #ffc107; // Lighter orange for dark theme
 // Z-Index Layers
 $z-activity-bar: 100;
 $z-sidebar: 50;
-$z-modal: 1000;
-$z-modal-overlay: 999;
+$z-modal: 10000; // Very high to ensure modals appear above BrowserView if shown simultaneously
+$z-modal-overlay: 9999;

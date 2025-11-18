@@ -2,6 +2,7 @@ import { app, protocol } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import { ToolManager } from "./toolsManager";
+import { SettingsManager } from "./settingsManager";
 
 /**
  * WebviewProtocolManager
@@ -14,13 +15,16 @@ import { ToolManager } from "./toolsManager";
  * - Independent CSP per tool
  * - Secure file serving with path traversal protection
  * - No inheritance from parent window CSP
+ * - CSP exceptions only applied with user consent
  */
 export class WebviewProtocolManager {
     private toolManager: ToolManager;
+    private settingsManager: SettingsManager;
     private toolsDir: string;
 
-    constructor(toolManager: ToolManager) {
+    constructor(toolManager: ToolManager, settingsManager: SettingsManager) {
         this.toolManager = toolManager;
+        this.settingsManager = settingsManager;
         this.toolsDir = path.join(app.getPath("userData"), "tools");
     }
 
@@ -277,9 +281,14 @@ export class WebviewProtocolManager {
     /**
      * Build CSP string for a tool based on its exceptions
      * Each tool gets its own independent CSP (does NOT inherit from parent)
+     * CSP exceptions are only applied if user has granted consent
      */
     private buildToolCsp(tool: any): string {
-        const cspExceptions = tool.cspExceptions || {};
+        // Check if user has granted CSP consent for this tool
+        const hasConsent = this.settingsManager.hasCspConsent(tool.id);
+        
+        // Only apply CSP exceptions if consent is granted
+        const cspExceptions = hasConsent ? (tool.cspExceptions || {}) : {};
         
         // Default CSP directives for tools
         const directives: { [key: string]: string[] } = {
@@ -291,7 +300,7 @@ export class WebviewProtocolManager {
             'connect-src': ["'self'"],
         };
         
-        // Merge tool's CSP exceptions
+        // Merge tool's CSP exceptions (only if consent was granted)
         for (const [directive, sources] of Object.entries(cspExceptions)) {
             if (Array.isArray(sources) && sources.length > 0) {
                 if (!directives[directive]) {

@@ -34,7 +34,7 @@ class ToolBoxApp {
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxAPI();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
-        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager);
+        this.webviewProtocolManager = new WebviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
