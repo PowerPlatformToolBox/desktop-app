@@ -723,6 +723,25 @@ class ToolBoxApp {
                     { role: "zoomOut" },
                     { type: "separator" },
                     { role: "togglefullscreen" },
+                    { type: "separator" },
+                    {
+                        label: "Toggle Tool DevTools",
+                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                        click: () => {
+                            if (this.toolWindowManager) {
+                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                if (!opened) {
+                                    // Show notification if no active tool
+                                    dialog.showMessageBox(this.mainWindow!, {
+                                        type: "info",
+                                        title: "No Active Tool",
+                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                        buttons: ["OK"],
+                                    });
+                                }
+                            }
+                        },
+                    },
                 ],
             },
 

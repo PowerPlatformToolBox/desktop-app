@@ -310,4 +310,37 @@ export class ToolWindowManager {
             }
         }
     }
+
+    /**
+     * Open DevTools for the active tool BrowserView
+     * Returns true if DevTools were opened, false if no active tool
+     */
+    openDevToolsForActiveTool(): boolean {
+        if (!this.activeToolId) {
+            console.warn("[ToolWindowManager] No active tool to open DevTools for");
+            return false;
+        }
+
+        const toolView = this.toolViews.get(this.activeToolId);
+        if (!toolView || !toolView.webContents || toolView.webContents.isDestroyed()) {
+            console.warn(`[ToolWindowManager] Tool view not found or destroyed: ${this.activeToolId}`);
+            return false;
+        }
+
+        try {
+            toolView.webContents.openDevTools();
+            console.log(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
+            return true;
+        } catch (error) {
+            console.error(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Get the active tool ID
+     */
+    getActiveToolId(): string | null {
+        return this.activeToolId;
+    }
 }
