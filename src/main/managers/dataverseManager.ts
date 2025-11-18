@@ -1,5 +1,5 @@
 import * as https from "https";
-import { DataverseConnection } from "../../types";
+import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";

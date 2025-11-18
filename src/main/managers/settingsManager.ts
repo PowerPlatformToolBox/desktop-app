@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { ToolSettings, UserSettings } from '../../types';
+import { ToolSettings, UserSettings } from '../../common/types';
 
 /**
  * Manages user settings using electron-store
@@ -99,7 +99,7 @@ export class SettingsManager {
    */
   removeInstalledTool(packageName: string): void {
     const installedTools = this.store.get('installedTools') || [];
-    const filtered = installedTools.filter(t => t !== packageName);
+    const filtered = installedTools.filter((t: string) => t !== packageName);
     this.store.set('installedTools', filtered);
   }
 
@@ -126,7 +126,7 @@ export class SettingsManager {
    */
   removeFavoriteTool(toolId: string): void {
     const favoriteTools = this.store.get('favoriteTools') || [];
-    const filtered = favoriteTools.filter(t => t !== toolId);
+    const filtered = favoriteTools.filter((t: string) => t !== toolId);
     this.store.set('favoriteTools', filtered);
   }
 

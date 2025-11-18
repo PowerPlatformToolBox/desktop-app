@@ -1,7 +1,7 @@
 import { clipboard, dialog } from "electron";
 import { EventEmitter } from "events";
 import * as fs from "fs";
-import { NotificationOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../types";
+import { NotificationOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../common/types";
 
 /**
  * ToolBox API that provides events and functionality to tools

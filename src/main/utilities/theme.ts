@@ -3,7 +3,7 @@
  */
 
 import { nativeTheme } from "electron";
-import { Theme } from "../../types";
+import { Theme } from "../../common/types";
 
 /**
  * Get the current system theme

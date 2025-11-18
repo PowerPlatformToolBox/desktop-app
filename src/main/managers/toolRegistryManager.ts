@@ -5,7 +5,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { ToolManifest, ToolRegistryEntry } from "../../types";
+import { ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { TOOL_REGISTRY_URL } from "../constants";
 
 /**

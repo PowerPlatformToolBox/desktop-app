@@ -1,6 +1,6 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
-import { Tool } from "../../types";
+import { Tool } from "../../common/types";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 
 /**

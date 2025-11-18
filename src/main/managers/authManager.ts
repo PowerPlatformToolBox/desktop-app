@@ -2,7 +2,7 @@ import { LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
-import { DataverseConnection } from "../../types";
+import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
 /**

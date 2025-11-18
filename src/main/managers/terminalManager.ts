@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import { randomUUID } from "crypto";
-import { Terminal, TerminalOptions, TerminalCommandResult } from "../../types";
+import { Terminal, TerminalOptions, TerminalCommandResult } from "../../common/types";
 
 /**
  * Manages terminal instances for tools
