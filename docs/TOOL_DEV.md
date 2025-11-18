@@ -2,106 +2,110 @@
 
 This guide explains how to develop external tools for the Power Platform Tool Box using webview-based architecture with organized, secure APIs.
 
--   [Tool Development Guide](#tool-development-guide)
-    -   [Overview](#overview)
-    -   [API Architecture](#api-architecture)
-        -   [1. ToolBox API (`window.toolboxAPI`)](#1-toolbox-api-windowtoolboxapi)
-        -   [2. Dataverse API (`window.dataverseAPI`)](#2-dataverse-api-windowdataverseapi)
-    -   [Quick Start](#quick-start)
-        -   [Prerequisites (_optional_)](#prerequisites-optional)
-        -   [1. Create Your Tool Package](#1-create-your-tool-package)
-        -   [2. Define package.json](#2-define-packagejson)
-        -   [3. Install Type Definitions](#3-install-type-definitions)
-        -   [4. Create Your Tool HTML](#4-create-your-tool-html)
-        -   [5. Implement Your Tool Logic](#5-implement-your-tool-logic)
-    -   [Debugging and Testing your tool](#debugging-and-testing-your-tool)
-        -   [Prerequisites](#prerequisites)
-        -   [Step-by-Step Guide](#step-by-step-guide)
-            -   [1. Set Up Your Tool Project](#1-set-up-your-tool-project)
-            -   [2. Start Watch Mode (Optional but Recommended)](#2-start-watch-mode-optional-but-recommended)
-            -   [3. Load the Tool in ToolBox](#3-load-the-tool-in-toolbox)
-            -   [4. Launch and Test Your Tool](#4-launch-and-test-your-tool)
-            -   [5. Make Changes and Reload](#5-make-changes-and-reload)
-    -   [Troubleshooting](#troubleshooting)
-        -   [Error: "No dist/index.html found"](#error-no-distindexhtml-found)
-        -   [Error: "No package.json found"](#error-no-packagejson-found)
-        -   [Tool Won't Load After Changes](#tool-wont-load-after-changes)
-        -   [Watch Mode Not Working](#watch-mode-not-working)
-    -   [When to Use Each Method](#when-to-use-each-method)
-        -   [Use Local Loading When:](#use-local-loading-when)
-        -   [Use npm Installation When:](#use-npm-installation-when)
-        -   [Use Registry Installation When:](#use-registry-installation-when)
-    -   [Publishing Your Tool](#publishing-your-tool)
-        -   [1. Build your tool](#1-build-your-tool)
-        -   [2. Prepare for Publishing](#2-prepare-for-publishing)
-        -   [3. Finalize package for publishing](#3-finalize-package-for-publishing)
-        -   [4. Publish to npm](#4-publish-to-npm)
-        -   [5. Test Published Version](#5-test-published-version)
-        -   [6. Submitting the tool to the Tool Box registry](#6-submitting-the-tool-to-the-tool-box-registry)
-    -   [Comprehensive API Examples](#comprehensive-api-examples)
-        -   [ToolBox API](#toolbox-api)
-            -   [Working with Connections](#working-with-connections)
-            -   [Using Utilities](#using-utilities)
-            -   [Tool Settings Storage](#tool-settings-storage)
-            -   [Terminal Operations](#terminal-operations)
-            -   [Event Handling](#event-handling)
-        -   [Dataverse API](#dataverse-api)
-            -   [Complete CRUD Example](#complete-crud-example)
-            -   [FetchXML Query Examples](#fetchxml-query-examples)
-            -   [OData Query Examples](#odata-query-examples)
-            -   [Metadata Operations](#metadata-operations)
-            -   [Solutions](#solutions)
-            -   [Execute Actions and Functions](#execute-actions-and-functions)
-            -   [Error Handling](#error-handling)
-        -   [Building a Complete Tool](#building-a-complete-tool)
-    -   [API Reference](#api-reference)
-    -   [Security Model](#security-model)
-        -   [Webview Isolation](#webview-isolation)
-        -   [API Restrictions](#api-restrictions)
-        -   [Context-Aware Features](#context-aware-features)
-        -   [Message Validation](#message-validation)
-    -   [Best Practices](#best-practices)
-        -   [1. Always Check for Active Connection](#1-always-check-for-active-connection)
-        -   [2. Handle Errors Gracefully](#2-handle-errors-gracefully)
-        -   [3. Use Type Definitions](#3-use-type-definitions)
-        -   [4. Subscribe to Relevant Events](#4-subscribe-to-relevant-events)
-        -   [5. Clean Up Resources](#5-clean-up-resources)
-        -   [6. Use Specific Column Selection](#6-use-specific-column-selection)
-        -   [7. Limit Query Results](#7-limit-query-results)
-        -   [Process Flow](#process-flow)
-    -   [Sample Tools Repository](#sample-tools-repository)
-    -   [Debugging](#debugging)
-        -   [Console Output](#console-output)
-        -   [Error Messages](#error-messages)
-    -   [Support and Resources](#support-and-resources)
-    -   [Feature Summary](#feature-summary)
-        -   [Supported Frameworks](#supported-frameworks)
-        -   [What Tools Can Do](#what-tools-can-do)
-        -   [What Tools Cannot Do](#what-tools-cannot-do)
+- [Tool Development Guide](#tool-development-guide)
+  - [Overview](#overview)
+  - [API Architecture](#api-architecture)
+    - [1. ToolBox API (`window.toolboxAPI`)](#1-toolbox-api-windowtoolboxapi)
+    - [2. Dataverse API (`window.dataverseAPI`)](#2-dataverse-api-windowdataverseapi)
+  - [Quick Start](#quick-start)
+    - [Prerequisites (_optional_)](#prerequisites-optional)
+    - [1. Create Your Tool Package](#1-create-your-tool-package)
+    - [2. Define package.json](#2-define-packagejson)
+    - [3. Install Type Definitions](#3-install-type-definitions)
+    - [4. Create Your Tool HTML](#4-create-your-tool-html)
+    - [5. Implement Your Tool Logic](#5-implement-your-tool-logic)
+    - [6. CSP exceptions](#6-csp-exceptions)
+  - [Debugging and Testing your tool](#debugging-and-testing-your-tool)
+    - [Prerequisites](#prerequisites)
+    - [Step-by-Step Guide](#step-by-step-guide)
+      - [1. Set Up Your Tool Project](#1-set-up-your-tool-project)
+      - [2. Start Watch Mode (Optional but Recommended)](#2-start-watch-mode-optional-but-recommended)
+      - [3. Load the Tool in ToolBox](#3-load-the-tool-in-toolbox)
+      - [4. Launch and Test Your Tool](#4-launch-and-test-your-tool)
+      - [5. Make Changes and Reload](#5-make-changes-and-reload)
+  - [Troubleshooting](#troubleshooting)
+    - [Error: "No dist/index.html found"](#error-no-distindexhtml-found)
+    - [Error: "No package.json found"](#error-no-packagejson-found)
+    - [Tool Won't Load After Changes](#tool-wont-load-after-changes)
+    - [Watch Mode Not Working](#watch-mode-not-working)
+  - [When to Use Each Method](#when-to-use-each-method)
+    - [Use Local Loading When:](#use-local-loading-when)
+    - [Use npm Installation When:](#use-npm-installation-when)
+    - [Use Registry Installation When:](#use-registry-installation-when)
+  - [Publishing Your Tool](#publishing-your-tool)
+    - [1. Build your tool](#1-build-your-tool)
+    - [2. Prepare for Publishing](#2-prepare-for-publishing)
+    - [3. Finalize package for publishing](#3-finalize-package-for-publishing)
+    - [4. Publish to npm](#4-publish-to-npm)
+    - [5. Test Published Version](#5-test-published-version)
+    - [6. Submitting the tool to the Tool Box registry](#6-submitting-the-tool-to-the-tool-box-registry)
+  - [Comprehensive API Examples](#comprehensive-api-examples)
+    - [ToolBox API](#toolbox-api)
+      - [Working with Connections](#working-with-connections)
+      - [Using Utilities](#using-utilities)
+      - [Tool Settings Storage](#tool-settings-storage)
+      - [Terminal Operations](#terminal-operations)
+      - [Event Handling](#event-handling)
+    - [Dataverse API](#dataverse-api)
+      - [Complete CRUD Example](#complete-crud-example)
+      - [FetchXML Query Examples](#fetchxml-query-examples)
+      - [OData Query Examples](#odata-query-examples)
+      - [Metadata Operations](#metadata-operations)
+      - [Solutions](#solutions)
+      - [Execute Actions and Functions](#execute-actions-and-functions)
+      - [Error Handling](#error-handling)
+    - [Building a Complete Tool](#building-a-complete-tool)
+  - [API Reference](#api-reference)
+  - [Security Model](#security-model)
+    - [BrowserView Isolation](#browserview-isolation)
+    - [API Restrictions](#api-restrictions)
+    - [Context-Aware Features](#context-aware-features)
+    - [IPC Communication](#ipc-communication)
+  - [Best Practices](#best-practices)
+    - [1. Always Check for Active Connection](#1-always-check-for-active-connection)
+    - [2. Handle Errors Gracefully](#2-handle-errors-gracefully)
+    - [3. Use Type Definitions](#3-use-type-definitions)
+    - [4. Subscribe to Relevant Events](#4-subscribe-to-relevant-events)
+    - [5. Clean Up Resources](#5-clean-up-resources)
+    - [6. Use Specific Column Selection](#6-use-specific-column-selection)
+    - [7. Limit Query Results](#7-limit-query-results)
+    - [Process Flow](#process-flow)
+  - [Sample Tools Repository](#sample-tools-repository)
+  - [Debugging](#debugging)
+    - [Console Output](#console-output)
+    - [Error Messages](#error-messages)
+  - [Support and Resources](#support-and-resources)
+  - [Feature Summary](#feature-summary)
+    - [Supported Frameworks](#supported-frameworks)
+    - [What Tools Can Do](#what-tools-can-do)
+    - [What Tools Cannot Do](#what-tools-cannot-do)
 
 ## Overview
 
 The Power Platform Tool Box provides a secure, isolated environment for running tools:
 
--   **Webview-Based**: Each tool runs in a sandboxed iframe with limited API access
+-   **BrowserView-Based**: Each tool runs in its own Chromium BrowserView with complete process isolation
 -   **Organized APIs**: Namespaced APIs for connections, utilities, terminals, events, and Dataverse
--   **Secure Communication**: Structured message protocol via postMessage
+-   **Secure Communication**: Direct IPC communication through contextBridge
 -   **Context-Aware**: Tool ID and connection context automatically managed
 -   **Type-Safe**: Full TypeScript support with `@pptb/types` package
+-   **No CSP Inheritance**: Tools have independent Content Security Policies (see [CSP Configuration](./CSP_CONFIGURATION.md))
+-   **Per-Tool CSP Exceptions**: Tools can request CSP exceptions with explicit user consent
+-   **CORS Bypass**: Tools can make external API calls without CORS restrictions
 
 ## API Architecture
 
-Tools have access to two main APIs:
+Tools have access to two main APIs exposed through Electron's contextBridge:
 
 ### 1. ToolBox API (`window.toolboxAPI`)
 
 Organized into namespaces:
 
--   **connections** - Get active Dataverse connection (read-only)
--   **utils** - Notifications, clipboard, file operations, theme
+-   **connections** - Get and manage Dataverse connections
+-   **utils** - Notifications, clipboard, file operations, theme, loading indicators
 -   **settings** - Tool-specific settings storage (context-aware)
 -   **terminal** - Create and manage terminals (context-aware)
--   **events** - Subscribe to platform events (tool-specific)
+-   **events** - Subscribe to platform events and access event history
 
 ### 2. Dataverse API (`window.dataverseAPI`)
 
@@ -109,7 +113,9 @@ Complete HTTP client for Dataverse:
 
 -   CRUD operations (create, retrieve, update, delete)
 -   FetchXML queries
--   Metadata operations
+-   OData queries
+-   Metadata operations (entities, attributes, relationships)
+-   Solutions
 -   Execute actions and functions
 
 ## Quick Start
@@ -197,6 +203,8 @@ npm install --save-dev @pptb/types
 </html>
 ```
 
+> **Note:** The `toolboxAPI` and `dataverseAPI` are automatically injected by PPTB when your tool loads. You don't need to include any bridge scripts manually.
+
 ### 5. Implement Your Tool Logic
 
 **app.ts:**
@@ -276,6 +284,12 @@ if (document.readyState === "loading") {
     initialize();
 }
 ```
+
+### 6. CSP exceptions
+
+By default, Power Platform Tool Box blocks all external request and resources. If your tool needs to access CDN or any other external URLs you will have to file an exception.
+
+Please read [CSP Configuration](CSP_CONFIGURATION.md) documentation for more information.
 
 ## Debugging and Testing your tool
 
@@ -1208,31 +1222,36 @@ For complete API documentation, see **[ToolBox API & Dataverse API Reference](..
 
 ## Security Model
 
-### Webview Isolation
+### BrowserView Isolation
 
--   Each tool runs in a sandboxed iframe with limited API access
+-   Each tool runs in its own Chromium BrowserView with complete process isolation
 -   Tools cannot directly access the main application or other tools
--   All communication goes through the secure postMessage protocol
+-   All communication goes through secure IPC (Inter-Process Communication) via contextBridge
+-   Each tool has its own independent JavaScript context
 
 ### API Restrictions
 
--   Tools only have access to namespaced `toolboxAPI` and `dataverseAPI`
+-   Tools only have access to namespaced `toolboxAPI` and `dataverseAPI` exposed via contextBridge
 -   No direct access to Electron APIs or Node.js modules
 -   No access to user settings or sensitive connection data
 -   Access tokens are managed securely by the platform
+-   Web security can be disabled for CORS bypass, but CSP is enforced via meta tags per tool
+-   CSP exceptions can be requested in package.json with explicit user consent (see [CSP Configuration](./CSP_CONFIGURATION.md))
 
 ### Context-Aware Features
 
--   Tool ID is automatically determined by the platform
+-   Tool ID is automatically determined by the platform and injected via tool context
 -   Terminal operations are scoped to the calling tool
--   Event subscriptions are filtered to relevant events only
+-   Settings operations automatically use the tool's ID
+-   Event subscriptions receive events relevant to the tool
 
-### Message Validation
+### IPC Communication
 
--   All API calls are validated for structure and content
+-   All API calls go through validated IPC channels
 -   Prevents malicious or buggy tools from compromising the app
--   Request/response pattern with timeouts
+-   Type-safe communication with structured request/response pattern
 -   Error handling with detailed messages
+-   Event forwarding from main process to all tool windows
 
 ## Best Practices
 

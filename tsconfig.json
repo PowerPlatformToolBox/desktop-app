@@ -18,6 +18,6 @@
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true
   },
-  "include": ["src/main/**/*", "src/api/**/*", "src/types/**/*"],
+  "include": ["src/main/**/*", "src/common/**/*"],
   "exclude": ["node_modules", "dist", "build", "src/renderer"]
 }

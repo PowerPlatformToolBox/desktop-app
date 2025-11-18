@@ -884,7 +884,7 @@ body {
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: $z-modal;
     align-items: center;
     justify-content: center;
 }
@@ -1030,7 +1030,7 @@ body {
     right: 0;
     bottom: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - var(--app-footer-height));
     background: var(--bg-color);
 }
 
@@ -1278,30 +1278,30 @@ body {
 }
 
 /* VSCode-style tools list */
-.tools-list-vscode {
+.tools-list-pptb {
     display: flex;
     flex-direction: column;
 }
 
-.tool-item-vscode {
+.tool-item-pptb {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
-.tool-item-vscode:hover {
+.tool-item-pptb:hover {
     background: rgba(0, 120, 212, 0.1);
 }
 
-.tool-item-header-vscode {
+.tool-item-header-pptb {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 4px;
 }
 
-.tool-item-icon-vscode {
+.tool-item-icon-pptb {
     font-size: 16px;
     width: 20px;
     height: 20px;
@@ -1323,7 +1323,7 @@ body {
     line-height: 1;
 }
 
-.tool-item-name-vscode {
+.tool-item-name-pptb {
     font-weight: 500;
     font-size: 13px;
     flex: 1;
@@ -1355,7 +1355,7 @@ body {
     transform: scale(0.95);
 }
 
-.tool-item-description-vscode {
+.tool-item-description-pptb {
     font-size: 12px;
     color: #8a8886;
     margin-bottom: 6px;
@@ -1365,14 +1365,14 @@ body {
     overflow: hidden;
 }
 
-.tool-item-actions-vscode {
+.tool-item-actions-pptb {
     display: flex;
     gap: 8px;
     justify-content: space-between;
     align-items: center;
 }
 
-.tool-item-actions-vscode .btn {
+.tool-item-actions-pptb .btn {
     padding: 2px 8px;
     font-size: 11px;
 }
@@ -1398,7 +1398,7 @@ body {
     height: 16px;
 }
 
-.tool-item-version-vscode {
+.tool-item-version-pptb {
     font-size: 11px;
     color: #8a8886;
     margin-bottom: 6px;
@@ -1423,29 +1423,29 @@ body {
 }
 
 /* VSCode-style marketplace list */
-.marketplace-tools-list-vscode {
+.marketplace-tools-list-pptb {
     display: flex;
     flex-direction: column;
 }
 
-.marketplace-item-vscode {
+.marketplace-item-pptb {
     padding: 12px;
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s;
 }
 
-.marketplace-item-vscode:hover {
+.marketplace-item-pptb:hover {
     background: rgba(0, 120, 212, 0.05);
 }
 
-.marketplace-item-header-vscode {
+.marketplace-item-header-pptb {
     display: flex;
     align-items: flex-start;
     gap: 8px;
     margin-bottom: 8px;
 }
 
-.marketplace-item-icon-vscode {
+.marketplace-item-icon-pptb {
     font-size: 16px;
     width: 20px;
     height: 20px;
@@ -1467,22 +1467,22 @@ body {
     line-height: 1;
 }
 
-.marketplace-item-info-vscode {
+.marketplace-item-info-pptb {
     flex: 1;
 }
 
-.marketplace-item-name-vscode {
+.marketplace-item-name-pptb {
     font-weight: 500;
     font-size: 13px;
     margin-bottom: 2px;
 }
 
-.marketplace-item-author-vscode {
+.marketplace-item-author-pptb {
     font-size: 11px;
     color: #8a8886;
 }
 
-.marketplace-item-description-vscode {
+.marketplace-item-description-pptb {
     font-size: 12px;
     color: #605e5c;
     margin-bottom: 8px;
@@ -1492,7 +1492,7 @@ body {
     overflow: hidden;
 }
 
-.marketplace-item-footer-vscode {
+.marketplace-item-footer-pptb {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1508,54 +1508,54 @@ body {
     align-items: center;
 }
 
-.marketplace-item-category-vscode {
+.marketplace-item-category-pptb {
     background: rgba(0, 120, 212, 0.1);
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 10px;
 }
 
-.marketplace-item-version-vscode {
+.marketplace-item-version-pptb {
     font-size: 11px;
     color: #605e5c;
     font-family: monospace;
 }
 
-.marketplace-item-actions-vscode {
+.marketplace-item-actions-pptb {
     display: flex;
     gap: 6px;
 }
 
-.marketplace-item-actions-vscode .btn {
+.marketplace-item-actions-pptb .btn {
     padding: 3px 10px;
     font-size: 11px;
 }
 
 /* Connection list item with environment pill */
-.connection-item-vscode {
+.connection-item-pptb {
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background-color 0.2s;
 }
 
-.connection-item-vscode:hover {
+.connection-item-pptb:hover {
     background: rgba(0, 120, 212, 0.05);
 }
 
-.connection-item-vscode.active {
+.connection-item-pptb.active {
     background: rgba(0, 120, 212, 0.1);
     border-left: 2px solid var(--primary-color);
 }
 
-.connection-item-header-vscode {
+.connection-item-header-pptb {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 4px;
 }
 
-.connection-item-name-vscode {
+.connection-item-name-pptb {
     font-weight: 500;
     font-size: 13px;
 }
@@ -1583,18 +1583,18 @@ body {
     color: white;
 }
 
-.connection-item-url-vscode {
+.connection-item-url-pptb {
     font-size: 11px;
     color: #8a8886;
     margin-bottom: 6px;
 }
 
-.connection-item-actions-vscode {
+.connection-item-actions-pptb {
     display: flex;
     gap: 6px;
 }
 
-.connection-item-actions-vscode .btn {
+.connection-item-actions-pptb .btn {
     padding: 2px 8px;
     font-size: 11px;
 }
@@ -2133,16 +2133,16 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     content: "✓";
 }
 
-.marketplace-item-vscode.installed {
+.marketplace-item-pptb.installed {
     background: rgba(16, 124, 16, 0.05);
 }
 
-.marketplace-item-vscode.installed:hover {
+.marketplace-item-pptb.installed:hover {
     background: rgba(16, 124, 16, 0.1);
 }
 
 /* Make marketplace items clickable */
-.marketplace-item-vscode {
+.marketplace-item-pptb {
     cursor: pointer;
 }
 
@@ -2508,6 +2508,9 @@ fluent-badge {
     white-space: pre-wrap;
     word-wrap: break-word;
     padding: 4px;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 .terminal-output-line {
@@ -2572,170 +2575,6 @@ body.dark-theme .terminal-tab:hover {
 body.dark-theme .terminal-tab.active {
     background-color: #1e1e1e;
     color: #ffffff;
-}
-
-/* ========================================
-   Toastr Custom Styling (VSCode-inspired)
-   ======================================== */
-
-/* Override toastr default styles to match VSCode notification design */
-#toast-container > div {
-    opacity: 1;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
-    border-radius: 0;
-    padding: 12px 16px 12px 12px;
-    width: 400px;
-    font-family: $font-family;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    background-image: none;
-    border-left: 3px solid;
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-/* Hide default toastr icons to match VSCode style (uses accent border instead) */
-#toast-container > div::before {
-    display: none;
-}
-
-#toast-container > .toast {
-    background-image: none !important;
-}
-
-#toast-container > div .toast-icon {
-    display: none;
-}
-
-#toast-container > div:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-}
-
-/* Info notification - Blue accent */
-#toast-container > .toast-info {
-    border-left-color: $notification-info;
-}
-
-/* Success notification - Green accent */
-#toast-container > .toast-success {
-    border-left-color: $notification-success;
-}
-
-/* Warning notification - Yellow/Orange accent */
-#toast-container > .toast-warning {
-    border-left-color: $notification-warning;
-}
-
-/* Error notification - Red accent */
-#toast-container > .toast-error {
-    border-left-color: $notification-error;
-}
-
-/* Toast title styling */
-#toast-container > div > .toast-title {
-    font-weight: 600;
-    color: var(--text-color);
-    margin-bottom: 4px;
-}
-
-/* Toast message styling */
-#toast-container > div > .toast-message {
-    color: var(--text-color);
-    opacity: 0.9;
-}
-
-/* Close button styling - VSCode style */
-#toast-container > div > .toast-close-button {
-    color: var(--text-color);
-    opacity: 0.6;
-    font-size: 16px;
-    font-weight: normal;
-    text-shadow: none;
-    right: 8px;
-    top: 8px;
-}
-
-#toast-container > div > .toast-close-button:hover {
-    opacity: 1;
-    color: var(--text-color);
-}
-
-/* Progress bar styling - subtle accent color */
-#toast-container > div > .toast-progress {
-    opacity: 0.3;
-    height: 3px;
-    background-color: currentColor;
-}
-
-#toast-container > .toast-info > .toast-progress {
-    background-color: $notification-info;
-}
-
-#toast-container > .toast-success > .toast-progress {
-    background-color: $notification-success;
-}
-
-#toast-container > .toast-warning > .toast-progress {
-    background-color: $notification-warning;
-}
-
-#toast-container > .toast-error > .toast-progress {
-    background-color: $notification-error;
-}
-
-/* Dark theme toastr styling */
-body.dark-theme #toast-container > div {
-    background-color: $dark-card-bg;
-    color: $dark-text-color;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-body.dark-theme #toast-container > div:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-body.dark-theme #toast-container > .toast-info {
-    border-left-color: $notification-info-dark;
-}
-
-body.dark-theme #toast-container > .toast-success {
-    border-left-color: $notification-success-dark;
-}
-
-body.dark-theme #toast-container > .toast-warning {
-    border-left-color: $notification-warning-dark;
-}
-
-body.dark-theme #toast-container > .toast-error {
-    border-left-color: $notification-error-dark;
-}
-
-body.dark-theme #toast-container > div > .toast-title {
-    color: $dark-text-color;
-}
-
-body.dark-theme #toast-container > div > .toast-message {
-    color: $dark-text-color;
-}
-
-body.dark-theme #toast-container > div > .toast-close-button {
-    color: $dark-text-color;
-}
-
-body.dark-theme #toast-container > .toast-info > .toast-progress {
-    background-color: $notification-info-dark;
-}
-
-body.dark-theme #toast-container > .toast-success > .toast-progress {
-    background-color: $notification-success-dark;
-}
-
-body.dark-theme #toast-container > .toast-warning > .toast-progress {
-    background-color: $notification-warning-dark;
-}
-
-body.dark-theme #toast-container > .toast-error > .toast-progress {
-    background-color: $notification-error-dark;
 }
 
 /* Loading Screen Overlay */
@@ -2807,4 +2646,274 @@ body.dark-theme .loading-screen {
 body.dark-theme .loading-spinner {
     border-color: rgba(255, 255, 255, 0.15);
     border-top-color: #4fc3f7;
+}
+
+/* CSP Consent Dialog Styles */
+.csp-consent-dialog {
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.csp-consent-dialog .modal-body {
+    padding: 20px;
+}
+
+.csp-consent-dialog .modal-body p {
+    margin-bottom: 16px;
+    line-height: 1.6;
+}
+
+.csp-exceptions-list {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.csp-exception {
+    margin-bottom: 16px;
+}
+
+.csp-exception:last-child {
+    margin-bottom: 0;
+}
+
+.csp-exception strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #0078d4;
+    text-transform: capitalize;
+}
+
+.csp-exception ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.csp-exception li {
+    margin: 4px 0;
+}
+
+.csp-exception code {
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    color: #d83b01;
+}
+
+.csp-warning {
+    background: #fff4ce;
+    border: 1px solid #ffb900;
+    border-radius: 4px;
+    padding: 16px;
+    margin-top: 16px;
+}
+
+.csp-warning p {
+    margin-bottom: 12px;
+    color: #8a6d3b;
+}
+
+.csp-warning ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #8a6d3b;
+}
+
+.csp-warning li {
+    margin: 4px 0;
+}
+
+/* Dark theme adjustments */
+body.dark-theme .csp-exceptions-list {
+    background: #2d2d2d;
+    border-color: #3e3e3e;
+}
+
+body.dark-theme .csp-exception strong {
+    color: #4fc3f7;
+}
+
+body.dark-theme .csp-exception code {
+    background: #1e1e1e;
+    border-color: #3e3e3e;
+    color: #f48771;
+}
+
+body.dark-theme .csp-warning {
+    background: #3a3a2a;
+    border-color: #8a7d3b;
+}
+
+body.dark-theme .csp-warning p,
+body.dark-theme .csp-warning ul {
+    color: #d4c89f;
+}
+
+/* ========================================
+   VS Code-style Notification System
+   ======================================== */
+
+.notification-container {
+    position: fixed;
+    bottom: 36px; // Above footer (footer is 32px tall)
+    right: 16px;
+    width: 400px;
+    max-height: 300px; // Limit height to avoid tool panel area
+    display: flex;
+    flex-direction: column-reverse; // New notifications appear at bottom
+    gap: 8px;
+    z-index: 999999; // Highest z-index in DOM
+    pointer-events: none; // Allow clicks through container
+    // NOTE: BrowserView is a native component that overlays the DOM.
+    // Notifications are positioned in the bottom-right corner, outside the tool panel area.
+    // This ensures they're visible even when a tool is loaded in the BrowserView.
+}
+
+.notification {
+    pointer-events: auto; // But notifications themselves are clickable
+    background-color: var(--bg-color-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 4px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: slideInRight 0.3s ease-out;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    max-width: 100%;
+}
+
+.notification.closing {
+    opacity: 0;
+    transform: translateX(420px);
+}
+
+.notification-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.notification-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.notification-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin: 0 0 4px 0;
+    color: var(--text-color);
+}
+
+.notification-message {
+    font-size: 12px;
+    margin: 0;
+    color: var(--text-color-secondary);
+    word-wrap: break-word;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.notification-action {
+    padding: 4px 12px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.notification-action:hover {
+    background-color: var(--hover-color);
+}
+
+.notification-close {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+.notification.info {
+    border-left-color: #0078d4;
+}
+
+.notification.info .notification-icon {
+    color: #0078d4;
+}
+
+.notification.success {
+    border-left-color: #16c60c;
+}
+
+.notification.success .notification-icon {
+    color: #16c60c;
+}
+
+.notification.warning {
+    border-left-color: #faa21b;
+}
+
+.notification.warning .notification-icon {
+    color: #faa21b;
+}
+
+.notification.error {
+    border-left-color: #e81123;
+}
+
+.notification.error .notification-icon {
+    color: #e81123;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(420px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }

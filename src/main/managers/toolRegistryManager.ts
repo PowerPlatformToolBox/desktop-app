@@ -5,12 +5,12 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { ToolManifest, ToolRegistryEntry } from "../../types";
+import { ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { TOOL_REGISTRY_URL } from "../constants";
 
 /**
  * Manages tool installation from a registry (marketplace)
- * Similar to VS Code extension marketplace
+ * Registry for discovering and managing tool installations
  */
 export class ToolRegistryManager extends EventEmitter {
     private toolsDirectory: string;
@@ -222,6 +222,7 @@ export class ToolRegistryManager extends EventEmitter {
             source: "registry",
             sourceUrl: tool.downloadUrl,
             readme: tool.readme, // Include readme URL from registry
+            cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
         };
 
         // Save to manifest file

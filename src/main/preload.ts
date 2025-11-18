@@ -35,6 +35,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke("get-tool-context", packageName, connectionUrl),
 
+    // Tool Window Management (NEW - BrowserView based)
+    launchToolWindow: (toolId: string, tool: unknown) => ipcRenderer.invoke("tool-window:launch", toolId, tool),
+    switchToolWindow: (toolId: string) => ipcRenderer.invoke("tool-window:switch", toolId),
+    closeToolWindow: (toolId: string) => ipcRenderer.invoke("tool-window:close", toolId),
+    getActiveToolWindow: () => ipcRenderer.invoke("tool-window:get-active"),
+    getOpenToolWindows: () => ipcRenderer.invoke("tool-window:get-open-tools"),
+
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke("add-favorite-tool", toolId),
     removeFavoriteTool: (toolId: string) => ipcRenderer.invoke("remove-favorite-tool", toolId),
@@ -56,6 +63,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
     updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke("update-tool-settings", toolId, settings),
+
+    // CSP consent management - Only for PPTB UI
+    hasCspConsent: (toolId: string) => ipcRenderer.invoke("has-csp-consent", toolId),
+    grantCspConsent: (toolId: string) => ipcRenderer.invoke("grant-csp-consent", toolId),
+    revokeCspConsent: (toolId: string) => ipcRenderer.invoke("revoke-csp-consent", toolId),
+    getCspConsents: () => ipcRenderer.invoke("get-csp-consents"),
+
+    // Webview URL generation - Only for PPTB UI
+    getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke("get-tool-webview-url", toolId),
 
     // Utils namespace - organized like in the iframe
     utils: {
@@ -169,5 +185,8 @@ contextBridge.exposeInMainWorld("api", {
     },
     invoke: (channel: string, ...args: unknown[]) => {
         return ipcRenderer.invoke(channel, ...args);
+    },
+    send: (channel: string, ...args: unknown[]) => {
+        ipcRenderer.send(channel, ...args);
     },
 });

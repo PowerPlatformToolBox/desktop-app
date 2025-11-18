@@ -36,8 +36,11 @@ export default defineConfig(({ mode }) => {
                     },
                 },
                 preload: {
-                    // Preload script
-                    input: "src/main/preload.ts",
+                    // Preload scripts - build both main window preload and tool preload
+                    input: {
+                        preload: "src/main/preload.ts",
+                        toolPreloadBridge: "src/main/toolPreloadBridge.ts",
+                    },
                     vite: {
                         build: {
                             // Only include source maps when not building for production
@@ -45,7 +48,8 @@ export default defineConfig(({ mode }) => {
                             outDir: "dist/main",
                             rollupOptions: {
                                 output: {
-                                    entryFileNames: "preload.js",
+                                    entryFileNames: "[name].js",
+                                    inlineDynamicImports: false,
                                 },
                             },
                         },
@@ -89,16 +93,7 @@ export default defineConfig(({ mode }) => {
                         // Directory already exists
                     }
 
-                    // Copy static assets
-                    const assetsToCopy = [{ from: "src/renderer/toolboxAPIBridge.js", to: "dist/renderer/toolboxAPIBridge.js" }];
-
-                    assetsToCopy.forEach(({ from, to }) => {
-                        try {
-                            copyFileSync(from, to);
-                        } catch (e) {
-                            console.error(`Failed to copy ${from} to ${to}:`, e);
-                        }
-                    });
+                    // Note: toolboxAPIBridge.js has been removed as tools now use toolPreloadBridge.ts via BrowserView preload
 
                     // Copy entire icons directory
                     const iconsLightSourceDir = "src/renderer/icons/light";

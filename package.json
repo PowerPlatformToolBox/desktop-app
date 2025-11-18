@@ -48,12 +48,10 @@
     "@azure/msal-node": "^3.8.0",
     "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
-    "@types/toastr": "^2.1.43",
     "@types/uuid": "^10.0.0",
     "ansi-to-html": "^0.7.2",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
-    "toastr": "^2.1.4",
     "uuid": "^13.0.0"
   },
   "build": {

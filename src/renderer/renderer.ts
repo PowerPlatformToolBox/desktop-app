@@ -2,8 +2,6 @@
 /// <reference path="types.d.ts" />
 
 import AnsiToHtml from "ansi-to-html";
-import toastr from "toastr";
-import "toastr/build/toastr.min.css";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml({
@@ -14,181 +12,47 @@ const ansiConverter = new AnsiToHtml({
     stream: false,
 });
 
-// Configure toastr for notifications
-toastr.options = {
-    closeButton: true,
-    debug: false,
-    newestOnTop: true,
-    progressBar: true,
-    positionClass: "toast-bottom-right",
-    preventDuplicates: false,
-    onclick: undefined,
-    showDuration: 300,
-    hideDuration: 1000,
-    timeOut: 5000,
-    extendedTimeOut: 1000,
-    showEasing: "swing",
-    hideEasing: "linear",
-    showMethod: "fadeIn",
-    hideMethod: "fadeOut",
-    iconClass: "", // Remove default icons to match VSCode style
-    iconClasses: undefined,
-};
+// PPTB notification system using dedicated BrowserWindow
+// Notifications are displayed in an always-on-top frameless window above the BrowserView
+function showPPTBNotification(options: { title: string; body: string; type?: string; duration?: number; actions?: Array<{ label: string; callback: () => void }> }): void {
+    // Convert actions to serializable format
+    const actions = options.actions?.map((action, index) => ({
+        label: action.label,
+        callback: `action_${Date.now()}_${index}`, // Unique callback ID
+    }));
+
+    // Store callbacks for later invocation
+    if (options.actions && actions) {
+        actions.forEach((action, index) => {
+            const originalCallback = options.actions![index].callback;
+            window.api.on(`notification-action-${action.callback}`, () => {
+                originalCallback();
+            });
+        });
+    }
+
+    // Send to notification window manager via IPC
+    window.api.invoke("notification:show", {
+        title: options.title,
+        body: options.body,
+        type: options.type || "info",
+        duration: options.duration || 5000,
+        actions,
+    });
+}
 
 // Tab management for multiple tools
+// With BrowserView, we no longer need to track webview elements
+// The backend ToolWindowManager handles BrowserView instances
 interface OpenTool {
     id: string;
     tool: any;
-    webviewContainer: HTMLElement;
-    webview: any;
     isPinned: boolean;
     connectionId: string | null;
 }
 
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null;
-let secondaryToolId: string | null = null;
-let isSplitView = false;
-
-// Set up message handler for iframe communication
-window.addEventListener("message", async (event) => {
-    // Handle toolboxAPI calls from iframes
-    if (event.data.type === "TOOLBOX_API_CALL") {
-        const { messageId, method, args } = event.data;
-
-        try {
-            let result;
-
-            // Handle context-aware terminal operations
-            if (method === "terminal.create") {
-                // Extract _toolId from options (injected by bridge)
-                const options = args && args[0];
-                const toolId = options?._toolId;
-
-                if (!toolId) {
-                    throw new Error("Tool ID not available - ensure tool context is initialized");
-                }
-
-                // Get tool info to use tool name as terminal name if not provided
-                const tool = await window.toolboxAPI.getTool(toolId);
-                const terminalName = options.name || (tool ? tool.name : toolId);
-
-                // Remove _toolId before passing to actual API
-                const cleanOptions = { ...options };
-                delete cleanOptions._toolId;
-                cleanOptions.name = terminalName;
-
-                result = await window.toolboxAPI.terminal.create(toolId, cleanOptions);
-            } else if (method === "terminal.list") {
-                // Get toolId from first arg (injected by bridge)
-                const toolId = args && args[0];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.toolboxAPI.terminal.list(toolId);
-            } else if (method === "events.getHistory") {
-                // Get toolId and limit from args (injected by bridge)
-                const toolId = args && args[0];
-                const limit = args && args[1];
-
-                // Get event history and filter to tool-specific events
-                const allEvents = await window.toolboxAPI.events.getHistory(limit);
-                result = allEvents.filter((eventPayload: any) => {
-                    const event = eventPayload.event;
-                    const data = eventPayload.data;
-
-                    // Terminal events - only include if terminal belongs to this tool
-                    if (event.startsWith("terminal:")) {
-                        return data && data.toolId === toolId;
-                    }
-
-                    // Tool events - only include if about this tool
-                    if (event === "tool:loaded" || event === "tool:unloaded") {
-                        return data && data.id === toolId;
-                    }
-
-                    // Connection and notification events are global
-                    return true;
-                });
-            } else if (method === "settings.getSettings") {
-                // Get toolId from first arg (injected by bridge)
-                const toolId = args && args[0];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.api.invoke("tool-settings-get-all", toolId);
-            } else if (method === "settings.getSetting") {
-                // Get toolId and key from args (injected by bridge)
-                const toolId = args && args[0];
-                const key = args && args[1];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                result = await window.api.invoke("tool-settings-get", toolId, key);
-            } else if (method === "settings.setSetting") {
-                // Get toolId, key, and value from args (injected by bridge)
-                const toolId = args && args[0];
-                const key = args && args[1];
-                const value = args && args[2];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                await window.api.invoke("tool-settings-set", toolId, key, value);
-                result = undefined; // void return
-            } else if (method === "settings.setSettings") {
-                // Get toolId and settings from args (injected by bridge)
-                const toolId = args && args[0];
-                const settings = args && args[1];
-                if (!toolId) {
-                    throw new Error("Tool ID not available");
-                }
-                await window.api.invoke("tool-settings-set-all", toolId, settings);
-                result = undefined; // void return
-            } else {
-                // Handle regular API methods
-                const methodParts = method.split(".");
-                let target: any = window.toolboxAPI;
-
-                // Navigate through nested objects
-                for (let i = 0; i < methodParts.length - 1; i++) {
-                    target = target[methodParts[i]];
-                    if (!target) {
-                        throw new Error(`API namespace not found: ${methodParts.slice(0, i + 1).join(".")}`);
-                    }
-                }
-
-                // Get the actual method
-                const finalMethod = methodParts[methodParts.length - 1];
-                if (typeof target[finalMethod] !== "function") {
-                    throw new Error(`API method not found: ${method}`);
-                }
-
-                // Call the actual toolboxAPI method
-                result = await target[finalMethod](...(args || []));
-            }
-
-            // Send response back to iframe
-            event.source?.postMessage(
-                {
-                    type: "TOOLBOX_API_RESPONSE",
-                    messageId,
-                    result,
-                },
-                "*" as any,
-            );
-        } catch (error) {
-            // Send error back to iframe
-            event.source?.postMessage(
-                {
-                    type: "TOOLBOX_API_RESPONSE",
-                    messageId,
-                    error: (error as Error).message,
-                },
-                "*" as any,
-            );
-        }
-    }
-});
 
 // Tool library will be loaded from the registry
 let toolLibrary: any[] = [];
@@ -220,24 +84,10 @@ async function loadToolsLibrary() {
     }
 }
 
-// Navigation - No longer needed since we removed the main view switching
-// Tools are now managed via the sidebar only
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function switchView(viewName: string) {
-    // Deprecated - keeping for backwards compatibility but no longer used
-    console.log("switchView is deprecated:", viewName);
-}
-
-// Update split view button visibility based on number of open tabs
-function updateSplitViewButtonVisibility() {
-    const splitViewBtn = document.getElementById("split-view-btn");
-    if (splitViewBtn) {
-        if (openTools.size >= 2) {
-            splitViewBtn.style.display = "block";
-        } else {
-            splitViewBtn.style.display = "none";
-        }
-    }
+// Update UI button visibility based on number of open tabs
+function updateToolbarButtonVisibility() {
+    // No special buttons to show/hide currently
+    // Keeping this function for future toolbar features
 }
 
 // Update footer connection information
@@ -276,90 +126,6 @@ async function updateFooterConnection() {
     }
 }
 
-async function loadTools() {
-    // This function is no longer used for the main view
-    // Tools are now displayed in the sidebar only
-    // Keeping for backwards compatibility
-    console.log("loadTools is deprecated - tools are now managed in sidebar");
-}
-
-function loadToolLibrary() {
-    const libraryList = document.getElementById("tool-library-list");
-    if (!libraryList) return;
-
-    libraryList.innerHTML = toolLibrary
-        .map(
-            (tool) => `
-        <div class="tool-library-item">
-            <div class="tool-library-info">
-                <div class="tool-library-name">${tool.name}</div>
-                <div class="tool-library-desc">${tool.description}</div>
-                <div class="tool-library-meta">
-                    <span class="tool-library-category">Category: ${tool.category}</span>
-                    <span class="tool-library-author">Author: ${tool.author}</span>
-                </div>
-            </div>
-            <button class="fluent-button fluent-button-primary" data-action="install-tool" data-package="${tool.id}" data-name="${tool.name}">Install</button>
-        </div>
-    `,
-        )
-        .join("");
-
-    // Add event listeners to install buttons
-    libraryList.querySelectorAll('[data-action="install-tool"]').forEach((button) => {
-        button.addEventListener("click", (e) => {
-            const target = e.target as HTMLButtonElement;
-            const packageName = target.getAttribute("data-package");
-            const toolName = target.getAttribute("data-name");
-            if (packageName && toolName) {
-                installToolFromLibrary(packageName, toolName);
-            }
-        });
-    });
-}
-
-async function installToolFromLibrary(packageName: string, toolName: string) {
-    console.log("installToolFromLibrary called:", packageName, toolName);
-    if (!packageName) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Invalid Package",
-            body: "Please select a valid tool to install.",
-            type: "error",
-        });
-        return;
-    }
-
-    try {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Installing Tool",
-            body: `Installing ${toolName}...`,
-            type: "info",
-        });
-
-        await window.toolboxAPI.installTool(packageName);
-
-        await window.toolboxAPI.utils.showNotification({
-            title: "Tool Installed",
-            body: `${toolName} has been installed successfully.`,
-            type: "success",
-        });
-
-        closeModal("install-tool-modal");
-        await loadTools();
-    } catch (error) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Installation Failed",
-            body: `Failed to install ${toolName}: ${(error as Error).message}`,
-            type: "error",
-        });
-    }
-}
-
-// Legacy function kept for compatibility - now opens tool library
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function installTool() {
-    loadToolLibrary();
-}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function uninstallTool(toolId: string) {
@@ -377,7 +143,8 @@ async function uninstallTool(toolId: string) {
             type: "success",
         });
 
-        await loadTools();
+        // Reload sidebar tools to update tool list
+        await loadSidebarTools();
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
             title: "Uninstall Failed",
@@ -385,6 +152,91 @@ async function uninstallTool(toolId: string) {
             type: "error",
         });
     }
+}
+
+/**
+ * Show CSP consent dialog for a tool
+ * Returns true if user grants consent, false otherwise
+ */
+async function showCspConsentDialog(tool: any): Promise<boolean> {
+    return new Promise((resolve) => {
+        const modal = document.createElement("div");
+        modal.className = "modal";
+        modal.id = "csp-consent-modal";
+
+        const cspExceptions = tool.cspExceptions || {};
+
+        // Build list of CSP exceptions
+        let exceptionsHtml = "";
+        for (const [directive, sources] of Object.entries(cspExceptions)) {
+            if (Array.isArray(sources) && sources.length > 0) {
+                const directiveName = directive.replace("-src", "").replace("-", " ");
+                exceptionsHtml += `
+                    <div class="csp-exception">
+                        <strong>${directiveName}:</strong>
+                        <ul>
+                            ${sources.map((source: string) => `<li><code>${source}</code></li>`).join("")}
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        modal.innerHTML = `
+            <div class="modal-content csp-consent-dialog">
+                <div class="modal-header">
+                    <h2>⚠️ Security Permissions Required</h2>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        <strong>${tool.name}</strong> by <em>${tool.author || "Unknown"}</em> 
+                        is requesting permission to access external resources.
+                    </p>
+                    <p>
+                        This tool needs the following Content Security Policy (CSP) exceptions to function properly:
+                    </p>
+                    <div class="csp-exceptions-list">
+                        ${exceptionsHtml}
+                    </div>
+                    <div class="csp-warning">
+                        <p>
+                            ⚠️ <strong>Important:</strong> Only grant these permissions if you trust this tool and its author. 
+                            These permissions will allow the tool to:
+                        </p>
+                        <ul>
+                            <li>Make network requests to the specified domains</li>
+                            <li>Load scripts and styles from external sources</li>
+                            <li>Access external resources as specified above</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="csp-decline-btn">Decline</button>
+                    <button class="btn btn-primary" id="csp-accept-btn">Accept &amp; Continue</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Show modal
+        setTimeout(() => modal.classList.add("active"), 10);
+
+        // Handle buttons
+        const acceptBtn = modal.querySelector("#csp-accept-btn");
+        const declineBtn = modal.querySelector("#csp-decline-btn");
+
+        const closeModal = (granted: boolean) => {
+            modal.classList.remove("active");
+            setTimeout(() => {
+                modal.remove();
+                resolve(granted);
+            }, 300);
+        };
+
+        acceptBtn?.addEventListener("click", () => closeModal(true));
+        declineBtn?.addEventListener("click", () => closeModal(false));
+    });
 }
 
 async function launchTool(toolId: string) {
@@ -408,39 +260,29 @@ async function launchTool(toolId: string) {
             return;
         }
 
-        // Get active connection for passing to tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        const connectionUrl = activeConnection?.url;
-        // NOTE: accessToken is NOT passed to tools for security reasons
+        // Check if tool requires CSP exceptions
+        if (tool.cspExceptions && Object.keys(tool.cspExceptions).length > 0) {
+            // Check if consent has been granted
+            const hasConsent = await window.toolboxAPI.hasCspConsent(tool.id);
 
-        // Get tool HTML - check if it's a local tool
-        let webviewHtml;
-        if (tool.localPath) {
-            // Load from local path for development
-            webviewHtml = await window.toolboxAPI.getLocalToolWebviewHtml(tool.localPath);
-            if (!webviewHtml) {
-                window.toolboxAPI.utils.showNotification({
-                    title: "Tool Load Failed",
-                    body: `Failed to load tool HTML from: ${tool.localPath}\n\nMake sure the tool is built and has a dist/index.html file.`,
-                    type: "error",
-                });
-                return;
-            }
-        } else {
-            // Load from installed package
-            webviewHtml = await window.toolboxAPI.getToolWebviewHtml(tool.id);
-            if (!webviewHtml) {
-                window.toolboxAPI.utils.showNotification({
-                    title: "Tool Load Failed",
-                    body: `Failed to load tool HTML for: ${tool.name}`,
-                    type: "error",
-                });
-                return;
+            if (!hasConsent) {
+                // Show consent dialog
+                const consentGranted = await showCspConsentDialog(tool);
+
+                if (!consentGranted) {
+                    // User declined, don't load the tool
+                    window.toolboxAPI.utils.showNotification({
+                        title: "Tool Launch Cancelled",
+                        body: `You declined the security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
+                        type: "warning",
+                    });
+                    return;
+                }
+
+                // Grant consent
+                await window.toolboxAPI.grantCspConsent(tool.id);
             }
         }
-
-        // Get tool context separately for postMessage (without accessToken)
-        const toolContext = await window.toolboxAPI.getToolContext(tool.id, connectionUrl);
 
         // Hide all views (including home view)
         document.querySelectorAll(".view").forEach((view) => {
@@ -454,142 +296,25 @@ async function launchTool(toolId: string) {
             toolPanel.style.display = "flex";
         }
 
-        // Create webview container for this tool
-        const toolPanelContent = document.getElementById("tool-panel-content");
-        if (!toolPanelContent) return;
+        // Launch the tool using BrowserView via IPC
+        // The backend ToolWindowManager will create a BrowserView and load the tool
+        const launched = await window.toolboxAPI.launchToolWindow(toolId, tool);
 
-        const webviewContainer = document.createElement("div");
-        webviewContainer.className = "tool-webview-container";
-        webviewContainer.id = `tool-webview-${toolId}`;
-
-        // Default HTML for tools that fail to load
-        const toolHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-            <style>
-                html, body { 
-                height: 100%;
-                margin: 0;
-                padding: 0;
-                }
-                body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                padding: 40px; 
-                background: #f5f5f5;
-                box-sizing: border-box;
-                }
-                .tool-container {
-                max-width: 800px;
-                margin: 0 auto;
-                background: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                }
-                h1 { 
-                color: #d83b01; 
-                margin-top: 0;
-                }
-                .error {
-                background: #fde7e9;
-                padding: 15px;
-                border-radius: 4px;
-                margin: 20px 0;
-                border-left: 4px solid #d83b01;
-                color: #a4262c;
-                }
-                .metadata {
-                display: grid;
-                grid-template-columns: 150px 1fr;
-                gap: 10px;
-                margin: 20px 0;
-                }
-                .metadata-label {
-                font-weight: 600;
-                color: #605e5c;
-                }
-                .metadata-value {
-                color: #323130;
-                }
-            </style>
-            </head>
-            <body>
-            <div class="tool-container">
-                <h1>⚠️ Error Loading Tool</h1>
-                <div class="error">
-                <strong>Unable to load the contents of this tool.</strong><br>
-                Please reach out to the tool author for support.<br>
-                <span style="font-size: 13px;">Author: ${tool.author || "Unknown"}</span>
-                </div>
-                <div class="metadata">
-                <div class="metadata-label">Tool Name:</div>
-                <div class="metadata-value">${tool.name}</div>
-                <div class="metadata-label">Tool ID:</div>
-                <div class="metadata-value">${tool.id}</div>
-                <div class="metadata-label">Version:</div>
-                <div class="metadata-value">${tool.version || "N/A"}</div>
-                </div>
-            </div>
-            </body>
-            </html>
-        `;
-
-        const toolIframe = document.createElement("iframe");
-        toolIframe.style.width = "100%";
-        toolIframe.style.height = "100%";
-        toolIframe.style.border = "none";
-        toolIframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
-
-        // Inject script tag to load external bridge file (avoids CSP violation)
-        let injectedHtml = webviewHtml || toolHtml;
-
-        // Get the absolute path to the bridge script
-        // The main renderer runs from dist/renderer/, so we use that as base
-        const bridgePath = window.location.href.replace(/[^/]*$/, "toolboxAPIBridge.js");
-        const bridgeScriptTag = `<script src="${bridgePath}"></script>`;
-
-        // Inject the script tag before the closing </head> tag or at the beginning of <body>
-        if (injectedHtml.includes("</head>")) {
-            injectedHtml = injectedHtml.replace("</head>", bridgeScriptTag + "</head>");
-        } else if (injectedHtml.includes("<body>")) {
-            injectedHtml = injectedHtml.replace("<body>", "<body>" + bridgeScriptTag);
-        } else {
-            // If no head or body tags, prepend the script
-            injectedHtml = bridgeScriptTag + injectedHtml;
+        if (!launched) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Launch Failed",
+                body: `Failed to launch ${tool.name}`,
+                type: "error",
+            });
+            return;
         }
 
-        // Set up event listener to post context after iframe loads
-        toolIframe.addEventListener("load", () => {
-            if (toolIframe.contentWindow) {
-                // Post the TOOLBOX_CONTEXT to the iframe after a short delay to ensure bridge is loaded
-                setTimeout(() => {
-                    if (toolIframe.contentWindow) {
-                        toolIframe.contentWindow.postMessage(
-                            {
-                                type: "TOOLBOX_CONTEXT",
-                                data: toolContext,
-                            },
-                            "*",
-                        );
-                    }
-                }, 100);
-            }
-        });
+        console.log(`[Tool Launch] Tool window created via BrowserView: ${toolId}`);
 
-        // Use srcdoc to load content into iframe
-        // This allows the HTML to execute properly and fire DOMContentLoaded
-        toolIframe.srcdoc = injectedHtml;
-
-        webviewContainer.appendChild(toolIframe);
-        toolPanelContent.appendChild(webviewContainer);
-
-        // Store the open tool
+        // Store the open tool (no webview container needed - managed by backend)
         openTools.set(toolId, {
             id: toolId,
             tool: tool,
-            webviewContainer: webviewContainer,
-            webview: toolIframe,
             isPinned: false,
             connectionId: null,
         });
@@ -597,11 +322,11 @@ async function launchTool(toolId: string) {
         // Create and add tab
         createTab(toolId, tool);
 
-        // Switch to the new tab
+        // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(toolId);
 
-        // Update split view button visibility
-        updateSplitViewButtonVisibility();
+        // Update toolbar buttons
+        updateToolbarButtonVisibility();
 
         // Update footer connection
         updateFooterConnection();
@@ -688,41 +413,25 @@ function createTab(toolId: string, tool: any) {
 function switchToTool(toolId: string) {
     if (!openTools.has(toolId)) return;
 
-    if (isSplitView) {
-        // In split view, determine if this should be primary or secondary
-        // If it's the secondary tool, keep it there, otherwise make it primary
-        if (toolId === secondaryToolId) {
-            // Just highlight it, don't move
-            updateSplitViewDisplay();
-        } else {
-            // Set as primary
-            activeToolId = toolId;
-            updateSplitViewDisplay();
-        }
-    } else {
-        // Normal single view mode
-        activeToolId = toolId;
+    // Normal single view mode
+    activeToolId = toolId;
 
-        // Update tab active states
-        document.querySelectorAll(".tool-tab").forEach((tab) => {
-            tab.classList.remove("active");
-        });
-        const activeTab = document.getElementById(`tool-tab-${toolId}`);
-        if (activeTab) {
-            activeTab.classList.add("active");
-        }
-
-        // Update webview container visibility
-        document.querySelectorAll(".tool-webview-container").forEach((container) => {
-            container.classList.remove("active");
-        });
-        const activeContainer = document.getElementById(`tool-webview-${toolId}`);
-        if (activeContainer) {
-            activeContainer.classList.add("active");
-        }
+    // Update tab active states
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+        tab.classList.remove("active");
+    });
+    const activeTab = document.getElementById(`tool-tab-${toolId}`);
+    if (activeTab) {
+        activeTab.classList.add("active");
     }
 
-    // Update footer connection (no longer updating connection selector)
+    // Use IPC to switch the BrowserView in the backend
+    // The ToolWindowManager will show the appropriate BrowserView
+    window.toolboxAPI.switchToolWindow(toolId).catch((error: any) => {
+        console.error("Failed to switch tool window:", error);
+    });
+
+    // Update footer connection
     updateFooterConnection();
 }
 
@@ -746,14 +455,17 @@ function closeTool(toolId: string) {
         tab.remove();
     }
 
-    // Remove webview container
-    openTool.webviewContainer.remove();
+    // Close the tool window via IPC
+    // The ToolWindowManager will destroy the BrowserView
+    window.toolboxAPI.closeToolWindow(toolId).catch((error: any) => {
+        console.error("Failed to close tool window:", error);
+    });
 
     // Remove from open tools
     openTools.delete(toolId);
 
-    // Update split view button visibility
-    updateSplitViewButtonVisibility();
+    // Update toolbar buttons
+    updateToolbarButtonVisibility();
 
     // Save session after closing
     saveSession();
@@ -940,40 +652,6 @@ function setupKeyboardShortcuts() {
     });
 }
 
-// Connection management for tabs
-// Legacy function - no longer used since connection selector was removed from header
-// Keeping for backwards compatibility in case needed
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function updateConnectionSelector() {
-    const selector = document.getElementById("tab-connection-selector") as HTMLSelectElement;
-    if (!selector) return;
-
-    try {
-        const connections = await window.toolboxAPI.connections.getAll();
-
-        // Clear and repopulate
-        selector.innerHTML = '<option value="">No Connection</option>';
-        connections.forEach((conn: any) => {
-            const option = document.createElement("option");
-            option.value = conn.id;
-            option.textContent = `${conn.name} (${conn.environment})`;
-            selector.appendChild(option);
-        });
-
-        // Set current selection
-        if (activeToolId && openTools.has(activeToolId)) {
-            const tool = openTools.get(activeToolId);
-            if (tool && tool.connectionId) {
-                selector.value = tool.connectionId;
-            } else {
-                selector.value = "";
-            }
-        }
-    } catch (error) {
-        console.error("Failed to update connection selector:", error);
-    }
-}
-
 function setToolConnection(toolId: string, connectionId: string | null) {
     const tool = openTools.get(toolId);
     if (!tool) return;
@@ -1012,136 +690,6 @@ function showHomePage() {
         homeView.style.display = "block";
         homeView.classList.add("active");
     }
-}
-
-// Split view management
-function toggleSplitView() {
-    isSplitView = !isSplitView;
-    const wrapper = document.getElementById("tool-panel-content-wrapper");
-
-    if (!wrapper) return;
-
-    if (isSplitView) {
-        wrapper.classList.add("split-view");
-
-        // If there are at least 2 tools, show the second tool in secondary panel
-        const toolIds = Array.from(openTools.keys());
-        if (toolIds.length >= 2) {
-            // Set secondary to first non-active tool
-            const secondaryId = toolIds.find((id) => id !== activeToolId) || toolIds[0];
-            setSecondaryTool(secondaryId);
-        }
-
-        window.toolboxAPI.utils.showNotification({
-            title: "Split View Enabled",
-            body: "Click on tabs to switch between primary and secondary panel",
-            type: "success",
-        });
-    } else {
-        wrapper.classList.remove("split-view");
-        secondaryToolId = null;
-
-        // Move all tools back to primary panel
-        const primaryPanel = document.getElementById("tool-panel-content");
-        if (primaryPanel) {
-            openTools.forEach((tool) => {
-                if (tool.webviewContainer.parentElement !== primaryPanel) {
-                    primaryPanel.appendChild(tool.webviewContainer);
-                }
-            });
-        }
-    }
-
-    updateSplitViewDisplay();
-}
-
-function setSecondaryTool(toolId: string) {
-    if (!openTools.has(toolId)) return;
-
-    secondaryToolId = toolId;
-    updateSplitViewDisplay();
-}
-
-function updateSplitViewDisplay() {
-    if (!isSplitView) return;
-
-    const primaryPanel = document.getElementById("tool-panel-content");
-    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-
-    if (!primaryPanel || !secondaryPanel) return;
-
-    // Move tools to appropriate panels
-    openTools.forEach((tool, toolId) => {
-        if (toolId === activeToolId) {
-            if (tool.webviewContainer.parentElement !== primaryPanel) {
-                primaryPanel.appendChild(tool.webviewContainer);
-            }
-            tool.webviewContainer.classList.add("active");
-        } else if (toolId === secondaryToolId) {
-            if (tool.webviewContainer.parentElement !== secondaryPanel) {
-                secondaryPanel.appendChild(tool.webviewContainer);
-            }
-            tool.webviewContainer.classList.add("active");
-        } else {
-            tool.webviewContainer.classList.remove("active");
-        }
-    });
-
-    // Update tab indicators
-    document.querySelectorAll(".tool-tab").forEach((tab) => {
-        const toolId = tab.getAttribute("data-tool-id");
-        tab.classList.remove("active", "secondary-active");
-
-        if (toolId === activeToolId) {
-            tab.classList.add("active");
-        } else if (toolId === secondaryToolId) {
-            tab.classList.add("secondary-active");
-        }
-    });
-}
-
-function setupResizeHandle() {
-    const handle = document.getElementById("resize-handle");
-    const wrapper = document.getElementById("tool-panel-content-wrapper");
-    const primaryPanel = document.getElementById("tool-panel-content");
-
-    if (!handle || !wrapper || !primaryPanel) return;
-
-    let isResizing = false;
-    let startX = 0;
-    let startWidth = 0;
-
-    handle.addEventListener("mousedown", (e) => {
-        isResizing = true;
-        startX = e.clientX;
-        startWidth = primaryPanel.offsetWidth;
-        document.body.style.cursor = "col-resize";
-        e.preventDefault();
-    });
-
-    document.addEventListener("mousemove", (e) => {
-        if (!isResizing) return;
-
-        const diff = e.clientX - startX;
-        const newWidth = startWidth + diff;
-        const wrapperWidth = wrapper.offsetWidth;
-        const percentage = (newWidth / wrapperWidth) * 100;
-
-        if (percentage >= 20 && percentage <= 80) {
-            primaryPanel.style.flex = `0 0 ${percentage}%`;
-            const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-            if (secondaryPanel) {
-                secondaryPanel.style.flex = `0 0 ${100 - percentage}%`;
-            }
-        }
-    });
-
-    document.addEventListener("mouseup", () => {
-        if (isResizing) {
-            isResizing = false;
-            document.body.style.cursor = "";
-        }
-    });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1667,28 +1215,6 @@ async function deleteConnection(id: string) {
 }
 
 // Settings Management
-// Legacy loadSettings function - kept for backwards compatibility if full settings view is needed
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function loadSettings() {
-    const settings = await window.toolboxAPI.getUserSettings();
-
-    const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
-    const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
-
-    if (themeSelect) themeSelect.value = settings.theme;
-    if (autoUpdateCheck) autoUpdateCheck.checked = settings.autoUpdate;
-
-    // Load app version
-    const version = await window.toolboxAPI.getAppVersion();
-    const versionElement = document.getElementById("app-version");
-    if (versionElement) {
-        versionElement.textContent = version;
-    }
-
-    // Apply current theme
-    applyTheme(settings.theme);
-}
-
 function applyTheme(theme: string) {
     const body = document.body;
 
@@ -1785,15 +1311,17 @@ async function saveSettings() {
     const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
     const autoUpdateCheck = document.getElementById("auto-update-check") as HTMLInputElement;
 
-    const settings = {
-        theme: themeSelect.value,
+    const settings: Partial<import("../common/types").UserSettings> = {
+        theme: themeSelect.value as import("../common/types").Theme,
         autoUpdate: autoUpdateCheck.checked,
     };
 
     await window.toolboxAPI.updateUserSettings(settings);
 
     // Apply theme immediately
-    applyTheme(settings.theme);
+    if (settings.theme) {
+        applyTheme(settings.theme);
+    }
 
     await window.toolboxAPI.utils.showNotification({
         title: "Settings Saved",
@@ -2102,10 +1630,10 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
             }
 
             return `
-        <div class="tool-item-vscode" data-tool-id="${tool.id}">
-            <div class="tool-item-header-vscode">
-                <span class="tool-item-icon-vscode">${toolIconHtml}</span>
-                <div class="tool-item-name-vscode">
+        <div class="tool-item-pptb" data-tool-id="${tool.id}">
+            <div class="tool-item-header-pptb">
+                <span class="tool-item-icon-pptb">${toolIconHtml}</span>
+                <div class="tool-item-name-pptb">
                     ${tool.name}
                     ${tool.hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                 </div>
@@ -2113,11 +1641,11 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
                     <img src="${starIconPath}" alt="${tool.isFavorite ? "Favorited" : "Not favorite"}" />
                 </button>
             </div>
-            <div class="tool-item-description-vscode">${tool.description}</div>
-            <div class="tool-item-version-vscode">
+            <div class="tool-item-description-pptb">${tool.description}</div>
+            <div class="tool-item-version-pptb">
                 v${tool.version}${tool.hasUpdate ? ` → v${tool.latestVersion}` : ""}
             </div>
-            <div class="tool-item-actions-vscode">
+            <div class="tool-item-actions-pptb">
                 ${tool.hasUpdate ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${tool.latestVersion}">Update</button>` : ""}
                 <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
@@ -2130,7 +1658,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         .join("");
 
     // Add event listeners
-    toolsList.querySelectorAll(".tool-item-vscode").forEach((item) => {
+    toolsList.querySelectorAll(".tool-item-pptb").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             if (target.tagName === "BUTTON") return; // Button click will handle
@@ -2142,7 +1670,7 @@ function renderSidebarTools(tools: any[], searchTerm: string) {
         });
     });
 
-    toolsList.querySelectorAll(".tool-item-actions-vscode button, .tool-favorite-btn").forEach((button) => {
+    toolsList.querySelectorAll(".tool-item-actions-pptb button, .tool-favorite-btn").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation();
             const target = e.target as HTMLElement;
@@ -2287,13 +1815,13 @@ async function loadSidebarConnections() {
                 const warningIcon = isExpired ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>` : "";
 
                 return `
-                <div class="connection-item-vscode ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
-                    <div class="connection-item-header-vscode">
-                        <div class="connection-item-name-vscode">${conn.name}${warningIcon}</div>
+                <div class="connection-item-pptb ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
+                    <div class="connection-item-header-pptb">
+                        <div class="connection-item-name-pptb">${conn.name}${warningIcon}</div>
                         <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
-                    <div class="connection-item-url-vscode">${conn.url}</div>
-                    <div class="connection-item-actions-vscode" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-actions-pptb" style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             ${
                                 conn.isActive
@@ -2418,23 +1946,23 @@ async function loadMarketplace() {
             }
 
             return `
-        <div class="marketplace-item-vscode ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
-            <div class="marketplace-item-header-vscode">
-                <span class="marketplace-item-icon-vscode">${toolIconHtml}</span>
-                <div class="marketplace-item-info-vscode">
-                    <div class="marketplace-item-name-vscode">
+        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
+            <div class="marketplace-item-header-pptb">
+                <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
+                <div class="marketplace-item-info-pptb">
+                    <div class="marketplace-item-name-pptb">
                         ${tool.name}
                     </div>
-                    <div class="marketplace-item-author-vscode">by ${tool.author}</div>
+                    <div class="marketplace-item-author-pptb">by ${tool.author}</div>
                 </div>
             </div>
-            <div class="marketplace-item-description-vscode">${tool.description}</div>
-            <div class="marketplace-item-footer-vscode">
+            <div class="marketplace-item-description-pptb">${tool.description}</div>
+            <div class="marketplace-item-footer-pptb">
                 <div class="marketplace-item-tags">
-                    <span class="marketplace-item-category-vscode">${tool.category}</span>
+                    <span class="marketplace-item-category-pptb">${tool.category}</span>
                     ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
                 </div>
-                <div class="marketplace-item-actions-vscode">
+                <div class="marketplace-item-actions-pptb">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
             </div>
@@ -2444,7 +1972,7 @@ async function loadMarketplace() {
         .join("");
 
     // Add click handlers for marketplace items to open detail view
-    marketplaceList.querySelectorAll(".marketplace-item-vscode").forEach((item) => {
+    marketplaceList.querySelectorAll(".marketplace-item-pptb").forEach((item) => {
         item.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
             // Don't open detail if clicking a button
@@ -2462,7 +1990,7 @@ async function loadMarketplace() {
     });
 
     // Add event listeners for install and update buttons
-    marketplaceList.querySelectorAll(".marketplace-item-actions-vscode button").forEach((button) => {
+    marketplaceList.querySelectorAll(".marketplace-item-actions-pptb button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
             const target = e.target as HTMLButtonElement;
@@ -2799,9 +2327,13 @@ function setupTerminalPanel() {
             if (isVisible) {
                 terminalPanel.style.display = "none";
                 if (resizeHandle) resizeHandle.style.display = "none";
+                // Notify main process to adjust BrowserView bounds for full height
+                window.api.send("terminal-visibility-changed", false);
             } else {
                 terminalPanel.style.display = "flex";
                 if (resizeHandle) resizeHandle.style.display = "block";
+                // Notify main process to adjust BrowserView bounds for terminal
+                window.api.send("terminal-visibility-changed", true);
             }
         });
     }
@@ -2810,6 +2342,8 @@ function setupTerminalPanel() {
         terminalPanelClose.addEventListener("click", () => {
             terminalPanel.style.display = "none";
             if (resizeHandle) resizeHandle.style.display = "none";
+            // Notify main process to adjust BrowserView bounds for full height
+            window.api.send("terminal-visibility-changed", false);
         });
     }
 
@@ -2916,6 +2450,20 @@ function createTerminalTab(terminal: any) {
 
     terminalPanelContent.appendChild(outputContainer);
 
+    // Apply terminal font from settings
+    window.toolboxAPI
+        .getUserSettings()
+        .then((settings: any) => {
+            if (settings && settings.terminalFont) {
+                const fontFamily =
+                    settings.terminalFont === "custom" && settings.terminalFontCustom ? settings.terminalFontCustom : settings.terminalFont || "'Cascadia Code', 'Consolas', 'Courier New', monospace";
+                outputContent.style.fontFamily = fontFamily;
+            }
+        })
+        .catch((error: Error) => {
+            console.error("Failed to apply terminal font:", error);
+        });
+
     // Store terminal tab
     openTerminals.set(terminal.id, {
         id: terminal.id,
@@ -3006,6 +2554,9 @@ function showTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "block";
     }
+
+    // Notify main process to adjust BrowserView bounds for terminal
+    window.api.send("terminal-visibility-changed", true);
 }
 
 // Hide terminal panel
@@ -3019,6 +2570,9 @@ function hideTerminalPanel() {
     if (resizeHandle) {
         resizeHandle.style.display = "none";
     }
+
+    // Notify main process to adjust BrowserView bounds for full height
+    window.api.send("terminal-visibility-changed", false);
 }
 
 // Initialize the application
@@ -3034,9 +2588,6 @@ async function init() {
         });
     });
 
-    // Remove old sidebar toggle logic
-    // (keeping for backwards compatibility in case needed)
-
     // Tool panel close all button
     const closeAllToolsBtn = document.getElementById("close-all-tools");
     if (closeAllToolsBtn) {
@@ -3048,16 +2599,7 @@ async function init() {
     // Remove connection selector logic (no longer using it in header)
     // Connection will be selected when tool is launched
 
-    // Split view button
-    const splitViewBtn = document.getElementById("split-view-btn");
-    if (splitViewBtn) {
-        splitViewBtn.addEventListener("click", () => {
-            toggleSplitView();
-        });
-    }
-
-    // Set up resize handle
-    setupResizeHandle();
+    // Split view has been removed (not compatible with BrowserView architecture)
 
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
@@ -3482,9 +3024,6 @@ async function init() {
     await loadSidebarTools();
     await loadMarketplace();
 
-    // Load initial data - tools view is deprecated, no need to load
-    // await loadTools();
-
     // Update footer connection info
     await updateFooterConnection();
 
@@ -3521,43 +3060,21 @@ async function init() {
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
         console.log("Token expired for connection:", data);
 
-        // Show warning notification with re-authenticate button
-        const toastHtml = `
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div><strong>Connection Token Expired</strong></div>
-                <div>Your connection to "${data.connectionName}" has expired.</div>
-                <button id="reauth-btn-${data.connectionId}" 
-                        style="padding: 4px 12px; 
-                               background: #0078d4; 
-                               color: white; 
-                               border: none; 
-                               border-radius: 2px; 
-                               cursor: pointer;
-                               font-size: 12px;
-                               margin-top: 4px;">
-                    Re-authenticate
-                </button>
-            </div>
-        `;
-
-        const toast = toastr.warning(toastHtml, "", {
-            timeOut: 30000, // Auto-dismiss after 30 seconds
-            extendedTimeOut: 10000, // Extra 10 seconds if user hovers
-            closeButton: true,
-            tapToDismiss: false,
-            escapeHtml: false,
+        // Show warning notification with re-authenticate button using PPTB notification system
+        showPPTBNotification({
+            title: "Connection Token Expired",
+            body: `Your connection to "${data.connectionName}" has expired.`,
+            type: "warning",
+            duration: 30000, // Auto-dismiss after 30 seconds
+            actions: [
+                {
+                    label: "Re-authenticate",
+                    callback: async () => {
+                        await handleReauthentication(data.connectionId);
+                    },
+                },
+            ],
         });
-
-        // Add click handler for re-authenticate button
-        setTimeout(() => {
-            const reauthBtn = document.getElementById(`reauth-btn-${data.connectionId}`);
-            if (reauthBtn) {
-                reauthBtn.addEventListener("click", async () => {
-                    toast.remove();
-                    await handleReauthentication(data.connectionId);
-                });
-            }
-        }, 100);
 
         // Reload connections to update UI with expired status
         await loadSidebarConnections();
@@ -3565,7 +3082,8 @@ async function init() {
     });
 
     // Set up loading screen listeners from main process
-    window.api.on("show-loading-screen", (_event, message: string) => {
+    window.api.on("show-loading-screen", (...args: unknown[]) => {
+        const message = args[1] as string;
         const loadingScreen = document.getElementById("loading-screen");
         const loadingMessage = document.getElementById("loading-message");
         if (loadingScreen && loadingMessage) {
@@ -3589,48 +3107,20 @@ async function init() {
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
 
-        // Forward all events to tool iframes
-        openTools.forEach((openTool) => {
-            if (openTool.webview && openTool.webview.contentWindow) {
-                try {
-                    openTool.webview.contentWindow.postMessage(
-                        {
-                            type: "TOOLBOX_EVENT",
-                            payload: payload,
-                        },
-                        "*",
-                    );
-                } catch (error) {
-                    console.error("Error forwarding event to tool iframe:", error);
-                }
-            }
-        });
+        // NOTE: With BrowserView, events are forwarded to tools via IPC through the toolPreloadBridge
+        // No need to forward via postMessage as tools are in separate renderer processes
+        // The backend ToolWindowManager handles event forwarding to BrowserView instances
 
-        // Handle notifications using toastr
+        // Handle notifications using PPTB notification system
         if (payload.event === "notification:shown") {
             const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
-            const message = notificationData.body;
-            const title = notificationData.title;
-            const options = {
-                timeOut: notificationData.duration || 5000,
-            };
 
-            // Show notification based on type
-            switch (notificationData.type) {
-                case "success":
-                    toastr.success(message, title, options);
-                    break;
-                case "error":
-                    toastr.error(message, title, options);
-                    break;
-                case "warning":
-                    toastr.warning(message, title, options);
-                    break;
-                case "info":
-                default:
-                    toastr.info(message, title, options);
-                    break;
-            }
+            showPPTBNotification({
+                title: notificationData.title,
+                body: notificationData.body,
+                type: notificationData.type || "info",
+                duration: notificationData.duration || 5000,
+            });
         }
 
         // Reload connections when connection events occur
@@ -3657,6 +3147,29 @@ async function init() {
             handleTerminalCommandCompleted(payload.data);
         } else if (payload.event === "terminal:error") {
             handleTerminalError(payload.data);
+        }
+    });
+
+    // Handle request for tool panel bounds (for BrowserView positioning)
+    window.api.on("get-tool-panel-bounds-request", () => {
+        const toolPanelContent = document.getElementById("tool-panel-content");
+
+        if (toolPanelContent) {
+            const rect = toolPanelContent.getBoundingClientRect();
+
+            // The tool-panel-content is inside tool-panel-content-wrapper which uses flex:1
+            // When terminal is visible, the wrapper automatically shrinks to accommodate it
+            // So we can use the actual bounds of tool-panel-content directly
+            const bounds = {
+                x: Math.round(rect.left),
+                y: Math.round(rect.top),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+            };
+            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            window.api.send("get-tool-panel-bounds-response", bounds);
+        } else {
+            console.warn("[Renderer] Tool panel content element not found");
         }
     });
 

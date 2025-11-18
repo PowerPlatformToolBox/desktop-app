@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { DataverseConnection } from '../../types';
+import { DataverseConnection } from '../../common/types';
 import { EncryptionManager } from './encryptionManager';
 
 /**

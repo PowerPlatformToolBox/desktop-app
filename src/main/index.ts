@@ -1,21 +1,27 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { ToolBoxAPI } from "../api/toolboxAPI";
-import { ToolBoxEvent } from "../types";
+import { ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
+import { ToolWindowManager } from "./managers/toolWindowManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
-    private api: ToolBoxAPI;
+    private browserviewProtocolManager: BrowserviewProtocolManager;
+    private toolWindowManager: ToolWindowManager | null = null;
+    private notificationWindowManager: NotificationWindowManager | null = null;
+    private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
@@ -26,8 +32,9 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxAPI();
+        this.api = new ToolBoxUtilityManager();
         this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
@@ -68,8 +75,13 @@ class ToolBoxApp {
 
         eventTypes.forEach((eventType) => {
             this.api.on(eventType, (payload) => {
+                // Forward to main renderer window
                 if (this.mainWindow) {
                     this.mainWindow.webContents.send("toolbox-event", payload);
+                }
+                // Forward to all tool windows
+                if (this.toolWindowManager) {
+                    this.toolWindowManager.forwardEventToTools(payload);
                 }
             });
         });
@@ -399,6 +411,28 @@ class ToolBoxApp {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
+        // CSP consent handlers
+        ipcMain.handle("has-csp-consent", (_, toolId) => {
+            return this.settingsManager.hasCspConsent(toolId);
+        });
+
+        ipcMain.handle("grant-csp-consent", (_, toolId) => {
+            this.settingsManager.grantCspConsent(toolId);
+        });
+
+        ipcMain.handle("revoke-csp-consent", (_, toolId) => {
+            this.settingsManager.revokeCspConsent(toolId);
+        });
+
+        ipcMain.handle("get-csp-consents", () => {
+            return this.settingsManager.getCspConsents();
+        });
+
+        // Webview protocol handler
+        ipcMain.handle("get-tool-webview-url", (_, toolId) => {
+            return this.browserviewProtocolManager.buildToolUrl(toolId);
+        });
+
         // Notification handler
         ipcMain.handle("show-notification", (_, options) => {
             this.api.showNotification(options);
@@ -673,15 +707,6 @@ class ToolBoxApp {
                 submenu: [
                     { role: "reload" },
                     { role: "forceReload" },
-                    {
-                        label: "Toggle Developer Tools",
-                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
-                        click: () => {
-                            if (this.mainWindow) {
-                                this.mainWindow.webContents.toggleDevTools();
-                            }
-                        },
-                    },
                     { type: "separator" },
                     {
                         label: "Show Home Page",
@@ -725,7 +750,26 @@ class ToolBoxApp {
                     },
                     { type: "separator" },
                     {
-                        label: "Toggle Developer Tools",
+                        label: "Toggle Tool DevTools",
+                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                        click: () => {
+                            if (this.toolWindowManager) {
+                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                if (!opened) {
+                                    // Show notification if no active tool
+                                    dialog.showMessageBox(this.mainWindow!, {
+                                        type: "info",
+                                        title: "No Active Tool",
+                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                        buttons: ["OK"],
+                                    });
+                                }
+                            }
+                        },
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
                         click: () => {
                             if (this.mainWindow) {
@@ -801,6 +845,10 @@ class ToolBoxApp {
     }
 
     /**
+     * Register custom pptb-webview protocol for loading tool content
+     * This provides isolation and CSP control for tool execution
+     */
+    /**
      * Create the main application window
      */
     private createWindow(): void {
@@ -811,11 +859,17 @@ class ToolBoxApp {
                 nodeIntegration: false,
                 contextIsolation: true,
                 preload: path.join(__dirname, "preload.js"),
-                webviewTag: true, // Enable webview tag
+                // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform Tool Box",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
+
+        // Initialize ToolWindowManager for managing tool BrowserViews
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager);
+
+        // Initialize NotificationWindowManager for overlay notifications
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -832,6 +886,11 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            // Cleanup tool windows
+            if (this.toolWindowManager) {
+                this.toolWindowManager.destroy();
+                this.toolWindowManager = null;
+            }
             this.mainWindow = null;
         });
     }
@@ -845,7 +904,14 @@ class ToolBoxApp {
             app.setAppUserModelId("com.powerplatform.toolbox");
         }
 
+        // Register custom protocol scheme before app is ready
+        this.browserviewProtocolManager.registerScheme();
+
         await app.whenReady();
+
+        // Register protocol handler after app is ready
+        this.browserviewProtocolManager.registerHandler();
+
         this.createWindow();
 
         // Load all installed tools from registry

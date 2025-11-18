@@ -5,14 +5,14 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com https://*.crm.dynamics.com"
+            content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com https://*.crm.dynamics.com; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform Tool Box</title>
         <link rel="stylesheet" href="styles.scss" />
     </head>
     <body>
         <div class="app-container">
-            <!-- Activity Bar (VSCode-like narrow sidebar) -->
+            <!-- Activity Bar (PPTB-style narrow sidebar) -->
             <aside class="activity-bar" id="activity-bar">
                 <div class="activity-bar-header">
                     <div class="app-icon" title="Power Platform Tool Box">
@@ -51,7 +51,7 @@
                         <input type="text" id="tools-search-input" class="fluent-input" placeholder="Search installed tools..." />
                     </div>
                     <div class="sidebar-body">
-                        <div class="tools-list-vscode" id="sidebar-tools-list">
+                        <div class="tools-list-pptb" id="sidebar-tools-list">
                             <!-- Tools will be populated here -->
                         </div>
                     </div>
@@ -79,7 +79,7 @@
                         <input type="text" id="marketplace-search-input" class="fluent-input" placeholder="Search tools..." />
                     </div>
                     <div class="sidebar-body">
-                        <div class="marketplace-tools-list-vscode" id="marketplace-tools-list">
+                        <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
                             <!-- Marketplace tools will be populated here -->
                         </div>
                     </div>
@@ -201,22 +201,12 @@
                             <!-- Tabs will be dynamically added here -->
                         </div>
                         <div class="tool-panel-controls">
-                            <button class="btn-icon" id="split-view-btn" title="Toggle split view" style="display: none">
-                                <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                    <path d="M8 1H1v14h7V1zM7 14H2V2h5v12z" />
-                                    <path d="M9 1h7v14H9V1zm1 1v12h5V2h-5z" />
-                                </svg>
-                            </button>
                             <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
                         </div>
                     </div>
                     <div class="tool-panel-content-wrapper" id="tool-panel-content-wrapper">
                         <div class="tool-panel-content" id="tool-panel-content">
-                            <!-- Tool webviews will be dynamically added here -->
-                        </div>
-                        <div class="resize-handle" id="resize-handle" style="display: none"></div>
-                        <div class="tool-panel-content secondary" id="tool-panel-content-secondary" style="display: none">
-                            <!-- Secondary panel for split view -->
+                            <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
                         </div>
                     </div>
                     <!-- Terminal Panel -->
@@ -238,7 +228,7 @@
                         </div>
                     </div>
                     <div class="terminal-resize-handle" id="terminal-resize-handle" style="display: none"></div>
-                    <div class="tool-panel-footer" id="tool-panel-footer">
+                    <!-- <div class="tool-panel-footer" id="tool-panel-footer">
                         <div class="footer-connection-info" id="footer-connection-info">
                             <span class="footer-label">Connection:</span>
                             <span class="footer-value" id="footer-connection-name">Not Connected</span>
@@ -251,7 +241,7 @@
                             </svg>
                             Terminal
                         </button>
-                    </div>
+                    </div> -->
                 </div>
 
                 <!-- Home/Welcome View -->
@@ -601,6 +591,9 @@
             <div class="loading-spinner"></div>
             <div id="loading-message" class="loading-message">Loading...</div>
         </div>
+
+        <!-- VS Code-style Notification Container -->
+        <div id="notification-container" class="notification-container"></div>
 
         <script type="module" src="renderer.ts"></script>
     </body>
