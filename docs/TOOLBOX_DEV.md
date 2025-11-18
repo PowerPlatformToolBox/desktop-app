@@ -1,12 +1,13 @@
 # Getting Started with ToolBox development
 
--   [Getting Started with ToolBox development](#getting-started-with-toolbox-development)
-    -   [Prerequisites](#prerequisites)
-    -   [Development Setup](#development-setup)
-    -   [Linting](#linting)
-    -   [Packaging](#packaging)
-    -   [Troubleshooting](#troubleshooting)
-        -   [Electron won't start](#electron-wont-start)
+- [Getting Started with ToolBox development](#getting-started-with-toolbox-development)
+  - [Prerequisites](#prerequisites)
+  - [Development Setup](#development-setup)
+  - [Linting](#linting)
+  - [Packaging](#packaging)
+  - [Folder Organization](#folder-organization)
+  - [Troubleshooting](#troubleshooting)
+    - [Electron won't start](#electron-wont-start)
 
 ## Prerequisites
 
@@ -83,6 +84,69 @@ pnpm run package
 ```
 
 This will create installers for your platform in the `build/` directory.
+
+## Folder Organization
+
+```
+src/
+├── common/                          # Shared code between main and renderer
+│   └── types/                       # Type definitions (shared)
+│       ├── api.ts                   # API type interfaces
+│       ├── common.ts                # Common types (CspExceptions, Theme, etc.)
+│       ├── connection.ts            # Connection types + type guards
+│       ├── dataverse.ts             # Dataverse API types
+│       ├── events.ts                # Event types and enums
+│       ├── index.ts                 # Re-exports all types
+│       ├── settings.ts              # Settings types
+│       ├── terminal.ts              # Terminal types + type guards
+│       └── tool.ts                  # Tool types + type guards
+│
+├── main/                            # Main process code only
+│   ├── constants.ts                 # Application constants
+│   ├── index.ts                     # Main entry point
+│   ├── preload.ts                   # Preload script for main window
+│   ├── toolPreloadBridge.ts         # Preload bridge for tool windows
+│   │
+│   ├── ipc/                         # IPC infrastructure
+│   │   ├── channels.ts              # Channel name constants (155+ channels)
+│   │   └── utilities.ts             # IPC handler utilities
+│   │
+│   ├── managers/                    # Business logic managers
+│   │   ├── authManager.ts           # Authentication
+│   │   ├── autoUpdateManager.ts     # Auto-updates
+│   │   ├── browserviewProtocolManager.ts  # Custom protocol (renamed)
+│   │   ├── connectionsManager.ts    # Connection management
+│   │   ├── dataverseManager.ts      # Dataverse operations
+│   │   ├── encryptionManager.ts     # Encryption utilities
+│   │   ├── notificationWindowManager.ts  # Notifications
+│   │   ├── settingsManager.ts       # Settings persistence
+│   │   ├── terminalManager.ts       # Terminal management
+│   │   ├── toolboxUtilityManager.ts # Utility manager
+│   │   ├── toolRegistryManager.ts   # Tool registry
+│   │   ├── toolsManager.ts          # Tool lifecycle
+│   │   └── toolWindowManager.ts     # Tool window management
+│   │
+│   └── utilities/                   # Utility functions
+│       ├── clipboard.ts             # Clipboard operations
+│       ├── filesystem.ts            # File operations
+│       ├── theme.ts                 # Theme utilities
+│       └── index.ts                 # Re-exports
+│
+└── renderer/                        # Renderer process code only
+    ├── index.html                   # Main UI HTML
+    ├── renderer.ts                  # UI logic (uses -pptb CSS classes)
+    ├── types.d.ts                   # Renderer-specific type extensions
+    ├── styles.scss                  # Main styles (uses -pptb CSS classes)
+    │
+    ├── icons/                       # UI icons
+    │   ├── dark/                    # Dark theme icons
+    │   └── light/                   # Light theme icons
+    │
+    └── styles/                      # Style modules
+        ├── _mixins.scss             # SCSS mixins
+        ├── _variables.scss          # SCSS variables
+        └── README.md                # Styles documentation
+```
 
 ## Troubleshooting
 
