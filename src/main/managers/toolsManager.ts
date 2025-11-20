@@ -371,8 +371,8 @@ export class ToolManager extends EventEmitter {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
-            description: packageJson.description || "Npm-installed tool",
-            author: packageJson.author || "Unknown",
+            description: packageJson.description || "Tool installed from npm",
+            author: packageJson.author || "Unknown author",
             icon: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
