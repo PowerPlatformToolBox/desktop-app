@@ -15,8 +15,9 @@ export const DebugSidebar: React.FC = () => {
                     <div className="debug-section" style={{ marginBottom: "24px" }}>
                         <h3 style={{ fontSize: "13px", marginBottom: "8px" }}>Load Local Tool</h3>
                         <p style={{ fontSize: "11px", opacity: 0.7, marginBottom: "12px" }}>Load a tool directly from your local file system for development and testing.</p>
-                        <Button appearance="primary" size="small">
-                            Browse
+                        {/* TODO: Implement local tool browsing - Call window.toolboxAPI.openDirectoryPicker() */}
+                        <Button appearance="primary" size="small" disabled>
+                            Browse (Coming Soon)
                         </Button>
                     </div>
 
@@ -30,8 +31,9 @@ export const DebugSidebar: React.FC = () => {
                             onChange={(e, data) => setPackageName(data.value)}
                             style={{ width: "100%", marginBottom: "8px" }}
                         />
-                        <Button appearance="primary" size="small">
-                            Install Package
+                        {/* TODO: Implement package installation - Call window.toolboxAPI.installTool(packageName) */}
+                        <Button appearance="primary" size="small" disabled>
+                            Install Package (Coming Soon)
                         </Button>
                     </div>
                 </div>

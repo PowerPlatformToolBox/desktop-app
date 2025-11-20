@@ -4,13 +4,19 @@ import { useConnectionsContext } from "../../../contexts/ConnectionsContext";
 
 export const ConnectionsSidebar: React.FC = () => {
     const { connections } = useConnectionsContext();
-    const [showAddModal, setShowAddModal] = useState(false);
+    // TODO: Implement AddConnectionModal component
+    // const [showAddModal, setShowAddModal] = useState(false);
+
+    const handleAddConnection = () => {
+        // TODO: Show AddConnectionModal
+        console.log("Add connection modal not yet implemented");
+    };
 
     return (
         <div className="sidebar-content">
             <div className="sidebar-header">
                 <h2 className="sidebar-title">CONNECTIONS</h2>
-                <Button appearance="primary" size="small" onClick={() => setShowAddModal(true)}>
+                <Button appearance="primary" size="small" onClick={handleAddConnection}>
                     + Add
                 </Button>
             </div>

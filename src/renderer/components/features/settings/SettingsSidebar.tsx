@@ -1,9 +1,37 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Dropdown, Option, Checkbox } from "@fluentui/react-components";
 import { useAppContext } from "../../../contexts/AppContext";
 
 export const SettingsSidebar: React.FC = () => {
     const { theme, setTheme } = useAppContext();
+    const [autoUpdate, setAutoUpdate] = useState(false);
+
+    // Load auto-update setting on mount
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const autoUpdateSetting = await window.api.invoke("settings:get", "autoUpdate");
+                if (typeof autoUpdateSetting === "boolean") {
+                    setAutoUpdate(autoUpdateSetting);
+                }
+            } catch (error) {
+                console.error("Failed to load auto-update setting:", error);
+            }
+        };
+        loadSettings();
+    }, []);
+
+    const handleSaveSettings = async () => {
+        try {
+            await window.api.invoke("settings:set", "theme", theme);
+            await window.api.invoke("settings:set", "autoUpdate", autoUpdate);
+            // TODO: Show success notification
+            console.log("Settings saved successfully");
+        } catch (error) {
+            console.error("Failed to save settings:", error);
+            // TODO: Show error notification
+        }
+    };
 
     return (
         <div className="sidebar-content">
@@ -25,13 +53,13 @@ export const SettingsSidebar: React.FC = () => {
                     <div className="setting-group" style={{ marginBottom: "20px" }}>
                         <label style={{ display: "block", fontSize: "12px", marginBottom: "8px", fontWeight: 600 }}>Auto Update</label>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <Checkbox />
+                            <Checkbox checked={autoUpdate} onChange={(_, data) => setAutoUpdate(data.checked === true)} />
                             <span style={{ fontSize: "11px" }}>Automatically check for updates</span>
                         </div>
                     </div>
 
                     <div className="setting-group">
-                        <Button appearance="primary" size="small">
+                        <Button appearance="primary" size="small" onClick={handleSaveSettings}>
                             Save Settings
                         </Button>
                     </div>
