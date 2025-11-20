@@ -1,7 +1,9 @@
-import React from "react";
-import { Button } from "@fluentui/react-components";
+import React, { useState } from "react";
+import { Button, Input } from "@fluentui/react-components";
 
 export const DebugSidebar: React.FC = () => {
+    const [packageName, setPackageName] = useState("");
+
     return (
         <div className="sidebar-content">
             <div className="sidebar-header">
@@ -21,7 +23,13 @@ export const DebugSidebar: React.FC = () => {
                     <div className="debug-section">
                         <h3 style={{ fontSize: "13px", marginBottom: "8px" }}>Install Tool by Package Name</h3>
                         <p style={{ fontSize: "11px", opacity: 0.7, marginBottom: "12px" }}>Enter an npm package name to install a custom tool.</p>
-                        <input type="text" placeholder="e.g., @powerplatform/tool-example" style={{ width: "100%", padding: "6px", marginBottom: "8px" }} />
+                        <Input
+                            type="text"
+                            placeholder="e.g., @powerplatform/tool-example"
+                            value={packageName}
+                            onChange={(e, data) => setPackageName(data.value)}
+                            style={{ width: "100%", marginBottom: "8px" }}
+                        />
                         <Button appearance="primary" size="small">
                             Install Package
                         </Button>

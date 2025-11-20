@@ -94,8 +94,11 @@ export const ToolsProvider: React.FC<ToolsProviderProps> = ({ children }) => {
 
             // Check if tool requires CSP exceptions
             if (tool.cspExceptions && Object.keys(tool.cspExceptions).length > 0) {
-                // TODO: Show CSP consent dialog
-                // For now, proceed with launch
+                // TODO: SECURITY - Implement CSP consent dialog before production
+                // This dialog should show users what external resources the tool needs access to
+                // and require explicit user consent. See showCspConsentDialog in old renderer.ts
+                // for reference implementation.
+                console.warn("Tool requires CSP exceptions but consent dialog not yet implemented:", tool.cspExceptions);
             }
 
             // Launch the tool

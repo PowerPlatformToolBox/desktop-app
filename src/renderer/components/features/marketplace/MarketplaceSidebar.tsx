@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Input } from "@fluentui/react-components";
 import { useToolsContext } from "../../../contexts/ToolsContext";
 
 export const MarketplaceSidebar: React.FC = () => {
@@ -12,7 +13,7 @@ export const MarketplaceSidebar: React.FC = () => {
             </div>
 
             <div className="sidebar-search">
-                <input type="text" className="fluent-input" placeholder="Search tools..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Input type="text" placeholder="Search tools..." value={searchQuery} onChange={(e, data) => setSearchQuery(data.value)} />
             </div>
 
             <div className="sidebar-body">

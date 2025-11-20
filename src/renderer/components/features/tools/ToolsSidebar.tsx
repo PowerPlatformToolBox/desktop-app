@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Button } from "@fluentui/react-components";
+import { Input } from "@fluentui/react-components";
 import { useToolsContext } from "../../../contexts/ToolsContext";
 import { ToolCard } from "./ToolCard";
 import "./ToolsSidebar.scss";
@@ -34,7 +34,7 @@ export const ToolsSidebar: React.FC = () => {
             </div>
 
             <div className="sidebar-search">
-                <input type="text" className="fluent-input" placeholder="Search installed tools..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <Input type="text" placeholder="Search installed tools..." value={searchQuery} onChange={(e, data) => setSearchQuery(data.value)} />
             </div>
 
             <div className="sidebar-body">
