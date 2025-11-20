@@ -2839,7 +2839,7 @@ async function init() {
     if (sponsorBtn) {
         sponsorBtn.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/sponsors/PowerPlatform-ToolBox");
+            window.toolboxAPI.openExternal("https://github.com/sponsors/PowerPlatformToolBox");
         });
     }
 
@@ -2847,7 +2847,7 @@ async function init() {
     if (githubBtn) {
         githubBtn.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
         });
     }
 
@@ -2856,7 +2856,7 @@ async function init() {
     if (fontHelpLink) {
         fontHelpLink.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration");
         });
     }
 
@@ -2864,7 +2864,7 @@ async function init() {
     if (bugsFeaturesBtn) {
         bugsFeaturesBtn.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/issues");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/issues");
         });
     }
 
@@ -2881,7 +2881,7 @@ async function init() {
     if (docsLink) {
         docsLink.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/README.md");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/blob/main/README.md");
         });
     }
 
@@ -2897,7 +2897,7 @@ async function init() {
     if (architectureLink) {
         architectureLink.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/docs/ARCHITECTURE.md");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/ARCHITECTURE.md");
         });
     }
 
@@ -2905,7 +2905,7 @@ async function init() {
     if (contributingLink) {
         contributingLink.addEventListener("click", (e) => {
             e.preventDefault();
-            window.toolboxAPI.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app/blob/main/CONTRIBUTING.md");
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CONTRIBUTING.md");
         });
     }
 

@@ -19,7 +19,7 @@
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/PowerPlatform-ToolBox/desktop-app.git
+git clone https://github.com/PowerPlatformToolBox/desktop-app.git
 cd desktop-app
 ```
 

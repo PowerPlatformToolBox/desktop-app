@@ -16,7 +16,7 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PowerPlatform-ToolBox/desktop-app.git",
+    "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
     "directory": "packages"
   }
 }

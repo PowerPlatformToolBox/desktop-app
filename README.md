@@ -228,7 +228,7 @@ The application supports automatic updates to keep your ToolBox up to date:
 
 ## Discussions
 
-If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatform-ToolBox/desktop-app/discussions).
+If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatformToolBox/desktop-app/discussions).
 
 ## License
 

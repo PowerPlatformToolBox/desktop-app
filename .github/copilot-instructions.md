@@ -174,7 +174,7 @@ src/
 Defined in `package.json` under `"build"`:
 
 -   **appId**: `com.powerplatform.toolbox`
--   **Publish**: GitHub releases (owner: PowerPlatform-ToolBox)
+-   **Publish**: GitHub releases (owner: PowerPlatformToolBox)
 -   **Output**: `build/` directory
 -   **Targets**: Windows NSIS, macOS DMG, Linux AppImage
 
