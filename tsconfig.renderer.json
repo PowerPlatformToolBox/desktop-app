@@ -1,10 +1,12 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "lib": ["ES2022", "DOM"],
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "types": ["node"],
         "module": "ES2022",
-        "moduleResolution": "bundler"
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "skipLibCheck": true
     },
     "include": ["src/renderer/**/*"],
     "exclude": ["node_modules", "dist", "build"]
