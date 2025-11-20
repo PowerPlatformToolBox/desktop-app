@@ -16,6 +16,7 @@ export interface Tool {
     icon?: string;
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
+    npmPackageName?: string; // For npm-installed tools - package name in node_modules
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
 }
 

@@ -336,8 +336,10 @@ class ToolBoxApp {
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle("install-tool", async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);
-            // For debug mode, we don't load from manifest since it's npm-based
+            // Load the npm tool after installation
+            const tool = await this.toolManager.loadNpmTool(packageName);
             this.settingsManager.addInstalledTool(packageName);
+            return tool;
         });
 
         ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {

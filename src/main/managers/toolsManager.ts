@@ -320,6 +320,72 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Load an npm-installed tool from node_modules (DEBUG MODE ONLY)
+     * This is called after installToolForDebug to register the tool in the tools map
+     * @param packageName - npm package name
+     */
+    async loadNpmTool(packageName: string): Promise<Tool> {
+        console.log(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
+
+        // Construct path to the installed package
+        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+
+        // Verify the path exists
+        if (!fs.existsSync(toolPath)) {
+            throw new Error(`Npm tool not found at: ${toolPath}\n\nPlease install the tool first.`);
+        }
+
+        // Look for package.json
+        const packageJsonPath = path.join(toolPath, "package.json");
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error(`No package.json found in: ${toolPath}`);
+        }
+
+        // Read and parse package.json
+        let packageJson: ToolPackageJson;
+        try {
+            const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
+            packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
+        } catch (error) {
+            throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
+        }
+
+        // Verify required fields
+        if (!packageJson.name) {
+            throw new Error("package.json missing required field: name");
+        }
+
+        // Check for dist directory and index.html
+        const distPath = path.join(toolPath, "dist");
+        const indexHtmlPath = path.join(distPath, "index.html");
+
+        if (!fs.existsSync(indexHtmlPath)) {
+            throw new Error(
+                `No dist/index.html found in: ${toolPath}\n\nThe tool package may not be built correctly or may not be compatible with Power Platform Toolbox.`,
+            );
+        }
+
+        // Create a tool object with npm path metadata
+        const toolId = `npm:${packageJson.name}`;
+        const tool: Tool = {
+            id: toolId,
+            name: packageJson.displayName || packageJson.name,
+            version: packageJson.version || "0.0.0",
+            description: packageJson.description || "Npm-installed tool",
+            author: packageJson.author || "Unknown",
+            icon: packageJson.icon,
+            npmPackageName: packageName, // Store the npm package name for loading
+            cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+        };
+
+        this.tools.set(toolId, tool);
+        this.emit("tool:loaded", tool);
+
+        console.log(`[ToolManager] [DEBUG] Npm tool loaded: ${tool.name} (${toolId})`);
+        return tool;
+    }
+
+    /**
      * Get webview HTML for a tool with absolute file paths
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */
