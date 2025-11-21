@@ -16,6 +16,7 @@ export const useGlobalStyles = makeStaticStyles([
             "--secondary-color": "#f3f2f1",
             "--text-color": "#323130",
             "--bg-color": "#ffffff",
+            "--icon-bg-color": "#1e1e1e",
             "--sidebar-bg": "#f3f2f1",
             "--border-color": "#edebe9",
             "--shadow": "0 2px 8px rgba(0,0,0,0.1)",
@@ -39,6 +40,7 @@ export const useGlobalStyles = makeStaticStyles([
         "body.dark-theme": {
             "--text-color": "#e1e1e1",
             "--bg-color": "#1e1e1e",
+            "--icon-bg-color": "#ffffff",
             "--sidebar-bg": "#252526",
             "--border-color": "#3e3e42",
             "--secondary-color": "#2d2d30",

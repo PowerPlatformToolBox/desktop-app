@@ -5,7 +5,7 @@ import { useAppContext } from "../../contexts/AppContext";
 const useStyles = makeStyles({
     root: {
         width: "var(--pptb-activity-bar-width, 48px)",
-        backgroundColor: "#252526",
+        backgroundColor: "var(--sidebar-bg)",
         borderRight: "1px solid var(--border-color)",
         display: "flex",
         flexDirection: "column",
@@ -16,13 +16,13 @@ const useStyles = makeStyles({
     header: {
         padding: "8px 0",
         textAlign: "center",
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
+        borderBottom: "1px solid rgba(var(--icon-bg-color),1)",
     },
     appIcon: {
         width: "40px",
         height: "40px",
         margin: "0 auto",
-        background: "var(--bg-color)",
+        background: "var(--icon-bg-color)",
         color: "white",
         display: "flex",
         alignItems: "center",
@@ -57,8 +57,8 @@ const useStyles = makeStyles({
         "&:hover": { backgroundColor: "rgba(255,255,255,0.05)", color: "white" },
     },
     activityItemActive: {
-        color: "white",
-        backgroundColor: "rgba(255,255,255,0.1)",
+        color: "var(--bg-color)",
+        backgroundColor: "rgba(var(--bg-color),0.1)",
         "&::before": {
             content: '""',
             position: "absolute",
@@ -84,7 +84,7 @@ interface ActivityBarProps {
 }
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({ onSidebarChange }) => {
-    const { activeSidebar, setActiveSidebar } = useAppContext();
+    const { activeSidebar, setActiveSidebar, theme } = useAppContext();
     const styles = useStyles();
 
     const handleItemClick = (sidebar: string) => {
@@ -101,11 +101,13 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ onSidebarChange }) => 
 
     const footerItems = [{ id: "settings", title: "Settings", icon: "settings.svg" }];
 
+    console.log(theme);
+
     return (
         <aside className={styles.root}>
             <div className={styles.header}>
                 <div className={styles.appIcon} title="Power Platform Tool Box">
-                    <img id="app-icon-img" src="icons/dark/app-icon.svg" alt="App Icon" />
+                    <img id="app-icon-img" src={`icons/${theme === "light" ? "light" : "dark"}/app-icon.svg`} alt="App Icon" />
                 </div>
             </div>
             <nav className={styles.nav}>
@@ -119,7 +121,11 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ onSidebarChange }) => 
                             title={item.title}
                             onClick={() => handleItemClick(item.id)}
                         >
-                            <img src={`icons/dark/${item.icon}`} alt={`${item.title} Icon`} className={`${styles.activityIcon} ${active ? styles.activityIconActive : ""}`} />
+                            <img
+                                src={`icons/${theme === "light" ? "light" : "dark"}/${item.icon}`}
+                                alt={`${item.title} Icon`}
+                                className={`${styles.activityIcon} ${active ? styles.activityIconActive : ""}`}
+                            />
                         </button>
                     );
                 })}

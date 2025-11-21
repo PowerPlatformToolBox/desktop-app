@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
 
 export type ThemeType = "light" | "dark" | "system";
 
@@ -34,9 +34,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     useEffect(() => {
         const loadSettings = async () => {
             try {
-                const savedTheme = await window.api.invoke("settings:get", "theme");
-                if (savedTheme) {
-                    setTheme(savedTheme as ThemeType);
+                const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
+                if (currentTheme) {
+                    setTheme(currentTheme as ThemeType);
                 }
             } catch (error) {
                 console.error("Failed to load theme setting:", error);
@@ -49,7 +49,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     useEffect(() => {
         const applyTheme = () => {
             const root = document.documentElement;
-            
+
             if (theme === "system") {
                 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
                 root.classList.toggle("dark-theme", prefersDark);
