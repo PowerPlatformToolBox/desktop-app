@@ -5,7 +5,7 @@ import { ToolCard } from "./ToolCard";
 import "./ToolsSidebar.scss";
 
 export const ToolsSidebar: React.FC = () => {
-    const { installedTools, launchTool } = useToolsContext();
+    const { installedTools, launchTool, uninstallTool } = useToolsContext();
     const [searchQuery, setSearchQuery] = useState("");
 
     const filteredTools = useMemo(() => {
@@ -25,6 +25,12 @@ export const ToolsSidebar: React.FC = () => {
 
     const handleLaunchTool = async (toolId: string) => {
         await launchTool(toolId);
+    };
+
+    const handleUninstallTool = async (toolId: string) => {
+        if (confirm("Are you sure you want to uninstall this tool?")) {
+            await uninstallTool(toolId);
+        }
     };
 
     return (
@@ -58,7 +64,7 @@ export const ToolsSidebar: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        filteredTools.map((tool) => <ToolCard key={tool.id} tool={tool} onLaunch={handleLaunchTool} />)
+                        filteredTools.map((tool) => <ToolCard key={tool.id} tool={tool} onLaunch={handleLaunchTool} onUninstall={handleUninstallTool} />)
                     )}
                 </div>
             </div>

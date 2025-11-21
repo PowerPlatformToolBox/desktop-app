@@ -24,6 +24,10 @@ body {
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
     --favorite-star-color: #ffd700;
+    
+    /* PPTB Gradient */
+    --pptb-gradient: linear-gradient(to right, #0078D4, #8A3FFC);
+    --pptb-gradient-hover: linear-gradient(to right, #106ebe, #7a35e0);
 }
 
 /* Dark theme */
@@ -58,5 +62,26 @@ body.dark-theme {
     &:hover {
         background: var(--text-color);
         opacity: 0.5;
+    }
+}
+
+/* Fluent UI Button overrides for PPTB gradient */
+.fui-Button {
+    &.fui-Button__appearance--primary {
+        background: var(--pptb-gradient) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        
+        &:hover {
+            background: var(--pptb-gradient-hover) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        &:active {
+            transform: translateY(0);
+        }
     }
 }

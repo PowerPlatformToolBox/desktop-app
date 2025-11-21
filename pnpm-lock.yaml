@@ -23,9 +23,6 @@ importers:
       '@fluentui/tokens':
         specifier: ^1.0.0-alpha.22
         version: 1.0.0-alpha.22
-      '@griffel/react':
-        specifier: ^1.5.32
-        version: 1.5.32(react@19.2.0)
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0

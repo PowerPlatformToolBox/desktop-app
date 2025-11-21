@@ -53,7 +53,6 @@
     "@fluentui/react-icons": "^2.0.315",
     "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
-    "@griffel/react": "^1.5.32",
     "@types/uuid": "^10.0.0",
     "ansi-to-html": "^0.7.2",
     "electron-store": "^8.1.0",

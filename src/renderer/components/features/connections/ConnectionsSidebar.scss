@@ -1,0 +1,137 @@
+.connections-list-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.connection-item-pptb {
+    padding: 12px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+
+    &:hover {
+        border-color: var(--primary-color);
+        box-shadow: var(--shadow);
+    }
+
+    &.active {
+        border-color: var(--primary-color);
+        background-color: rgba(0, 120, 212, 0.05);
+    }
+
+    &.expired {
+        border-color: #f59e0b;
+    }
+}
+
+.connection-item-header-pptb {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.connection-item-name-pptb {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.connection-warning-icon {
+    color: #f59e0b;
+    font-size: 14px;
+}
+
+.connection-env-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+
+    &.env-dev {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+
+    &.env-test {
+        background-color: #fff3e0;
+        color: #f57c00;
+    }
+
+    &.env-uat {
+        background-color: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    &.env-production {
+        background-color: #e8f5e9;
+        color: #388e3c;
+    }
+}
+
+body.dark-theme {
+    .connection-env-pill {
+        &.env-dev {
+            background-color: rgba(25, 118, 210, 0.2);
+            color: #90caf9;
+        }
+
+        &.env-test {
+            background-color: rgba(245, 124, 0, 0.2);
+            color: #ffb74d;
+        }
+
+        &.env-uat {
+            background-color: rgba(123, 31, 162, 0.2);
+            color: #ce93d8;
+        }
+
+        &.env-production {
+            background-color: rgba(56, 142, 60, 0.2);
+            color: #a5d6a7;
+        }
+    }
+}
+
+.connection-item-url-pptb {
+    font-size: 11px;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+
+.connection-item-actions-pptb {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-icon-delete {
+    background: none;
+    border: none;
+    color: #d83b01;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background-color: rgba(216, 59, 1, 0.1);
+    }
+
+    svg {
+        width: 16px;
+        height: 16px;
+    }
+}
