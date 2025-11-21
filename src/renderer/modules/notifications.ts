@@ -3,7 +3,7 @@
  * Handles displaying notifications using dedicated BrowserWindow
  */
 
-import type { NotificationOptions } from "../types";
+import type { NotificationOptions } from "../types/index";
 
 /**
  * Show PPTB notification using dedicated BrowserWindow
@@ -11,14 +11,14 @@ import type { NotificationOptions } from "../types";
  */
 export function showPPTBNotification(options: NotificationOptions): void {
     // Convert actions to serializable format
-    const actions = options.actions?.map((action, index) => ({
+    const actions = options.actions?.map((action: { label: string; callback: () => void }, index: number) => ({
         label: action.label,
         callback: `action_${Date.now()}_${index}`, // Unique callback ID
     }));
 
     // Store callbacks for later invocation
     if (options.actions && actions) {
-        actions.forEach((action, index) => {
+        actions.forEach((action: { label: string; callback: string }, index: number) => {
             const originalCallback = options.actions![index].callback;
             window.api.on(`notification-action-${action.callback}`, () => {
                 originalCallback();

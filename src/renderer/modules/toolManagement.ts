@@ -3,8 +3,8 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import type { OpenTool, SessionData } from "../types";
-import { updatePinIconsForTheme } from "./themeManagement";
+import type { OpenTool, SessionData } from "../types/index";
+
 
 // Tool state
 const openTools = new Map<string, OpenTool>();

@@ -5,7 +5,7 @@
 
 import AnsiToHtml from "ansi-to-html";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
-import type { TerminalTab } from "../types";
+import type { TerminalTab } from "../types/index";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml(ANSI_CONVERTER_CONFIG);

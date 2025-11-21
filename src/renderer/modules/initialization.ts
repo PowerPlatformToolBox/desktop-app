@@ -1,0 +1,634 @@
+/**
+ * Application initialization module
+ * Main entry point that sets up all event listeners and initializes the application
+ */
+
+import { openModal, closeModal, updateAuthFieldsVisibility } from "./modalManagement";
+import { switchSidebar } from "./sidebarManagement";
+import {
+    closeAllTools,
+    showHomePage,
+    setupKeyboardShortcuts,
+    restoreSession,
+} from "./toolManagement";
+import {
+    updateFooterConnection,
+    addConnection,
+    testConnection,
+    loadSidebarConnections,
+    updateFooterConnectionStatus,
+    handleReauthentication,
+} from "./connectionManagement";
+import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
+import { applyTheme, applyTerminalFont, applyDebugMenuVisibility } from "./themeManagement";
+import {
+    setupTerminalPanel,
+    handleTerminalCreated,
+    handleTerminalClosed,
+    handleTerminalOutput,
+    handleTerminalCommandCompleted,
+    handleTerminalError,
+} from "./terminalManagement";
+import { setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { loadToolsLibrary, loadMarketplace } from "./marketplaceManagement";
+import { loadSidebarTools } from "./toolsSidebarManagement";
+import { showPPTBNotification } from "./notifications";
+import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
+
+/**
+ * Initialize the application
+ * Sets up all event listeners, loads initial data, and restores session
+ */
+export async function initializeApplication(): Promise<void> {
+    // Set up Activity Bar navigation
+    setupActivityBar();
+
+    // Set up toolbar buttons
+    setupToolbarButtons();
+
+    // Set up sidebar buttons
+    setupSidebarButtons();
+
+    // Set up debug section buttons
+    setupDebugSection();
+
+    // Set up settings change listeners
+    setupSettingsListeners();
+
+    // Set up home screen action buttons
+    setupHomeScreenButtons();
+
+    // Set up modal close buttons
+    setupModalButtons();
+
+    // Set up auto-update listeners
+    setupAutoUpdateListeners();
+
+    // Set up application event listeners
+    setupApplicationEventListeners();
+
+    // Set up keyboard shortcuts
+    setupKeyboardShortcuts();
+
+    // Load and apply theme settings on startup
+    await loadInitialSettings();
+
+    // Load tools library from registry
+    await loadToolsLibrary();
+
+    // Load initial sidebar content (tools by default)
+    await loadSidebarTools();
+    await loadMarketplace();
+
+    // Update footer connection info
+    await updateFooterConnection();
+
+    // Update footer connection status
+    const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+    updateFooterConnectionStatus(activeConnection);
+
+    // Restore previous session
+    await restoreSession();
+
+    // Set up IPC listeners for authentication dialogs
+    setupAuthenticationListeners();
+
+    // Set up loading screen listeners
+    setupLoadingScreenListeners();
+
+    // Set up toolbox event listeners
+    setupToolboxEventListeners();
+
+    // Handle request for tool panel bounds (for BrowserView positioning)
+    setupToolPanelBoundsListener();
+
+    // Set up terminal toggle button
+    setupTerminalPanel();
+}
+
+/**
+ * Set up Activity Bar navigation
+ */
+function setupActivityBar(): void {
+    const activityItems = document.querySelectorAll(".activity-item");
+    activityItems.forEach((item) => {
+        item.addEventListener("click", () => {
+            const sidebar = item.getAttribute("data-sidebar");
+            if (sidebar) {
+                switchSidebar(sidebar);
+            }
+        });
+    });
+}
+
+/**
+ * Set up toolbar buttons
+ */
+function setupToolbarButtons(): void {
+    const closeAllToolsBtn = document.getElementById("close-all-tools");
+    if (closeAllToolsBtn) {
+        closeAllToolsBtn.addEventListener("click", () => {
+            closeAllTools();
+        });
+    }
+}
+
+/**
+ * Set up sidebar buttons
+ */
+function setupSidebarButtons(): void {
+    // Sidebar add connection button
+    const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
+    if (sidebarAddConnectionBtn) {
+        sidebarAddConnectionBtn.addEventListener("click", () => {
+            openModal("add-connection-modal");
+        });
+    }
+
+    // Footer change connection button
+    const footerChangeConnectionBtn = document.getElementById("footer-change-connection-btn");
+    if (footerChangeConnectionBtn) {
+        footerChangeConnectionBtn.addEventListener("click", () => {
+            openModal("connection-select-modal");
+        });
+    }
+
+    // Sidebar save settings button
+    const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
+    if (sidebarSaveSettingsBtn) {
+        sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
+}
+
+/**
+ * Set up debug section buttons
+ */
+function setupDebugSection(): void {
+    const sidebarBrowseLocalToolBtn = document.getElementById("sidebar-browse-local-tool-btn");
+    const sidebarLocalToolPathInput = document.getElementById("sidebar-local-tool-path") as HTMLInputElement;
+
+    if (sidebarBrowseLocalToolBtn) {
+        sidebarBrowseLocalToolBtn.addEventListener("click", async () => {
+            try {
+                const selectedPath = await window.toolboxAPI.openDirectoryPicker();
+                if (selectedPath && sidebarLocalToolPathInput) {
+                    sidebarLocalToolPathInput.value = selectedPath;
+                }
+            } catch (error) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Directory Selection Failed",
+                    body: `Failed to select directory: ${(error as Error).message}`,
+                    type: "error",
+                });
+            }
+        });
+    }
+
+    const sidebarLoadLocalToolBtn = document.getElementById("sidebar-load-local-tool-btn");
+    if (sidebarLoadLocalToolBtn) {
+        sidebarLoadLocalToolBtn.addEventListener("click", async () => {
+            if (!sidebarLocalToolPathInput) return;
+
+            const localPath = sidebarLocalToolPathInput.value.trim();
+            if (!localPath) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Invalid Path",
+                    body: "Please select a tool directory first.",
+                    type: "error",
+                });
+                return;
+            }
+
+            sidebarLoadLocalToolBtn.textContent = "Loading...";
+            sidebarLoadLocalToolBtn.setAttribute("disabled", "true");
+
+            try {
+                const tool = await window.toolboxAPI.loadLocalTool(localPath);
+
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Tool Loaded",
+                    body: `${tool.name} has been loaded successfully from local directory.`,
+                    type: "success",
+                });
+
+                sidebarLocalToolPathInput.value = "";
+                await loadSidebarTools();
+                switchSidebar("tools");
+            } catch (error) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Load Failed",
+                    body: `Failed to load tool: ${(error as Error).message}`,
+                    type: "error",
+                    duration: 0,
+                });
+            } finally {
+                sidebarLoadLocalToolBtn.textContent = "Load Tool";
+                sidebarLoadLocalToolBtn.removeAttribute("disabled");
+            }
+        });
+    }
+
+    const sidebarInstallPackageBtn = document.getElementById("sidebar-install-package-btn");
+    if (sidebarInstallPackageBtn) {
+        sidebarInstallPackageBtn.addEventListener("click", async () => {
+            const packageNameInput = document.getElementById("sidebar-package-name-input") as HTMLInputElement;
+            if (!packageNameInput) return;
+
+            const packageName = packageNameInput.value.trim();
+            if (!packageName) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Invalid Package Name",
+                    body: "Please enter a valid npm package name.",
+                    type: "error",
+                });
+                return;
+            }
+
+            sidebarInstallPackageBtn.textContent = "Installing...";
+            sidebarInstallPackageBtn.setAttribute("disabled", "true");
+
+            try {
+                const tool = await window.toolboxAPI.installTool(packageName);
+
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Tool Installed",
+                    body: `${tool.name || packageName} has been installed successfully.`,
+                    type: "success",
+                });
+
+                packageNameInput.value = "";
+                await loadSidebarTools();
+                switchSidebar("tools");
+            } catch (error) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Installation Failed",
+                    body: `Failed to install ${packageName}: ${(error as Error).message}`,
+                    type: "error",
+                });
+            } finally {
+                sidebarInstallPackageBtn.textContent = "Install Package";
+                sidebarInstallPackageBtn.removeAttribute("disabled");
+            }
+        });
+    }
+
+    // Allow Enter key to trigger install in the package name input
+    const packageNameInput = document.getElementById("sidebar-package-name-input");
+    if (packageNameInput) {
+        packageNameInput.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sidebarInstallPackageBtn?.click();
+            }
+        });
+    }
+}
+
+/**
+ * Set up settings change listeners
+ */
+function setupSettingsListeners(): void {
+    // Theme selector
+    const themeSelect = document.getElementById("sidebar-theme-select");
+    if (themeSelect) {
+        themeSelect.addEventListener("change", async () => {
+            const theme = (themeSelect as any).value;
+            if (theme) {
+                await window.toolboxAPI.updateUserSettings({ theme });
+                applyTheme(theme);
+                const originalSettings = { theme };
+                setOriginalSettings(originalSettings);
+            }
+        });
+    }
+
+    // Terminal font selector
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const customFontContainer = document.getElementById("custom-font-input-container");
+
+    if (terminalFontSelect) {
+        terminalFontSelect.addEventListener("change", async () => {
+            const terminalFont = (terminalFontSelect as any).value;
+
+            if (customFontContainer) {
+                if (terminalFont === "custom") {
+                    customFontContainer.style.display = "block";
+                    if (customFontInput && customFontInput.value.trim()) {
+                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
+                        applyTerminalFont(customFontInput.value.trim());
+                        setOriginalSettings({ terminalFont: customFontInput.value.trim() });
+                    }
+                } else {
+                    customFontContainer.style.display = "none";
+                    await window.toolboxAPI.updateUserSettings({ terminalFont });
+                    applyTerminalFont(terminalFont);
+                    setOriginalSettings({ terminalFont });
+                }
+            } else if (terminalFont && terminalFont !== "custom") {
+                await window.toolboxAPI.updateUserSettings({ terminalFont });
+                applyTerminalFont(terminalFont);
+                setOriginalSettings({ terminalFont });
+            }
+        });
+    }
+
+    // Custom font input
+    if (customFontInput) {
+        const applyCustomFont = async () => {
+            const customFont = customFontInput.value.trim();
+            if (customFont) {
+                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
+                applyTerminalFont(customFont);
+                setOriginalSettings({ terminalFont: customFont });
+            }
+        };
+
+        customFontInput.addEventListener("blur", applyCustomFont);
+        customFontInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                applyCustomFont();
+            }
+        });
+    }
+}
+
+/**
+ * Set up home screen action buttons
+ */
+function setupHomeScreenButtons(): void {
+    const links = [
+        { id: "sponsor-btn", url: "https://github.com/sponsors/PowerPlatformToolBox" },
+        { id: "github-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app" },
+        { id: "font-help-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration" },
+        { id: "bugs-features-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/issues" },
+        { id: "create-tool-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/TOOL_DEV.md" },
+        { id: "docs-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/README.md" },
+        { id: "tool-dev-guide-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/TOOL_DEV.md" },
+        { id: "architecture-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/ARCHITECTURE.md" },
+        { id: "contributing-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CONTRIBUTING.md" },
+    ];
+
+    links.forEach(({ id, url }) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener("click", (e) => {
+                e.preventDefault();
+                window.toolboxAPI.openExternal(url);
+            });
+        }
+    });
+}
+
+/**
+ * Set up modal buttons
+ */
+function setupModalButtons(): void {
+    // Connection modal
+    const closeConnectionModal = document.getElementById("close-connection-modal");
+    if (closeConnectionModal) {
+        closeConnectionModal.addEventListener("click", () => closeModal("add-connection-modal"));
+    }
+
+    const cancelConnectionBtn = document.getElementById("cancel-connection-btn");
+    if (cancelConnectionBtn) {
+        cancelConnectionBtn.addEventListener("click", () => closeModal("add-connection-modal"));
+    }
+
+    const confirmConnectionBtn = document.getElementById("confirm-connection-btn");
+    if (confirmConnectionBtn) {
+        confirmConnectionBtn.addEventListener("click", addConnection);
+    }
+
+    const testConnectionBtn = document.getElementById("test-connection-btn");
+    if (testConnectionBtn) {
+        testConnectionBtn.addEventListener("click", testConnection);
+    }
+
+    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
+    if (authTypeSelect) {
+        authTypeSelect.addEventListener("change", updateAuthFieldsVisibility);
+    }
+
+    // Password toggle buttons
+    const toggleClientSecret = document.getElementById("toggle-client-secret");
+    if (toggleClientSecret) {
+        toggleClientSecret.addEventListener("click", () => {
+            const input = document.getElementById("connection-client-secret") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
+    }
+
+    const togglePassword = document.getElementById("toggle-password");
+    if (togglePassword) {
+        togglePassword.addEventListener("click", () => {
+            const input = document.getElementById("connection-password") as HTMLInputElement;
+            if (input) {
+                input.type = input.type === "password" ? "text" : "password";
+            }
+        });
+    }
+
+    // Tool settings modal
+    const closeToolSettingsModal = document.getElementById("close-tool-settings-modal");
+    if (closeToolSettingsModal) {
+        closeToolSettingsModal.addEventListener("click", () => closeModal("tool-settings-modal"));
+    }
+
+    const cancelToolSettingsBtn = document.getElementById("cancel-tool-settings-btn");
+    if (cancelToolSettingsBtn) {
+        cancelToolSettingsBtn.addEventListener("click", () => closeModal("tool-settings-modal"));
+    }
+
+    // Device code modal
+    const closeDeviceCodeBtn = document.getElementById("close-device-code-btn");
+    if (closeDeviceCodeBtn) {
+        closeDeviceCodeBtn.addEventListener("click", async () => {
+            closeModal("device-code-modal");
+            await loadSidebarConnections();
+        });
+    }
+
+    // Authentication error modal
+    const closeAuthErrorModal = document.getElementById("close-auth-error-modal");
+    if (closeAuthErrorModal) {
+        closeAuthErrorModal.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
+
+    const closeAuthErrorBtn = document.getElementById("close-auth-error-btn");
+    if (closeAuthErrorBtn) {
+        closeAuthErrorBtn.addEventListener("click", () => closeModal("auth-error-modal"));
+    }
+
+    // Tool detail modal
+    const closeToolDetailModal = document.getElementById("close-tool-detail-modal");
+    if (closeToolDetailModal) {
+        closeToolDetailModal.addEventListener("click", () => closeModal("tool-detail-modal"));
+    }
+}
+
+/**
+ * Set up application event listeners
+ */
+function setupApplicationEventListeners(): void {
+    // Home page listener
+    window.toolboxAPI.onShowHomePage(() => {
+        showHomePage();
+    });
+}
+
+/**
+ * Load initial settings and apply them
+ */
+async function loadInitialSettings(): Promise<void> {
+    const settings = await window.toolboxAPI.getUserSettings();
+    applyTheme(settings.theme);
+    applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
+    applyDebugMenuVisibility(settings.showDebugMenu ?? false);
+}
+
+/**
+ * Set up authentication listeners
+ */
+function setupAuthenticationListeners(): void {
+    window.toolboxAPI.onShowDeviceCodeDialog((message: string) => {
+        const messageElement = document.getElementById("device-code-message");
+        if (messageElement) {
+            const urlRegex = /https:\/\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]+/g;
+            messageElement.innerHTML = message.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
+        }
+        openModal("device-code-modal");
+    });
+
+    window.toolboxAPI.onCloseDeviceCodeDialog(() => {
+        closeModal("device-code-modal");
+    });
+
+    window.toolboxAPI.onShowAuthErrorDialog((message: string) => {
+        const messageElement = document.getElementById("auth-error-message");
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        openModal("auth-error-modal");
+    });
+
+    window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
+        console.log("Token expired for connection:", data);
+
+        showPPTBNotification({
+            title: "Connection Token Expired",
+            body: `Your connection to "${data.connectionName}" has expired.`,
+            type: "warning",
+            duration: 30000,
+            actions: [
+                {
+                    label: "Re-authenticate",
+                    callback: async () => {
+                        await handleReauthentication(data.connectionId);
+                    },
+                },
+            ],
+        });
+
+        await loadSidebarConnections();
+        await updateFooterConnection();
+    });
+}
+
+/**
+ * Set up loading screen listeners
+ */
+function setupLoadingScreenListeners(): void {
+    window.api.on("show-loading-screen", (...args: unknown[]) => {
+        const message = args[1] as string;
+        const loadingScreen = document.getElementById("loading-screen");
+        const loadingMessage = document.getElementById("loading-message");
+        if (loadingScreen && loadingMessage) {
+            loadingMessage.textContent = message || "Loading...";
+            loadingScreen.style.display = "flex";
+            loadingScreen.classList.remove("fade-out");
+        }
+    });
+
+    window.api.on("hide-loading-screen", () => {
+        const loadingScreen = document.getElementById("loading-screen");
+        if (loadingScreen) {
+            loadingScreen.classList.add("fade-out");
+            setTimeout(() => {
+                loadingScreen.style.display = "none";
+            }, LOADING_SCREEN_FADE_DURATION);
+        }
+    });
+}
+
+/**
+ * Set up toolbox event listeners
+ */
+function setupToolboxEventListeners(): void {
+    window.toolboxAPI.events.on((event: any, payload: any) => {
+        console.log("ToolBox Event:", payload);
+
+        // Handle notifications
+        if (payload.event === "notification:shown") {
+            const notificationData = payload.data as { title: string; body: string; type?: string; duration?: number };
+            showPPTBNotification({
+                title: notificationData.title,
+                body: notificationData.body,
+                type: notificationData.type || "info",
+                duration: notificationData.duration || 5000,
+            });
+        }
+
+        // Reload connections when connection events occur
+        if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
+            console.log("Connection event detected, reloading connections...");
+            loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
+            updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
+        }
+
+        // Reload tools when tool events occur
+        if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
+            console.log("Tool event detected, reloading tools...");
+            loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
+        }
+
+        // Handle terminal events
+        if (payload.event === "terminal:created") {
+            handleTerminalCreated(payload.data);
+        } else if (payload.event === "terminal:closed") {
+            handleTerminalClosed(payload.data);
+        } else if (payload.event === "terminal:output") {
+            handleTerminalOutput(payload.data);
+        } else if (payload.event === "terminal:command:completed") {
+            handleTerminalCommandCompleted(payload.data);
+        } else if (payload.event === "terminal:error") {
+            handleTerminalError(payload.data);
+        }
+    });
+}
+
+/**
+ * Set up tool panel bounds listener
+ */
+function setupToolPanelBoundsListener(): void {
+    window.api.on("get-tool-panel-bounds-request", () => {
+        const toolPanelContent = document.getElementById("tool-panel-content");
+
+        if (toolPanelContent) {
+            const rect = toolPanelContent.getBoundingClientRect();
+
+            const bounds = {
+                x: Math.round(rect.left),
+                y: Math.round(rect.top),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+            };
+            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            window.api.send("get-tool-panel-bounds-response", bounds);
+        } else {
+            console.warn("[Renderer] Tool panel content element not found");
+        }
+    });
+}

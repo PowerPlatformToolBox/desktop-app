@@ -3,7 +3,7 @@
  * Handles opening and closing of modal dialogs
  */
 
-import { MODAL_ANIMATION_DELAY } from "../constants";
+
 
 /**
  * Open a modal dialog by ID

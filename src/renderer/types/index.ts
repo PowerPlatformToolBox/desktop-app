@@ -7,7 +7,7 @@
  */
 export interface OpenTool {
     id: string;
-    tool: any;
+    tool: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     isPinned: boolean;
     connectionId: string | null;
 }
@@ -24,6 +24,14 @@ export interface TerminalTab {
 }
 
 /**
+ * Notification action button configuration
+ */
+export interface NotificationAction {
+    label: string;
+    callback: () => void;
+}
+
+/**
  * Notification options for the PPTB notification system
  */
 export interface NotificationOptions {
@@ -32,14 +40,6 @@ export interface NotificationOptions {
     type?: string;
     duration?: number;
     actions?: Array<NotificationAction>;
-}
-
-/**
- * Notification action button configuration
- */
-export interface NotificationAction {
-    label: string;
-    callback: () => void;
 }
 
 /**
