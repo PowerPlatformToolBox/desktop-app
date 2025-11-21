@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { Tool, ToolManifest, CspExceptions } from "../../common/types";
+import { CspExceptions, Tool, ToolManifest } from "../../common/types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -166,18 +166,18 @@ export class ToolManager extends EventEmitter {
      */
     async updateTool(toolId: string): Promise<ToolManifest> {
         console.log(`[ToolManager] Updating tool: ${toolId}`);
-        
+
         // Unload the tool first if it's loaded
         if (this.isToolLoaded(toolId)) {
             this.unloadTool(toolId);
         }
-        
+
         // Re-install the tool (this will fetch the latest version from registry)
         const manifest = await this.registryManager.installTool(toolId);
-        
+
         // Load the updated tool
         await this.loadTool(toolId);
-        
+
         return manifest;
     }
 
@@ -363,13 +363,14 @@ export class ToolManager extends EventEmitter {
         const indexHtmlPath = path.join(distPath, "index.html");
 
         if (!fs.existsSync(indexHtmlPath)) {
-            throw new Error(
-                `No dist/index.html found in: ${toolPath}\n\nThe tool package may not be built correctly or may not be compatible with Power Platform Toolbox.`,
-            );
+            throw new Error(`No dist/index.html found in: ${toolPath}\n\nThe tool package may not be built correctly or may not be compatible with Power Platform Toolbox.`);
         }
 
+        // Exact behavior: remove all '@', replace all '/' with '-'
+        const sanitizedToolId = packageJson.name.replace(/@/g, "").replace(/\//g, "-");
+
         // Create a tool object with npm path metadata
-        const toolId = `npm-${packageJson.name}`;
+        const toolId = `npm-${sanitizedToolId}`;
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -448,33 +449,12 @@ export class ToolManager extends EventEmitter {
         const platform = process.platform;
 
         if (platform === "win32") {
-            return [
-                "C:\\Windows",
-                "C:\\Program Files",
-                "C:\\Program Files (x86)",
-                "C:\\ProgramData",
-                "C:\\System32",
-            ];
+            return ["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData", "C:\\System32"];
         } else if (platform === "darwin") {
-            return [
-                "/System",
-                "/Library",
-                "/usr",
-                "/bin",
-                "/sbin",
-                "/private",
-            ];
+            return ["/System", "/Library", "/usr", "/bin", "/sbin", "/private"];
         } else {
             // Linux and other Unix-like systems
-            return [
-                "/usr",
-                "/bin",
-                "/sbin",
-                "/etc",
-                "/root",
-                "/sys",
-                "/proc",
-            ];
+            return ["/usr", "/bin", "/sbin", "/etc", "/root", "/sys", "/proc"];
         }
     }
 
@@ -570,8 +550,11 @@ export class ToolManager extends EventEmitter {
             );
         }
 
+        // Exact behavior: remove all '@', replace all '/' with '-'
+        const sanitizedToolId = packageJson.name.replace(/@/g, "").replace(/\//g, "-");
+
         // Create a tool object with local path metadata
-        const toolId = `local-${packageJson.name}`;
+        const toolId = `local-${sanitizedToolId}`;
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
