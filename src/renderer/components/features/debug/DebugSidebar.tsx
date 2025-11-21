@@ -1,0 +1,43 @@
+import React, { useState } from "react";
+import { Button, Input } from "@fluentui/react-components";
+
+export const DebugSidebar: React.FC = () => {
+    const [packageName, setPackageName] = useState("");
+
+    return (
+        <div className="sidebar-content">
+            <div className="sidebar-header">
+                <h2 className="sidebar-title">DEBUG</h2>
+            </div>
+
+            <div className="sidebar-body">
+                <div className="debug-container-sidebar" style={{ padding: "16px" }}>
+                    <div className="debug-section" style={{ marginBottom: "24px" }}>
+                        <h3 style={{ fontSize: "13px", marginBottom: "8px" }}>Load Local Tool</h3>
+                        <p style={{ fontSize: "11px", opacity: 0.7, marginBottom: "12px" }}>Load a tool directly from your local file system for development and testing.</p>
+                        {/* TODO: Implement local tool browsing - Call window.toolboxAPI.openDirectoryPicker() */}
+                        <Button appearance="primary" size="small" disabled>
+                            Browse (Coming Soon)
+                        </Button>
+                    </div>
+
+                    <div className="debug-section">
+                        <h3 style={{ fontSize: "13px", marginBottom: "8px" }}>Install Tool by Package Name</h3>
+                        <p style={{ fontSize: "11px", opacity: 0.7, marginBottom: "12px" }}>Enter an npm package name to install a custom tool.</p>
+                        <Input
+                            type="text"
+                            placeholder="e.g., @powerplatform/tool-example"
+                            value={packageName}
+                            onChange={(e, data) => setPackageName(data.value)}
+                            style={{ width: "100%", marginBottom: "8px" }}
+                        />
+                        {/* TODO: Implement package installation - Call window.toolboxAPI.installTool(packageName) */}
+                        <Button appearance="primary" size="small" disabled>
+                            Install Package (Coming Soon)
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

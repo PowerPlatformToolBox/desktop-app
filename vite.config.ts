@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
+import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig } from "vite";
 import electron from "vite-plugin-electron/simple";
@@ -9,6 +10,7 @@ export default defineConfig(({ mode }) => {
     const enableSourceMap = !isProd; // keep source maps out of production builds
     return {
         plugins: [
+            react(),
             electron({
                 main: {
                     // Main process entry point

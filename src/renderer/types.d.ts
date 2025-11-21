@@ -3,10 +3,10 @@
  * Re-exports shared types and extends with renderer-specific definitions
  */
 
-import { ToolboxAPI, ToolContext } from "../common/types";
+import { ToolBoxAPI, ToolContext } from "../common/types";
 
 // Re-export for convenience
-export type { ToolContext, ToolboxAPI };
+export type { ToolBoxAPI, ToolContext };
 
 // Extend ToolContext for renderer (includes accessToken for internal use)
 export interface RendererToolContext extends ToolContext {
@@ -16,7 +16,7 @@ export interface RendererToolContext extends ToolContext {
 // Global window declarations
 declare global {
     interface Window {
-        toolboxAPI: ToolboxAPI;
+        toolboxAPI: ToolBoxAPI;
         TOOLBOX_CONTEXT?: ToolContext;
         api: {
             on: (channel: string, callback: (...args: unknown[]) => void) => void;

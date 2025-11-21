@@ -1,7 +1,7 @@
-import { EventEmitter } from "events";
-import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { Terminal, TerminalOptions, TerminalCommandResult } from "../../common/types";
+import { EventEmitter } from "events";
+import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 
 /**
  * Manages terminal instances for tools
@@ -40,8 +40,16 @@ export class TerminalManager extends EventEmitter {
 
     /**
      * Create a new terminal for a tool
+     * Note: Only one terminal is allowed per tool
      */
     async createTerminal(toolId: string, options: TerminalOptions): Promise<Terminal> {
+        // Check if tool already has a terminal (one terminal per tool restriction)
+        const existingTerminal = this.getTerminalByToolId(toolId);
+        if (existingTerminal) {
+            console.log(`[TerminalManager] Tool ${toolId} already has a terminal ${existingTerminal.id}, returning existing terminal`);
+            return existingTerminal;
+        }
+
         const terminalId = randomUUID();
         let shell = options.shell || this.defaultShell;
 
@@ -135,6 +143,14 @@ export class TerminalManager extends EventEmitter {
     }
 
     /**
+     * Get the terminal for a specific tool (returns first one if multiple exist)
+     */
+    getTerminalByToolId(toolId: string): Terminal | undefined {
+        const terminals = this.getToolTerminals(toolId);
+        return terminals.length > 0 ? terminals[0] : undefined;
+    }
+
+    /**
      * Get all terminals
      */
     getAllTerminals(): Terminal[] {
@@ -199,19 +215,19 @@ class TerminalInstance extends EventEmitter {
      */
     private startShellProcess(env?: Record<string, string>): void {
         const shellArgs = this.getShellArgs();
-        
+
         // Ensure critical environment variables are set for proper shell initialization
-        const processEnv = { 
-            ...process.env, 
+        const processEnv = {
+            ...process.env,
             ...env,
             // Ensure TERM is set for proper terminal emulation (needed for Oh-My-Posh and colors)
-            TERM: process.env.TERM || 'xterm-256color',
+            TERM: process.env.TERM || "xterm-256color",
             // Ensure COLORTERM is set to indicate true color support
-            COLORTERM: process.env.COLORTERM || 'truecolor',
+            COLORTERM: process.env.COLORTERM || "truecolor",
         };
 
         // Log shell startup for debugging (can be removed in production)
-        console.log(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(' ')}`);
+        console.log(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(" ")}`);
         console.log(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
         console.log(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
 
