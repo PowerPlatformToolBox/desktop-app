@@ -3,8 +3,6 @@
  * Handles opening and closing of modal dialogs
  */
 
-
-
 /**
  * Open a modal dialog by ID
  */

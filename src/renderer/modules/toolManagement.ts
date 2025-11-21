@@ -5,7 +5,6 @@
 
 import type { OpenTool, SessionData } from "../types/index";
 
-
 // Tool state
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null;
