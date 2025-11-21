@@ -200,7 +200,8 @@ export class ToolManager extends EventEmitter {
             const isWindows = process.platform === "win32";
             const cmd = isWindows ? `${command}.cmd` : command;
 
-            const check = spawn(cmd, ["--version"], { shell: true });
+            // Don't use shell to avoid issues with spaces in paths
+            const check = spawn(cmd, ["--version"]);
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -257,7 +258,9 @@ export class ToolManager extends EventEmitter {
                     ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
                     : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
 
-            const install = spawn(pkgManager.command, args, { shell: true });
+            // Don't use shell: true to avoid issues with spaces in paths
+            // The command array is already in the correct format for spawn
+            const install = spawn(pkgManager.command, args);
 
             let stderr = "";
 

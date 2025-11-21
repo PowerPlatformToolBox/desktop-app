@@ -60,17 +60,33 @@ export class BrowserviewProtocolManager {
 
     /**
      * Handle protocol requests for pptb-webview://
-     * URL format: pptb-webview://toolId/path/to/file
+     * URL format: pptb-webview://encodedToolId/path/to/file
+     * The toolId is URL-encoded to handle special characters like / in scoped packages
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
         callback: (response: Buffer | Electron.ProtocolResponse) => void
     ): void {
         try {
-            // Parse the URL: pptb-webview://toolId/path/to/file
+            // Parse the URL: pptb-webview://encodedToolId/path/to/file
             const url = request.url.replace('pptb-webview://', '');
-            const [toolId, ...pathParts] = url.split('/');
-            const filePath = pathParts.join('/') || 'index.html';
+            const firstSlashIndex = url.indexOf('/');
+            
+            let encodedToolId: string;
+            let filePath: string;
+            
+            if (firstSlashIndex === -1) {
+                // No path, just the tool ID
+                encodedToolId = url;
+                filePath = 'index.html';
+            } else {
+                // Split at the first slash to separate toolId from file path
+                encodedToolId = url.substring(0, firstSlashIndex);
+                filePath = url.substring(firstSlashIndex + 1) || 'index.html';
+            }
+            
+            // Decode the tool ID (handles special characters like / in scoped packages)
+            const toolId = decodeURIComponent(encodedToolId);
 
             console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
 
@@ -219,10 +235,13 @@ export class BrowserviewProtocolManager {
 
     /**
      * Build the webview URL for a tool
-     * Returns: pptb-webview://toolId/index.html
+     * Returns: pptb-webview://encodedToolId/index.html
+     * The toolId is URL-encoded to handle special characters like / in scoped packages
      */
     buildToolUrl(toolId: string, file: string = 'index.html'): string {
-        return `pptb-webview://${toolId}/${file}`;
+        // Encode the tool ID to handle special characters (e.g., / in scoped packages like @org/package)
+        const encodedToolId = encodeURIComponent(toolId);
+        return `pptb-webview://${encodedToolId}/${file}`;
     }
 
     /**
