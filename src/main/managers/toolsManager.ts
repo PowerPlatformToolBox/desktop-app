@@ -369,7 +369,7 @@ export class ToolManager extends EventEmitter {
         }
 
         // Create a tool object with npm path metadata
-        const toolId = `npm:${packageJson.name}`;
+        const toolId = `npm-${packageJson.name}`;
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -571,7 +571,7 @@ export class ToolManager extends EventEmitter {
         }
 
         // Create a tool object with local path metadata
-        const toolId = `local:${packageJson.name}`;
+        const toolId = `local-${packageJson.name}`;
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
