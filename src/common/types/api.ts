@@ -4,11 +4,11 @@
  */
 
 import { Theme } from "./common";
-import { ToolContext, Tool, ToolSettings } from "./tool";
-import { DataverseExecuteRequest } from "./dataverse";
 import { DataverseConnection } from "./connection";
+import { DataverseExecuteRequest } from "./dataverse";
 import { UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
+import { Tool, ToolContext, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -80,7 +80,7 @@ export interface DataverseAPI {
 /**
  * Main ToolboxAPI interface
  */
-export interface ToolboxAPI {
+export interface ToolBoxAPI {
     getUserSettings: () => Promise<UserSettings>;
     updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
     getSetting: (key: string) => Promise<unknown>;

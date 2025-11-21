@@ -1,7 +1,6 @@
 import { Button, Card, CardFooter, CardHeader, Label, makeStyles } from "@fluentui/react-components";
 import { DeleteRegular, PlayFilled, WrenchScrewdriver20Color } from "@fluentui/react-icons";
 import React from "react";
-import "./ToolCard.scss";
 
 interface Tool {
     id: string;
@@ -20,24 +19,18 @@ interface ToolCardProps {
 }
 
 const useStyles = makeStyles({
-    main: {
-        gap: "36px",
-        display: "flex",
-        flexDirection: "column",
-        flexWrap: "wrap",
-    },
-    card: {
-        width: "360px",
-        maxWidth: "100%",
-        height: "fit-content",
-    },
-    section: {
-        width: "fit-content",
-    },
-    title: { margin: "0 0 12px" },
-    horizontalCardImage: {
-        width: "64px",
-        height: "64px",
+    gradientButton: {
+        background: "linear-gradient(to right, #0078D4, #8A3FFC)",
+        color: "#fff",
+        // Define hover state styles
+        "&:hover": {
+            background: "linear-gradient(to right, #106ebe, #7a35e0)", // Subtle gradient change on hover
+            color: "#fff",
+        },
+        "&:active": {
+            background: "linear-gradient(to right, #106ebe, #7a35e0)",
+            color: "#fff",
+        },
     },
     headerImage: {
         borderRadius: "4px",
@@ -82,39 +75,12 @@ export const ToolCard: React.FC<ToolCardProps> = ({ tool, onLaunch, onUninstall 
                 />
                 <p className={styles.text}>{tool.description}</p>
                 <CardFooter className={styles.footerLayout}>
-                    <Button appearance="primary" icon={<PlayFilled />} onClick={handleLaunch}>
+                    <Button className={styles.gradientButton} appearance="primary" icon={<PlayFilled />} onClick={handleLaunch}>
                         Launch
                     </Button>
                     <Button appearance="transparent" icon={<DeleteRegular color="red" />} onClick={handleUninstall} />
                 </CardFooter>
             </Card>
-            {/* <div className="tool-card-pptb" onClick={handleLaunch}>
-            <div className="tool-card-icon">{tool.icon ? <img src={tool.icon} alt={`${tool.name} icon`} /> : <WrenchScrewdriverColor />}</div>
-
-            <div className="tool-card-details">
-                <div className="tool-card-header">
-                    <h4 className="tool-card-name">{tool.name}</h4>
-                    <div className="tool-card-actions">
-                        <Button icon={<Play20Regular />} size="small" appearance="subtle" onClick={handleLaunch} title="Launch tool" />
-                        {onUninstall && (
-                            <Menu>
-                                <MenuTrigger disableButtonEnhancement>
-                                    <Button icon={<MoreHorizontal20Regular />} size="small" appearance="subtle" onClick={(e) => e.stopPropagation()} />
-                                </MenuTrigger>
-                                <MenuPopover>
-                                    <MenuList>
-                                        <MenuItem onClick={handleUninstall}>Uninstall</MenuItem>
-                                    </MenuList>
-                                </MenuPopover>
-                            </Menu>
-                        )}
-                    </div>
-                </div>
-                <p className="tool-card-description">{tool.description}</p>
-                {tool.author && <p className="tool-card-author">by {tool.author}</p>}
-                {tool.version && <span className="tool-card-version">v{tool.version}</span>}
-            </div>
-        </div> */}
         </>
     );
 };

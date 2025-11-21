@@ -1,11 +1,23 @@
+import { makeStyles } from "@fluentui/react-components";
 import React from "react";
 import { useAppContext } from "../../contexts/AppContext";
-import { ToolsSidebar } from "../features/tools/ToolsSidebar";
 import { ConnectionsSidebar } from "../features/connections/ConnectionsSidebar";
-import { MarketplaceSidebar } from "../features/marketplace/MarketplaceSidebar";
 import { DebugSidebar } from "../features/debug/DebugSidebar";
+import { MarketplaceSidebar } from "../features/marketplace/MarketplaceSidebar";
 import { SettingsSidebar } from "../features/settings/SettingsSidebar";
-import "./Sidebar.scss";
+import { ToolsSidebar } from "../features/tools/ToolsSidebar";
+
+const useStyles = makeStyles({
+    sidebar: {
+        width: "var(--pptb-sidebar-width, 280px)",
+        backgroundColor: "var(--sidebar-bg)",
+        borderRight: "1px solid var(--border-color)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        height: "calc(100% - var(--pptb-footer-height))",
+    },
+});
 
 export const Sidebar: React.FC = () => {
     const { activeSidebar } = useAppContext();
@@ -27,5 +39,6 @@ export const Sidebar: React.FC = () => {
         }
     };
 
-    return <aside className="sidebar">{renderSidebarContent()}</aside>;
+    const styles = useStyles();
+    return <aside className={styles.sidebar}>{renderSidebarContent()}</aside>;
 };

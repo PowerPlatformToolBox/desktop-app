@@ -1,7 +1,102 @@
-import React, { useState, useMemo } from "react";
-import { Input, Button, Badge } from "@fluentui/react-components";
+import { Badge, Button, Input, makeStyles } from "@fluentui/react-components";
+import React, { useMemo, useState } from "react";
 import { useToolsContext } from "../../../contexts/ToolsContext";
-import "./MarketplaceSidebar.scss";
+
+interface MarketplaceTool {
+    id: string;
+    name: string;
+    description: string;
+    author?: string;
+    icon?: string;
+}
+
+const useStyles = makeStyles({
+    content: { display: "flex", flexDirection: "column", height: "100%" },
+    header: {
+        padding: "12px 16px",
+        borderBottom: "1px solid var(--border-color)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "var(--sidebar-bg)",
+    },
+    title: {
+        fontSize: "11px",
+        fontWeight: 600,
+        letterSpacing: "0.5px",
+        textTransform: "uppercase",
+        color: "var(--text-color)",
+        opacity: 0.8,
+        margin: 0,
+    },
+    search: { padding: "8px 16px", borderBottom: "1px solid var(--border-color)" },
+    body: { flex: 1, overflowY: "auto", padding: "8px" },
+    list: { display: "flex", flexDirection: "column", gap: "12px" },
+    card: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "12px",
+        padding: "12px",
+        backgroundColor: "var(--bg-color)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "6px",
+        transition: "all 0.2s ease",
+        "&:hover": { border: "1px solid var(--primary-color)", boxShadow: "var(--shadow)" },
+    },
+    cardIcon: {
+        flexShrink: 0,
+        width: "40px",
+        height: "40px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--primary-color)",
+        "& img": { width: "100%", height: "100%", objectFit: "contain" },
+        "& svg": { width: "32px", height: "32px" },
+    },
+    cardDetails: { flex: 1, minWidth: 0 },
+    cardHeader: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "8px",
+        marginBottom: "4px",
+    },
+    cardName: {
+        fontSize: "13px",
+        fontWeight: 600,
+        color: "var(--text-color)",
+        margin: 0,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+    },
+    cardDescription: {
+        fontSize: "12px",
+        color: "var(--text-color)",
+        opacity: 0.7,
+        margin: "0 0 4px 0",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        display: "-webkit-box",
+        WebkitLineClamp: "2",
+        WebkitBoxOrient: "vertical",
+    },
+    cardAuthor: { fontSize: "11px", color: "var(--text-color)", opacity: 0.6, margin: "0 0 8px 0" },
+    cardActions: { display: "flex", gap: "8px", marginTop: "8px" },
+    empty: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+        padding: "32px",
+        textAlign: "center",
+        color: "var(--text-color)",
+        opacity: 0.6,
+        "& p": { fontSize: "13px", margin: 0 },
+    },
+});
 
 export const MarketplaceSidebar: React.FC = () => {
     const { marketplaceTools, installedTools, installTool } = useToolsContext();
@@ -13,44 +108,36 @@ export const MarketplaceSidebar: React.FC = () => {
         }
 
         const query = searchQuery.toLowerCase();
-        return marketplaceTools.filter(
-            (tool) =>
-                tool.name?.toLowerCase().includes(query) ||
-                tool.description?.toLowerCase().includes(query) ||
-                tool.author?.toLowerCase().includes(query)
-        );
+        return marketplaceTools.filter((tool) => tool.name?.toLowerCase().includes(query) || tool.description?.toLowerCase().includes(query) || tool.author?.toLowerCase().includes(query));
     }, [marketplaceTools, searchQuery]);
 
     const isToolInstalled = (toolId: string) => {
         return installedTools.some((tool) => tool.id === toolId);
     };
 
-    const handleInstall = async (tool: any) => {
+    const handleInstall = async (tool: MarketplaceTool) => {
         await installTool(tool);
     };
 
+    const styles = useStyles();
     return (
-        <div className="sidebar-content">
-            <div className="sidebar-header">
-                <h2 className="sidebar-title">MARKETPLACE</h2>
+        <div className={styles.content}>
+            <div className={styles.header}>
+                <h2 className={styles.title}>MARKETPLACE</h2>
             </div>
-
-            <div className="sidebar-search">
+            <div className={styles.search}>
                 <Input type="text" placeholder="Search tools..." value={searchQuery} onChange={(e, data) => setSearchQuery(data.value)} />
             </div>
-
-            <div className="sidebar-body">
-                <div className="marketplace-tools-list-pptb">
+            <div className={styles.body}>
+                <div className={styles.list}>
                     {filteredTools.length === 0 ? (
-                        <div className="sidebar-empty">
-                            {searchQuery ? <p>No tools match your search</p> : <p>Loading marketplace...</p>}
-                        </div>
+                        <div className={styles.empty}>{searchQuery ? <p>No tools match your search</p> : <p>Loading marketplace...</p>}</div>
                     ) : (
                         filteredTools.map((tool) => {
                             const installed = isToolInstalled(tool.id);
                             return (
-                                <div key={tool.id} className="marketplace-tool-card">
-                                    <div className="tool-card-icon">
+                                <div key={tool.id} className={styles.card}>
+                                    <div className={styles.cardIcon}>
                                         {tool.icon ? (
                                             <img src={tool.icon} alt={`${tool.name} icon`} />
                                         ) : (
@@ -63,18 +150,18 @@ export const MarketplaceSidebar: React.FC = () => {
                                             </svg>
                                         )}
                                     </div>
-                                    <div className="tool-card-details">
-                                        <div className="tool-card-header">
-                                            <h4 className="tool-card-name">{tool.name}</h4>
+                                    <div className={styles.cardDetails}>
+                                        <div className={styles.cardHeader}>
+                                            <h4 className={styles.cardName}>{tool.name}</h4>
                                             {installed && (
                                                 <Badge appearance="filled" color="success" size="small">
                                                     Installed
                                                 </Badge>
                                             )}
                                         </div>
-                                        <p className="tool-card-description">{tool.description}</p>
-                                        {tool.author && <p className="tool-card-author">by {tool.author}</p>}
-                                        <div className="tool-card-actions">
+                                        <p className={styles.cardDescription}>{tool.description}</p>
+                                        {tool.author && <p className={styles.cardAuthor}>by {tool.author}</p>}
+                                        <div className={styles.cardActions}>
                                             <Button appearance="primary" size="small" onClick={() => handleInstall(tool)} disabled={installed}>
                                                 {installed ? "Installed" : "Install"}
                                             </Button>
