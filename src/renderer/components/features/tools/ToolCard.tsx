@@ -1,6 +1,6 @@
+import { Button, Card, CardFooter, CardHeader, Label, makeStyles } from "@fluentui/react-components";
+import { DeleteRegular, PlayFilled, WrenchScrewdriver20Color } from "@fluentui/react-icons";
 import React from "react";
-import { Button, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem } from "@fluentui/react-components";
-import { MoreHorizontal20Regular, Play20Regular } from "@fluentui/react-icons";
 import "./ToolCard.scss";
 
 interface Tool {
@@ -19,7 +19,44 @@ interface ToolCardProps {
     onUninstall?: (toolId: string) => void;
 }
 
+const useStyles = makeStyles({
+    main: {
+        gap: "36px",
+        display: "flex",
+        flexDirection: "column",
+        flexWrap: "wrap",
+    },
+    card: {
+        width: "360px",
+        maxWidth: "100%",
+        height: "fit-content",
+    },
+    section: {
+        width: "fit-content",
+    },
+    title: { margin: "0 0 12px" },
+    horizontalCardImage: {
+        width: "64px",
+        height: "64px",
+    },
+    headerImage: {
+        borderRadius: "4px",
+        maxWidth: "44px",
+        maxHeight: "44px",
+    },
+    text: { margin: "0" },
+    footerLayout: {
+        display: "flex",
+        justifyContent: "space-between", // Pushes items to opposite ends
+        width: "100%", // Ensure the footer takes the full width of the card
+        // You may also add a gap between buttons if needed, though not strictly necessary with space-between
+        // gap: '8px',
+    },
+});
+
 export const ToolCard: React.FC<ToolCardProps> = ({ tool, onLaunch, onUninstall }) => {
+    const styles = useStyles();
+
     const handleLaunch = (e: React.MouseEvent) => {
         e.stopPropagation();
         onLaunch(tool.id);
@@ -32,20 +69,27 @@ export const ToolCard: React.FC<ToolCardProps> = ({ tool, onLaunch, onUninstall 
     };
 
     return (
-        <div className="tool-card-pptb" onClick={handleLaunch}>
-            <div className="tool-card-icon">
-                {tool.icon ? (
-                    <img src={tool.icon} alt={`${tool.name} icon`} />
-                ) : (
-                    <svg width="32" height="32" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                        <path
-                            fillRule="evenodd"
-                            clipRule="evenodd"
-                            d="M9.5 1.1l3.4 3.5.1.4v2h-1V5.5L8 5v-.5l.5-.5h1.6L7.9 1.8 7.5 1.1h2zM9 2v3h3V4H9.7L9 2zM1 14.5V13h1.5v1.5H4V16H1.5v-1.5H1zm6.5 0V13H9v1.5h1.5V16H8v-1.5H6.5zm6 0V13H15v1.5h-1.5V16H12v-1.5h-1.5zM7 7H1.5L1 6.5v-5l.5-.5h5l.5.5V7zm-1-5H2v4h4V2zm7.5 7h-2.25v1.5h2.25V10H15v3.5h-1.5V12zm-8.25 0H3v1.5h2.25V10H7v3.5H5.25V12zm5.5-2H9.25v1.5h1.5V10h1.5v3.5H10.5V12h-.75v-1.5z"
-                        />
-                    </svg>
-                )}
-            </div>
+        <>
+            <Card onClick={handleLaunch}>
+                <CardHeader
+                    image={tool.icon ? <img className={styles.headerImage} src={tool.icon} alt={`${tool.name} icon`} /> : <WrenchScrewdriver20Color />}
+                    header={
+                        <Label weight="semibold" size="medium">
+                            {tool.name}
+                        </Label>
+                    }
+                    description={<Label size="small">by {tool.author}</Label>}
+                />
+                <p className={styles.text}>{tool.description}</p>
+                <CardFooter className={styles.footerLayout}>
+                    <Button appearance="primary" icon={<PlayFilled />} onClick={handleLaunch}>
+                        Launch
+                    </Button>
+                    <Button appearance="transparent" icon={<DeleteRegular color="red" />} onClick={handleUninstall} />
+                </CardFooter>
+            </Card>
+            {/* <div className="tool-card-pptb" onClick={handleLaunch}>
+            <div className="tool-card-icon">{tool.icon ? <img src={tool.icon} alt={`${tool.name} icon`} /> : <WrenchScrewdriverColor />}</div>
 
             <div className="tool-card-details">
                 <div className="tool-card-header">
@@ -70,6 +114,7 @@ export const ToolCard: React.FC<ToolCardProps> = ({ tool, onLaunch, onUninstall 
                 {tool.author && <p className="tool-card-author">by {tool.author}</p>}
                 {tool.version && <span className="tool-card-version">v{tool.version}</span>}
             </div>
-        </div>
+        </div> */}
+        </>
     );
 };
