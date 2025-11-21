@@ -49,10 +49,6 @@ export function useTerminalPanel(): void {
         if (initialized.current) return;
         initialized.current = true;
 
-        // DEBUG: Log when useTerminalPanel runs
-        // eslint-disable-next-line no-console
-        console.log("[useTerminalPanel] Initializing terminal panel hook");
-
         // Set up resize handle for terminal panel
         const terminalPanel = document.getElementById("terminal-panel");
         const resizeHandle = document.getElementById("terminal-resize-handle");
@@ -87,63 +83,36 @@ export function useTerminalPanel(): void {
         // Load any existing terminals on mount
         (async () => {
             try {
-                // DEBUG: Log window.api availability
-                // eslint-disable-next-line no-console
-                console.log("[useTerminalPanel] window.api exists:", typeof window.api !== "undefined");
-                // eslint-disable-next-line no-console
-                console.log("[useTerminalPanel] Calling get-all-terminals...");
                 const existingTerminals = (await window.api.invoke("get-all-terminals")) as Terminal[];
-                // DEBUG: Log what terminals are restored
-                // eslint-disable-next-line no-console
-                console.log("[useTerminalPanel] existingTerminals:", existingTerminals);
                 if (Array.isArray(existingTerminals) && existingTerminals.length > 0) {
                     setTimeout(() => {
                         existingTerminals.forEach((terminal: Terminal) => createTerminalTab(terminal));
                         showTerminal();
                     }, 200);
-                } else {
-                    // eslint-disable-next-line no-console
-                    console.log("[useTerminalPanel] No existing terminals to restore");
                 }
             } catch (error) {
-                // eslint-disable-next-line no-console
-                console.error("[useTerminalPanel] Failed to load existing terminals:", error);
+                console.error("[TerminalPanel] Failed to load existing terminals:", error);
             }
         })();
 
         // Terminal event handlers
         const handleTerminalCreated = (_event: unknown, payload: { data: Terminal }): void => {
-            // DEBUG: Log terminal created event
-            // eslint-disable-next-line no-console
-            console.log("[useTerminalPanel] terminal:created", payload.data);
             setTimeout(() => {
                 createTerminalTab(payload.data);
                 showTerminal();
             }, 100);
         };
         const handleTerminalClosed = (_event: unknown, payload: { data: { terminalId: string } }): void => {
-            // DEBUG: Log terminal closed event
-            // eslint-disable-next-line no-console
-            console.log("[useTerminalPanel] terminal:closed", payload.data);
             removeTerminalTab(payload.data.terminalId, hideTerminal);
         };
         const handleTerminalOutput = (_event: unknown, payload: { data: { terminalId: string; data: string } }): void => {
-            // DEBUG: Log terminal output event
-            // eslint-disable-next-line no-console
-            console.log("[useTerminalPanel] terminal:output", payload.data);
             appendTerminalOutput(payload.data.terminalId, payload.data.data);
         };
         const handleTerminalError = (_event: unknown, payload: { data: { terminalId: string; error: string } }): void => {
-            // DEBUG: Log terminal error event
-            // eslint-disable-next-line no-console
-            console.log("[useTerminalPanel] terminal:error", payload.data);
             appendTerminalOutput(payload.data.terminalId, `\x1b[31mError: ${payload.data.error}\x1b[0m\n`);
         };
         // Listen for toolbox events
         window.toolboxAPI.events.on((_event: unknown, payload: unknown) => {
-            // DEBUG: Log all terminal events
-            // eslint-disable-next-line no-console
-            console.log("[useTerminalPanel] toolboxAPI.events payload:", payload);
             if (typeof payload === "object" && payload !== null && "event" in payload && "data" in payload) {
                 const eventPayload = payload as TerminalEventPayload;
                 switch (eventPayload.event) {

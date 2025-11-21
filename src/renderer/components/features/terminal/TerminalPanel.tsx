@@ -81,9 +81,6 @@ const useStyles = makeStyles({
  * Visibility is controlled via CSS display property from TerminalContext.
  */
 export const TerminalPanel: React.FC = () => {
-    // DEBUG: Confirm TerminalPanel is rendered
-    // eslint-disable-next-line no-console
-    console.log("[TerminalPanel] Component rendered");
     const { isTerminalVisible, hideTerminal } = useTerminal();
     const styles = useStyles();
 

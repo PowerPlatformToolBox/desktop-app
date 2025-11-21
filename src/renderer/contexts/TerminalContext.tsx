@@ -15,17 +15,14 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Notify main process when terminal visibility changes
     useEffect(() => {
         if (typeof window !== "undefined" && window.api) {
-            console.log("[TerminalContext] Terminal visibility changed:", isTerminalVisible);
             window.api.send("terminal-visibility-changed", isTerminalVisible);
         }
     }, [isTerminalVisible]);
 
     const showTerminal = () => {
-        console.log("[TerminalContext] showTerminal() called - setting isTerminalVisible to true");
         setIsTerminalVisible(true);
     };
     const hideTerminal = () => {
-        console.log("[TerminalContext] hideTerminal() called - setting isTerminalVisible to false");
         setIsTerminalVisible(false);
     };
     const toggleTerminal = () => setIsTerminalVisible((prev) => !prev);
