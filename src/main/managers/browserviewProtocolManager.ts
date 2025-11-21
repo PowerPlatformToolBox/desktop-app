@@ -197,8 +197,11 @@ export class BrowserviewProtocolManager {
         if (tool.localPath) {
             // Local development tool
             return tool.localPath;
+        } else if (tool.npmPackageName) {
+            // Npm-installed tool (debug mode)
+            return path.join(this.toolsDir, "node_modules", tool.npmPackageName);
         } else if (tool.id) {
-            // Installed tool
+            // Registry-installed tool
             return path.join(this.toolsDir, tool.id);
         }
         return null;
