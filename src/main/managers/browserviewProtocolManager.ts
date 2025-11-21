@@ -60,32 +60,40 @@ export class BrowserviewProtocolManager {
 
     /**
      * Handle protocol requests for pptb-webview://
-     * URL format: pptb-webview://encodedToolId/path/to/file
-     * The toolId is URL-encoded to handle special characters like / in scoped packages
+     * URL format: pptb-webview://tool/encodedToolId/path/to/file
+     * The toolId is in the path (not hostname) to handle special characters
      */
     private handleProtocolRequest(
         request: Electron.ProtocolRequest,
         callback: (response: Buffer | Electron.ProtocolResponse) => void
     ): void {
         try {
-            // Parse the URL: pptb-webview://encodedToolId/path/to/file
+            // Parse the URL: pptb-webview://tool/encodedToolId/path/to/file
             const url = request.url.replace('pptb-webview://', '');
-            const firstSlashIndex = url.indexOf('/');
+            
+            // Remove the 'tool/' prefix if present
+            let pathPart = url;
+            if (pathPart.startsWith('tool/')) {
+                pathPart = pathPart.substring(5); // Remove 'tool/'
+            }
+            
+            // Find the first slash after the tool ID to separate it from the file path
+            const firstSlashIndex = pathPart.indexOf('/');
             
             let encodedToolId: string;
             let filePath: string;
             
             if (firstSlashIndex === -1) {
-                // No path, just the tool ID
-                encodedToolId = url;
+                // No file path, just the tool ID
+                encodedToolId = pathPart;
                 filePath = 'index.html';
             } else {
                 // Split at the first slash to separate toolId from file path
-                encodedToolId = url.substring(0, firstSlashIndex);
-                filePath = url.substring(firstSlashIndex + 1) || 'index.html';
+                encodedToolId = pathPart.substring(0, firstSlashIndex);
+                filePath = pathPart.substring(firstSlashIndex + 1) || 'index.html';
             }
             
-            // Decode the tool ID (handles special characters like / in scoped packages)
+            // Decode the tool ID (handles special characters like / and : in tool IDs)
             const toolId = decodeURIComponent(encodedToolId);
 
             console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
@@ -235,13 +243,14 @@ export class BrowserviewProtocolManager {
 
     /**
      * Build the webview URL for a tool
-     * Returns: pptb-webview://encodedToolId/index.html
-     * The toolId is URL-encoded to handle special characters like / in scoped packages
+     * Returns: pptb-webview://tool/encodedToolId/index.html
+     * The toolId is placed in the path (not hostname) to avoid URL encoding issues with special characters
      */
     buildToolUrl(toolId: string, file: string = 'index.html'): string {
-        // Encode the tool ID to handle special characters (e.g., / in scoped packages like @org/package)
+        // Encode the tool ID to handle special characters (e.g., / and : in tool IDs)
+        // Place it in the path portion, not the hostname, to avoid URL parsing issues
         const encodedToolId = encodeURIComponent(toolId);
-        return `pptb-webview://${encodedToolId}/${file}`;
+        return `pptb-webview://tool/${encodedToolId}/${file}`;
     }
 
     /**
