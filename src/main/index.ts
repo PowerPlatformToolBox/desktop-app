@@ -7,6 +7,7 @@ import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -22,6 +23,7 @@ class ToolBoxApp {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
+    private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -451,16 +453,22 @@ class ToolBoxApp {
             return await this.api.saveFile(defaultPath, content);
         });
 
-        // Show loading handler
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message) => {
-            if (this.mainWindow) {
+        // Show loading handler (overlay window above BrowserViews)
+        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
+            if (this.loadingOverlayWindowManager) {
+                this.loadingOverlayWindowManager.show(message || "Loading...");
+            } else if (this.mainWindow) {
+                // Fallback to legacy in-DOM loading screen if manager not ready
                 this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
             }
         });
 
         // Hide loading handler
         ipcMain.handle(UTIL_CHANNELS.HIDE_LOADING, () => {
-            if (this.mainWindow) {
+            if (this.loadingOverlayWindowManager) {
+                this.loadingOverlayWindowManager.hide();
+            } else if (this.mainWindow) {
+                // Fallback legacy hide
                 this.mainWindow.webContents.send(EVENT_CHANNELS.HIDE_LOADING_SCREEN);
             }
         });
@@ -876,6 +884,8 @@ class ToolBoxApp {
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+        // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
+        this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -896,6 +906,11 @@ class ToolBoxApp {
             if (this.toolWindowManager) {
                 this.toolWindowManager.destroy();
                 this.toolWindowManager = null;
+            }
+            // Cleanup loading overlay window
+            if (this.loadingOverlayWindowManager) {
+                this.loadingOverlayWindowManager.destroy();
+                this.loadingOverlayWindowManager = null;
             }
             this.mainWindow = null;
         });
