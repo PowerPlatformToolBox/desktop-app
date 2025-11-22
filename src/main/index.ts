@@ -905,12 +905,10 @@ class ToolBoxApp {
             // Cleanup tool windows
             if (this.toolWindowManager) {
                 this.toolWindowManager.destroy();
-                this.toolWindowManager = null;
             }
             // Cleanup loading overlay window
             if (this.loadingOverlayWindowManager) {
                 this.loadingOverlayWindowManager.destroy();
-                this.loadingOverlayWindowManager = null;
             }
             this.mainWindow = null;
         });
