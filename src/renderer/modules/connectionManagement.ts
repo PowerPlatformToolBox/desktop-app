@@ -3,8 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { updateAuthFieldsVisibility } from "./modalManagement";
-import { closeModal } from "./modalManagement";
+import { closeModal, updateAuthFieldsVisibility } from "./modalManagement";
 
 /**
  * Update footer connection information

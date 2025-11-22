@@ -3,8 +3,19 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
-import { launchTool } from "./toolManagement";
 import { loadMarketplace } from "./marketplaceManagement";
+import { launchTool } from "./toolManagement";
+/// <reference path="../types.d.ts" />
+
+interface SidebarTool {
+    id: string;
+    name: string;
+    version: string;
+    icon?: string;
+    description?: string;
+    hasUpdate?: boolean;
+    latestVersion?: string;
+}
 
 /**
  * Load and display installed tools in the sidebar
@@ -38,13 +49,13 @@ export async function loadSidebarTools(): Promise<void> {
             return a.name.localeCompare(b.name);
         });
 
-        // Build tools list HTML
+        // Build tools list HTML (reverted to original structure for consistency)
         toolsList.innerHTML = sortedTools
-            .map((tool) => {
+            .map((tool: SidebarTool) => {
                 const isFavorite = favoriteIds.has(tool.id);
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 
-                // Determine tool icon
+                // Icon handling (retain improved fallback logic)
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
                 let toolIconHtml = "";
                 if (tool.icon) {
@@ -57,37 +68,44 @@ export async function loadSidebarTools(): Promise<void> {
                     toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
                 }
 
-                // Determine action icons
+                // Asset paths
                 const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-                const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
-                const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : (isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg");
+                const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
 
-                const hasUpdate = (tool as any).hasUpdate || false;
+                // Original field names (tolerate missing optional props)
+                const hasUpdate = !!tool.hasUpdate;
+                const latestVersion = tool.latestVersion;
+                const description = tool.description || "";
+                const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
 
                 return `
-                <div class="tool-item-pptb ${isFavorite ? "favorite" : ""}" data-tool-id="${tool.id}">
-                    <div class="tool-item-icon-pptb">${toolIconHtml}</div>
-                    <div class="tool-item-info-pptb">
-                        <div class="tool-item-name-pptb">${tool.name}</div>
-                        <div class="tool-item-version-pptb">v${tool.version}</div>
-                    </div>
-                    <div class="tool-item-actions-pptb">
-                        <button class="btn btn-icon tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${isFavorite ? "Remove from favorites" : "Add to favorites"}">
-                            <img src="${starIconPath}" alt="Favorite" style="width:16px; height:16px;" />
-                        </button>
-                        ${
-                            hasUpdate
-                                ? `<button class="btn btn-icon" data-action="update" data-tool-id="${tool.id}" title="Update available">
-                            <img src="${updateIconPath}" alt="Update" style="width:16px; height:16px;" />
-                        </button>`
-                                : ""
-                        }
-                        <button class="btn btn-icon" data-action="delete" data-tool-id="${tool.id}" style="color: #d83b01;" title="Uninstall">
-                            <img src="${trashIconPath}" alt="Delete" style="width:16px; height:16px;" />
-                        </button>
-                    </div>
-                </div>
-            `;
+                    <div class="tool-item-pptb" data-tool-id="${tool.id}">
+                        <div class="tool-item-header-pptb">
+                            <span class="tool-item-icon-pptb">${toolIconHtml}</span>
+                            <div class="tool-item-name-pptb">
+                                ${tool.name}
+                                ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                            </div>
+                            <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
+                                <img src="${starIconPath}" alt="${isFavorite ? "Favorited" : "Not favorite"}" />
+                            </button>
+                        </div>
+                        <div class="tool-item-description-pptb">${description}</div>
+                        <div class="tool-item-version-pptb">
+                            v${tool.version}${hasUpdate && latestVersion ? ` → v${latestVersion}` : ""}
+                        </div>
+                        <div class="tool-item-actions-pptb">
+                            ${
+                                hasUpdate && latestVersion
+                                    ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button>`
+                                    : ""
+                            }
+                            <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
+                            <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
+                                <img src="${trashIconPath}" alt="Delete" />
+                            </button>
+                        </div>
+                    </div>`;
             })
             .join("");
 

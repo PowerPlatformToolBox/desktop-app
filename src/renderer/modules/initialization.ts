@@ -3,37 +3,18 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-import { openModal, closeModal, updateAuthFieldsVisibility } from "./modalManagement";
-import { switchSidebar } from "./sidebarManagement";
-import {
-    closeAllTools,
-    showHomePage,
-    setupKeyboardShortcuts,
-    restoreSession,
-} from "./toolManagement";
-import {
-    updateFooterConnection,
-    addConnection,
-    testConnection,
-    loadSidebarConnections,
-    updateFooterConnectionStatus,
-    handleReauthentication,
-} from "./connectionManagement";
-import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
-import { applyTheme, applyTerminalFont, applyDebugMenuVisibility } from "./themeManagement";
-import {
-    setupTerminalPanel,
-    handleTerminalCreated,
-    handleTerminalClosed,
-    handleTerminalOutput,
-    handleTerminalCommandCompleted,
-    handleTerminalError,
-} from "./terminalManagement";
-import { setupAutoUpdateListeners } from "./autoUpdateManagement";
-import { loadToolsLibrary, loadMarketplace } from "./marketplaceManagement";
-import { loadSidebarTools } from "./toolsSidebarManagement";
-import { showPPTBNotification } from "./notifications";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
+import { setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { addConnection, handleReauthentication, loadSidebarConnections, testConnection, updateFooterConnection, updateFooterConnectionStatus } from "./connectionManagement";
+import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { closeModal, openModal, updateAuthFieldsVisibility } from "./modalManagement";
+import { showPPTBNotification } from "./notifications";
+import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
+import { switchSidebar } from "./sidebarManagement";
+import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
+import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { closeAllTools, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -79,6 +60,9 @@ export async function initializeApplication(): Promise<void> {
     // Load initial sidebar content (tools by default)
     await loadSidebarTools();
     await loadMarketplace();
+
+    // Load connections in sidebar immediately (was previously delayed until events)
+    await loadSidebarConnections();
 
     // Update footer connection info
     await updateFooterConnection();
@@ -289,27 +273,26 @@ function setupDebugSection(): void {
  */
 function setupSettingsListeners(): void {
     // Theme selector
-    const themeSelect = document.getElementById("sidebar-theme-select");
+    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement | null;
     if (themeSelect) {
         themeSelect.addEventListener("change", async () => {
-            const theme = (themeSelect as any).value;
+            const theme = themeSelect.value as string;
             if (theme) {
                 await window.toolboxAPI.updateUserSettings({ theme });
                 applyTheme(theme);
-                const originalSettings = { theme };
-                setOriginalSettings(originalSettings);
+                setOriginalSettings({ theme });
             }
         });
     }
 
     // Terminal font selector
-    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select");
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as HTMLSelectElement | null;
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
     if (terminalFontSelect) {
         terminalFontSelect.addEventListener("change", async () => {
-            const terminalFont = (terminalFontSelect as any).value;
+            const terminalFont = terminalFontSelect.value;
 
             if (customFontContainer) {
                 if (terminalFont === "custom") {
