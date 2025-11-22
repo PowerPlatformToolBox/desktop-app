@@ -4,7 +4,9 @@
         "lib": ["ES2022", "DOM"],
         "types": ["node"],
         "module": "ES2022",
-        "moduleResolution": "bundler"
+        "moduleResolution": "bundler",
+        // Ensure our ambient renderer declarations (e.g. window.toolboxAPI) are picked up reliably
+        "typeRoots": ["./node_modules/@types", "./src/renderer"]
     },
     "include": ["src/renderer/**/*"],
     "exclude": ["node_modules", "dist", "build"]

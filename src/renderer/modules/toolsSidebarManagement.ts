@@ -3,19 +3,9 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
+import { SidebarTool } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { launchTool } from "./toolManagement";
-/// <reference path="../types.d.ts" />
-
-interface SidebarTool {
-    id: string;
-    name: string;
-    version: string;
-    icon?: string;
-    description?: string;
-    hasUpdate?: boolean;
-    latestVersion?: string;
-}
 
 /**
  * Load and display installed tools in the sidebar

@@ -3,6 +3,7 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
+import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { addConnection, handleReauthentication, loadSidebarConnections, testConnection, updateFooterConnection, updateFooterConnectionStatus } from "./connectionManagement";
@@ -276,7 +277,7 @@ function setupSettingsListeners(): void {
     const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement | null;
     if (themeSelect) {
         themeSelect.addEventListener("change", async () => {
-            const theme = themeSelect.value as string;
+            const theme = themeSelect.value as Theme;
             if (theme) {
                 await window.toolboxAPI.updateUserSettings({ theme });
                 applyTheme(theme);
@@ -550,6 +551,7 @@ function setupLoadingScreenListeners(): void {
  * Set up toolbox event listeners
  */
 function setupToolboxEventListeners(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
 

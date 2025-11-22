@@ -80,3 +80,16 @@ export interface ToolDetail {
     readme?: string;
     readmeUrl?: string;
 }
+
+/**
+ * Sidebar tool representation
+ */
+export interface SidebarTool {
+    id: string;
+    name: string;
+    version: string;
+    icon?: string;
+    description?: string;
+    hasUpdate?: boolean;
+    latestVersion?: string;
+}
