@@ -1,5 +1,6 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
+import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { Tool } from "../../common/types";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 
@@ -34,27 +35,27 @@ export class ToolWindowManager {
      */
     private setupIpcHandlers(): void {
         // Launch tool (create BrowserView and load tool)
-        ipcMain.handle("tool-window:launch", async (event, toolId: string, tool: Tool) => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, toolId: string, tool: Tool) => {
             return this.launchTool(toolId, tool);
         });
 
         // Switch to a different tool
-        ipcMain.handle("tool-window:switch", async (event, toolId: string) => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SWITCH, async (event, toolId: string) => {
             return this.switchToTool(toolId);
         });
 
         // Close a tool
-        ipcMain.handle("tool-window:close", async (event, toolId: string) => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, toolId: string) => {
             return this.closeTool(toolId);
         });
 
         // Get active tool ID
-        ipcMain.handle("tool-window:get-active", async () => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_ACTIVE, async () => {
             return this.activeToolId;
         });
 
         // Get all open tool IDs
-        ipcMain.handle("tool-window:get-open-tools", async () => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS, async () => {
             return Array.from(this.toolViews.keys());
         });
 
@@ -73,7 +74,7 @@ export class ToolWindowManager {
         this.mainWindow.on("resize", () => {
             this.updateToolViewBounds();
         });
-        
+
         // Handle terminal panel visibility changes
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
         ipcMain.on("terminal-visibility-changed", (event, isVisible: boolean) => {
@@ -102,7 +103,9 @@ export class ToolWindowManager {
                     preload: path.join(__dirname, "toolPreloadBridge.js"),
                     contextIsolation: true,
                     nodeIntegration: false,
-                    sandbox: true,
+                    // Disable Electron sandbox for this BrowserView preload so CommonJS require works.
+                    // If stronger isolation is needed later, switch to bundling preload without runtime require.
+                    sandbox: false,
                     // Disable web security to bypass CORS for external API calls
                     // CSP is still enforced via meta tags in tool HTML
                     webSecurity: false,
@@ -166,7 +169,7 @@ export class ToolWindowManager {
             this.activeToolId = toolId;
 
             console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
-            
+
             // Request bounds update (with a small delay to ensure renderer is ready)
             setTimeout(() => {
                 this.updateToolViewBounds();
@@ -226,7 +229,7 @@ export class ToolWindowManager {
             // Request bounds from renderer
             this.boundsUpdatePending = true;
             this.mainWindow.webContents.send("get-tool-panel-bounds-request");
-            
+
             // Reset pending flag after timeout
             setTimeout(() => {
                 this.boundsUpdatePending = false;
@@ -303,7 +306,7 @@ export class ToolWindowManager {
         for (const [toolId, toolView] of this.toolViews) {
             try {
                 if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    toolView.webContents.send("toolbox-event", eventPayload);
+                    toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
                 }
             } catch (error) {
                 console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);

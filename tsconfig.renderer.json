@@ -8,6 +8,6 @@
         // Ensure our ambient renderer declarations (e.g. window.toolboxAPI) are picked up reliably
         "typeRoots": ["./node_modules/@types", "./src/renderer"]
     },
-    "include": ["src/renderer/**/*"],
+    "include": ["src/renderer/**/*", "src/common/**/*"],
     "exclude": ["node_modules", "dist", "build"]
 }
