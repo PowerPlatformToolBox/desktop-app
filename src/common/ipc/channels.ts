@@ -1,11 +1,11 @@
 /**
- * IPC Channel Constants
- * Centralized definition of all IPC channel names to avoid string duplication
+ * IPC Channel Constants (Shared)
+ * Centralized definition of all IPC channel names to avoid string duplication.
+ * Moved to src/common/ipc so both main and preload/renderer builds can depend
+ * on a single source of truth without cross-boundary require issues.
  */
 
-/**
- * Settings-related IPC channels
- */
+// Settings-related IPC channels
 export const SETTINGS_CHANNELS = {
     GET_USER_SETTINGS: "get-user-settings",
     UPDATE_USER_SETTINGS: "update-user-settings",
@@ -28,9 +28,7 @@ export const SETTINGS_CHANNELS = {
     GET_CSP_CONSENTS: "get-csp-consents",
 } as const;
 
-/**
- * Connection-related IPC channels
- */
+// Connection-related IPC channels
 export const CONNECTION_CHANNELS = {
     ADD_CONNECTION: "add-connection",
     UPDATE_CONNECTION: "update-connection",
@@ -44,9 +42,7 @@ export const CONNECTION_CHANNELS = {
     REFRESH_TOKEN: "refresh-connection-token",
 } as const;
 
-/**
- * Tool-related IPC channels
- */
+// Tool-related IPC channels
 export const TOOL_CHANNELS = {
     GET_ALL_TOOLS: "get-all-tools",
     GET_TOOL: "get-tool",
@@ -66,9 +62,7 @@ export const TOOL_CHANNELS = {
     UPDATE_TOOL: "update-tool",
 } as const;
 
-/**
- * Tool Window-related IPC channels
- */
+// Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",
     SWITCH: "tool-window:switch",
@@ -77,9 +71,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
 } as const;
 
-/**
- * Terminal-related IPC channels
- */
+// Terminal-related IPC channels
 export const TERMINAL_CHANNELS = {
     CREATE_TERMINAL: "create-terminal",
     EXECUTE_COMMAND: "execute-terminal-command",
@@ -90,9 +82,7 @@ export const TERMINAL_CHANNELS = {
     SET_VISIBILITY: "set-terminal-visibility",
 } as const;
 
-/**
- * Utility-related IPC channels
- */
+// Utility-related IPC channels
 export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
@@ -104,9 +94,7 @@ export const UTIL_CHANNELS = {
     GET_EVENT_HISTORY: "get-event-history",
 } as const;
 
-/**
- * Auto-update-related IPC channels
- */
+// Auto-update-related IPC channels
 export const UPDATE_CHANNELS = {
     CHECK_FOR_UPDATES: "check-for-updates",
     DOWNLOAD_UPDATE: "download-update",
@@ -114,9 +102,7 @@ export const UPDATE_CHANNELS = {
     GET_APP_VERSION: "get-app-version",
 } as const;
 
-/**
- * Dataverse-related IPC channels
- */
+// Dataverse-related IPC channels
 export const DATAVERSE_CHANNELS = {
     CREATE: "dataverse.create",
     RETRIEVE: "dataverse.retrieve",
@@ -132,9 +118,7 @@ export const DATAVERSE_CHANNELS = {
     QUERY_DATA: "dataverse.queryData",
 } as const;
 
-/**
- * Event-related IPC channels (from main to renderer)
- */
+// Event-related IPC channels (from main to renderer)
 export const EVENT_CHANNELS = {
     TOOLBOX_EVENT: "toolbox-event",
     UPDATE_CHECKING: "update-checking",
@@ -152,7 +136,5 @@ export const EVENT_CHANNELS = {
     HIDE_LOADING_SCREEN: "hide-loading-screen",
 } as const;
 
-/**
- * Type helper to extract channel names
- */
+// Type helper to extract channel names
 export type ChannelName<T> = T[keyof T];

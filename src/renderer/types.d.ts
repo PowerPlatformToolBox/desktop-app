@@ -3,10 +3,10 @@
  * Re-exports shared types and extends with renderer-specific definitions
  */
 
-import { ToolboxAPI, ToolContext } from "../common/types";
+import type { ToolboxAPI, ToolContext } from "../common/types";
 
 // Re-export for convenience
-export type { ToolContext, ToolboxAPI };
+export type { ToolboxAPI, ToolContext };
 
 // Extend ToolContext for renderer (includes accessToken for internal use)
 export interface RendererToolContext extends ToolContext {
@@ -16,8 +16,11 @@ export interface RendererToolContext extends ToolContext {
 // Global window declarations
 declare global {
     interface Window {
+        /** Main Toolbox API surface injected by preload */
         toolboxAPI: ToolboxAPI;
+        /** Optional tool context reference (legacy usage) */
         TOOLBOX_CONTEXT?: ToolContext;
+        /** Backward compatibility shim for old window.api usage */
         api: {
             on: (channel: string, callback: (...args: unknown[]) => void) => void;
             invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
@@ -25,3 +28,6 @@ declare global {
         };
     }
 }
+
+// Make this file a module so the global augmentation is applied
+export {};

@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog } from "electron";
 import { autoUpdater } from "electron-updater";
 import { EventEmitter } from "events";
+import { EVENT_CHANNELS } from "../../common/ipc/channels";
 
 /**
  * Manages application auto-updates using electron-updater
@@ -27,14 +28,14 @@ export class AutoUpdateManager extends EventEmitter {
         autoUpdater.on("checking-for-update", () => {
             this.isChecking = true;
             this.emit("checking-for-update");
-            this.sendToRenderer("update-checking");
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_CHECKING);
         });
 
         // Update available event
         autoUpdater.on("update-available", (info) => {
             this.isChecking = false;
             this.emit("update-available", info);
-            this.sendToRenderer("update-available", {
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_AVAILABLE, {
                 version: info.version,
                 releaseNotes: info.releaseNotes,
                 releaseDate: info.releaseDate,
@@ -63,20 +64,20 @@ export class AutoUpdateManager extends EventEmitter {
         autoUpdater.on("update-not-available", () => {
             this.isChecking = false;
             this.emit("update-not-available");
-            this.sendToRenderer("update-not-available");
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_NOT_AVAILABLE);
         });
 
         // Error event
         autoUpdater.on("error", (error) => {
             this.isChecking = false;
             this.emit("update-error", error);
-            this.sendToRenderer("update-error", error.message);
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_ERROR, error.message);
         });
 
         // Download progress event
         autoUpdater.on("download-progress", (progress) => {
             this.emit("download-progress", progress);
-            this.sendToRenderer("update-download-progress", {
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_DOWNLOAD_PROGRESS, {
                 bytesPerSecond: progress.bytesPerSecond,
                 percent: Math.round(progress.percent),
                 transferred: progress.transferred,
@@ -87,7 +88,7 @@ export class AutoUpdateManager extends EventEmitter {
         // Update downloaded event
         autoUpdater.on("update-downloaded", (info) => {
             this.emit("update-downloaded", info);
-            this.sendToRenderer("update-downloaded", {
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_DOWNLOADED, {
                 version: info.version,
             });
 
@@ -139,7 +140,7 @@ export class AutoUpdateManager extends EventEmitter {
             await autoUpdater.checkForUpdates();
         } catch (error) {
             this.emit("update-error", error);
-            this.sendToRenderer("update-error", (error as Error).message);
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_ERROR, (error as Error).message);
         }
     }
 
@@ -151,7 +152,7 @@ export class AutoUpdateManager extends EventEmitter {
             await autoUpdater.downloadUpdate();
         } catch (error) {
             this.emit("update-error", error);
-            this.sendToRenderer("update-error", (error as Error).message);
+            this.sendToRenderer(EVENT_CHANNELS.UPDATE_ERROR, (error as Error).message);
         }
     }
 
