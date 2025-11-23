@@ -18,9 +18,10 @@ let toolContext: Record<string, unknown> | null = null;
 
 // Promise that resolves when toolContext is ready
 // This prevents race conditions where tool code tries to use the API before context is received
-let resolveToolContext: () => void;
+// Pattern: Create a promise and capture its resolve function for later use
+let resolveToolContext!: () => void; // Definite assignment assertion - will be set immediately below
 
-// Initialize the promise
+// Initialize the promise and capture the resolve function
 const toolContextReady = new Promise<void>((resolve) => {
     resolveToolContext = resolve;
 });
@@ -36,10 +37,11 @@ ipcRenderer.on("toolbox:context", (event, context) => {
 // Helper to ensure toolContext is ready before proceeding
 async function ensureToolContext(): Promise<string> {
     await toolContextReady;
-    if (!toolContext?.toolId) {
+    // After promise resolves, toolContext must be set and have a toolId
+    if (!toolContext || typeof toolContext.toolId !== 'string') {
         throw new Error("Tool context not initialized properly");
     }
-    return toolContext.toolId as string;
+    return toolContext.toolId;
 }
 
 // Helper to make IPC calls and return promises
