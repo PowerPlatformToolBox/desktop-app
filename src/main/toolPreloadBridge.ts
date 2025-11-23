@@ -52,7 +52,10 @@ function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
 // Expose toolboxAPI to the tool window
 contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Info
-    getToolContext: () => toolContext,
+    getToolContext: async () => {
+        await toolContextReady;
+        return toolContext;
+    },
 
     // Connections API
     connections: {
