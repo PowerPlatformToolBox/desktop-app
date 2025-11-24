@@ -352,12 +352,18 @@ This will automatically rebuild your tool whenever you save changes.
 
 1. **Open Power Platform Tool Box**
 
-2. **Navigate to Debug Section**
+2. **Enable Debug Menu in the PPTB Desktop App**
+
+    - Click the settings icon in the activity bar (left sidebar at the bottom)
+    - Click Show Debug Menu
+    - Click Save (the Debug menu should appear in the activity bar)
+
+3. **Navigate to Debug Section**
 
     - Click the Debug icon in the activity bar (left sidebar)
     - It's the fourth icon from the top
 
-3. **Load Your Local Tool**
+4. **Load Your Local Tool**
 
     - In the "Load Local Tool" section
     - Click the **Browse** button
@@ -365,7 +371,7 @@ This will automatically rebuild your tool whenever you save changes.
     - Select the directory
     - Click **Load Tool**
 
-4. **Tool Loaded Successfully**
+5. **Tool Loaded Successfully**
     - You'll see a success notification
     - The tool will appear in the Installed Tools list with a `local:` prefix
     - Example: `local:@powerplatform/my-tool`
