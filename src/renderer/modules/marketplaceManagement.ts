@@ -3,9 +3,9 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import { openModal, closeModal } from "./modalManagement";
-import { loadSidebarTools } from "./toolsSidebarManagement";
 import type { ToolDetail } from "../types/index";
+import { closeModal, openModal } from "./modalManagement";
+import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Tool library loaded from registry
 let toolLibrary: ToolDetail[] = [];
@@ -31,11 +31,11 @@ export async function loadToolsLibrary(): Promise<void> {
             name: tool.name,
             description: tool.description,
             author: tool.author,
-            category: tool.tags?.[0] || "Tools", // Use first tag as category
+            category: tool.category || "Tools", // Use first tag as category
             version: tool.version,
-            icon: tool.icon,
+            iconUrl: tool.icon,
             downloadUrl: tool.downloadUrl,
-            tags: tool.tags || [],
+            readmeUrl: tool.readme,
         }));
 
         console.log(`Loaded ${toolLibrary.length} tools from registry`);
@@ -90,6 +90,8 @@ export async function loadMarketplace(): Promise<void> {
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
+            console.log(tool);
+
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
@@ -97,13 +99,13 @@ export async function loadMarketplace(): Promise<void> {
             // Determine tool icon: use URL if provided, otherwise use default icon
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
-            if (tool.icon) {
+            if (tool.iconUrl) {
                 // Check if icon is a URL (starts with http:// or https://)
-                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="marketplace-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="marketplace-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
                 } else {
                     // Assume it's an emoji or text
-                    toolIconHtml = `<span class="marketplace-item-icon-text">${tool.icon}</span>`;
+                    toolIconHtml = `<span class="marketplace-item-icon-text">${tool.iconUrl}</span>`;
                 }
             } else {
                 // Use default icon
