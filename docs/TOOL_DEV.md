@@ -342,7 +342,7 @@ This will automatically rebuild your tool whenever you save changes.
 
     - Click the settings icon in the activity bar (left sidebar at the bottom)
     - Click Show Debug Menu
-    - Click Save (the Debug menu should appear in the acitivty bar)
+    - Click Save (the Debug menu should appear in the activity bar)
 
 3. **Navigate to Debug Section**
 
