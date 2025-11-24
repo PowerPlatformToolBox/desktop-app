@@ -1,4 +1,4 @@
-name: Nightly Pre-Release
+name: Insider Pre-Release
 
 on:
     schedule:
