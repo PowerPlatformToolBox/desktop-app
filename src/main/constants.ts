@@ -10,5 +10,15 @@ export const DATAVERSE_API_VERSION = "v9.2";
 
 /**
  * Tool Registry Configuration
+ * @deprecated Use Supabase instead
  */
 export const TOOL_REGISTRY_URL = "https://www.powerplatformtoolbox.com/registry/registry.json";
+
+/**
+ * Supabase Configuration
+ * These values are injected at build time from environment variables.
+ * They are NOT stored in the source code for security reasons.
+ * Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables before building.
+ */
+export const SUPABASE_URL = process.env.SUPABASE_URL || "";
+export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";

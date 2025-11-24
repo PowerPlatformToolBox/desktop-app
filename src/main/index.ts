@@ -36,7 +36,8 @@ class ToolBoxApp {
         this.settingsManager = new SettingsManager();
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxUtilityManager();
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        // Pass Supabase credentials from environment variables or use defaults from constants
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
         this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();

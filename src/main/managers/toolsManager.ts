@@ -29,10 +29,10 @@ export class ToolManager extends EventEmitter {
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
 
-    constructor(toolsDirectory: string, registryUrl?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, registryUrl);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey);
         this.ensureToolsDirectory();
 
         // Forward registry events

@@ -1,12 +1,35 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import electron from "vite-plugin-electron/simple";
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === "production";
     const enableSourceMap = !isProd; // keep source maps out of production builds
+
+    // Load environment variables from .env file
+    const env = loadEnv(mode, process.cwd(), "");
+
+    // Debug: Log if Supabase credentials are loaded
+    const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
+    const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+
+    if (supabaseUrl && supabaseKey) {
+        console.log("[Vite] Supabase credentials loaded successfully");
+        console.log("[Vite] Supabase URL:", supabaseUrl.substring(0, 30) + "...");
+    } else {
+        console.warn("[Vite] WARNING: Supabase credentials not found in environment");
+        console.warn("[Vite] Make sure .env file exists with SUPABASE_URL and SUPABASE_ANON_KEY");
+    }
+
+    // Define environment variables for the build
+    // These will be replaced at build time, not exposed in the bundle
+    const envDefines = {
+        "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
+        "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
+    };
+
     return {
         plugins: [
             electron({
@@ -14,6 +37,7 @@ export default defineConfig(({ mode }) => {
                     // Main process entry point
                     entry: "src/main/index.ts",
                     vite: {
+                        define: envDefines,
                         build: {
                             // Only include source maps when not building for production
                             sourcemap: enableSourceMap,
