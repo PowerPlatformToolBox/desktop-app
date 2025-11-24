@@ -1,3 +1,4 @@
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -6,7 +7,26 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { ToolManifest, ToolRegistryEntry } from "../../common/types";
-import { TOOL_REGISTRY_URL } from "../constants";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+
+/**
+ * Supabase database types
+ */
+interface SupabaseTool {
+    id: string;
+    name: string;
+    description: string;
+    iconurl: string;
+    category: string;
+    author?: string;
+    version?: string;
+    downloadurl?: string;
+    published_at?: string;
+    readmeurl?: string;
+    checksum?: string;
+    size?: number;
+    tags?: string[];
+}
 
 /**
  * Manages tool installation from a registry (marketplace)
@@ -14,15 +34,29 @@ import { TOOL_REGISTRY_URL } from "../constants";
  */
 export class ToolRegistryManager extends EventEmitter {
     private toolsDirectory: string;
-    private registryUrl: string;
     private manifestPath: string;
+    private supabase: SupabaseClient;
 
-    constructor(toolsDirectory: string, registryUrl?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        // Default registry URL from constants - can be overridden via settings
-        this.registryUrl = registryUrl || TOOL_REGISTRY_URL;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
+
+        // Initialize Supabase client
+        const url = supabaseUrl || SUPABASE_URL;
+        const key = supabaseKey || SUPABASE_ANON_KEY;
+
+        // Validate Supabase credentials and create client
+        if (!url || !key || url === "" || key === "") {
+            console.warn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+            console.warn("[ToolRegistry] Tool registry functionality will be limited.");
+            // Create a dummy client to prevent errors - it won't be functional but won't crash
+            this.supabase = createClient("https://placeholder.supabase.co", "placeholder-key");
+        } else {
+            console.log("[ToolRegistry] Initializing Supabase client with URL:", url.substring(0, 30) + "...");
+            this.supabase = createClient(url, key);
+        }
+
         this.ensureToolsDirectory();
     }
 
@@ -36,40 +70,48 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Fetch the tool registry from the server
+     * Fetch the tool registry from Supabase database
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
-        return new Promise((resolve, reject) => {
-            console.log(`[ToolRegistry] Fetching registry from: ${this.registryUrl}`);
+        try {
+            console.log(`[ToolRegistry] Fetching registry from Supabase`);
 
-            const protocol = this.registryUrl.startsWith("https") ? https : http;
+            // Query tools table from Supabase
+            const { data: toolsData, error } = await this.supabase
+                .from("tools")
+                .select("id, name, description, iconurl, category, author, version, downloadurl, published_at, readmeurl, checksum, size")
+                .order("name", { ascending: true });
 
-            protocol
-                .get(this.registryUrl, (res) => {
-                    if (res.statusCode !== 200) {
-                        reject(new Error(`Failed to fetch registry: HTTP ${res.statusCode}`));
-                        return;
-                    }
+            if (error) {
+                throw new Error(`Supabase query failed: ${error.message}`);
+            }
 
-                    let data = "";
-                    res.on("data", (chunk) => {
-                        data += chunk;
-                    });
+            if (!toolsData || toolsData.length === 0) {
+                console.log(`[ToolRegistry] No tools found in registry`);
+                return [];
+            }
 
-                    res.on("end", () => {
-                        try {
-                            const registry = JSON.parse(data);
-                            console.log(`[ToolRegistry] Fetched ${registry.tools?.length || 0} tools from registry`);
-                            resolve(registry.tools || []);
-                        } catch (error) {
-                            reject(new Error(`Failed to parse registry JSON: ${error}`));
-                        }
-                    });
-                })
-                .on("error", (error) => {
-                    reject(new Error(`Failed to fetch registry: ${error.message}`));
-                });
-        });
+            // Transform Supabase data to ToolRegistryEntry format
+            const tools: ToolRegistryEntry[] = toolsData.map((tool: SupabaseTool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                author: tool.author || "Unknown",
+                version: tool.version || "1.0.0",
+                icon: tool.iconurl,
+                downloadUrl: tool.downloadurl || "",
+                publishedAt: tool.published_at || new Date().toISOString(),
+                readme: tool.readmeurl,
+                checksum: tool.checksum,
+                size: tool.size,
+            }));
+
+            console.log(`[ToolRegistry] Fetched ${tools.length} tools from Supabase registry`);
+            return tools;
+        } catch (error) {
+            console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
+            throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     /**
@@ -338,10 +380,10 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Update registry URL
+     * Update Supabase credentials (if needed)
      */
-    setRegistryUrl(url: string): void {
-        this.registryUrl = url;
-        console.log(`[ToolRegistry] Registry URL updated to: ${url}`);
+    updateSupabaseClient(url: string, key: string): void {
+        this.supabase = createClient(url, key);
+        console.log(`[ToolRegistry] Supabase client updated`);
     }
 }

@@ -16,11 +16,33 @@ import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANN
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;
 
+// Promise that resolves when toolContext is ready
+// This prevents race conditions where tool code tries to use the API before context is received
+// Pattern: Create a promise and capture its resolve function for later use
+let resolveToolContext!: () => void; // Definite assignment assertion - will be set immediately below
+
+// Initialize the promise and capture the resolve function
+const toolContextReady = new Promise<void>((resolve) => {
+    resolveToolContext = resolve;
+});
+
 // Listen for context from main process
 ipcRenderer.on("toolbox:context", (event, context) => {
     toolContext = context;
     console.log("[ToolPreloadBridge] Received tool context:", context);
+    // Resolve the promise so any pending API calls can proceed
+    resolveToolContext();
 });
+
+// Helper to ensure toolContext is ready before proceeding
+async function ensureToolContext(): Promise<string> {
+    await toolContextReady;
+    // After promise resolves, toolContext must be set and have a toolId
+    if (!toolContext || typeof toolContext.toolId !== 'string') {
+        throw new Error("Tool context not initialized properly");
+    }
+    return toolContext.toolId;
+}
 
 // Helper to make IPC calls and return promises
 function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
@@ -30,7 +52,10 @@ function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
 // Expose toolboxAPI to the tool window
 contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Info
-    getToolContext: () => toolContext,
+    getToolContext: async () => {
+        await toolContextReady;
+        return toolContext;
+    },
 
     // Connections API
     connections: {
@@ -81,20 +106,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Terminal API
     terminal: {
-        create: (options: Record<string, unknown>) => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolContext.toolId, options);
+        create: async (options: Record<string, unknown>) => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, options);
         },
         execute: (terminalId: string, command: string) => ipcInvoke(TERMINAL_CHANNELS.EXECUTE_COMMAND, terminalId, command),
         close: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.CLOSE_TERMINAL, terminalId),
         get: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.GET_TERMINAL, terminalId),
-        list: () => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolContext.toolId);
+        list: async () => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId);
         },
         listAll: () => ipcInvoke(TERMINAL_CHANNELS.GET_ALL_TERMINALS),
         setVisibility: (terminalId: string, visible: boolean) => ipcInvoke(TERMINAL_CHANNELS.SET_VISIBILITY, terminalId, visible),
@@ -115,29 +136,21 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Settings API (tool-specific)
     settings: {
-        getSettings: () => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL, toolContext.toolId);
+        getSettings: async () => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL, toolId);
         },
-        getSetting: (key: string) => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET, toolContext.toolId, key);
+        getSetting: async (key: string) => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET, toolId, key);
         },
-        setSetting: (key: string, value: unknown) => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET, toolContext.toolId, key, value);
+        setSetting: async (key: string, value: unknown) => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET, toolId, key, value);
         },
-        setSettings: (settings: Record<string, unknown>) => {
-            if (!toolContext?.toolId) {
-                throw new Error("Tool context not initialized");
-            }
-            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL, toolContext.toolId, settings);
+        setSettings: async (settings: Record<string, unknown>) => {
+            const toolId = await ensureToolContext();
+            return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL, toolId, settings);
         },
     },
 });

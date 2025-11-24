@@ -74,10 +74,9 @@ export interface ToolDetail {
     author: string;
     category: string;
     version: string;
-    icon?: string;
+    iconUrl?: string;
     downloadUrl?: string;
-    tags?: string[];
-    readme?: string;
+    publishedAt?: string;
     readmeUrl?: string;
 }
 

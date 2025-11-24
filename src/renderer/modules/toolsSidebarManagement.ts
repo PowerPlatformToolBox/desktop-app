@@ -16,6 +16,7 @@ export async function loadSidebarTools(): Promise<void> {
 
     try {
         const tools = await window.toolboxAPI.getAllTools();
+        const favoriteTools = await window.toolboxAPI.getFavoriteTools();
 
         if (tools.length === 0) {
             toolsList.innerHTML = `
@@ -27,22 +28,32 @@ export async function loadSidebarTools(): Promise<void> {
             return;
         }
 
-        // Sort tools: favorites first, then by name
-        const favorites = await window.toolboxAPI.getFavoriteTools();
-        const favoriteIds = new Set(favorites);
+        // Enrich tools with update info and favorite status
+        const toolsWithUpdateInfo = await Promise.all(
+            tools.map(async (tool: SidebarTool) => {
+                const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
+                return {
+                    ...tool,
+                    latestVersion: updateInfo.latestVersion,
+                    hasUpdate: updateInfo.hasUpdate,
+                    isFavorite: favoriteTools.includes(tool.id),
+                };
+            }),
+        );
 
-        const sortedTools = [...tools].sort((a, b) => {
-            const aFav = favoriteIds.has(a.id);
-            const bFav = favoriteIds.has(b.id);
+        // Sort tools: favorites first, then by name
+        const sortedTools = [...toolsWithUpdateInfo].sort((a, b) => {
+            const aFav = a.isFavorite;
+            const bFav = b.isFavorite;
             if (aFav && !bFav) return -1;
             if (!aFav && bFav) return 1;
             return a.name.localeCompare(b.name);
         });
 
-        // Build tools list HTML (reverted to original structure for consistency)
+        // Build tools list HTML
         toolsList.innerHTML = sortedTools
-            .map((tool: SidebarTool) => {
-                const isFavorite = favoriteIds.has(tool.id);
+            .map((tool: SidebarTool & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
+                const isFavorite = !!tool.isFavorite;
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 
                 // Icon handling (retain improved fallback logic)
@@ -62,7 +73,6 @@ export async function loadSidebarTools(): Promise<void> {
                 const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
                 const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
 
-                // Original field names (tolerate missing optional props)
                 const hasUpdate = !!tool.hasUpdate;
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";

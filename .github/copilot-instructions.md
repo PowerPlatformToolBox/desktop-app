@@ -15,6 +15,22 @@
 
 -   Node.js 18 or higher (currently tested with v20.19.5)
 -   pnpm 10.18.3 or higher (package manager)
+-   **Supabase credentials** (required for tool registry):
+    -   `SUPABASE_URL` - Your Supabase project URL
+    -   `SUPABASE_ANON_KEY` - Your Supabase anonymous key
+
+### Environment Variables
+
+Create a `.env` file in the project root (gitignored) with:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Security Note**: These values are injected at build time via Vite and NOT stored in source code. For GitHub Actions, configure them as repository secrets.
+
+Supabase credentials should not be hardcoded in source code or committed to version control.
 
 ### Installation & Build Sequence
 
