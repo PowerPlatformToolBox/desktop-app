@@ -38,7 +38,7 @@ export async function loadSidebarTools(): Promise<void> {
                     hasUpdate: updateInfo.hasUpdate,
                     isFavorite: favoriteTools.includes(tool.id),
                 };
-            })
+            }),
         );
 
         // Sort tools: favorites first, then by name
