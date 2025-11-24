@@ -17,7 +17,6 @@ export default defineConfig(({ mode }) => {
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
-        console.log("[Vite] Supabase URL:", supabaseUrl.substring(0, 30) + "...");
     } else {
         console.warn("[Vite] WARNING: Supabase credentials not found in environment");
         console.warn("[Vite] Make sure .env file exists with SUPABASE_URL and SUPABASE_ANON_KEY");
