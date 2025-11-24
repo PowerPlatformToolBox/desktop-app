@@ -7,6 +7,31 @@ import type { ToolDetail } from "../types/index";
 import { closeModal, openModal } from "./modalManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
+interface RegistryTool {
+    id: string;
+    name: string;
+    description: string;
+    author: string;
+    version: string;
+    icon?: string;
+    downloadUrl?: string;
+    readme?: string;
+    category?: string;
+}
+
+interface InstalledTool {
+    id: string;
+    version: string;
+    name?: string;
+}
+
+interface ExtendedToolDetail extends ToolDetail {
+    icon?: string;
+    iconUrl?: string;
+    readme?: string;
+    readmeUrl?: string;
+}
+
 // Tool library loaded from registry
 let toolLibrary: ToolDetail[] = [];
 
@@ -26,7 +51,7 @@ export async function loadToolsLibrary(): Promise<void> {
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
 
         // Map registry tools to the format expected by the UI
-        toolLibrary = registryTools.map((tool: any) => ({
+        toolLibrary = (registryTools as RegistryTool[]).map((tool) => ({
             id: tool.id,
             name: tool.name,
             description: tool.description,
@@ -66,10 +91,10 @@ export async function loadMarketplace(): Promise<void> {
 
     // Get installed tools
     const installedTools = await window.toolboxAPI.getAllTools();
-    const installedToolsMap = new Map(installedTools.map((t: any) => [t.id, t]));
+    const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
 
     // Filter based on search
-    const searchInput = document.getElementById("marketplace-search-input") as any; // Fluent UI text field
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null; // Fluent UI text field
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
 
     const filteredTools = toolLibrary.filter((tool) => {
@@ -247,11 +272,34 @@ async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<v
     const installBtn = document.getElementById("tool-detail-install-btn");
     const installedBadge = document.getElementById("tool-detail-installed-badge");
     const readmeContent = document.getElementById("tool-detail-readme-content");
+    const iconElement = document.getElementById("tool-detail-icon");
 
     if (nameElement) nameElement.textContent = tool.name;
     if (descElement) descElement.textContent = tool.description;
     if (authorElement) authorElement.textContent = `Author: ${tool.author}`;
     if (categoryElement) categoryElement.textContent = `Category: ${tool.category}`;
+
+    // Icon handling (emoji, image URL, or fallback)
+    if (iconElement) {
+        const isDarkTheme = document.body.classList.contains("dark-theme");
+        const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+        let content = "";
+        const iconUrl: string | undefined = (tool as ExtendedToolDetail).iconUrl || (tool as ExtendedToolDetail).icon;
+        if (iconUrl) {
+            if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
+                content = `<img src="${iconUrl}" alt="${tool.name} icon" onerror="this.src='${defaultToolIcon}'" />`;
+            } else if (iconUrl.length <= 4) {
+                // Likely an emoji or short text token
+                content = `<span style="font-size:48px;line-height:1">${iconUrl}</span>`;
+            } else {
+                // Treat as text fallback
+                content = `<span style="font-size:20px;font-weight:600">${iconUrl}</span>`;
+            }
+        } else {
+            content = `<img src="${defaultToolIcon}" alt="Tool icon" />`;
+        }
+        iconElement.innerHTML = content;
+    }
 
     // Show install button or installed badge
     if (installBtn && installedBadge) {
@@ -300,7 +348,7 @@ async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<v
     if (readmeContent) {
         readmeContent.innerHTML = '<p class="loading-text">Loading README...</p>';
 
-        const readmeUrl = (tool as any).readme || (tool as any).readmeUrl;
+        const readmeUrl = (tool as ExtendedToolDetail).readme || (tool as ExtendedToolDetail).readmeUrl;
         if (readmeUrl) {
             try {
                 const response = await fetch(readmeUrl);
