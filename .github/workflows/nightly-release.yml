@@ -73,24 +73,33 @@ jobs:
 
             - name: Build application
               run: pnpm run build
+              env:
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (Ubuntu)
               if: matrix.os == 'ubuntu-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (Windows)
               if: matrix.os == 'windows-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
                   # Skip code signing if no certificate is configured
                   # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -160,11 +169,11 @@ jobs:
               run: |
                   echo "📦 Preparing release files..."
                   mkdir -p release-files
-                  
+
                   # Copy installer files and latest*.yml files (needed for electron-updater)
                   # Exclude builder-debug.yml files (duplicate names across platforms)
                   find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
-                  
+
                   echo "✅ Release files prepared"
                   ls -lh release-files/
               shell: bash
@@ -183,7 +192,7 @@ jobs:
                   done
 
                   echo "✅ Pre-release cleanup completed"
-                  
+
                   # Wait a moment for GitHub API to process deletions
                   echo "⏳ Waiting for deletion to propagate..."
                   sleep 5
