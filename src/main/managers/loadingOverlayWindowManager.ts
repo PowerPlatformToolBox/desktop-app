@@ -129,10 +129,7 @@ body { display:flex; align-items:center; justify-content:center; }
 
     /** Cleanup */
     destroy(): void {
-        if (this.overlayWindow) {
-            this.overlayWindow.close();
-            this.overlayWindow = null;
-        }
+        this.overlayWindow = null;
         this.visible = false;
     }
 }

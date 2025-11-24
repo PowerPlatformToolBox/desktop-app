@@ -902,14 +902,6 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
-            // Cleanup tool windows
-            if (this.toolWindowManager) {
-                this.toolWindowManager.destroy();
-            }
-            // Cleanup loading overlay window
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.destroy();
-            }
             this.mainWindow = null;
         });
     }

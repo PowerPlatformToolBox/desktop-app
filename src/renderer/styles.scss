@@ -2181,17 +2181,34 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
 
 /* Primary Button */
 .fluent-button-primary {
-    background: var(--primary-gradient);
+    background: var(--primary-color);
     color: white;
     border-color: var(--primary-color);
 }
 
 .fluent-button-primary:hover {
-    background: var(--primary-gradient-hover);
+    background: var(--primary-color-hover);
     border-color: var(--primary-hover);
 }
 
 .fluent-button-primary:active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* Primary Gradient Button */
+.fluent-button-primary-gradient {
+    background: var(--primary-gradient);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.fluent-button-primary-gradient:hover {
+    background: var(--primary-gradient-hover);
+    border-color: var(--primary-hover);
+}
+
+.fluent-button-primary-gradient:active {
     background: var(--primary-gradient);
     border-color: var(--primary-color);
 }

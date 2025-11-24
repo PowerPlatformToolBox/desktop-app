@@ -106,20 +106,13 @@ export class NotificationWindowManager {
         // Update position when main window moves or resizes
         this.mainWindow.on("move", () => this.updateWindowPosition());
         this.mainWindow.on("resize", () => this.updateWindowPosition());
-
-        // Hide notification window when main window is minimized or hidden
         this.mainWindow.on("minimize", () => this.notificationWindow?.hide());
         this.mainWindow.on("restore", () => {
             if (this.notifications.length > 0) {
                 this.notificationWindow?.show();
             }
         });
-
-        // Close notification window when main window closes
-        this.mainWindow.on("closed", () => {
-            this.notificationWindow?.close();
-            this.notificationWindow = null;
-        });
+        this.mainWindow.on("closed", () => this.destroy());
     }
 
     /**
@@ -393,10 +386,7 @@ export class NotificationWindowManager {
      * Cleanup
      */
     destroy(): void {
-        if (this.notificationWindow) {
-            this.notificationWindow.close();
-            this.notificationWindow = null;
-        }
+        this.notificationWindow = null;
         this.notifications = [];
     }
 }
