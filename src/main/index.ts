@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
 import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, UPDATE_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 import { ToolBoxEvent } from "../common/types";
@@ -789,6 +789,13 @@ class ToolBoxApp {
                             }
                         },
                     },
+                    { type: "separator" },
+                    {
+                        label: `About`,
+                        click: () => {
+                            this.showAboutDialog();
+                        },
+                    },
                 ],
             },
         ];
@@ -796,6 +803,19 @@ class ToolBoxApp {
         const menu = Menu.buildFromTemplate(template);
         Menu.setApplicationMenu(menu);
     }
+    private showAboutDialog(): void {
+        if (this.mainWindow) {
+            const appVersion = app.getVersion();
+            const message = `Version ${appVersion}
+Electron: ${process.versions.electron}
+Node.js: ${process.versions.node}
+Chromium: ${process.versions.chrome}
+OS: ${process.platform} ${process.arch} ${process.getSystemVersion()} `;
+
+           if ( dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: [ "Copy", "OK"] }) === 0) {
+                clipboard.writeText(message); 
+        }
+    }}
 
     /**
      * Check for token expiry and notify user
