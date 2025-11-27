@@ -76,27 +76,27 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
--   [Known Issues](#known-issues)
--   [Features Overview](#features-overview)
--   [Architecture](#architecture)
--   [Security Model](#security-model)
--   [Tool Development](#tool-development)
-    -   [Sample Tools Repository](#sample-tools-repository)
--   [ToolBox development](#toolbox-development)
-    -   [Installing Tools](#installing-tools)
-    -   [Tool Security](#tool-security)
--   [Dataverse Connections](#dataverse-connections)
--   [Releases \& Downloads](#releases--downloads)
-    -   [Download Latest Release](#download-latest-release)
--   [Auto-Updates](#auto-updates)
-    -   [Enabling Auto-Updates](#enabling-auto-updates)
-    -   [Manual Update Check](#manual-update-check)
-    -   [Update Process](#update-process)
--   [Documentation](#documentation)
-    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
--   [Discussions](#discussions)
--   [License](#license)
--   [Contributing](#contributing)
+- [Known Issues](#known-issues)
+- [Features Overview](#features-overview)
+- [Architecture](#architecture)
+- [Security Model](#security-model)
+- [Tool Development](#tool-development)
+  - [Sample Tools Repository](#sample-tools-repository)
+- [ToolBox development](#toolbox-development)
+  - [Installing Tools](#installing-tools)
+  - [Tool Security](#tool-security)
+- [Dataverse Connections](#dataverse-connections)
+- [Releases \& Downloads](#releases--downloads)
+  - [Download Latest Release](#download-latest-release)
+- [Auto-Updates](#auto-updates)
+  - [Enabling Auto-Updates](#enabling-auto-updates)
+  - [Manual Update Check](#manual-update-check)
+  - [Update Process](#update-process)
+- [Documentation](#documentation)
+  - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
+- [Discussions](#discussions)
+- [License](#license)
+- [Contributing](#contributing)
 
 ## Known Issues
 
@@ -270,3 +270,5 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+<!--Force Checkin 11/27; 10:00 AM-->
