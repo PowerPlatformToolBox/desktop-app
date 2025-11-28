@@ -789,7 +789,7 @@ class ToolBoxApp {
                             }
                         },
                     },
-                       { type: "separator" },
+                    { type: "separator" },
                     {
                         label: `About`,
                         click: () => {
