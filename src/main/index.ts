@@ -762,9 +762,6 @@ class ToolBoxApp {
                             await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app#readme");
                         },
                     },
-                    {
-                        label: `Version: ${appVersion}`,
-                    },
                     { type: "separator" },
                     {
                         label: "Toggle Tool DevTools",
