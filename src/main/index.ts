@@ -926,7 +926,7 @@ Node.js: ${process.versions.node}
 Chromium: ${process.versions.chrome}
 OS: ${process.platform} ${process.arch} ${process.getSystemVersion()} `;
 
-           if ( dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: [ "Copy", "OK"] }) === 0) {
+           if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: [ "Copy", "OK"] }) === 0) {
                 clipboard.writeText(message); 
         }
     }}
