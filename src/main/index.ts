@@ -661,7 +661,6 @@ class ToolBoxApp {
     private createMenu(): void {
         const isMac = process.platform === "darwin";
 
-        const appVersion = this.autoUpdateManager.getCurrentVersion();
         const template: any[] = [
             // App menu (macOS only)
             ...(isMac
