@@ -13,6 +13,7 @@ import { launchTool } from "./toolManagement";
 export async function loadSidebarTools(): Promise<void> {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
 
     try {
         const tools = await window.toolboxAPI.getAllTools();
@@ -41,14 +42,36 @@ export async function loadSidebarTools(): Promise<void> {
             }),
         );
 
+        // Apply search filter
+        const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+        const filteredTools = !searchTerm
+            ? toolsWithUpdateInfo
+            : toolsWithUpdateInfo.filter((t) => {
+                  const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
+                  if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+                  if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
+                  return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
+              });
+
         // Sort tools: favorites first, then by name
-        const sortedTools = [...toolsWithUpdateInfo].sort((a, b) => {
+        const sortedTools = [...filteredTools].sort((a, b) => {
             const aFav = a.isFavorite;
             const bFav = b.isFavorite;
             if (aFav && !bFav) return -1;
             if (!aFav && bFav) return 1;
             return a.name.localeCompare(b.name);
         });
+
+        // Empty state when no matches after filtering
+        if (sortedTools.length === 0) {
+            toolsList.innerHTML = `
+                <div class="empty-state">
+                    <p>No matching tools</p>
+                    <p class="empty-state-hint">Try a different search term.</p>
+                </div>
+            `;
+            return;
+        }
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
@@ -164,6 +187,14 @@ export async function loadSidebarTools(): Promise<void> {
                 <p class="empty-state-hint">${(error as Error).message}</p>
             </div>
         `;
+    }
+
+    // Wire up live search without replacing the input (to avoid cursor loss)
+    if (searchInput && !(searchInput as any)._pptbBound) {
+        (searchInput as any)._pptbBound = true;
+        searchInput.addEventListener("input", () => {
+            loadSidebarTools();
+        });
     }
 }
 

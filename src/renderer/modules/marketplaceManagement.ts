@@ -106,14 +106,17 @@ export async function loadMarketplace(): Promise<void> {
 
     const filteredTools = toolLibrary.filter((tool) => {
         if (!searchTerm) return true;
-        return tool.name.toLowerCase().includes(searchTerm) || tool.description.toLowerCase().includes(searchTerm) || tool.category.toLowerCase().includes(searchTerm);
+        const haystacks: string[] = [tool.name, tool.description, tool.category];
+        if (tool.authors && tool.authors.length) haystacks.push(tool.authors.join(", "));
+        if (tool.tags && tool.tags.length) haystacks.push(tool.tags.join(", "));
+        return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
     });
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         marketplaceList.innerHTML = `
             <div class="empty-state">
-                <p>No tools found.</p>
+                <p>No matching tools</p>
                 <p class="empty-state-hint">${searchTerm ? "Try a different search term." : "Check back later for new tools."}</p>
             </div>
         `;
@@ -258,13 +261,10 @@ export async function loadMarketplace(): Promise<void> {
         });
     });
 
-    // Setup search
-    if (searchInput) {
-        // Remove existing listeners
-        const newSearchInput = searchInput.cloneNode(true) as HTMLInputElement;
-        searchInput.parentNode?.replaceChild(newSearchInput, searchInput);
-
-        newSearchInput.addEventListener("input", () => {
+    // Setup search without replacing the input (to avoid cursor loss)
+    if (searchInput && !(searchInput as any)._pptbBound) {
+        (searchInput as any)._pptbBound = true;
+        searchInput.addEventListener("input", () => {
             loadMarketplace();
         });
     }
