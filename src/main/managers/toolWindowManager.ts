@@ -189,7 +189,9 @@ export class ToolWindowManager {
             // Enable auto-resize for robust behavior on window changes
             try {
                 (toolView as any).setAutoResize?.({ width: true, height: true });
-            } catch {}
+            } catch (err) {
+                console.log(err);
+            }
             this.activeToolId = toolId;
 
             console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
@@ -272,7 +274,8 @@ export class ToolWindowManager {
                     this.applyToolViewBounds(safeBounds);
                     // Encourage tool content to reflow
                     toolView.webContents.executeJavaScript("try{window.dispatchEvent(new Event('resize'));}catch(e){}", true).catch(() => {});
-                } catch {
+                } catch (err) {
+                    console.error("[ToolWindowManager] Error in fallback bounds update:", err);
                 } finally {
                     this.boundsUpdatePending = false;
                 }
