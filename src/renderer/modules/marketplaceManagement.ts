@@ -11,12 +11,15 @@ interface RegistryTool {
     id: string;
     name: string;
     description: string;
-    author: string;
+    authors?: string[];
     version: string;
     icon?: string;
     downloadUrl?: string;
     readme?: string;
-    category?: string;
+    categories?: string[];
+    downloads?: number;
+    rating?: number;
+    aum?: number;
 }
 
 interface InstalledTool {
@@ -55,12 +58,16 @@ export async function loadToolsLibrary(): Promise<void> {
             id: tool.id,
             name: tool.name,
             description: tool.description,
-            author: tool.author,
-            category: tool.category || "Tools", // Use first tag as category
+            authors: tool.authors,
+            category: tool.categories && tool.categories.length > 0 ? tool.categories[0] : "Tools",
+            tags: tool.categories,
             version: tool.version,
             iconUrl: tool.icon,
             downloadUrl: tool.downloadUrl,
             readmeUrl: tool.readme,
+            downloads: tool.downloads,
+            rating: tool.rating,
+            aum: tool.aum,
         }));
 
         console.log(`Loaded ${toolLibrary.length} tools from registry`);
@@ -120,6 +127,14 @@ export async function loadMarketplace(): Promise<void> {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
+            const topTags = tool.tags && tool.tags.length ? tool.tags.slice(0, 2) : [];
+            const tagsHtml = topTags.length ? topTags.map((t) => `<span class="marketplace-tag">${t}</span>`).join("") : "";
+            const analyticsHtml = `<div class="marketplace-analytics-left">
+                ${tool.downloads !== undefined ? `<span class=\"marketplace-metric\" title=\"Downloads\">⬇ ${tool.downloads}</span>` : ""}
+                ${tool.rating !== undefined ? `<span class=\"marketplace-metric\" title=\"Rating\">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
+                ${tool.aum !== undefined ? `<span class=\"marketplace-metric\" title=\"Active User Months\">👥 ${tool.aum}</span>` : ""}
+            </div>`;
+            const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "";
 
             // Determine tool icon: use URL if provided, otherwise use default icon
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
@@ -139,22 +154,20 @@ export async function loadMarketplace(): Promise<void> {
 
             return `
         <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
+            <div class="marketplace-item-top-tags">${tagsHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}</div>
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
                     <div class="marketplace-item-name-pptb">
                         ${tool.name}
                     </div>
-                    <div class="marketplace-item-author-pptb">by ${tool.author}</div>
+                    <div class="marketplace-item-author-pptb">by ${authorsDisplay}</div>
                 </div>
             </div>
             <div class="marketplace-item-description-pptb">${tool.description}</div>
             <div class="marketplace-item-footer-pptb">
-                <div class="marketplace-item-tags">
-                    <span class="marketplace-item-category-pptb">${tool.category}</span>
-                    ${isInstalled ? '<span class="marketplace-item-installed-badge">Installed</span>' : ""}
-                </div>
-                <div class="marketplace-item-actions-pptb">
+                ${analyticsHtml}
+                <div class="marketplace-item-actions-right">
                     ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
                 </div>
             </div>
@@ -182,7 +195,7 @@ export async function loadMarketplace(): Promise<void> {
     });
 
     // Add event listeners for install and update buttons
-    marketplaceList.querySelectorAll(".marketplace-item-actions-pptb button").forEach((button) => {
+    marketplaceList.querySelectorAll(".marketplace-item-actions-right button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
             const target = e.target as HTMLButtonElement;
@@ -276,7 +289,7 @@ async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<v
 
     if (nameElement) nameElement.textContent = tool.name;
     if (descElement) descElement.textContent = tool.description;
-    if (authorElement) authorElement.textContent = `Author: ${tool.author}`;
+    if (authorElement) authorElement.textContent = `Authors: ${tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown"}`;
     if (categoryElement) categoryElement.textContent = `Category: ${tool.category}`;
 
     // Icon handling (emoji, image URL, or fallback)

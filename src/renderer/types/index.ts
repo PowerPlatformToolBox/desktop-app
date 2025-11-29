@@ -71,13 +71,17 @@ export interface ToolDetail {
     id: string;
     name: string;
     description: string;
-    author: string;
+    authors?: string[];
     category: string;
+    tags?: string[]; // deprecated, use categories in source mapping
     version: string;
     iconUrl?: string;
     downloadUrl?: string;
     publishedAt?: string;
     readmeUrl?: string;
+    downloads?: number;
+    rating?: number;
+    aum?: number;
 }
 
 /**
@@ -91,4 +95,9 @@ export interface SidebarTool {
     description?: string;
     hasUpdate?: boolean;
     latestVersion?: string;
+    authors?: string[];
+    categories?: string[];
+    downloads?: number;
+    rating?: number;
+    aum?: number;
 }

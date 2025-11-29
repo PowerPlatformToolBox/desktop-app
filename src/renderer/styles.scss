@@ -962,7 +962,7 @@ body {
 }
 
 .tool-library-category,
-.tool-library-author {
+.tool-item-authors-pptb {
     font-size: 11px;
     color: #8a8886;
 }
@@ -1310,6 +1310,19 @@ body {
     margin-bottom: 4px;
 }
 
+.tool-item-header-left-pptb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.tool-item-header-right-pptb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .tool-item-icon-pptb {
     font-size: 16px;
     width: 20px;
@@ -1451,7 +1464,7 @@ body {
 
 .marketplace-item-header-pptb {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
     margin-bottom: 8px;
 }
@@ -2390,6 +2403,97 @@ body.dark-theme .modern-markdown code {
 /* Make marketplace items clickable */
 .marketplace-item-pptb {
     cursor: pointer;
+}
+
+/* Marketplace tags and footer layout */
+.marketplace-item-top-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 8px 4px 0; /* align under icon/title */
+}
+
+.marketplace-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme .marketplace-tag {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.marketplace-analytics-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.marketplace-metric {
+    font-size: 12px;
+    color: #8a8886;
+}
+
+.marketplace-item-footer-pptb {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    // padding: 6px 8px 8px 56px; /* align with header */
+}
+
+.marketplace-item-actions-right {
+    display: flex;
+    align-items: center;
+}
+
+/* Installed tools tags and footer layout */
+.tool-item-top-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 8px 4px 0;
+}
+
+.tool-item-footer-pptb {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #8a8886;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tool-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme .tool-tag {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tool-analytics-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.tool-metric {
+    font-size: 12px;
+    color: #8a8886;
 }
 
 /* Fluent Design System Styling for Native HTML Elements */
