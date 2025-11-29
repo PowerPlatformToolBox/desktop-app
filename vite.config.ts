@@ -147,6 +147,19 @@ export default defineConfig(({ mode }) => {
                     } catch (e) {
                         console.error(`Failed to copy icons directory:`, e);
                     }
+
+                    // Copy registry.json for fallback when Supabase is not configured
+                    const registrySource = "src/main/data/registry.json";
+                    const registryTargetDir = "dist/main/data";
+                    const registryTarget = path.join(registryTargetDir, "registry.json");
+                    try {
+                        if (existsSync(registrySource)) {
+                            mkdirSync(registryTargetDir, { recursive: true });
+                            copyFileSync(registrySource, registryTarget);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to copy registry.json:`, e);
+                    }
                 },
             },
         ],
