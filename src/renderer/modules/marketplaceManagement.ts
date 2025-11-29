@@ -133,9 +133,9 @@ export async function loadMarketplace(): Promise<void> {
             const topTags = tool.tags && tool.tags.length ? tool.tags.slice(0, 2) : [];
             const tagsHtml = topTags.length ? topTags.map((t) => `<span class="marketplace-tag">${t}</span>`).join("") : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
-                ${tool.downloads !== undefined ? `<span class=\"marketplace-metric\" title=\"Downloads\">⬇ ${tool.downloads}</span>` : ""}
-                ${tool.rating !== undefined ? `<span class=\"marketplace-metric\" title=\"Rating\">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
-                ${tool.aum !== undefined ? `<span class=\"marketplace-metric\" title=\"Active User Months\">👥 ${tool.aum}</span>` : ""}
+                ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
+                ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
+                ${tool.aum !== undefined ? `<span class="marketplace-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}
             </div>`;
             const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "";
 

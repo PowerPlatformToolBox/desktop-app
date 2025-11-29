@@ -31,13 +31,35 @@ interface SupabaseAnalyticsRow {
     aum?: number;
 }
 
+interface SupabaseCategoryRow {
+    categories?: {
+        name?: string;
+    };
+}
+
+interface SupabaseContributorRow {
+    contributors?: {
+        name?: string;
+        profile_url?: string;
+    };
+}
+
+interface SupabaseAnalyticsRow {
+    downloads?: number;
+    rating?: number;
+    aum?: number;
+}
+
 interface SupabaseTool {
     id: string;
+    packagename?: string;
     packagename?: string;
     name: string;
     description: string;
     downloadurl: string;
+    downloadurl: string;
     iconurl: string;
+    readmeurl?: string;
     readmeurl?: string;
     version?: string;
     checksum?: string;
@@ -155,7 +177,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "tool_analytics(downloads,rating,aum)",
             ].join(", ");
 
-            const { data: toolsData, error } = await this.supabase!.from("tools").select(selectColumns).order("name", { ascending: true });
+            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
 
             if (error) {
                 throw new Error(`Supabase query failed: ${error.message}`);
