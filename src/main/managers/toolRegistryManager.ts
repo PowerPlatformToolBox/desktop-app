@@ -53,13 +53,10 @@ interface SupabaseAnalyticsRow {
 interface SupabaseTool {
     id: string;
     packagename?: string;
-    packagename?: string;
     name: string;
     description: string;
     downloadurl: string;
-    downloadurl: string;
     iconurl: string;
-    readmeurl?: string;
     readmeurl?: string;
     version?: string;
     checksum?: string;
@@ -177,6 +174,9 @@ export class ToolRegistryManager extends EventEmitter {
                 "tool_analytics(downloads,rating,aum)",
             ].join(", ");
 
+            if (!this.supabase) {
+                throw new Error("Supabase client is not initialized");
+            }
             const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
 
             if (error) {
