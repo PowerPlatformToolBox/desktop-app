@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "updatedAt": "2024-01-15T10:00:00Z",
+  "description": "Power Platform Tool Box - Official Tool Registry",
+  "tools": [
+    {
+      "id": "example-tool",
+      "name": "Example Tool",
+      "description": "An example tool demonstrating the registry format",
+      "author": "Power Platform Tool Box Team",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/PowerPlatformToolBox/example-tool/releases/download/v1.0.0/example-tool-1.0.0.tar.gz",
+      "icon": "icon.png",
+      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 50000,
+      "publishedAt": "2024-01-15T10:00:00Z",
+      "tags": ["example", "sample"],
+      "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/example-tool/main/README.md",
+      "minToolboxVersion": "1.0.0",
+      "repository": "https://github.com/PowerPlatformToolBox/example-tool",
+      "homepage": "https://github.com/PowerPlatformToolBox/example-tool",
+      "license": "MIT"
+    },
+    {
+      "id": "dataverse-erd-generator",
+      "name": "Dataverse ERD Generator",
+      "description": "Generate Entity Relationship Diagrams from Dataverse",
+      "author": "Power Maverick",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator/releases/download/v1.0.0/dataverse-erd-generator-1.0.0.tar.gz",
+      "icon": "icon.png",
+      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 75000,
+      "publishedAt": "2024-01-15T10:00:00Z",
+      "tags": ["dataverse", "erd", "diagram"],
+      "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/dataverse-erd-generator/main/README.md",
+      "minToolboxVersion": "1.0.0",
+      "repository": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
+      "homepage": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
+      "license": "MIT",
+      "cspExceptions": {
+        "connect-src": [
+          "https://*.dynamics.com",
+          "https://*.crm*.dynamics.com"
+        ],
+        "script-src": [
+          "https://cdn.jsdelivr.net"
+        ],
+        "style-src": [
+          "https://cdn.jsdelivr.net"
+        ]
+      }
+    }
+  ]
+}

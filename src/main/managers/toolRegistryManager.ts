@@ -51,18 +51,51 @@ interface SupabaseTool {
 }
 
 /**
+ * Local registry JSON file structure
+ */
+interface LocalRegistryFile {
+    version?: string;
+    updatedAt?: string;
+    description?: string;
+    tools: LocalRegistryTool[];
+}
+
+interface LocalRegistryTool {
+    id: string;
+    name: string;
+    description: string;
+    author: string;
+    version: string;
+    downloadUrl: string;
+    icon?: string;
+    checksum?: string;
+    size?: number;
+    publishedAt?: string;
+    tags?: string[];
+    readme?: string;
+    minToolboxVersion?: string;
+    repository?: string;
+    homepage?: string;
+    license?: string;
+    cspExceptions?: Record<string, unknown>;
+}
+
+/**
  * Manages tool installation from a registry (marketplace)
  * Registry for discovering and managing tool installations
  */
 export class ToolRegistryManager extends EventEmitter {
     private toolsDirectory: string;
     private manifestPath: string;
-    private supabase: SupabaseClient;
+    private supabase: SupabaseClient | null = null;
+    private useLocalFallback: boolean = false;
+    private localRegistryPath: string;
 
     constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
+        this.localRegistryPath = path.join(__dirname, "data", "registry.json");
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -71,9 +104,8 @@ export class ToolRegistryManager extends EventEmitter {
         // Validate Supabase credentials and create client
         if (!url || !key || url === "" || key === "") {
             console.warn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
-            console.warn("[ToolRegistry] Tool registry functionality will be limited.");
-            // Create a dummy client to prevent errors - it won't be functional but won't crash
-            this.supabase = createClient("https://placeholder.supabase.co", "placeholder-key");
+            console.warn("[ToolRegistry] Falling back to local registry.json file.");
+            this.useLocalFallback = true;
         } else {
             console.log("[ToolRegistry] Initializing Supabase client with URL:", url.substring(0, 30) + "...");
             this.supabase = createClient(url, key);
@@ -92,9 +124,14 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Fetch the tool registry from Supabase database
+     * Fetch the tool registry from Supabase database or local fallback
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
+        // Use local fallback if Supabase is not configured
+        if (this.useLocalFallback) {
+            return this.fetchLocalRegistry();
+        }
+
         try {
             console.log(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
@@ -118,7 +155,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "tool_analytics(downloads,rating,aum)",
             ].join(", ");
 
-            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
+            const { data: toolsData, error } = await this.supabase!.from("tools").select(selectColumns).order("name", { ascending: true });
 
             if (error) {
                 throw new Error(`Supabase query failed: ${error.message}`);
@@ -171,6 +208,51 @@ export class ToolRegistryManager extends EventEmitter {
         } catch (error) {
             console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
             throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Fetch the tool registry from the local registry.json file
+     */
+    private fetchLocalRegistry(): ToolRegistryEntry[] {
+        try {
+            console.log(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
+
+            if (!fs.existsSync(this.localRegistryPath)) {
+                console.warn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
+                return [];
+            }
+
+            const data = fs.readFileSync(this.localRegistryPath, "utf-8");
+            const registryData: LocalRegistryFile = JSON.parse(data);
+
+            if (!registryData.tools || registryData.tools.length === 0) {
+                console.log(`[ToolRegistry] No tools found in local registry`);
+                return [];
+            }
+
+            const tools: ToolRegistryEntry[] = registryData.tools.map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                author: tool.author,
+                version: tool.version,
+                icon: tool.icon,
+                downloadUrl: tool.downloadUrl,
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || new Date().toISOString(),
+                tags: tool.tags,
+                readme: tool.readme,
+                cspExceptions: tool.cspExceptions,
+                license: tool.license,
+            }));
+
+            console.log(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
+            return tools;
+        } catch (error) {
+            console.error(`[ToolRegistry] Failed to fetch local registry:`, error);
+            throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 
@@ -490,6 +572,7 @@ export class ToolRegistryManager extends EventEmitter {
      */
     updateSupabaseClient(url: string, key: string): void {
         this.supabase = createClient(url, key);
+        this.useLocalFallback = false;
         console.log(`[ToolRegistry] Supabase client updated`);
     }
 }
