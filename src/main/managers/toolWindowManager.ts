@@ -23,6 +23,7 @@ export class ToolWindowManager {
     private toolViews: Map<string, BrowserView> = new Map();
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
+    private frameScheduled = false;
 
     constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager) {
         this.mainWindow = mainWindow;
@@ -59,29 +60,48 @@ export class ToolWindowManager {
             return Array.from(this.toolViews.keys());
         });
 
-        // Handle tool panel bounds response from renderer
+        // Restore renderer-provided bounds flow
         ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
-                console.log("[ToolWindowManager] Received bounds from renderer:", bounds);
                 this.applyToolViewBounds(bounds);
             } else {
-                console.warn("[ToolWindowManager] Invalid bounds received:", bounds);
                 this.boundsUpdatePending = false;
             }
         });
 
-        // Update tool window bounds when parent window resizes
-        this.mainWindow.on("resize", () => {
-            this.updateToolViewBounds();
+        // Update tool window bounds on common window state changes
+        const refresh = () => this.scheduleBoundsUpdate();
+        this.mainWindow.on("resize", refresh);
+        this.mainWindow.on("move", refresh);
+        this.mainWindow.on("maximize", refresh);
+        this.mainWindow.on("unmaximize", refresh);
+        this.mainWindow.on("enter-full-screen", refresh);
+        this.mainWindow.on("leave-full-screen", refresh);
+        // macOS app switching restores correct render; emulate by refreshing on focus/show
+        this.mainWindow.on("focus", () => {
+            // Immediate refresh, plus a small follow-up to catch post-focus layout
+            refresh();
+            setTimeout(() => refresh(), 120);
+        });
+        this.mainWindow.on("show", () => {
+            refresh();
+            setTimeout(() => refresh(), 120);
         });
 
         // Handle terminal panel visibility changes
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
-        ipcMain.on("terminal-visibility-changed", (event, isVisible: boolean) => {
-            console.log("[ToolWindowManager] Terminal visibility changed:", isVisible);
-            // Request updated bounds from renderer to account for terminal space
-            this.updateToolViewBounds();
+        ipcMain.on("terminal-visibility-changed", () => {
+            this.scheduleBoundsUpdate();
         });
+        ipcMain.on("sidebar-layout-changed", () => {
+            // Sidebar animations can change bounds over a short period.
+            // Burst a couple of requests to capture final geometry.
+            this.scheduleBoundsUpdate();
+            setTimeout(() => this.scheduleBoundsUpdate(), 120);
+        });
+
+        // Periodic frame scheduling helper
+        // Ensures multiple rapid events coalesce into one bounds request per frame
     }
 
     /**
@@ -166,14 +186,16 @@ export class ToolWindowManager {
 
             // Show the new tool
             this.mainWindow.setBrowserView(toolView);
+            // Enable auto-resize for robust behavior on window changes
+            try {
+                (toolView as any).setAutoResize?.({ width: true, height: true });
+            } catch {}
             this.activeToolId = toolId;
 
             console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
 
-            // Request bounds update (with a small delay to ensure renderer is ready)
-            setTimeout(() => {
-                this.updateToolViewBounds();
-            }, 100);
+            // Request bounds update from renderer
+            this.scheduleBoundsUpdate();
 
             return true;
         } catch (error) {
@@ -219,23 +241,48 @@ export class ToolWindowManager {
      * Update the bounds of the active tool view to match the tool panel area
      * Bounds are calculated dynamically based on actual DOM element positions
      */
+    private scheduleBoundsUpdate(): void {
+        if (this.frameScheduled) return;
+        this.frameScheduled = true;
+        setTimeout(() => {
+            this.frameScheduled = false;
+            this.updateToolViewBounds();
+        }, 16);
+    }
+
     private updateToolViewBounds(): void {
         if (!this.activeToolId || this.boundsUpdatePending) return;
-
         const toolView = this.toolViews.get(this.activeToolId);
         if (!toolView) return;
 
         try {
-            // Request bounds from renderer
             this.boundsUpdatePending = true;
             this.mainWindow.webContents.send("get-tool-panel-bounds-request");
+            // Fallback: apply safe content bounds if renderer doesn't respond quickly
+            const fallbackTimer = setTimeout(() => {
+                try {
+                    const content = this.mainWindow.getContentBounds();
+                    const safeBounds = {
+                        x: 0,
+                        y: 0,
+                        width: Math.max(1, content.width),
+                        height: Math.max(1, content.height),
+                    };
+                    // Clamp again via apply for consistency
+                    this.applyToolViewBounds(safeBounds);
+                    // Encourage tool content to reflow
+                    toolView.webContents.executeJavaScript("try{window.dispatchEvent(new Event('resize'));}catch(e){}", true).catch(() => {});
+                } catch {
+                } finally {
+                    this.boundsUpdatePending = false;
+                }
+            }, 300);
 
-            // Reset pending flag after timeout
-            setTimeout(() => {
-                this.boundsUpdatePending = false;
-            }, 1000);
+            // Cancel fallback if we receive the proper bounds
+            (ipcMain as any).once?.("get-tool-panel-bounds-response", () => {
+                clearTimeout(fallbackTimer);
+            });
         } catch (error) {
-            console.error("[ToolWindowManager] Error requesting tool view bounds:", error);
             this.boundsUpdatePending = false;
         }
     }
@@ -250,8 +297,15 @@ export class ToolWindowManager {
         if (!toolView) return;
 
         try {
-            console.log("[ToolWindowManager] Applying bounds to tool view:", bounds);
-            toolView.setBounds(bounds);
+            // Clamp to window content to avoid out-of-bounds
+            const content = this.mainWindow.getContentBounds();
+            const clamped = {
+                x: Math.max(0, Math.min(bounds.x, content.width - 1)),
+                y: Math.max(0, Math.min(bounds.y, content.height - 1)),
+                width: Math.max(1, Math.min(bounds.width, Math.max(1, content.width - Math.max(0, bounds.x)))),
+                height: Math.max(1, Math.min(bounds.height, Math.max(1, content.height - Math.max(0, bounds.y)))),
+            };
+            toolView.setBounds(clamped);
             this.boundsUpdatePending = false;
         } catch (error) {
             console.error("[ToolWindowManager] Error applying tool view bounds:", error);
