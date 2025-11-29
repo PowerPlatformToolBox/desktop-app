@@ -6,7 +6,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 
 /**
@@ -77,7 +77,7 @@ interface LocalRegistryTool {
     repository?: string;
     homepage?: string;
     license?: string;
-    cspExceptions?: Record<string, unknown>;
+    cspExceptions?: CspExceptions;
 }
 
 /**
@@ -214,7 +214,7 @@ export class ToolRegistryManager extends EventEmitter {
     /**
      * Fetch the tool registry from the local registry.json file
      */
-    private fetchLocalRegistry(): ToolRegistryEntry[] {
+    private async fetchLocalRegistry(): Promise<ToolRegistryEntry[]> {
         try {
             console.log(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
 
