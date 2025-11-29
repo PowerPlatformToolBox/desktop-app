@@ -13,6 +13,7 @@ import { launchTool } from "./toolManagement";
 export async function loadSidebarTools(): Promise<void> {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
 
     try {
         const tools = await window.toolboxAPI.getAllTools();
@@ -41,14 +42,36 @@ export async function loadSidebarTools(): Promise<void> {
             }),
         );
 
+        // Apply search filter
+        const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+        const filteredTools = !searchTerm
+            ? toolsWithUpdateInfo
+            : toolsWithUpdateInfo.filter((t) => {
+                  const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
+                  if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+                  if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
+                  return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
+              });
+
         // Sort tools: favorites first, then by name
-        const sortedTools = [...toolsWithUpdateInfo].sort((a, b) => {
+        const sortedTools = [...filteredTools].sort((a, b) => {
             const aFav = a.isFavorite;
             const bFav = b.isFavorite;
             if (aFav && !bFav) return -1;
             if (!aFav && bFav) return 1;
             return a.name.localeCompare(b.name);
         });
+
+        // Empty state when no matches after filtering
+        if (sortedTools.length === 0) {
+            toolsList.innerHTML = `
+                <div class="empty-state">
+                    <p>No matching tools</p>
+                    <p class="empty-state-hint">Try a different search term.</p>
+                </div>
+            `;
+            return;
+        }
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
@@ -77,33 +100,45 @@ export async function loadSidebarTools(): Promise<void> {
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
+                const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
+                const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+                const analyticsHtml = `<div class="tool-analytics-left">${tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}${
+                    tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""
+                }${tool.aum !== undefined ? `<span class="tool-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}</div>`;
+                const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
                 return `
                     <div class="tool-item-pptb" data-tool-id="${tool.id}">
+                        <div class="tool-item-top-tags">${categoriesHtml}</div>
                         <div class="tool-item-header-pptb">
-                            <span class="tool-item-icon-pptb">${toolIconHtml}</span>
-                            <div class="tool-item-name-pptb">
-                                ${tool.name}
-                                ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                            <div class="tool-item-header-left-pptb">
+                                <span class="tool-item-icon-pptb">${toolIconHtml}</span>
+                                <div class="tool-item-info-pptb">
+                                    <div class="tool-item-name-pptb">
+                                        ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                    </div>
+                                    <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                                </div>
                             </div>
-                            <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
-                                <img src="${starIconPath}" alt="${isFavorite ? "Favorited" : "Not favorite"}" />
-                            </button>
+                            <div class="tool-item-header-right-pptb">
+                                <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
+                                    <img src="${starIconPath}" alt="${isFavorite ? "Favorited" : "Not favorite"}" />
+                                </button>
+                            </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
-                        <div class="tool-item-version-pptb">
-                            v${tool.version}${hasUpdate && latestVersion ? ` → v${latestVersion}` : ""}
-                        </div>
-                        <div class="tool-item-actions-pptb">
-                            ${
-                                hasUpdate && latestVersion
-                                    ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button>`
-                                    : ""
-                            }
-                            <button class="fluent-button fluent-button-primary" data-action="launch" data-tool-id="${tool.id}">Launch</button>
-                            <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                                <img src="${trashIconPath}" alt="Delete" />
-                            </button>
+                        <div class="tool-item-footer-pptb">
+                            ${analyticsHtml}
+                            <div class="tool-item-actions-right">
+                                ${
+                                    hasUpdate && latestVersion
+                                        ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button>`
+                                        : ""
+                                }
+                                <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
+                                    <img src="${trashIconPath}" alt="Delete" />
+                                </button>
+                            </div>
                         </div>
                     </div>`;
             })
@@ -124,7 +159,7 @@ export async function loadSidebarTools(): Promise<void> {
         });
 
         // Add event listeners for action buttons
-        toolsList.querySelectorAll(".tool-item-actions-pptb button, .tool-favorite-btn").forEach((button) => {
+        toolsList.querySelectorAll(".tool-item-actions-right button, .tool-favorite-btn").forEach((button) => {
             button.addEventListener("click", async (e) => {
                 e.stopPropagation();
                 const target = e.target as HTMLElement;
@@ -135,9 +170,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const toolId = button.getAttribute("data-tool-id");
                 if (!toolId) return;
 
-                if (action === "launch") {
-                    launchTool(toolId);
-                } else if (action === "delete") {
+                if (action === "delete") {
                     await uninstallToolFromSidebar(toolId);
                 } else if (action === "update") {
                     await updateToolFromSidebar(toolId);
@@ -154,6 +187,14 @@ export async function loadSidebarTools(): Promise<void> {
                 <p class="empty-state-hint">${(error as Error).message}</p>
             </div>
         `;
+    }
+
+    // Wire up live search without replacing the input (to avoid cursor loss)
+    if (searchInput && !(searchInput as any)._pptbBound) {
+        (searchInput as any)._pptbBound = true;
+        searchInput.addEventListener("input", () => {
+            loadSidebarTools();
+        });
     }
 }
 

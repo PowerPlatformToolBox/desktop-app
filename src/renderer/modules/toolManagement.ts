@@ -67,7 +67,7 @@ async function showCspConsentDialog(tool: any): Promise<boolean> {
                 </div>
                 <div class="modal-body">
                     <p>
-                        <strong>${tool.name}</strong> by <em>${tool.author || "Unknown"}</em> 
+                        <strong>${tool.name}</strong> by <em>${tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown"}</em> 
                         is requesting permission to access external resources.
                     </p>
                     <p>

@@ -12,20 +12,42 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 /**
  * Supabase database types
  */
+interface SupabaseCategoryRow {
+    categories?: {
+        name?: string;
+    };
+}
+
+interface SupabaseContributorRow {
+    contributors?: {
+        name?: string;
+        profile_url?: string;
+    };
+}
+
+interface SupabaseAnalyticsRow {
+    downloads?: number;
+    rating?: number;
+    aum?: number;
+}
+
 interface SupabaseTool {
     id: string;
+    packagename?: string;
     name: string;
     description: string;
+    downloadurl: string;
     iconurl: string;
-    category: string;
-    author?: string;
-    version?: string;
-    downloadurl?: string;
-    published_at?: string;
     readmeurl?: string;
+    version?: string;
     checksum?: string;
-    size?: number;
-    tags?: string[];
+    size?: string; // stored as text in schema
+    published_at?: string;
+    csp_exceptions?: unknown;
+    license?: string;
+    tool_categories?: SupabaseCategoryRow[];
+    tool_contributors?: SupabaseContributorRow[];
+    tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
 }
 
 /**
@@ -74,13 +96,29 @@ export class ToolRegistryManager extends EventEmitter {
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
         try {
-            console.log(`[ToolRegistry] Fetching registry from Supabase`);
+            console.log(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
-            // Query tools table from Supabase
-            const { data: toolsData, error } = await this.supabase
-                .from("tools")
-                .select("id, name, description, iconurl, category, author, version, downloadurl, published_at, readmeurl, checksum, size")
-                .order("name", { ascending: true });
+            const selectColumns = [
+                "id",
+                "packagename",
+                "name",
+                "description",
+                "downloadurl",
+                "iconurl",
+                "readmeurl",
+                "version",
+                "checksum",
+                "size",
+                "published_at",
+                "license",
+                "csp_exceptions",
+                // embedded relations
+                "tool_categories(categories(name))",
+                "tool_contributors(contributors(name,profile_url))",
+                "tool_analytics(downloads,rating,aum)",
+            ].join(", ");
+
+            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
 
             if (error) {
                 throw new Error(`Supabase query failed: ${error.message}`);
@@ -91,22 +129,44 @@ export class ToolRegistryManager extends EventEmitter {
                 return [];
             }
 
-            // Transform Supabase data to ToolRegistryEntry format
-            const tools: ToolRegistryEntry[] = toolsData.map((tool: SupabaseTool) => ({
-                id: tool.id,
-                name: tool.name,
-                description: tool.description,
-                author: tool.author || "Unknown",
-                version: tool.version || "1.0.0",
-                icon: tool.iconurl,
-                downloadUrl: tool.downloadurl || "",
-                publishedAt: tool.published_at || new Date().toISOString(),
-                readme: tool.readmeurl,
-                checksum: tool.checksum,
-                size: tool.size,
-            }));
+            // toolsData typing from supabase-js is loose; coerce via unknown first to satisfy TS
+            const tools: ToolRegistryEntry[] = (toolsData as unknown as SupabaseTool[]).map((tool) => {
+                const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((n): n is string => !!n);
+                const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
+                const author = contributors.length === 0 ? "Unknown" : contributors.join(", ");
+                let downloads: number | undefined;
+                let rating: number | undefined;
+                let aum: number | undefined;
+                if (tool.tool_analytics) {
+                    const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
+                    downloads = analytics?.downloads;
+                    rating = analytics?.rating;
+                    aum = analytics?.aum;
+                }
 
-            console.log(`[ToolRegistry] Fetched ${tools.length} tools from Supabase registry`);
+                return {
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    author,
+                    authors: contributors,
+                    version: tool.version || "1.0.0",
+                    icon: tool.iconurl,
+                    downloadUrl: tool.downloadurl,
+                    publishedAt: tool.published_at || new Date().toISOString(),
+                    readme: tool.readmeurl,
+                    checksum: tool.checksum,
+                    size: tool.size ? Number(tool.size) || undefined : undefined,
+                    tags: categories,
+                    cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
+                    license: tool.license,
+                    downloads,
+                    rating,
+                    aum,
+                } as ToolRegistryEntry;
+            });
+
+            console.log(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
@@ -252,12 +312,23 @@ export class ToolRegistryManager extends EventEmitter {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
         // Create manifest
+        // Normalize authors list: prefer registry contributors, fallback to package.json author
+        let authors: string[] | undefined = tool.authors;
+        const pkgAuthor = packageJson?.author;
+        if ((!authors || authors.length === 0) && pkgAuthor) {
+            if (typeof pkgAuthor === "string") {
+                authors = [pkgAuthor];
+            } else if (typeof pkgAuthor === "object" && typeof pkgAuthor.name === "string") {
+                authors = [pkgAuthor.name];
+            }
+        }
+
         const manifest: ToolManifest = {
             id: tool.id || packageJson.name,
             name: tool.name || packageJson.displayName || packageJson.name,
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
-            author: tool.author || packageJson.author,
+            authors,
             icon: tool.icon || packageJson.icon,
             installPath: toolPath,
             installedAt: new Date().toISOString(),
@@ -265,6 +336,11 @@ export class ToolRegistryManager extends EventEmitter {
             sourceUrl: tool.downloadUrl,
             readme: tool.readme, // Include readme URL from registry
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
+            categories: tool.tags,
+            license: tool.license || packageJson.license,
+            downloads: tool.downloads,
+            rating: tool.rating,
+            aum: tool.aum,
         };
 
         // Save to manifest file
@@ -308,7 +384,37 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             const data = fs.readFileSync(this.manifestPath, "utf-8");
             const manifest = JSON.parse(data);
-            return manifest.tools || [];
+            const tools: any[] = manifest.tools || [];
+            // Normalize installed entries to new schema (categories, authors[])
+            const normalized: ToolManifest[] = tools.map((t) => {
+                const categories = t.categories ?? t.tags ?? [];
+                let authors: string[] | undefined = t.authors;
+                if ((!authors || authors.length === 0) && t.author) {
+                    if (typeof t.author === "string") authors = [t.author];
+                    else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
+                }
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, license, downloads, rating, aum } = t as any;
+                return {
+                    id,
+                    name,
+                    version,
+                    description,
+                    authors,
+                    icon,
+                    installPath,
+                    installedAt,
+                    source,
+                    sourceUrl,
+                    readme,
+                    cspExceptions,
+                    categories,
+                    license,
+                    downloads,
+                    rating,
+                    aum,
+                } as ToolManifest;
+            });
+            return normalized;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
             return [];

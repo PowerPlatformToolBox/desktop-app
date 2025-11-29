@@ -12,12 +12,17 @@ export interface Tool {
     name: string;
     version: string;
     description: string;
-    author: string;
+    authors?: string[];
     icon?: string;
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
     npmPackageName?: string; // For npm-installed tools - package name in node_modules
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
+    categories?: string[];
+    license?: string;
+    downloads?: number;
+    rating?: number;
+    aum?: number;
 }
 
 /**
@@ -28,6 +33,7 @@ export interface ToolRegistryEntry {
     name: string;
     description: string;
     author: string;
+    authors?: string[]; // full list of contributors
     version: string;
     icon?: string;
     downloadUrl: string;
@@ -37,6 +43,10 @@ export interface ToolRegistryEntry {
     tags?: string[];
     readme?: string; // URL or relative path to README file
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
+    license?: string; // SPDX or license name
+    downloads?: number; // analytics - total downloads
+    rating?: number; // analytics - average rating
+    aum?: number; // analytics - active user months
 }
 
 /**
@@ -47,7 +57,7 @@ export interface ToolManifest {
     name: string;
     version: string;
     description: string;
-    author: string;
+    authors?: string[]; // contributors list
     icon?: string;
     installPath: string;
     installedAt: string;
@@ -55,6 +65,11 @@ export interface ToolManifest {
     sourceUrl?: string;
     readme?: string; // URL or relative path to README file
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
+    categories?: string[];
+    license?: string;
+    downloads?: number;
+    rating?: number;
+    aum?: number;
 }
 
 /**
@@ -79,7 +94,7 @@ export interface ToolContext {
 export function isTool(obj: unknown): obj is Tool {
     if (!obj || typeof obj !== "object") return false;
     const tool = obj as Record<string, unknown>;
-    return typeof tool.id === "string" && typeof tool.name === "string" && typeof tool.version === "string" && typeof tool.description === "string" && typeof tool.author === "string";
+    return typeof tool.id === "string" && typeof tool.name === "string" && typeof tool.version === "string" && typeof tool.description === "string";
 }
 
 /**
