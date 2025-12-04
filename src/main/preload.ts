@@ -3,6 +3,7 @@ import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
+    MODAL_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -34,6 +35,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         test: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
         isTokenExpired: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
         refreshToken: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
+    },
+
+    // Modal helpers
+    modals: {
+        openAddConnection: () => ipcRenderer.invoke(MODAL_CHANNELS.OPEN_ADD_CONNECTION),
+        closeActive: () => ipcRenderer.invoke(MODAL_CHANNELS.CLOSE_ACTIVE),
     },
 
     // Tools - Only for PPTB UI

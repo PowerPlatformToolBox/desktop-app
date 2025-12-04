@@ -94,6 +94,12 @@ export const UTIL_CHANNELS = {
     GET_EVENT_HISTORY: "get-event-history",
 } as const;
 
+// Modal-related IPC channels
+export const MODAL_CHANNELS = {
+    OPEN_ADD_CONNECTION: "modal-open-add-connection",
+    CLOSE_ACTIVE: "modal-close-active",
+} as const;
+
 // Auto-update-related IPC channels
 export const UPDATE_CHANNELS = {
     CHECK_FOR_UPDATES: "check-for-updates",

@@ -27,6 +27,14 @@ export interface ConnectionsAPI {
 }
 
 /**
+ * Modal API namespace
+ */
+export interface ModalAPI {
+    openAddConnection: () => Promise<void>;
+    closeActive: () => Promise<void>;
+}
+
+/**
  * Utils API namespace
  */
 export interface UtilsAPI {
@@ -88,6 +96,9 @@ export interface ToolboxAPI {
 
     // Connections namespace
     connections: ConnectionsAPI;
+
+    // Modal helpers
+    modals: ModalAPI;
 
     getAllTools: () => Promise<Tool[]>;
     getTool: (toolId: string) => Promise<Tool>;

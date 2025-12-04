@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, UPDATE_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, MODAL_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, UPDATE_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 import { ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
@@ -8,6 +8,7 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
+import { ModalManager } from "./managers/modalManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -24,6 +25,7 @@ class ToolBoxApp {
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
     private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
+    private modalManager: ModalManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -248,6 +250,15 @@ class ToolBoxApp {
             } catch (error) {
                 return { success: false, error: (error as Error).message };
             }
+        });
+
+        // Modal handlers
+        ipcMain.handle(MODAL_CHANNELS.OPEN_ADD_CONNECTION, () => {
+            this.modalManager?.showAddConnectionModal();
+        });
+
+        ipcMain.handle(MODAL_CHANNELS.CLOSE_ACTIVE, () => {
+            this.modalManager?.hideModal();
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION, () => {
@@ -894,6 +905,8 @@ class ToolBoxApp {
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
         // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
         this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
+        // Initialize ModalManager for BrowserWindow-hosted application modals
+        this.modalManager = new ModalManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -910,6 +923,8 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            this.modalManager?.destroy();
+            this.modalManager = null;
             this.mainWindow = null;
         });
     }

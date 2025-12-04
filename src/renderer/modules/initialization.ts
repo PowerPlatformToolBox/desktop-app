@@ -6,9 +6,9 @@
 import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
-import { addConnection, handleReauthentication, loadSidebarConnections, testConnection, updateFooterConnection, updateFooterConnectionStatus } from "./connectionManagement";
+import { handleReauthentication, loadConnections, loadSidebarConnections, updateFooterConnection, updateFooterConnectionStatus } from "./connectionManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
-import { closeModal, openModal, updateAuthFieldsVisibility } from "./modalManagement";
+import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
 import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
@@ -125,8 +125,17 @@ function setupSidebarButtons(): void {
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
-        sidebarAddConnectionBtn.addEventListener("click", () => {
-            openModal("add-connection-modal");
+        sidebarAddConnectionBtn.addEventListener("click", async () => {
+            try {
+                await window.toolboxAPI.modals.openAddConnection();
+            } catch (error) {
+                console.error("Failed to open add connection modal", error);
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Unable to open modal",
+                    body: (error as Error).message,
+                    type: "error",
+                });
+            }
         });
     }
 
@@ -368,53 +377,6 @@ function setupHomeScreenButtons(): void {
  * Set up modal buttons
  */
 function setupModalButtons(): void {
-    // Connection modal
-    const closeConnectionModal = document.getElementById("close-connection-modal");
-    if (closeConnectionModal) {
-        closeConnectionModal.addEventListener("click", () => closeModal("add-connection-modal"));
-    }
-
-    const cancelConnectionBtn = document.getElementById("cancel-connection-btn");
-    if (cancelConnectionBtn) {
-        cancelConnectionBtn.addEventListener("click", () => closeModal("add-connection-modal"));
-    }
-
-    const confirmConnectionBtn = document.getElementById("confirm-connection-btn");
-    if (confirmConnectionBtn) {
-        confirmConnectionBtn.addEventListener("click", addConnection);
-    }
-
-    const testConnectionBtn = document.getElementById("test-connection-btn");
-    if (testConnectionBtn) {
-        testConnectionBtn.addEventListener("click", testConnection);
-    }
-
-    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
-    if (authTypeSelect) {
-        authTypeSelect.addEventListener("change", updateAuthFieldsVisibility);
-    }
-
-    // Password toggle buttons
-    const toggleClientSecret = document.getElementById("toggle-client-secret");
-    if (toggleClientSecret) {
-        toggleClientSecret.addEventListener("click", () => {
-            const input = document.getElementById("connection-client-secret") as HTMLInputElement;
-            if (input) {
-                input.type = input.type === "password" ? "text" : "password";
-            }
-        });
-    }
-
-    const togglePassword = document.getElementById("toggle-password");
-    if (togglePassword) {
-        togglePassword.addEventListener("click", () => {
-            const input = document.getElementById("connection-password") as HTMLInputElement;
-            if (input) {
-                input.type = input.type === "password" ? "text" : "password";
-            }
-        });
-    }
-
     // Tool settings modal
     const closeToolSettingsModal = document.getElementById("close-tool-settings-modal");
     if (closeToolSettingsModal) {
@@ -570,6 +532,7 @@ function setupToolboxEventListeners(): void {
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
+            loadConnections().catch((err) => console.error("Failed to reload connections view:", err));
             updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
         }
 
