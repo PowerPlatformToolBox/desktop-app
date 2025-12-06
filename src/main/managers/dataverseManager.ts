@@ -288,9 +288,15 @@ export class DataverseManager {
     /**
      * Get metadata for all entities
      */
-    async getAllEntitiesMetadata(): Promise<{ value: EntityMetadata[] }> {
+    async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=LogicalName,DisplayName,MetadataId`;
+        
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions`;
+
+        if (selectColumns && selectColumns.length > 0) {
+            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
+            url += `?$select=${encodedColumns}`;
+        }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
