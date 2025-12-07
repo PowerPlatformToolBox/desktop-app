@@ -287,6 +287,8 @@ export class DataverseManager {
 
     /**
      * Get metadata for all entities
+     * @param selectColumns - Optional array of column names to select (e.g., ["LogicalName", "DisplayName", "MetadataId"])
+     * @returns Promise containing array of EntityMetadata objects
      */
     async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
