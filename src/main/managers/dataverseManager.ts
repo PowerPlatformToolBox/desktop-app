@@ -291,13 +291,12 @@ export class DataverseManager {
     async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions`;
-
-        if (selectColumns && selectColumns.length > 0) {
-            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
-            url += `?$select=${encodedColumns}`;
-        }
-
+        // Default to lightweight columns if selectColumns is not provided or empty
+        const columns = selectColumns && selectColumns.length > 0
+            ? selectColumns
+            : ["LogicalName", "DisplayName", "MetadataId"];
+        const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
+        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
