@@ -290,7 +290,6 @@ export class DataverseManager {
      */
     async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
-        
         // Default to lightweight columns if selectColumns is not provided or empty
         const columns = selectColumns && selectColumns.length > 0
             ? selectColumns
