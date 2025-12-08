@@ -119,10 +119,10 @@ async function getToolEventHistory() {
 
 async function saveToolSettings() {
     // Save individual settings
-    await toolboxAPI.settings.setSetting('theme', 'dark');
-    await toolboxAPI.settings.setSetting('autoRefresh', true);
-    await toolboxAPI.settings.setSetting('refreshInterval', 5000);
-    await toolboxAPI.settings.setSetting('userPreferences', {
+    await toolboxAPI.settings.set('theme', 'dark');
+    await toolboxAPI.settings.set('autoRefresh', true);
+    await toolboxAPI.settings.set('refreshInterval', 5000);
+    await toolboxAPI.settings.set('userPreferences', {
         showWelcome: false,
         defaultView: 'grid'
     });
@@ -132,13 +132,13 @@ async function saveToolSettings() {
 
 async function loadToolSettings() {
     // Get all settings for this tool
-    const allSettings = await toolboxAPI.settings.getSettings();
+    const allSettings = await toolboxAPI.settings.getAll();
     console.log('All settings:', allSettings);
     
     // Get individual settings
-    const theme = await toolboxAPI.settings.getSetting('theme');
-    const autoRefresh = await toolboxAPI.settings.getSetting('autoRefresh');
-    const refreshInterval = await toolboxAPI.settings.getSetting('refreshInterval');
+    const theme = await toolboxAPI.settings.get('theme');
+    const autoRefresh = await toolboxAPI.settings.get('autoRefresh');
+    const refreshInterval = await toolboxAPI.settings.get('refreshInterval');
     
     console.log('Theme:', theme); // 'dark'
     console.log('Auto-refresh:', autoRefresh); // true
@@ -149,7 +149,7 @@ async function loadToolSettings() {
 
 async function updateBulkSettings() {
     // Update multiple settings at once
-    await toolboxAPI.settings.setSettings({
+    await toolboxAPI.settings.setAll({
         theme: 'light',
         autoRefresh: false,
         refreshInterval: 10000,
@@ -161,7 +161,7 @@ async function updateBulkSettings() {
 
 async function checkSettingExists() {
     // Check if a setting exists
-    const value = await toolboxAPI.settings.getSetting('nonExistentKey');
+    const value = await toolboxAPI.settings.get('nonExistentKey');
     if (value === undefined) {
         console.log('Setting does not exist');
     }

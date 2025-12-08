@@ -110,14 +110,14 @@ window.addEventListener("message", async (event) => {
                     // Connection and notification events are global
                     return true;
                 });
-            } else if (method === "settings.getSettings") {
+            } else if (method === "settings.getAll") {
                 // Get toolId from first arg (injected by bridge)
                 const toolId = args && args[0];
                 if (!toolId) {
                     throw new Error("Tool ID not available");
                 }
                 result = await window.api.invoke("tool-settings-get-all", toolId);
-            } else if (method === "settings.getSetting") {
+            } else if (method === "settings.get") {
                 // Get toolId and key from args (injected by bridge)
                 const toolId = args && args[0];
                 const key = args && args[1];
@@ -125,7 +125,7 @@ window.addEventListener("message", async (event) => {
                     throw new Error("Tool ID not available");
                 }
                 result = await window.api.invoke("tool-settings-get", toolId, key);
-            } else if (method === "settings.setSetting") {
+            } else if (method === "settings.set") {
                 // Get toolId, key, and value from args (injected by bridge)
                 const toolId = args && args[0];
                 const key = args && args[1];
@@ -135,7 +135,7 @@ window.addEventListener("message", async (event) => {
                 }
                 await window.api.invoke("tool-settings-set", toolId, key, value);
                 result = undefined; // void return
-            } else if (method === "settings.setSettings") {
+            } else if (method === "settings.setAll") {
                 // Get toolId and settings from args (injected by bridge)
                 const toolId = args && args[0];
                 const settings = args && args[1];

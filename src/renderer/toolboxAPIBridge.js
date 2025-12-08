@@ -136,20 +136,20 @@
         // Settings namespace - context-aware tool settings (automatically uses current tool ID)
         settings: {
             // Get all settings for this tool
-            getSettings: function () {
-                return callParentAPI("settings.getSettings", currentToolId);
+            getAll: function () {
+                return callParentAPI("settings.getAll", currentToolId);
             },
             // Get a specific setting by key
-            getSetting: function (key) {
-                return callParentAPI("settings.getSetting", currentToolId, key);
+            get: function (key) {
+                return callParentAPI("settings.get", currentToolId, key);
             },
             // Set a specific setting by key
-            setSetting: function (key, value) {
-                return callParentAPI("settings.setSetting", currentToolId, key, value);
+            set: function (key, value) {
+                return callParentAPI("settings.set", currentToolId, key, value);
             },
             // Set all settings (replaces entire settings object)
-            setSettings: function (settings) {
-                return callParentAPI("settings.setSettings", currentToolId, settings);
+            setAll: function (settings) {
+                return callParentAPI("settings.setAll", currentToolId, settings);
             },
         },
 

@@ -601,27 +601,27 @@ try {
 
 ```typescript
 // Save individual settings
-await toolboxAPI.settings.setSetting("theme", "dark");
-await toolboxAPI.settings.setSetting("autoRefresh", true);
-await toolboxAPI.settings.setSetting("refreshInterval", 5000);
-await toolboxAPI.settings.setSetting("userPreferences", {
+await toolboxAPI.settings.set("theme", "dark");
+await toolboxAPI.settings.set("autoRefresh", true);
+await toolboxAPI.settings.set("refreshInterval", 5000);
+await toolboxAPI.settings.set("userPreferences", {
     showWelcome: false,
     defaultView: "grid",
 });
 
 // Get individual settings
-const theme = await toolboxAPI.settings.getSetting("theme");
-const autoRefresh = await toolboxAPI.settings.getSetting("autoRefresh");
+const theme = await toolboxAPI.settings.get("theme");
+const autoRefresh = await toolboxAPI.settings.get("autoRefresh");
 console.log("Theme:", theme); // 'dark'
 console.log("Auto-refresh:", autoRefresh); // true
 
 // Get all settings
-const allSettings = await toolboxAPI.settings.getSettings();
+const allSettings = await toolboxAPI.settings.getAll();
 console.log("All settings:", allSettings);
 // Returns: { theme: 'dark', autoRefresh: true, refreshInterval: 5000, ... }
 
 // Update multiple settings at once
-await toolboxAPI.settings.setSettings({
+await toolboxAPI.settings.setAll({
     theme: "light",
     autoRefresh: false,
     refreshInterval: 10000,
@@ -629,14 +629,14 @@ await toolboxAPI.settings.setSettings({
 });
 
 // Check if a setting exists
-const value = await toolboxAPI.settings.getSetting("nonExistentKey");
+const value = await toolboxAPI.settings.get("nonExistentKey");
 if (value === undefined) {
     console.log("Setting does not exist - use defaults");
 }
 
 // Example: Load settings on startup
 async function loadUserSettings() {
-    const settings = await toolboxAPI.settings.getSettings();
+    const settings = await toolboxAPI.settings.getAll();
 
     // Apply settings with defaults
     const theme = settings.theme || "light";
