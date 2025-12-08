@@ -1,3 +1,4 @@
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -5,24 +6,130 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { ToolManifest, ToolRegistryEntry } from "../../types";
-import { TOOL_REGISTRY_URL } from "../constants";
+import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+
+/**
+ * Supabase database types
+ */
+interface SupabaseCategoryRow {
+    categories?: {
+        name?: string;
+    };
+}
+
+interface SupabaseContributorRow {
+    contributors?: {
+        name?: string;
+        profile_url?: string;
+    };
+}
+
+interface SupabaseAnalyticsRow {
+    downloads?: number;
+    rating?: number;
+    aum?: number;
+}
+
+interface SupabaseCategoryRow {
+    categories?: {
+        name?: string;
+    };
+}
+
+interface SupabaseContributorRow {
+    contributors?: {
+        name?: string;
+        profile_url?: string;
+    };
+}
+
+interface SupabaseAnalyticsRow {
+    downloads?: number;
+    rating?: number;
+    aum?: number;
+}
+
+interface SupabaseTool {
+    id: string;
+    packagename?: string;
+    name: string;
+    description: string;
+    downloadurl: string;
+    iconurl: string;
+    readmeurl?: string;
+    version?: string;
+    checksum?: string;
+    size?: string; // stored as text in schema
+    published_at?: string;
+    csp_exceptions?: unknown;
+    license?: string;
+    tool_categories?: SupabaseCategoryRow[];
+    tool_contributors?: SupabaseContributorRow[];
+    tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
+}
+
+/**
+ * Local registry JSON file structure
+ */
+interface LocalRegistryFile {
+    version?: string;
+    updatedAt?: string;
+    description?: string;
+    tools: LocalRegistryTool[];
+}
+
+interface LocalRegistryTool {
+    id: string;
+    name: string;
+    description: string;
+    author: string;
+    version: string;
+    downloadUrl: string;
+    icon?: string;
+    checksum?: string;
+    size?: number;
+    publishedAt?: string;
+    tags?: string[];
+    readme?: string;
+    minToolboxVersion?: string;
+    repository?: string;
+    homepage?: string;
+    license?: string;
+    cspExceptions?: CspExceptions;
+}
 
 /**
  * Manages tool installation from a registry (marketplace)
- * Similar to VS Code extension marketplace
+ * Registry for discovering and managing tool installations
  */
 export class ToolRegistryManager extends EventEmitter {
     private toolsDirectory: string;
-    private registryUrl: string;
     private manifestPath: string;
+    private supabase: SupabaseClient | null = null;
+    private useLocalFallback: boolean = false;
+    private localRegistryPath: string;
 
-    constructor(toolsDirectory: string, registryUrl?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        // Default registry URL from constants - can be overridden via settings
-        this.registryUrl = registryUrl || TOOL_REGISTRY_URL;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
+        this.localRegistryPath = path.join(__dirname, "data", "registry.json");
+
+        // Initialize Supabase client
+        const url = supabaseUrl || SUPABASE_URL;
+        const key = supabaseKey || SUPABASE_ANON_KEY;
+
+        // Validate Supabase credentials and create client
+        if (!url || !key || url === "" || key === "") {
+            console.warn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+            console.warn("[ToolRegistry] Falling back to local registry.json file.");
+            this.useLocalFallback = true;
+        } else {
+            console.log("[ToolRegistry] Initializing Supabase client with URL:", url.substring(0, 30) + "...");
+            this.supabase = createClient(url, key);
+        }
+
         this.ensureToolsDirectory();
     }
 
@@ -36,40 +143,139 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Fetch the tool registry from the server
+     * Fetch the tool registry from Supabase database or local fallback
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
-        return new Promise((resolve, reject) => {
-            console.log(`[ToolRegistry] Fetching registry from: ${this.registryUrl}`);
+        // Use local fallback if Supabase is not configured
+        if (this.useLocalFallback) {
+            return this.fetchLocalRegistry();
+        }
 
-            const protocol = this.registryUrl.startsWith("https") ? https : http;
+        try {
+            console.log(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
-            protocol
-                .get(this.registryUrl, (res) => {
-                    if (res.statusCode !== 200) {
-                        reject(new Error(`Failed to fetch registry: HTTP ${res.statusCode}`));
-                        return;
-                    }
+            const selectColumns = [
+                "id",
+                "packagename",
+                "name",
+                "description",
+                "downloadurl",
+                "iconurl",
+                "readmeurl",
+                "version",
+                "checksum",
+                "size",
+                "published_at",
+                "license",
+                "csp_exceptions",
+                // embedded relations
+                "tool_categories(categories(name))",
+                "tool_contributors(contributors(name,profile_url))",
+                "tool_analytics(downloads,rating,aum)",
+            ].join(", ");
 
-                    let data = "";
-                    res.on("data", (chunk) => {
-                        data += chunk;
-                    });
+            if (!this.supabase) {
+                throw new Error("Supabase client is not initialized");
+            }
+            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
 
-                    res.on("end", () => {
-                        try {
-                            const registry = JSON.parse(data);
-                            console.log(`[ToolRegistry] Fetched ${registry.tools?.length || 0} tools from registry`);
-                            resolve(registry.tools || []);
-                        } catch (error) {
-                            reject(new Error(`Failed to parse registry JSON: ${error}`));
-                        }
-                    });
-                })
-                .on("error", (error) => {
-                    reject(new Error(`Failed to fetch registry: ${error.message}`));
-                });
-        });
+            if (error) {
+                throw new Error(`Supabase query failed: ${error.message}`);
+            }
+
+            if (!toolsData || toolsData.length === 0) {
+                console.log(`[ToolRegistry] No tools found in registry`);
+                return [];
+            }
+
+            // toolsData typing from supabase-js is loose; coerce via unknown first to satisfy TS
+            const tools: ToolRegistryEntry[] = (toolsData as unknown as SupabaseTool[]).map((tool) => {
+                const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((n): n is string => !!n);
+                const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
+                const author = contributors.length === 0 ? "Unknown" : contributors.join(", ");
+                let downloads: number | undefined;
+                let rating: number | undefined;
+                let aum: number | undefined;
+                if (tool.tool_analytics) {
+                    const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
+                    downloads = analytics?.downloads;
+                    rating = analytics?.rating;
+                    aum = analytics?.aum;
+                }
+
+                return {
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    author,
+                    authors: contributors,
+                    version: tool.version || "1.0.0",
+                    icon: tool.iconurl,
+                    downloadUrl: tool.downloadurl,
+                    publishedAt: tool.published_at || new Date().toISOString(),
+                    readme: tool.readmeurl,
+                    checksum: tool.checksum,
+                    size: tool.size ? Number(tool.size) || undefined : undefined,
+                    tags: categories,
+                    cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
+                    license: tool.license,
+                    downloads,
+                    rating,
+                    aum,
+                } as ToolRegistryEntry;
+            });
+
+            console.log(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
+            return tools;
+        } catch (error) {
+            console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
+            throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Fetch the tool registry from the local registry.json file
+     */
+    private async fetchLocalRegistry(): Promise<ToolRegistryEntry[]> {
+        try {
+            console.log(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
+
+            if (!fs.existsSync(this.localRegistryPath)) {
+                console.warn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
+                return [];
+            }
+
+            const data = fs.readFileSync(this.localRegistryPath, "utf-8");
+            const registryData: LocalRegistryFile = JSON.parse(data);
+
+            if (!registryData.tools || registryData.tools.length === 0) {
+                console.log(`[ToolRegistry] No tools found in local registry`);
+                return [];
+            }
+
+            const tools: ToolRegistryEntry[] = registryData.tools.map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                author: tool.author,
+                version: tool.version,
+                icon: tool.icon,
+                downloadUrl: tool.downloadUrl,
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || new Date().toISOString(),
+                tags: tool.tags,
+                readme: tool.readme,
+                cspExceptions: tool.cspExceptions,
+                license: tool.license,
+            }));
+
+            console.log(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
+            return tools;
+        } catch (error) {
+            console.error(`[ToolRegistry] Failed to fetch local registry:`, error);
+            throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     /**
@@ -210,18 +416,35 @@ export class ToolRegistryManager extends EventEmitter {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
         // Create manifest
+        // Normalize authors list: prefer registry contributors, fallback to package.json author
+        let authors: string[] | undefined = tool.authors;
+        const pkgAuthor = packageJson?.author;
+        if ((!authors || authors.length === 0) && pkgAuthor) {
+            if (typeof pkgAuthor === "string") {
+                authors = [pkgAuthor];
+            } else if (typeof pkgAuthor === "object" && typeof pkgAuthor.name === "string") {
+                authors = [pkgAuthor.name];
+            }
+        }
+
         const manifest: ToolManifest = {
             id: tool.id || packageJson.name,
             name: tool.name || packageJson.displayName || packageJson.name,
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
-            author: tool.author || packageJson.author,
+            authors,
             icon: tool.icon || packageJson.icon,
             installPath: toolPath,
             installedAt: new Date().toISOString(),
             source: "registry",
             sourceUrl: tool.downloadUrl,
             readme: tool.readme, // Include readme URL from registry
+            cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
+            categories: tool.tags,
+            license: tool.license || packageJson.license,
+            downloads: tool.downloads,
+            rating: tool.rating,
+            aum: tool.aum,
         };
 
         // Save to manifest file
@@ -265,7 +488,37 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             const data = fs.readFileSync(this.manifestPath, "utf-8");
             const manifest = JSON.parse(data);
-            return manifest.tools || [];
+            const tools: any[] = manifest.tools || [];
+            // Normalize installed entries to new schema (categories, authors[])
+            const normalized: ToolManifest[] = tools.map((t) => {
+                const categories = t.categories ?? t.tags ?? [];
+                let authors: string[] | undefined = t.authors;
+                if ((!authors || authors.length === 0) && t.author) {
+                    if (typeof t.author === "string") authors = [t.author];
+                    else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
+                }
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, license, downloads, rating, aum } = t as any;
+                return {
+                    id,
+                    name,
+                    version,
+                    description,
+                    authors,
+                    icon,
+                    installPath,
+                    installedAt,
+                    source,
+                    sourceUrl,
+                    readme,
+                    cspExceptions,
+                    categories,
+                    license,
+                    downloads,
+                    rating,
+                    aum,
+                } as ToolManifest;
+            });
+            return normalized;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
             return [];
@@ -337,10 +590,11 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Update registry URL
+     * Update Supabase credentials (if needed)
      */
-    setRegistryUrl(url: string): void {
-        this.registryUrl = url;
-        console.log(`[ToolRegistry] Registry URL updated to: ${url}`);
+    updateSupabaseClient(url: string, key: string): void {
+        this.supabase = createClient(url, key);
+        this.useLocalFallback = false;
+        console.log(`[ToolRegistry] Supabase client updated`);
     }
 }

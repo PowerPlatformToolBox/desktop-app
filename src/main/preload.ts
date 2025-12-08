@@ -1,4 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
+import {
+    CONNECTION_CHANNELS,
+    DATAVERSE_CHANNELS,
+    EVENT_CHANNELS,
+    SETTINGS_CHANNELS,
+    TERMINAL_CHANNELS,
+    TOOL_CHANNELS,
+    TOOL_WINDOW_CHANNELS,
+    UPDATE_CHANNELS,
+    UTIL_CHANNELS,
+} from "../common/ipc/channels";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -6,159 +17,175 @@ import { contextBridge, ipcRenderer } from "electron";
  */
 contextBridge.exposeInMainWorld("toolboxAPI", {
     // Settings - Only for PPTB UI
-    getUserSettings: () => ipcRenderer.invoke("get-user-settings"),
-    updateUserSettings: (settings: unknown) => ipcRenderer.invoke("update-user-settings", settings),
-    getSetting: (key: string) => ipcRenderer.invoke("get-setting", key),
-    setSetting: (key: string, value: unknown) => ipcRenderer.invoke("set-setting", key, value),
+    getUserSettings: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_USER_SETTINGS),
+    updateUserSettings: (settings: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, settings),
+    getSetting: (key: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_SETTING, key),
+    setSetting: (key: string, value: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_SETTING, key, value),
 
     // Connections namespace - organized like in the iframe
     connections: {
-        add: (connection: unknown) => ipcRenderer.invoke("add-connection", connection),
-        update: (id: string, updates: unknown) => ipcRenderer.invoke("update-connection", id, updates),
-        delete: (id: string) => ipcRenderer.invoke("delete-connection", id),
-        getAll: () => ipcRenderer.invoke("get-connections"),
-        setActive: (id: string) => ipcRenderer.invoke("set-active-connection", id),
-        getActiveConnection: () => ipcRenderer.invoke("get-active-connection"),
-        disconnect: () => ipcRenderer.invoke("disconnect-connection"),
-        test: (connection: unknown) => ipcRenderer.invoke("test-connection", connection),
-        isTokenExpired: (connectionId: string) => ipcRenderer.invoke("is-connection-token-expired", connectionId),
-        refreshToken: (connectionId: string) => ipcRenderer.invoke("refresh-connection-token", connectionId),
+        add: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.ADD_CONNECTION, connection),
+        update: (id: string, updates: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
+        delete: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.DELETE_CONNECTION, id),
+        getAll: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
+        setActive: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, id),
+        getActiveConnection: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION),
+        disconnect: () => ipcRenderer.invoke(CONNECTION_CHANNELS.DISCONNECT_CONNECTION),
+        test: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
+        isTokenExpired: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
+        refreshToken: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
     },
 
     // Tools - Only for PPTB UI
-    getAllTools: () => ipcRenderer.invoke("get-all-tools"),
-    getTool: (toolId: string) => ipcRenderer.invoke("get-tool", toolId),
-    loadTool: (packageName: string) => ipcRenderer.invoke("load-tool", packageName),
-    unloadTool: (toolId: string) => ipcRenderer.invoke("unload-tool", toolId),
-    installTool: (packageName: string) => ipcRenderer.invoke("install-tool", packageName),
-    uninstallTool: (packageName: string, toolId: string) => ipcRenderer.invoke("uninstall-tool", packageName, toolId),
-    getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke("get-tool-webview-html", packageName),
-    getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke("get-tool-context", packageName, connectionUrl),
+    getAllTools: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_ALL_TOOLS),
+    getTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL, toolId),
+    loadTool: (packageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.LOAD_TOOL, packageName),
+    unloadTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UNLOAD_TOOL, toolId),
+    installTool: (packageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL, packageName),
+    uninstallTool: (packageName: string, toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UNINSTALL_TOOL, packageName, toolId),
+    getToolWebviewHtml: (packageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML, packageName),
+    getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_CONTEXT, packageName, connectionUrl),
+
+    // Tool Window Management (NEW - BrowserView based)
+    launchToolWindow: (toolId: string, tool: unknown) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, toolId, tool),
+    switchToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, toolId),
+    closeToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, toolId),
+    getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
+    getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
 
     // Favorite tools - Only for PPTB UI
-    addFavoriteTool: (toolId: string) => ipcRenderer.invoke("add-favorite-tool", toolId),
-    removeFavoriteTool: (toolId: string) => ipcRenderer.invoke("remove-favorite-tool", toolId),
-    getFavoriteTools: () => ipcRenderer.invoke("get-favorite-tools"),
-    isFavoriteTool: (toolId: string) => ipcRenderer.invoke("is-favorite-tool", toolId),
-    toggleFavoriteTool: (toolId: string) => ipcRenderer.invoke("toggle-favorite-tool", toolId),
+    addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
+    removeFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, toolId),
+    getFavoriteTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS),
+    isFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.IS_FAVORITE_TOOL, toolId),
+    toggleFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL, toolId),
 
     // Local tool development (DEBUG MODE)
-    loadLocalTool: (localPath: string) => ipcRenderer.invoke("load-local-tool", localPath),
-    getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke("get-local-tool-webview-html", localPath),
-    openDirectoryPicker: () => ipcRenderer.invoke("open-directory-picker"),
+    loadLocalTool: (localPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.LOAD_LOCAL_TOOL, localPath),
+    getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML, localPath),
+    openDirectoryPicker: () => ipcRenderer.invoke(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER),
 
     // Registry-based tools (new primary method)
-    fetchRegistryTools: () => ipcRenderer.invoke("fetch-registry-tools"),
-    installToolFromRegistry: (toolId: string) => ipcRenderer.invoke("install-tool-from-registry", toolId),
-    checkToolUpdates: (toolId: string) => ipcRenderer.invoke("check-tool-updates", toolId),
-    updateTool: (toolId: string) => ipcRenderer.invoke("update-tool", toolId),
+    fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
+    installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
+    checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
+    updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
 
     // Tool Settings - Only for PPTB UI
-    getToolSettings: (toolId: string) => ipcRenderer.invoke("get-tool-settings", toolId),
-    updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke("update-tool-settings", toolId, settings),
+    getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),
+    updateToolSettings: (toolId: string, settings: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.UPDATE_TOOL_SETTINGS, toolId, settings),
+
+    // CSP consent management - Only for PPTB UI
+    hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
+    grantCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId),
+    revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
+    getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
+
+    // Webview URL generation - Only for PPTB UI
+    getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, toolId),
 
     // Utils namespace - organized like in the iframe
     utils: {
-        showNotification: (options: unknown) => ipcRenderer.invoke("show-notification", options),
-        copyToClipboard: (text: string) => ipcRenderer.invoke("copy-to-clipboard", text),
-        saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke("save-file", defaultPath, content),
-        getCurrentTheme: () => Promise.resolve("light" as const), // Stub for now
+        showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
+        copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
+        saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
+        getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
             // Convert any functions to promises and execute all in parallel
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);
         },
-        showLoading: (message?: string) => ipcRenderer.invoke("show-loading", message),
-        hideLoading: () => ipcRenderer.invoke("hide-loading"),
+        showLoading: (message?: string) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_LOADING, message),
+        hideLoading: () => ipcRenderer.invoke(UTIL_CHANNELS.HIDE_LOADING),
     },
 
     // External URL - Only for PPTB UI
-    openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+    openExternal: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
 
     // Terminal namespace - organized like in the iframe
     terminal: {
-        create: (toolId: string, options: unknown) => ipcRenderer.invoke("create-terminal", toolId, options),
-        execute: (terminalId: string, command: string) => ipcRenderer.invoke("execute-terminal-command", terminalId, command),
-        close: (terminalId: string) => ipcRenderer.invoke("close-terminal", terminalId),
-        get: (terminalId: string) => ipcRenderer.invoke("get-terminal", terminalId),
-        list: (toolId: string) => ipcRenderer.invoke("get-tool-terminals", toolId),
-        listAll: () => ipcRenderer.invoke("get-all-terminals"),
-        setVisibility: (terminalId: string, visible: boolean) => ipcRenderer.invoke("set-terminal-visibility", terminalId, visible),
+        create: (toolId: string, options: unknown) => ipcRenderer.invoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, options),
+        execute: (terminalId: string, command: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.EXECUTE_COMMAND, terminalId, command),
+        close: (terminalId: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.CLOSE_TERMINAL, terminalId),
+        get: (terminalId: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.GET_TERMINAL, terminalId),
+        list: (toolId: string) => ipcRenderer.invoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId),
+        listAll: () => ipcRenderer.invoke(TERMINAL_CHANNELS.GET_ALL_TERMINALS),
+        setVisibility: (terminalId: string, visible: boolean) => ipcRenderer.invoke(TERMINAL_CHANNELS.SET_VISIBILITY, terminalId, visible),
     },
 
     // Events namespace - organized like in the iframe
     events: {
-        getHistory: (limit?: number) => ipcRenderer.invoke("get-event-history", limit),
+        getHistory: (limit?: number) => ipcRenderer.invoke(UTIL_CHANNELS.GET_EVENT_HISTORY, limit),
         on: (callback: (event: unknown, payload: unknown) => void) => {
-            ipcRenderer.on("toolbox-event", callback);
+            ipcRenderer.on(EVENT_CHANNELS.TOOLBOX_EVENT, callback);
         },
         off: (callback: (event: unknown, payload: unknown) => void) => {
-            ipcRenderer.removeListener("toolbox-event", callback);
+            ipcRenderer.removeListener(EVENT_CHANNELS.TOOLBOX_EVENT, callback);
         },
     },
 
     // Auto-update - Only for PPTB UI
-    checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
-    downloadUpdate: () => ipcRenderer.invoke("download-update"),
-    quitAndInstall: () => ipcRenderer.invoke("quit-and-install"),
-    getAppVersion: () => ipcRenderer.invoke("get-app-version"),
+    checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHANNELS.CHECK_FOR_UPDATES),
+    downloadUpdate: () => ipcRenderer.invoke(UPDATE_CHANNELS.DOWNLOAD_UPDATE),
+    quitAndInstall: () => ipcRenderer.invoke(UPDATE_CHANNELS.QUIT_AND_INSTALL),
+    getAppVersion: () => ipcRenderer.invoke(UPDATE_CHANNELS.GET_APP_VERSION),
     onUpdateChecking: (callback: () => void) => {
-        ipcRenderer.on("update-checking", callback);
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_CHECKING, callback);
     },
     onUpdateAvailable: (callback: (info: unknown) => void) => {
-        ipcRenderer.on("update-available", (_, info) => callback(info));
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_AVAILABLE, (_, info) => callback(info));
     },
     onUpdateNotAvailable: (callback: () => void) => {
-        ipcRenderer.on("update-not-available", callback);
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_NOT_AVAILABLE, callback);
     },
     onUpdateDownloadProgress: (callback: (progress: unknown) => void) => {
-        ipcRenderer.on("update-download-progress", (_, progress) => callback(progress));
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_DOWNLOAD_PROGRESS, (_, progress) => callback(progress));
     },
     onUpdateDownloaded: (callback: (info: unknown) => void) => {
-        ipcRenderer.on("update-downloaded", (_, info) => callback(info));
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_DOWNLOADED, (_, info) => callback(info));
     },
     onUpdateError: (callback: (error: string) => void) => {
-        ipcRenderer.on("update-error", (_, error) => callback(error));
+        ipcRenderer.on(EVENT_CHANNELS.UPDATE_ERROR, (_, error) => callback(error));
     },
 
     // Home page - Only for PPTB UI
     onShowHomePage: (callback: () => void) => {
-        ipcRenderer.on("show-home-page", callback);
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_HOME_PAGE, callback);
     },
 
     // Authentication dialogs - Only for PPTB UI
     onShowDeviceCodeDialog: (callback: (message: string) => void) => {
-        ipcRenderer.on("show-device-code-dialog", (_, message) => callback(message));
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_DEVICE_CODE_DIALOG, (_, message) => callback(message));
     },
     onCloseDeviceCodeDialog: (callback: () => void) => {
-        ipcRenderer.on("close-device-code-dialog", callback);
+        ipcRenderer.on(EVENT_CHANNELS.CLOSE_DEVICE_CODE_DIALOG, callback);
     },
     onShowAuthErrorDialog: (callback: (message: string) => void) => {
-        ipcRenderer.on("show-auth-error-dialog", (_, message) => callback(message));
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_AUTH_ERROR_DIALOG, (_, message) => callback(message));
     },
 
     // Token expiry event
     onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => {
-        ipcRenderer.on("token-expired", (_, data) => callback(data));
+        ipcRenderer.on(EVENT_CHANNELS.TOKEN_EXPIRED, (_, data) => callback(data));
     },
 
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke("dataverse.create", entityLogicalName, record),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcRenderer.invoke("dataverse.retrieve", entityLogicalName, id, columns),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcRenderer.invoke("dataverse.update", entityLogicalName, id, record),
-        delete: (entityLogicalName: string, id: string) => ipcRenderer.invoke("dataverse.delete", entityLogicalName, id),
-        retrieveMultiple: (fetchXml: string) => ipcRenderer.invoke("dataverse.retrieveMultiple", fetchXml),
+        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record),
+        delete: (entityLogicalName: string, id: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id),
+        retrieveMultiple: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml),
         execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }) =>
-            ipcRenderer.invoke("dataverse.execute", request),
-        fetchXmlQuery: (fetchXml: string) => ipcRenderer.invoke("dataverse.fetchXmlQuery", fetchXml),
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.EXECUTE, request),
+        fetchXmlQuery: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml),
         getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
-            ipcRenderer.invoke("dataverse.getEntityMetadata", entityLogicalName, searchByLogicalName, selectColumns),
-        getAllEntitiesMetadata: () => ipcRenderer.invoke("dataverse.getAllEntitiesMetadata"),
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns),
+        getAllEntitiesMetadata: () => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA),
         getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
-            ipcRenderer.invoke("dataverse.getEntityRelatedMetadata", entityLogicalName, relatedPath, selectColumns),
-        getSolutions: (selectColumns: string[]) => ipcRenderer.invoke("dataverse.getSolutions", selectColumns),
-        queryData: (odataQuery: string) => ipcRenderer.invoke("dataverse.queryData", odataQuery),
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns),
+        getSolutions: (selectColumns: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns),
+        queryData: (odataQuery: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery),
     },
 });
 
@@ -169,5 +196,8 @@ contextBridge.exposeInMainWorld("api", {
     },
     invoke: (channel: string, ...args: unknown[]) => {
         return ipcRenderer.invoke(channel, ...args);
+    },
+    send: (channel: string, ...args: unknown[]) => {
+        ipcRenderer.send(channel, ...args);
     },
 });

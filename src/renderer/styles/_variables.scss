@@ -6,6 +6,8 @@ $text-color: #323130;
 $bg-color: #ffffff;
 $sidebar-bg: #f3f2f1;
 $border-color: #edebe9;
+$primary-gradient: linear-gradient(to right, #0078d4, #8a3ffc);
+$primary-gradient-hover: linear-gradient(to right, #106ebe, #7a35e0);
 
 // Dark Theme Colors
 $dark-text-color: #f3f2f1;
@@ -15,6 +17,8 @@ $dark-border-color: #3e3e42;
 $dark-secondary-color: #3e3e42;
 $dark-card-bg: #2d2d30;
 $dark-input-bg: #3e3e42;
+$dark-primary-gradient: linear-gradient(to right, #0078d4, #8a3ffc);
+$dark-primary-gradient-hover: linear-gradient(to right, #106ebe, #7a35e0);
 
 // Activity Bar Colors
 $activity-bar-bg: #333333;
@@ -70,5 +74,5 @@ $favorite-star-color-dark: #ffc107; // Lighter orange for dark theme
 // Z-Index Layers
 $z-activity-bar: 100;
 $z-sidebar: 50;
-$z-modal: 1000;
-$z-modal-overlay: 999;
+$z-modal: 10000; // Very high to ensure modals appear above BrowserView if shown simultaneously
+$z-modal-overlay: 9999;

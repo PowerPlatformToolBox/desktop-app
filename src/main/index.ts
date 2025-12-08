@@ -1,21 +1,30 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { ToolBoxAPI } from "../api/toolboxAPI";
-import { ToolBoxEvent } from "../types";
+import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, UPDATE_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
+import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
+import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
+import { ToolWindowManager } from "./managers/toolWindowManager";
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
-    private api: ToolBoxAPI;
+    private browserviewProtocolManager: BrowserviewProtocolManager;
+    private toolWindowManager: ToolWindowManager | null = null;
+    private notificationWindowManager: NotificationWindowManager | null = null;
+    private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
+    private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
@@ -26,8 +35,10 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxAPI();
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"));
+        this.api = new ToolBoxUtilityManager();
+        // Pass Supabase credentials from environment variables or use defaults from constants
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+        this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
@@ -68,8 +79,13 @@ class ToolBoxApp {
 
         eventTypes.forEach((eventType) => {
             this.api.on(eventType, (payload) => {
+                // Forward to main renderer window
                 if (this.mainWindow) {
-                    this.mainWindow.webContents.send("toolbox-event", payload);
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+                }
+                // Forward to all tool windows
+                if (this.toolWindowManager) {
+                    this.toolWindowManager.forwardEventToTools(payload);
                 }
             });
         });
@@ -126,65 +142,65 @@ class ToolBoxApp {
      */
     private setupIpcHandlers(): void {
         // Settings handlers
-        ipcMain.handle("get-user-settings", () => {
+        ipcMain.handle(SETTINGS_CHANNELS.GET_USER_SETTINGS, () => {
             return this.settingsManager.getUserSettings();
         });
 
-        ipcMain.handle("update-user-settings", (_, settings) => {
+        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
 
-        ipcMain.handle("get-setting", (_, key) => {
+        ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (_, key) => {
             return this.settingsManager.getSetting(key);
         });
 
-        ipcMain.handle("set-setting", (_, key, value) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, (_, key, value) => {
             this.settingsManager.setSetting(key, value);
         });
 
         // Favorite tools
-        ipcMain.handle("add-favorite-tool", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.addFavoriteTool(toolId);
         });
 
-        ipcMain.handle("remove-favorite-tool", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.removeFavoriteTool(toolId);
         });
 
-        ipcMain.handle("get-favorite-tools", () => {
+        ipcMain.handle(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS, () => {
             return this.settingsManager.getFavoriteTools();
         });
 
-        ipcMain.handle("is-favorite-tool", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.IS_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.isFavoriteTool(toolId);
         });
 
-        ipcMain.handle("toggle-favorite-tool", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.toggleFavoriteTool(toolId);
         });
 
         // Connection handlers
-        ipcMain.handle("add-connection", (_, connection) => {
+        ipcMain.handle(CONNECTION_CHANNELS.ADD_CONNECTION, (_, connection) => {
             this.connectionsManager.addConnection(connection);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
         });
 
-        ipcMain.handle("update-connection", (_, id, updates) => {
+        ipcMain.handle(CONNECTION_CHANNELS.UPDATE_CONNECTION, (_, id, updates) => {
             this.connectionsManager.updateConnection(id, updates);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
         });
 
-        ipcMain.handle("delete-connection", (_, id) => {
+        ipcMain.handle(CONNECTION_CHANNELS.DELETE_CONNECTION, (_, id) => {
             this.connectionsManager.deleteConnection(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
         });
 
-        ipcMain.handle("get-connections", () => {
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTIONS, () => {
             return this.connectionsManager.getConnections();
         });
 
-        ipcMain.handle("set-active-connection", async (_, id) => {
+        ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
             const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
                 throw new Error("Connection not found");
@@ -225,7 +241,7 @@ class ToolBoxApp {
         });
 
         // Test connection handler
-        ipcMain.handle("test-connection", async (_, connection) => {
+        ipcMain.handle(CONNECTION_CHANNELS.TEST_CONNECTION, async (_, connection) => {
             try {
                 await this.authManager.testConnection(connection, this.mainWindow || undefined);
                 return { success: true };
@@ -234,21 +250,22 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("get-active-connection", () => {
+        ipcMain.handle(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION, () => {
             return this.connectionsManager.getActiveConnection();
         });
 
-        ipcMain.handle("disconnect-connection", () => {
+        ipcMain.handle(CONNECTION_CHANNELS.DISCONNECT_CONNECTION, () => {
             this.connectionsManager.disconnectActiveConnection();
+            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
         });
 
         // Check if connection token is expired
-        ipcMain.handle("is-connection-token-expired", (_, connectionId) => {
+        ipcMain.handle(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, (_, connectionId) => {
             return this.connectionsManager.isConnectionTokenExpired(connectionId);
         });
 
         // Re-authenticate connection (refresh token flow)
-        ipcMain.handle("refresh-connection-token", async (_, connectionId) => {
+        ipcMain.handle(CONNECTION_CHANNELS.REFRESH_TOKEN, async (_, connectionId) => {
             const connection = this.connectionsManager.getConnectionById(connectionId);
             if (!connection) {
                 throw new Error("Connection not found");
@@ -260,7 +277,7 @@ class ToolBoxApp {
 
             try {
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                
+
                 // Update the connection with new tokens
                 this.connectionsManager.setActiveConnection(connectionId, {
                     accessToken: authResult.accessToken,
@@ -272,7 +289,7 @@ class ToolBoxApp {
                 this.notifiedExpiredTokens.clear();
 
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error("Token refresh failed:", error);
@@ -281,24 +298,24 @@ class ToolBoxApp {
         });
 
         // Tool handlers
-        ipcMain.handle("get-all-tools", () => {
+        ipcMain.handle(TOOL_CHANNELS.GET_ALL_TOOLS, () => {
             return this.toolManager.getAllTools();
         });
 
-        ipcMain.handle("get-tool", (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId) => {
             return this.toolManager.getTool(toolId);
         });
 
-        ipcMain.handle("load-tool", async (_, packageName) => {
+        ipcMain.handle(TOOL_CHANNELS.LOAD_TOOL, async (_, packageName) => {
             return await this.toolManager.loadTool(packageName);
         });
 
-        ipcMain.handle("unload-tool", (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.UNLOAD_TOOL, (_, toolId) => {
             this.toolManager.unloadTool(toolId);
         });
 
         // Registry-based tool installation (new primary method)
-        ipcMain.handle("install-tool-from-registry", async (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, async (_, toolId) => {
             const manifest = await this.toolManager.installToolFromRegistry(toolId);
             const tool = await this.toolManager.loadTool(toolId);
             this.settingsManager.addInstalledTool(toolId);
@@ -306,44 +323,46 @@ class ToolBoxApp {
         });
 
         // Fetch available tools from registry
-        ipcMain.handle("fetch-registry-tools", async () => {
+        ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async () => {
             return await this.toolManager.fetchAvailableTools();
         });
 
         // Check for tool updates
-        ipcMain.handle("check-tool-updates", async (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.CHECK_TOOL_UPDATES, async (_, toolId) => {
             return await this.toolManager.checkForUpdates(toolId);
         });
 
         // Update a tool to the latest version
-        ipcMain.handle("update-tool", async (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (_, toolId) => {
             return await this.toolManager.updateTool(toolId);
         });
 
         // Debug mode only - npm-based installation for tool developers
-        ipcMain.handle("install-tool", async (_, packageName) => {
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);
-            // For debug mode, we don't load from manifest since it's npm-based
+            // Load the npm tool after installation
+            const tool = await this.toolManager.loadNpmTool(packageName);
             this.settingsManager.addInstalledTool(packageName);
+            return tool;
         });
 
-        ipcMain.handle("uninstall-tool", async (_, packageName, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.UNINSTALL_TOOL, async (_, packageName, toolId) => {
             this.toolManager.unloadTool(toolId);
             await this.toolManager.uninstallTool(packageName);
             this.settingsManager.removeInstalledTool(packageName);
         });
 
         // Local tool development - load tool from local directory
-        ipcMain.handle("load-local-tool", async (_, localPath) => {
+        ipcMain.handle(TOOL_CHANNELS.LOAD_LOCAL_TOOL, async (_, localPath) => {
             const tool = await this.toolManager.loadLocalTool(localPath);
             return tool;
         });
 
-        ipcMain.handle("get-local-tool-webview-html", (_, localPath) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML, (_, localPath) => {
             return this.toolManager.getLocalToolWebviewHtml(localPath);
         });
 
-        ipcMain.handle("open-directory-picker", async () => {
+        ipcMain.handle(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER, async () => {
             if (!this.mainWindow) {
                 throw new Error("Main window not available");
             }
@@ -361,136 +380,171 @@ class ToolBoxApp {
             return result.filePaths[0];
         });
 
-        ipcMain.handle("get-tool-webview-html", (_, packageName) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML, (_, packageName) => {
             return this.toolManager.getToolWebviewHtml(packageName);
         });
 
-        ipcMain.handle("get-tool-context", (_, packageName, connectionUrl) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_CONTEXT, (_, packageName, connectionUrl) => {
             return this.toolManager.getToolContext(packageName, connectionUrl);
         });
 
         // Tool settings handlers
-        ipcMain.handle("get-tool-settings", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, (_, toolId) => {
             return this.settingsManager.getToolSettings(toolId);
         });
 
-        ipcMain.handle("update-tool-settings", (_, toolId, settings) => {
+        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_TOOL_SETTINGS, (_, toolId, settings) => {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
         // Context-aware tool settings handlers (for toolboxAPI)
-        ipcMain.handle("tool-settings-get-all", (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL, (_, toolId) => {
             return this.settingsManager.getToolSettings(toolId) || {};
         });
 
-        ipcMain.handle("tool-settings-get", (_, toolId, key) => {
+        ipcMain.handle(SETTINGS_CHANNELS.TOOL_SETTINGS_GET, (_, toolId, key) => {
             const settings = this.settingsManager.getToolSettings(toolId);
             return settings ? settings[key] : undefined;
         });
 
-        ipcMain.handle("tool-settings-set", (_, toolId, key, value) => {
+        ipcMain.handle(SETTINGS_CHANNELS.TOOL_SETTINGS_SET, (_, toolId, key, value) => {
             const settings = this.settingsManager.getToolSettings(toolId) || {};
             settings[key] = value;
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
-        ipcMain.handle("tool-settings-set-all", (_, toolId, settings) => {
+        ipcMain.handle(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL, (_, toolId, settings) => {
             this.settingsManager.updateToolSettings(toolId, settings);
         });
 
+        // CSP consent handlers
+        ipcMain.handle(SETTINGS_CHANNELS.HAS_CSP_CONSENT, (_, toolId) => {
+            return this.settingsManager.hasCspConsent(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, (_, toolId) => {
+            this.settingsManager.grantCspConsent(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, (_, toolId) => {
+            this.settingsManager.revokeCspConsent(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_CSP_CONSENTS, () => {
+            return this.settingsManager.getCspConsents();
+        });
+
+        // Webview protocol handler
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, (_, toolId) => {
+            return this.browserviewProtocolManager.buildToolUrl(toolId);
+        });
+
         // Notification handler
-        ipcMain.handle("show-notification", (_, options) => {
+        ipcMain.handle(UTIL_CHANNELS.SHOW_NOTIFICATION, (_, options) => {
             this.api.showNotification(options);
         });
 
         // Clipboard handler
-        ipcMain.handle("copy-to-clipboard", (_, text) => {
+        ipcMain.handle(UTIL_CHANNELS.COPY_TO_CLIPBOARD, (_, text) => {
             this.api.copyToClipboard(text);
         });
 
         // Save file handler
-        ipcMain.handle("save-file", async (_, defaultPath, content) => {
+        ipcMain.handle(UTIL_CHANNELS.SAVE_FILE, async (_, defaultPath, content) => {
             return await this.api.saveFile(defaultPath, content);
         });
 
-        // Show loading handler
-        ipcMain.handle("show-loading", (_, message) => {
-            if (this.mainWindow) {
-                this.mainWindow.webContents.send("show-loading-screen", message || "Loading...");
+        // Show loading handler (overlay window above BrowserViews)
+        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
+            if (this.loadingOverlayWindowManager) {
+                this.loadingOverlayWindowManager.show(message || "Loading...");
+            } else if (this.mainWindow) {
+                // Fallback to legacy in-DOM loading screen if manager not ready
+                this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
             }
         });
 
         // Hide loading handler
-        ipcMain.handle("hide-loading", () => {
-            if (this.mainWindow) {
-                this.mainWindow.webContents.send("hide-loading-screen");
+        ipcMain.handle(UTIL_CHANNELS.HIDE_LOADING, () => {
+            if (this.loadingOverlayWindowManager) {
+                this.loadingOverlayWindowManager.hide();
+            } else if (this.mainWindow) {
+                // Fallback legacy hide
+                this.mainWindow.webContents.send(EVENT_CHANNELS.HIDE_LOADING_SCREEN);
             }
         });
 
         // Get current theme handler
-        ipcMain.handle("get-current-theme", () => {
+        ipcMain.handle(UTIL_CHANNELS.GET_CURRENT_THEME, () => {
             const settings = this.settingsManager.getUserSettings();
-            return settings.theme || "system";
+            const theme = settings.theme || "system";
+
+            // Resolve "system" to actual theme based on OS preference
+            if (theme === "system") {
+                return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+            }
+
+            return theme;
         });
 
         // Event history handler
-        ipcMain.handle("get-event-history", (_, limit) => {
+        ipcMain.handle(UTIL_CHANNELS.GET_EVENT_HISTORY, (_, limit) => {
             return this.api.getEventHistory(limit);
         });
 
         // Open external URL handler
-        ipcMain.handle("open-external", async (_, url) => {
+        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
             await shell.openExternal(url);
         });
 
         // Terminal handlers
-        ipcMain.handle("create-terminal", async (_, toolId, options) => {
+        ipcMain.handle(TERMINAL_CHANNELS.CREATE_TERMINAL, async (_, toolId, options) => {
             return await this.terminalManager.createTerminal(toolId, options);
         });
 
-        ipcMain.handle("execute-terminal-command", async (_, terminalId, command) => {
+        ipcMain.handle(TERMINAL_CHANNELS.EXECUTE_COMMAND, async (_, terminalId, command) => {
             return await this.terminalManager.executeCommand(terminalId, command);
         });
 
-        ipcMain.handle("close-terminal", (_, terminalId) => {
+        ipcMain.handle(TERMINAL_CHANNELS.CLOSE_TERMINAL, (_, terminalId) => {
             this.terminalManager.closeTerminal(terminalId);
         });
 
-        ipcMain.handle("get-terminal", (_, terminalId) => {
+        ipcMain.handle(TERMINAL_CHANNELS.GET_TERMINAL, (_, terminalId) => {
             return this.terminalManager.getTerminal(terminalId);
         });
 
-        ipcMain.handle("get-tool-terminals", (_, toolId) => {
+        ipcMain.handle(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, (_, toolId) => {
             return this.terminalManager.getToolTerminals(toolId);
         });
 
-        ipcMain.handle("get-all-terminals", () => {
+        ipcMain.handle(TERMINAL_CHANNELS.GET_ALL_TERMINALS, () => {
             return this.terminalManager.getAllTerminals();
         });
 
-        ipcMain.handle("set-terminal-visibility", (_, terminalId, visible) => {
+        ipcMain.handle(TERMINAL_CHANNELS.SET_VISIBILITY, (_, terminalId, visible) => {
             this.terminalManager.setTerminalVisibility(terminalId, visible);
         });
 
         // Auto-update handlers
-        ipcMain.handle("check-for-updates", async () => {
+        ipcMain.handle(UPDATE_CHANNELS.CHECK_FOR_UPDATES, async () => {
             await this.autoUpdateManager.checkForUpdates();
         });
 
-        ipcMain.handle("download-update", async () => {
+        ipcMain.handle(UPDATE_CHANNELS.DOWNLOAD_UPDATE, async () => {
             await this.autoUpdateManager.downloadUpdate();
         });
 
-        ipcMain.handle("quit-and-install", () => {
+        ipcMain.handle(UPDATE_CHANNELS.QUIT_AND_INSTALL, () => {
             this.autoUpdateManager.quitAndInstall();
         });
 
-        ipcMain.handle("get-app-version", () => {
+        ipcMain.handle(UPDATE_CHANNELS.GET_APP_VERSION, () => {
             return this.autoUpdateManager.getCurrentVersion();
         });
 
         // Dataverse API handlers
-        ipcMain.handle("dataverse.create", async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (_, entityLogicalName: string, record: Record<string, unknown>) => {
             try {
                 return await this.dataverseManager.create(entityLogicalName, record);
             } catch (error) {
@@ -498,7 +552,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.retrieve", async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (_, entityLogicalName: string, id: string, columns?: string[]) => {
             try {
                 return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
             } catch (error) {
@@ -506,7 +560,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.update", async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
             try {
                 await this.dataverseManager.update(entityLogicalName, id, record);
                 return { success: true };
@@ -515,7 +569,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.delete", async (_, entityLogicalName: string, id: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (_, entityLogicalName: string, id: string) => {
             try {
                 await this.dataverseManager.delete(entityLogicalName, id);
                 return { success: true };
@@ -524,7 +578,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.retrieveMultiple", async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (_, fetchXml: string) => {
             try {
                 return await this.dataverseManager.retrieveMultiple(fetchXml);
             } catch (error) {
@@ -533,7 +587,7 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(
-            "dataverse.execute",
+            DATAVERSE_CHANNELS.EXECUTE,
             async (
                 _,
                 request: {
@@ -552,7 +606,7 @@ class ToolBoxApp {
             },
         );
 
-        ipcMain.handle("dataverse.fetchXmlQuery", async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (_, fetchXml: string) => {
             try {
                 return await this.dataverseManager.fetchXmlQuery(fetchXml);
             } catch (error) {
@@ -560,7 +614,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getEntityMetadata", async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
             try {
                 return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
             } catch (error) {
@@ -568,7 +622,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getAllEntitiesMetadata", async () => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async () => {
             try {
                 return await this.dataverseManager.getAllEntitiesMetadata();
             } catch (error) {
@@ -576,7 +630,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getEntityRelatedMetadata", async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
             try {
                 return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
             } catch (error) {
@@ -584,7 +638,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.getSolutions", async (_, selectColumns: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (_, selectColumns: string[]) => {
             try {
                 return await this.dataverseManager.getSolutions(selectColumns);
             } catch (error) {
@@ -592,7 +646,7 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle("dataverse.queryData", async (_, odataQuery: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (_, odataQuery: string) => {
             try {
                 return await this.dataverseManager.queryData(odataQuery);
             } catch (error) {
@@ -665,22 +719,13 @@ class ToolBoxApp {
                 submenu: [
                     { role: "reload" },
                     { role: "forceReload" },
-                    {
-                        label: "Toggle Developer Tools",
-                        accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
-                        click: () => {
-                            if (this.mainWindow) {
-                                this.mainWindow.webContents.toggleDevTools();
-                            }
-                        },
-                    },
                     { type: "separator" },
                     {
                         label: "Show Home Page",
                         accelerator: isMac ? "Command+H" : "Ctrl+H",
                         click: () => {
                             if (this.mainWindow) {
-                                this.mainWindow.webContents.send("show-home-page");
+                                this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_HOME_PAGE);
                             }
                         },
                     },
@@ -706,23 +751,49 @@ class ToolBoxApp {
                     {
                         label: "Learn More",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app");
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
                         },
                     },
                     {
                         label: "Documentation",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatform-ToolBox/desktop-app#readme");
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app#readme");
                         },
                     },
                     { type: "separator" },
                     {
-                        label: "Toggle Developer Tools",
+                        label: "Toggle Tool DevTools",
+                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                        click: () => {
+                            if (this.toolWindowManager) {
+                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                if (!opened) {
+                                    // Show notification if no active tool
+                                    dialog.showMessageBox(this.mainWindow!, {
+                                        type: "info",
+                                        title: "No Active Tool",
+                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                        buttons: ["OK"],
+                                    });
+                                }
+                            }
+                        },
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
                         click: () => {
                             if (this.mainWindow) {
                                 this.mainWindow.webContents.toggleDevTools();
                             }
+                        },
+                    },
+                    { type: "separator" },
+                    {
+                        label: `About`,
+                        click: () => {
+                            this.showAboutDialog();
                         },
                     },
                 ],
@@ -738,7 +809,7 @@ class ToolBoxApp {
      */
     private checkTokenExpiry(): void {
         const activeConnection = this.connectionsManager.getActiveConnection();
-        
+
         if (!activeConnection || !activeConnection.tokenExpiry) {
             // Clear notification tracking if no active connection
             this.notifiedExpiredTokens.clear();
@@ -747,12 +818,12 @@ class ToolBoxApp {
 
         const expiryDate = new Date(activeConnection.tokenExpiry);
         const now = new Date();
-        
+
         // Check if token has expired
         if (expiryDate.getTime() <= now.getTime()) {
             // Only notify if we haven't already notified about this expired token
             const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-            
+
             if (!this.notifiedExpiredTokens.has(notificationKey)) {
                 // Token has expired - notify the user
                 if (this.mainWindow) {
@@ -760,7 +831,7 @@ class ToolBoxApp {
                         connectionId: activeConnection.id,
                         connectionName: activeConnection.name,
                     });
-                    
+
                     // Mark this token as notified
                     this.notifiedExpiredTokens.add(notificationKey);
                 }
@@ -793,6 +864,10 @@ class ToolBoxApp {
     }
 
     /**
+     * Register custom pptb-webview protocol for loading tool content
+     * This provides isolation and CSP control for tool execution
+     */
+    /**
      * Create the main application window
      */
     private createWindow(): void {
@@ -802,12 +877,23 @@ class ToolBoxApp {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
+                // Explicitly disable sandbox so preload can use CommonJS require for sibling chunks (channels.js)
+                // Electron 28 may enable stronger sandbox behaviors affecting module resolution when omitted.
+                sandbox: false,
                 preload: path.join(__dirname, "preload.js"),
-                webviewTag: true, // Enable webview tag
+                // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform Tool Box",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
+
+        // Initialize ToolWindowManager for managing tool BrowserViews
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager);
+
+        // Initialize NotificationWindowManager for overlay notifications
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+        // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
+        this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -829,6 +915,23 @@ class ToolBoxApp {
     }
 
     /**
+     * Show About dialog with version and environment info
+     */
+    private showAboutDialog(): void {
+        if (this.mainWindow) {
+            const appVersion = app.getVersion();
+            const message = `Version ${appVersion}
+Electron: ${process.versions.electron}
+Node.js: ${process.versions.node}
+Chromium: ${process.versions.chrome}
+OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+
+           if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: [ "Copy", "OK"] }) === 0) {
+                clipboard.writeText(message); 
+            }
+    }}
+
+    /**
      * Initialize the application
      */
     async initialize(): Promise<void> {
@@ -837,7 +940,14 @@ class ToolBoxApp {
             app.setAppUserModelId("com.powerplatform.toolbox");
         }
 
+        // Register custom protocol scheme before app is ready
+        this.browserviewProtocolManager.registerScheme();
+
         await app.whenReady();
+
+        // Register protocol handler after app is ready
+        this.browserviewProtocolManager.registerHandler();
+
         this.createWindow();
 
         // Load all installed tools from registry
@@ -872,6 +982,8 @@ class ToolBoxApp {
             this.stopTokenExpiryChecks();
         });
     }
+
+
 }
 
 // Create and initialize the application

@@ -1,5 +1,5 @@
 import * as https from "https";
-import { DataverseConnection } from "../../types";
+import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -211,7 +211,8 @@ export class DataverseManager {
 
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
 
-        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        // Request formatted values and all annotations (for lookups, aliases, etc.)
+        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as FetchXmlResult;
     }
 
@@ -366,17 +367,24 @@ export class DataverseManager {
             url += `/${cleanQuery}`;
         }
 
-        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as { value: Record<string, unknown>[] };
     }
 
     /**
      * Make an HTTP request to Dataverse Web API
      */
-    private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>): Promise<{ data: unknown; headers: Record<string, string> }> {
+    private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>, preferOptions?: string[]): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
+
+            // Build Prefer header with multiple comma-separated values
+            const preferValues = ["return=representation"];
+            if (preferOptions && preferOptions.length > 0) {
+                preferValues.push(...preferOptions);
+            }
+            const preferHeader = preferValues.join(",");
 
             const options: https.RequestOptions = {
                 hostname: urlObj.hostname,
@@ -389,7 +397,7 @@ export class DataverseManager {
                     "OData-MaxVersion": "4.0",
                     "OData-Version": "4.0",
                     "Content-Type": "application/json; charset=utf-8",
-                    Prefer: "return=representation", // Return created/updated entity data
+                    Prefer: preferHeader,
                     "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
                 },
             };
