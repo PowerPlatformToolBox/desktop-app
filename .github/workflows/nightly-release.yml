@@ -58,14 +58,14 @@ jobs:
             - name: Install dependencies
               run: pnpm install
 
-            - name: Update version for nightly build
+            - name: Update version for insider build
               id: version
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
                   DATE_TAG=$(date +%Y%m%d)
                   NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-                  echo "📦 Nightly version: $NEW_VERSION"
+                  echo "📦 Insider version: $NEW_VERSION"
 
                   # Update package.json with new version
                   node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version='$NEW_VERSION'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
@@ -154,7 +154,7 @@ jobs:
                   DATE_TAG=$(date +%Y%m%d)
                   NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-                  echo "release_name=Nightly Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "release_name=Insider Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
               shell: bash
 
             - name: Download all artifacts
@@ -216,7 +216,7 @@ jobs:
 
                       ## ⚠️ Pre-release Warning
 
-                      This is an automated nightly build from the development branch. It may contain:
+                      This is an automated insider build from the development branch. It may contain:
                       - 🐛 Bugs and instability
                       - 🚧 Incomplete features
                       - 💥 Breaking changes
