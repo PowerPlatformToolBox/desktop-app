@@ -72,7 +72,7 @@ try {
 ```javascript
 const [connection, settings, entities] = await toolboxAPI.utils.executeParallel(
   toolboxAPI.connections.getActiveConnection(),
-  toolboxAPI.settings.getSettings(),
+  toolboxAPI.settings.getAll(),
   dataverseAPI.getAllEntitiesMetadata()
 );
 

@@ -236,14 +236,14 @@ declare namespace ToolBoxAPI {
          * Get all settings for this tool
          * @returns Promise resolving to an object with all settings (empty object if no settings exist)
          */
-        getSettings: () => Promise<Record<string, any>>;
+        getAll: () => Promise<Record<string, any>>;
 
         /**
          * Get a specific setting by key
          * @param key The setting key to retrieve
          * @returns Promise resolving to the setting value, or undefined if not found
          */
-        getSetting: (key: string) => Promise<any>;
+        get: (key: string) => Promise<any>;
 
         /**
          * Set a specific setting by key
@@ -251,14 +251,14 @@ declare namespace ToolBoxAPI {
          * @param value The value to store (can be any JSON-serializable value)
          * @returns Promise that resolves when the setting is saved
          */
-        setSetting: (key: string, value: any) => Promise<void>;
+        set: (key: string, value: any) => Promise<void>;
 
         /**
          * Set all settings (replaces entire settings object)
          * @param settings The settings object to store
          * @returns Promise that resolves when the settings are saved
          */
-        setSettings: (settings: Record<string, any>) => Promise<void>;
+        setAll: (settings: Record<string, any>) => Promise<void>;
     }
 
     /**

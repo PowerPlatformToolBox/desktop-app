@@ -95,7 +95,7 @@
 
         <h2>1. Save Individual Settings</h2>
         <div class="section">
-            <p>Set individual settings using <code>setSetting(key, value)</code>:</p>
+            <p>Set individual settings using <code>set(key, value)</code>:</p>
             <div>
                 <input type="text" id="settingKey" placeholder="Setting key (e.g., 'theme')">
                 <input type="text" id="settingValue" placeholder="Setting value (e.g., 'dark')">
@@ -106,24 +106,24 @@
 
         <h2>2. Get Individual Settings</h2>
         <div class="section">
-            <p>Retrieve a specific setting using <code>getSetting(key)</code>:</p>
+            <p>Retrieve a specific setting using <code>get(key)</code>:</p>
             <div>
                 <input type="text" id="getKey" placeholder="Setting key to retrieve">
-                <button onclick="getSetting()">Get Setting</button>
+                <button onclick="get()">Get Setting</button>
             </div>
             <div class="output" id="getOutput"></div>
         </div>
 
         <h2>3. Get All Settings</h2>
         <div class="section">
-            <p>Retrieve all settings for this tool using <code>getSettings()</code>:</p>
+            <p>Retrieve all settings for this tool using <code>getAll()</code>:</p>
             <button onclick="getAllSettings()">Get All Settings</button>
             <div class="output" id="allSettingsOutput"></div>
         </div>
 
         <h2>4. Save Multiple Settings (Bulk)</h2>
         <div class="section">
-            <p>Update multiple settings at once using <code>setSettings(object)</code>:</p>
+            <p>Update multiple settings at once using <code>setAll(object)</code>:</p>
             <button onclick="saveBulkSettings()">Save Example Settings</button>
             <div class="output" id="bulkOutput"></div>
             <p><em>This will save:</em></p>
@@ -168,7 +168,7 @@
                 <li><strong>Persistent:</strong> Settings are stored securely using electron-store and persist across app restarts</li>
                 <li><strong>Isolated:</strong> Each tool has its own settings namespace - tools can't access each other's settings</li>
                 <li><strong>Type-Safe:</strong> Supports any JSON-serializable value (strings, numbers, booleans, objects, arrays)</li>
-                <li><strong>Simple API:</strong> Just four methods: <code>getSettings()</code>, <code>getSetting(key)</code>, <code>setSetting(key, value)</code>, <code>setSettings(object)</code></li>
+                <li><strong>Simple API:</strong> Just four methods: <code>getAll()</code>, <code>get(key)</code>, <code>set(key, value)</code>, <code>setAll(object)</code></li>
             </ul>
         </div>
 
@@ -176,30 +176,30 @@
         <div class="section">
             <h3>Save a Setting</h3>
             <pre>// Save a single setting
-await toolboxAPI.settings.setSetting('theme', 'dark');
-await toolboxAPI.settings.setSetting('autoRefresh', true);
-await toolboxAPI.settings.setSetting('refreshInterval', 5000);</pre>
+await toolboxAPI.settings.set('theme', 'dark');
+await toolboxAPI.settings.set('autoRefresh', true);
+await toolboxAPI.settings.set('refreshInterval', 5000);</pre>
 
             <h3>Get a Setting</h3>
             <pre>// Get a single setting
-const theme = await toolboxAPI.settings.getSetting('theme');
+const theme = await toolboxAPI.settings.get('theme');
 console.log('Current theme:', theme); // 'dark'
 
 // Handle non-existent settings
-const value = await toolboxAPI.settings.getSetting('nonExistent');
+const value = await toolboxAPI.settings.get('nonExistent');
 if (value === undefined) {
     console.log('Setting does not exist');
 }</pre>
 
             <h3>Get All Settings</h3>
             <pre>// Get all settings for this tool
-const allSettings = await toolboxAPI.settings.getSettings();
+const allSettings = await toolboxAPI.settings.getAll();
 console.log('All settings:', allSettings);
 // Returns: { theme: 'dark', autoRefresh: true, refreshInterval: 5000 }</pre>
 
             <h3>Bulk Update</h3>
             <pre>// Update multiple settings at once
-await toolboxAPI.settings.setSettings({
+await toolboxAPI.settings.setAll({
     theme: 'light',
     autoRefresh: false,
     refreshInterval: 10000,
@@ -208,13 +208,13 @@ await toolboxAPI.settings.setSettings({
 
             <h3>Complex Data Types</h3>
             <pre>// Save complex objects and arrays
-await toolboxAPI.settings.setSetting('userPreferences', {
+await toolboxAPI.settings.set('userPreferences', {
     notifications: true,
     sound: false,
     columns: ['name', 'date', 'status']
 });
 
-await toolboxAPI.settings.setSetting('recentFiles', [
+await toolboxAPI.settings.set('recentFiles', [
     '/path/to/file1.txt',
     '/path/to/file2.txt'
 ]);</pre>
@@ -255,7 +255,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
                     // Keep as string if not valid JSON
                 }
 
-                await toolboxAPI.settings.setSetting(key, parsedValue);
+                await toolboxAPI.settings.set(key, parsedValue);
                 displayOutput('saveOutput', `✓ Setting "${key}" saved successfully!`);
             } catch (error) {
                 displayOutput('saveOutput', `✗ Error: ${error.message}`, true);
@@ -263,7 +263,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
         }
 
         // Get a single setting
-        async function getSetting() {
+        async function get() {
             const key = document.getElementById('getKey').value;
             
             if (!key) {
@@ -272,7 +272,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
             }
 
             try {
-                const value = await toolboxAPI.settings.getSetting(key);
+                const value = await toolboxAPI.settings.get(key);
                 
                 if (value === undefined) {
                     displayOutput('getOutput', `Setting "${key}" not found (undefined)`, true);
@@ -288,7 +288,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
         // Get all settings
         async function getAllSettings() {
             try {
-                const settings = await toolboxAPI.settings.getSettings();
+                const settings = await toolboxAPI.settings.getAll();
                 const output = document.getElementById('allSettingsOutput');
                 
                 if (Object.keys(settings).length === 0) {
@@ -305,7 +305,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
         // Save bulk settings
         async function saveBulkSettings() {
             try {
-                await toolboxAPI.settings.setSettings({
+                await toolboxAPI.settings.setAll({
                     theme: 'light',
                     autoRefresh: true,
                     refreshInterval: 5000,
@@ -327,7 +327,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
                 const autoRefresh = document.getElementById('autoRefreshCheck').checked;
                 const refreshInterval = parseInt(document.getElementById('refreshIntervalInput').value);
 
-                await toolboxAPI.settings.setSettings({
+                await toolboxAPI.settings.setAll({
                     theme: theme,
                     autoRefresh: autoRefresh,
                     refreshInterval: refreshInterval
@@ -342,7 +342,7 @@ await toolboxAPI.settings.setSetting('recentFiles', [
         // Load user preferences into form
         async function loadUserPreferences() {
             try {
-                const settings = await toolboxAPI.settings.getSettings();
+                const settings = await toolboxAPI.settings.getAll();
                 
                 if (settings.theme) {
                     document.getElementById('themeSelect').value = settings.theme;
