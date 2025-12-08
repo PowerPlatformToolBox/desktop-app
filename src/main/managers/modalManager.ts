@@ -1,5 +1,6 @@
-import { BrowserWindow, ipcMain } from "electron";
-import { CONNECTION_CHANNELS, UTIL_CHANNELS } from "../../common/ipc/channels";
+import { BrowserWindow, app } from "electron";
+import { existsSync } from "fs";
+import * as path from "path";
 
 /**
  * ModalManager
@@ -13,28 +14,54 @@ export class ModalManager {
     private modalWindow: BrowserWindow | null = null;
     private visible = false;
 
-    private readonly INTERNAL_CHANNELS = {
-        CLOSE_ACTIVE: "modal:add-connection:close",
-    } as const;
+    private readonly assetPaths = this.resolveAssetPaths();
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
-        this.setupInternalListeners();
         this.setupMainWindowListeners();
+    }
+
+    private resolveAssetPaths(): { addConnectionModalHtml: string; addConnectionModalPreload: string } {
+        const projectRoot = app.isPackaged ? app.getAppPath() : process.cwd();
+        const builtHtml = path.join(__dirname, "windows", "modals", "addConnectionModal.html");
+        const distHtml = path.join(projectRoot, "dist", "main", "windows", "modals", "addConnectionModal.html");
+
+        const htmlCandidates = app.isPackaged ? [builtHtml, distHtml] : [distHtml, builtHtml];
+
+        const preloadCandidates = [
+            path.join(__dirname, "addConnectionModalPreload.js"),
+            path.join(app.getAppPath(), "dist", "main", "addConnectionModalPreload.js"),
+        ];
+
+        const pickPath = (candidates: string[], label: string): string => {
+            const match = candidates.find((candidate) => existsSync(candidate));
+            if (match) {
+                return match;
+            }
+            const fallBack = candidates[0];
+            console.warn(`[ModalManager] Could not find ${label} at expected locations`, candidates);
+            return fallBack;
+        };
+
+        const resolvedPaths = {
+            addConnectionModalHtml: pickPath(htmlCandidates, "add-connection modal HTML"),
+            addConnectionModalPreload: pickPath(preloadCandidates, "add-connection modal preload"),
+        } as const;
+
+        console.log("[ModalManager] Using modal assets", resolvedPaths);
+        return resolvedPaths;
     }
 
     /** Show the add-connection modal */
     public showAddConnectionModal(): void {
         this.ensureWindow();
         this.updateWindowBounds();
-
-        const html = this.generateAddConnectionModalHTML();
         if (!this.modalWindow) {
             return;
         }
 
         void this.modalWindow
-            .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+            .loadFile(this.assetPaths.addConnectionModalHtml)
             .then(() => {
                 if (!this.modalWindow) return;
                 this.modalWindow.show();
@@ -48,7 +75,7 @@ export class ModalManager {
 
     /** Hide whichever modal is currently active */
     public hideModal(): void {
-        if (this.modalWindow && this.visible) {
+        if (this.modalWindow) {
             this.modalWindow.hide();
         }
         this.visible = false;
@@ -56,18 +83,11 @@ export class ModalManager {
 
     /** Called when the application is shutting down */
     public destroy(): void {
-        ipcMain.removeAllListeners(this.INTERNAL_CHANNELS.CLOSE_ACTIVE);
         if (this.modalWindow) {
             this.modalWindow.destroy();
             this.modalWindow = null;
         }
         this.visible = false;
-    }
-
-    private setupInternalListeners(): void {
-        ipcMain.on(this.INTERNAL_CHANNELS.CLOSE_ACTIVE, () => {
-            this.hideModal();
-        });
     }
 
     private setupMainWindowListeners(): void {
@@ -101,9 +121,10 @@ export class ModalManager {
             parent: this.mainWindow,
             modal: false,
             webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
+                nodeIntegration: false,
+                contextIsolation: true,
                 sandbox: false,
+                preload: this.assetPaths.addConnectionModalPreload,
             },
         });
 
@@ -126,468 +147,5 @@ export class ModalManager {
             width: bounds.width,
             height: bounds.height,
         });
-    }
-
-    private generateAddConnectionModalHTML(): string {
-        const channels = {
-            addConnection: CONNECTION_CHANNELS.ADD_CONNECTION,
-            testConnection: CONNECTION_CHANNELS.TEST_CONNECTION,
-            showNotification: UTIL_CHANNELS.SHOW_NOTIFICATION,
-            closeModal: this.INTERNAL_CHANNELS.CLOSE_ACTIVE,
-        } as const;
-
-        const channelsJson = JSON.stringify(channels);
-
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
-    <title>Add Connection</title>
-    <style>
-        * { box-sizing: border-box; }
-        html, body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: transparent;
-        }
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.45);
-        }
-        .modal-wrapper {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            animation: fadeIn 120ms ease-out;
-        }
-        .modal-shell {
-            width: 520px;
-            max-width: 90vw;
-            max-height: 90vh;
-            background: rgba(28, 28, 28, 0.96);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .modal-header, .modal-footer {
-            padding: 20px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .modal-header {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .modal-footer {
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            gap: 12px;
-        }
-        h3 {
-            margin: 0;
-            color: #ffffff;
-            font-size: 20px;
-            font-weight: 600;
-        }
-        .close-btn {
-            background: transparent;
-            border: none;
-            color: #aaaaaa;
-            font-size: 20px;
-            cursor: pointer;
-            line-height: 1;
-        }
-        .close-btn:hover {
-            color: #ffffff;
-        }
-        .modal-body {
-            padding: 24px;
-            overflow-y: auto;
-        }
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #e5e5e5;
-            margin-bottom: 6px;
-            margin-top: 18px;
-        }
-        label:first-of-type {
-            margin-top: 0;
-        }
-        input, select {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: rgba(255, 255, 255, 0.05);
-            color: #ffffff;
-            font-size: 14px;
-        }
-        input:focus, select:focus {
-            outline: 2px solid #0078d4;
-            border-color: #0078d4;
-        }
-        .field-hint {
-            font-size: 12px;
-            color: #a0a0a0;
-            margin-top: 4px;
-        }
-        .section {
-            margin-top: 18px;
-            padding: 16px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-        }
-        .section-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #cfcfcf;
-            margin-bottom: 10px;
-        }
-        .password-field {
-            position: relative;
-        }
-        .password-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #bbbbbb;
-            cursor: pointer;
-        }
-        .password-toggle:hover {
-            color: #ffffff;
-        }
-        .modal-error {
-            background: rgba(216, 59, 1, 0.15);
-            border: 1px solid rgba(216, 59, 1, 0.4);
-            color: #ffd7cc;
-            padding: 12px 16px;
-            margin: 0 24px;
-            border-radius: 8px;
-            display: none;
-        }
-        .modal-footer button {
-            border-radius: 6px;
-            border: none;
-            padding: 10px 18px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: #e5e5e5;
-        }
-        .btn-primary {
-            background: #0f6cbd;
-            color: #ffffff;
-        }
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.18);
-        }
-        .btn-primary:hover {
-            background: #328adf;
-        }
-        .btn-link {
-            background: transparent;
-            color: #ffffff;
-        }
-        .btn-link:hover {
-            text-decoration: underline;
-        }
-        .footer-left {
-            margin-right: auto;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    </style>
-</head>
-<body>
-    <div class="modal-wrapper" id="modal-backdrop">
-        <div class="modal-shell">
-            <div class="modal-header">
-                <h3>Add Dataverse Connection</h3>
-                <button id="close-connection-modal" class="close-btn" aria-label="Close">&times;</button>
-            </div>
-            <div id="modal-error" class="modal-error"></div>
-            <div class="modal-body">
-                <label for="connection-name">Connection Name</label>
-                <input type="text" id="connection-name" placeholder="Production" autocomplete="off" />
-
-                <label for="connection-url">Environment URL</label>
-                <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" autocomplete="off" />
-                <div class="field-hint">Use the full https URL to your Dataverse environment.</div>
-
-                <label for="connection-environment">Environment</label>
-                <select id="connection-environment">
-                    <option value="Dev">Dev</option>
-                    <option value="Test">Test</option>
-                    <option value="UAT">UAT</option>
-                    <option value="Production">Production</option>
-                </select>
-
-                <label for="connection-authentication-type">Authentication Type</label>
-                <select id="connection-authentication-type">
-                    <option value="interactive">Microsoft Login Prompt</option>
-                    <option value="clientSecret">Client ID / Secret</option>
-                    <option value="usernamePassword">Username / Password</option>
-                </select>
-
-                <label for="connection-optional-client-id">Optional Client ID</label>
-                <input type="text" id="connection-optional-client-id" placeholder="Override default (optional)" autocomplete="off" />
-                <div class="field-hint">Use if your tenant enforces a specific app registration.</div>
-
-                <div id="client-secret-fields" class="section" style="display: none;">
-                    <div class="section-title">Client Secret Authentication</div>
-                    <label for="connection-client-id">Client ID</label>
-                    <input type="text" id="connection-client-id" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" />
-
-                    <label for="connection-client-secret">Client Secret</label>
-                    <div class="password-field">
-                        <input type="password" id="connection-client-secret" placeholder="••••••" autocomplete="off" />
-                        <button type="button" class="password-toggle" id="toggle-client-secret">Show</button>
-                    </div>
-
-                    <label for="connection-tenant-id">Tenant ID</label>
-                    <input type="text" id="connection-tenant-id" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" />
-                </div>
-
-                <div id="username-password-fields" class="section" style="display: none;">
-                    <div class="section-title">Username / Password Authentication</div>
-                    <label for="connection-username">Username</label>
-                    <input type="text" id="connection-username" placeholder="user@tenant.onmicrosoft.com" autocomplete="off" />
-
-                    <label for="connection-password">Password</label>
-                    <div class="password-field">
-                        <input type="password" id="connection-password" placeholder="Password" autocomplete="off" />
-                        <button type="button" class="password-toggle" id="toggle-password">Show</button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="test-connection-btn" class="btn-secondary footer-left" style="display: none;">Test Connection</button>
-                <button id="cancel-connection-btn" class="btn-secondary">Cancel</button>
-                <button id="confirm-connection-btn" class="btn-primary">Add Connection</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const { ipcRenderer } = require('electron');
-        const channels = ${channelsJson};
-
-        const $ = (id) => document.getElementById(id);
-        const state = {
-            submitting: false,
-        };
-
-        const elements = {
-            modalError: $('modal-error'),
-            name: $('connection-name'),
-            url: $('connection-url'),
-            environment: $('connection-environment'),
-            authType: $('connection-authentication-type'),
-            optionalClientId: $('connection-optional-client-id'),
-            clientId: $('connection-client-id'),
-            clientSecret: $('connection-client-secret'),
-            tenantId: $('connection-tenant-id'),
-            username: $('connection-username'),
-            password: $('connection-password'),
-            clientSecretFields: $('client-secret-fields'),
-            usernamePasswordFields: $('username-password-fields'),
-            testButton: $('test-connection-btn'),
-            cancelButton: $('cancel-connection-btn'),
-            confirmButton: $('confirm-connection-btn'),
-            closeButton: $('close-connection-modal'),
-            backdrop: $('modal-backdrop'),
-        };
-
-        function showError(message) {
-            if (!elements.modalError) return;
-            elements.modalError.textContent = message;
-            elements.modalError.style.display = 'block';
-        }
-
-        function clearError() {
-            if (!elements.modalError) return;
-            elements.modalError.textContent = '';
-            elements.modalError.style.display = 'none';
-        }
-
-        function updateAuthFieldsVisibility() {
-            const authType = elements.authType?.value;
-            if (!authType) return;
-
-            if (elements.clientSecretFields) elements.clientSecretFields.style.display = authType === 'clientSecret' ? 'block' : 'none';
-            if (elements.usernamePasswordFields) elements.usernamePasswordFields.style.display = authType === 'usernamePassword' ? 'block' : 'none';
-            if (elements.testButton) elements.testButton.style.display = authType === 'interactive' ? 'none' : 'inline-flex';
-        }
-
-        function togglePasswordVisibility(button, input) {
-            if (!button || !input) return;
-            button.addEventListener('click', () => {
-                input.type = input.type === 'password' ? 'text' : 'password';
-            });
-        }
-
-        function collectConnectionData() {
-            const name = elements.name?.value.trim();
-            const url = elements.url?.value.trim();
-            const environment = elements.environment?.value || 'Dev';
-            const authenticationType = elements.authType?.value || 'interactive';
-
-            if (!name || !url) {
-                return { error: 'Please provide both a connection name and environment URL.' };
-            }
-
-            const connection = {
-                id: Date.now().toString(),
-                name,
-                url,
-                environment,
-                authenticationType,
-                createdAt: new Date().toISOString(),
-                isActive: false,
-            };
-
-            const optionalClientId = elements.optionalClientId?.value.trim();
-            if (optionalClientId) {
-                connection.clientId = optionalClientId;
-            }
-
-            if (authenticationType === 'clientSecret') {
-                const clientId = elements.clientId?.value.trim();
-                const clientSecret = elements.clientSecret?.value.trim();
-                const tenantId = elements.tenantId?.value.trim();
-                if (!clientId || !clientSecret || !tenantId) {
-                    return { error: 'Client ID, Client Secret, and Tenant ID are required for this auth type.' };
-                }
-                connection.clientId = clientId;
-                connection.clientSecret = clientSecret;
-                connection.tenantId = tenantId;
-            } else if (authenticationType === 'usernamePassword') {
-                const username = elements.username?.value.trim();
-                const password = elements.password?.value.trim();
-                if (!username || !password) {
-                    return { error: 'Username and Password are required for this auth type.' };
-                }
-                connection.username = username;
-                connection.password = password;
-            }
-
-            return { connection };
-        }
-
-        function setSubmitting(isSubmitting) {
-            state.submitting = isSubmitting;
-            if (elements.confirmButton) {
-                elements.confirmButton.disabled = isSubmitting;
-                elements.confirmButton.textContent = isSubmitting ? 'Adding...' : 'Add Connection';
-            }
-        }
-
-        async function handleAddConnection() {
-            if (state.submitting) return;
-            clearError();
-
-            const { error, connection } = collectConnectionData();
-            if (error || !connection) {
-                showError(error || 'Invalid form input.');
-                return;
-            }
-
-            try {
-                setSubmitting(true);
-                await ipcRenderer.invoke(channels.addConnection, connection);
-                await ipcRenderer.invoke(channels.showNotification, {
-                    title: 'Connection Added',
-                    body: 'Connection "' + connection.name + '" has been added.',
-                    type: 'success',
-                });
-                ipcRenderer.send(channels.closeModal);
-            } catch (err) {
-                showError(err?.message || 'Failed to add connection.');
-            } finally {
-                setSubmitting(false);
-            }
-        }
-
-        async function handleTestConnection() {
-            if (!elements.testButton) return;
-            clearError();
-
-            const { error, connection } = collectConnectionData();
-            if (error || !connection) {
-                showError(error || 'Invalid form input.');
-                return;
-            }
-
-            elements.testButton.disabled = true;
-            elements.testButton.textContent = 'Testing...';
-
-            try {
-                const payload = { ...connection, id: 'test', name: 'Test Connection', environment: 'Test' };
-                const result = await ipcRenderer.invoke(channels.testConnection, payload);
-                if (result?.success) {
-                    await ipcRenderer.invoke(channels.showNotification, {
-                        title: 'Connection Successful',
-                        body: 'Successfully connected to the environment.',
-                        type: 'success',
-                    });
-                } else {
-                    showError(result?.error || 'Failed to connect to the environment.');
-                }
-            } catch (err) {
-                showError(err?.message || 'Connection test failed.');
-            } finally {
-                elements.testButton.disabled = false;
-                elements.testButton.textContent = 'Test Connection';
-            }
-        }
-
-        function registerEventHandlers() {
-            elements.closeButton?.addEventListener('click', () => ipcRenderer.send(channels.closeModal));
-            elements.cancelButton?.addEventListener('click', () => ipcRenderer.send(channels.closeModal));
-            elements.confirmButton?.addEventListener('click', handleAddConnection);
-            elements.testButton?.addEventListener('click', handleTestConnection);
-            elements.authType?.addEventListener('change', updateAuthFieldsVisibility);
-            elements.backdrop?.addEventListener('click', (event) => {
-                if (event.target === elements.backdrop) {
-                    ipcRenderer.send(channels.closeModal);
-                }
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape') {
-                    ipcRenderer.send(channels.closeModal);
-                }
-            });
-
-            togglePasswordVisibility($('toggle-client-secret'), elements.clientSecret);
-            togglePasswordVisibility($('toggle-password'), elements.password);
-        }
-
-        updateAuthFieldsVisibility();
-        registerEventHandlers();
-    </script>
-</body>
-</html>`;
     }
 }

@@ -257,7 +257,8 @@ class ToolBoxApp {
             this.modalManager?.showAddConnectionModal();
         });
 
-        ipcMain.handle(MODAL_CHANNELS.CLOSE_ACTIVE, () => {
+        ipcMain.handle(MODAL_CHANNELS.CLOSE_ACTIVE, (_event, reason?: string) => {
+            console.log(`[ModalManager] Close request via MODAL_CHANNELS (${reason ?? "renderer"})`);
             this.modalManager?.hideModal();
         });
 

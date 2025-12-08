@@ -4,6 +4,26 @@ import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, loadEnv } from "vite";
 import electron from "vite-plugin-electron/simple";
 
+const copyDirectoryRecursive = (sourceDir: string, targetDir: string): void => {
+    if (!existsSync(sourceDir)) {
+        return;
+    }
+
+    mkdirSync(targetDir, { recursive: true });
+    const entries = readdirSync(sourceDir, { withFileTypes: true });
+
+    entries.forEach((entry) => {
+        const sourcePath = path.join(sourceDir, entry.name);
+        const targetPath = path.join(targetDir, entry.name);
+
+        if (entry.isDirectory()) {
+            copyDirectoryRecursive(sourcePath, targetPath);
+        } else {
+            copyFileSync(sourcePath, targetPath);
+        }
+    });
+};
+
 export default defineConfig(({ mode }) => {
     const isProd = mode === "production";
     const enableSourceMap = !isProd; // keep source maps out of production builds
@@ -63,6 +83,7 @@ export default defineConfig(({ mode }) => {
                     input: {
                         preload: "src/main/preload.ts",
                         toolPreloadBridge: "src/main/toolPreloadBridge.ts",
+                        addConnectionModalPreload: "src/main/windows/preload/addConnectionModalPreload.ts",
                     },
                     vite: {
                         build: {
@@ -159,6 +180,21 @@ export default defineConfig(({ mode }) => {
                         }
                     } catch (e) {
                         console.error(`Failed to copy registry.json:`, e);
+                    }
+
+                    // Copy modal window assets
+                    const modalWindowsSourceDir = "src/main/windows";
+                    const modalWindowsTargetDir = "dist/main/windows";
+                    try {
+                        rmSync(modalWindowsTargetDir, { recursive: true, force: true });
+                    } catch (e) {
+                        // Ignore cleanup errors
+                    }
+
+                    try {
+                        copyDirectoryRecursive(modalWindowsSourceDir, modalWindowsTargetDir);
+                    } catch (e) {
+                        console.error("Failed to copy modal windows directory:", e);
                     }
                 },
             },
