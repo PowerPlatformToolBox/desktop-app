@@ -287,17 +287,15 @@ export class DataverseManager {
 
     /**
      * Get metadata for all entities
-     * @param selectColumns - Optional array of column names to select (e.g., ["LogicalName", "DisplayName", "MetadataId"])
+     * @param selectColumns - Optional array of column names to select (defaults to ["LogicalName", "DisplayName", "MetadataId"])
      * @returns Promise containing array of EntityMetadata objects
      */
     async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getActiveConnectionWithToken();
         // Default to lightweight columns if selectColumns is not provided or empty
-        const columns = selectColumns && selectColumns.length > 0
-            ? selectColumns
-            : ["LogicalName", "DisplayName", "MetadataId"];
+        const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
