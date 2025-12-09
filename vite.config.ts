@@ -84,6 +84,7 @@ export default defineConfig(({ mode }) => {
                         preload: "src/main/preload.ts",
                         toolPreloadBridge: "src/main/toolPreloadBridge.ts",
                         addConnectionModalPreload: "src/main/windows/preload/addConnectionModalPreload.ts",
+                        notificationPreload: "src/main/notificationPreload.ts",
                     },
                     vite: {
                         build: {

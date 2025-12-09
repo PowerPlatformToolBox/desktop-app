@@ -136,19 +136,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Settings API (tool-specific)
     settings: {
-        getSettings: async () => {
+        getAll: async () => {
             const toolId = await ensureToolContext();
             return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL, toolId);
         },
-        getSetting: async (key: string) => {
+        get: async (key: string) => {
             const toolId = await ensureToolContext();
             return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_GET, toolId, key);
         },
-        setSetting: async (key: string, value: unknown) => {
+        set: async (key: string, value: unknown) => {
             const toolId = await ensureToolContext();
             return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET, toolId, key, value);
         },
-        setSettings: async (settings: Record<string, unknown>) => {
+        setAll: async (settings: Record<string, unknown>) => {
             const toolId = await ensureToolContext();
             return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL, toolId, settings);
         },

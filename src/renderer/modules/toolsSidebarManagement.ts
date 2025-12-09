@@ -130,16 +130,16 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
                             <div class="tool-item-actions-right">
-                                ${
-                                    hasUpdate && latestVersion
-                                        ? `<button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button>`
-                                        : ""
-                                }
                                 <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
                                     <img src="${trashIconPath}" alt="Delete" />
                                 </button>
                             </div>
                         </div>
+                        ${
+                            hasUpdate && latestVersion
+                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
+                                : ""
+                        }
                     </div>`;
             })
             .join("");
@@ -158,8 +158,8 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
 
-        // Add event listeners for action buttons
-        toolsList.querySelectorAll(".tool-item-actions-right button, .tool-favorite-btn").forEach((button) => {
+        // Add event listeners for action buttons (include update button)
+        toolsList.querySelectorAll(".tool-item-actions-right button, .tool-item-update-btn button, .tool-favorite-btn").forEach((button) => {
             button.addEventListener("click", async (e) => {
                 e.stopPropagation();
                 const target = e.target as HTMLElement;

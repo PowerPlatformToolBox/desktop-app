@@ -1,4 +1,5 @@
 import { BrowserWindow, ipcMain } from "electron";
+import * as path from "path";
 
 interface NotificationOptions {
     title: string;
@@ -56,7 +57,10 @@ export class NotificationWindowManager {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
-                sandbox: true,
+                // Use a small preload script to expose a safe `window.electron` API
+                // Preload path resolves at runtime to the compiled JS in `dist/main`
+                sandbox: false,
+                preload: path.join(__dirname, "notificationPreload.js"),
             },
         });
 
@@ -366,16 +370,10 @@ export class NotificationWindowManager {
 <body>
     ${notificationsHTML}
     <script>
-        const { ipcRenderer } = require('electron');
-        
-        window.electron = {
-            dismissNotification: (index) => {
-                ipcRenderer.send('notification:dismiss', index);
-            },
-            actionClicked: (index, actionIndex) => {
-                ipcRenderer.send('notification:action', index, actionIndex);
-            }
-        };
+        // Preload exposes a safe window.electron API with:
+        //  - dismissNotification(index)
+        //  - actionClicked(index, actionIndex)
+        // The HTML buttons call those methods directly.
     </script>
 </body>
 </html>
