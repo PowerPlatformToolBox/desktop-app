@@ -1,13 +1,24 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, UPDATE_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
-import { ToolBoxEvent } from "../common/types";
+import {
+    CONNECTION_CHANNELS,
+    DATAVERSE_CHANNELS,
+    EVENT_CHANNELS,
+    MODAL_WINDOW_CHANNELS,
+    SETTINGS_CHANNELS,
+    TERMINAL_CHANNELS,
+    TOOL_CHANNELS,
+    UPDATE_CHANNELS,
+    UTIL_CHANNELS,
+} from "../common/ipc/channels";
+import { ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
+import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -24,6 +35,7 @@ class ToolBoxApp {
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
     private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
+    private modalWindowManager: ModalWindowManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private authManager: AuthManager;
@@ -444,6 +456,19 @@ class ToolBoxApp {
             this.api.showNotification(options);
         });
 
+        // BrowserWindow modal handlers
+        ipcMain.handle(UTIL_CHANNELS.SHOW_MODAL_WINDOW, (_, options: ModalWindowOptions) => {
+            this.modalWindowManager?.showModal(options);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CLOSE_MODAL_WINDOW, () => {
+            this.modalWindowManager?.hideModal();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SEND_MODAL_MESSAGE, (_, payload: ModalWindowMessagePayload) => {
+            this.modalWindowManager?.sendMessageToModal(payload);
+        });
+
         // Clipboard handler
         ipcMain.handle(UTIL_CHANNELS.COPY_TO_CLIPBOARD, (_, text) => {
             this.api.copyToClipboard(text);
@@ -495,6 +520,17 @@ class ToolBoxApp {
         // Open external URL handler
         ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
             await shell.openExternal(url);
+        });
+
+        // Modal BrowserWindow internal channels (modal preload -> main)
+        ipcMain.handle(MODAL_WINDOW_CHANNELS.CLOSE, () => {
+            this.modalWindowManager?.hideModal();
+        });
+
+        ipcMain.on(MODAL_WINDOW_CHANNELS.MESSAGE, (_, payload) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_MESSAGE, payload);
+            }
         });
 
         // Terminal handlers
@@ -894,6 +930,8 @@ class ToolBoxApp {
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
         // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
         this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
+        // Initialize BrowserWindow-based modal manager
+        this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
@@ -910,6 +948,7 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            this.modalWindowManager = null;
             this.mainWindow = null;
         });
     }
@@ -926,10 +965,11 @@ Node.js: ${process.versions.node}
 Chromium: ${process.versions.chrome}
 OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
 
-           if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: [ "Copy", "OK"] }) === 0) {
-                clipboard.writeText(message); 
+            if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
+                clipboard.writeText(message);
             }
-    }}
+        }
+    }
 
     /**
      * Initialize the application
@@ -982,8 +1022,6 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
             this.stopTokenExpiryChecks();
         });
     }
-
-
 }
 
 // Create and initialize the application

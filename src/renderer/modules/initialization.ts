@@ -6,9 +6,17 @@
 import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
-import { addConnection, handleReauthentication, loadSidebarConnections, testConnection, updateFooterConnection, updateFooterConnectionStatus } from "./connectionManagement";
+import { initializeBrowserWindowModals } from "./browserWindowModals";
+import {
+    handleReauthentication,
+    initializeAddConnectionModalBridge,
+    loadSidebarConnections,
+    openAddConnectionModal,
+    updateFooterConnection,
+    updateFooterConnectionStatus,
+} from "./connectionManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
-import { closeModal, openModal, updateAuthFieldsVisibility } from "./modalManagement";
+import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
 import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
@@ -22,6 +30,9 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
+    initializeBrowserWindowModals();
+    initializeAddConnectionModalBridge();
+
     // Set up Activity Bar navigation
     setupActivityBar();
 
@@ -126,7 +137,7 @@ function setupSidebarButtons(): void {
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
-            openModal("add-connection-modal");
+            openAddConnectionModal().catch((error) => console.error("Failed to open add connection modal", error));
         });
     }
 
@@ -368,53 +379,6 @@ function setupHomeScreenButtons(): void {
  * Set up modal buttons
  */
 function setupModalButtons(): void {
-    // Connection modal
-    const closeConnectionModal = document.getElementById("close-connection-modal");
-    if (closeConnectionModal) {
-        closeConnectionModal.addEventListener("click", () => closeModal("add-connection-modal"));
-    }
-
-    const cancelConnectionBtn = document.getElementById("cancel-connection-btn");
-    if (cancelConnectionBtn) {
-        cancelConnectionBtn.addEventListener("click", () => closeModal("add-connection-modal"));
-    }
-
-    const confirmConnectionBtn = document.getElementById("confirm-connection-btn");
-    if (confirmConnectionBtn) {
-        confirmConnectionBtn.addEventListener("click", addConnection);
-    }
-
-    const testConnectionBtn = document.getElementById("test-connection-btn");
-    if (testConnectionBtn) {
-        testConnectionBtn.addEventListener("click", testConnection);
-    }
-
-    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
-    if (authTypeSelect) {
-        authTypeSelect.addEventListener("change", updateAuthFieldsVisibility);
-    }
-
-    // Password toggle buttons
-    const toggleClientSecret = document.getElementById("toggle-client-secret");
-    if (toggleClientSecret) {
-        toggleClientSecret.addEventListener("click", () => {
-            const input = document.getElementById("connection-client-secret") as HTMLInputElement;
-            if (input) {
-                input.type = input.type === "password" ? "text" : "password";
-            }
-        });
-    }
-
-    const togglePassword = document.getElementById("toggle-password");
-    if (togglePassword) {
-        togglePassword.addEventListener("click", () => {
-            const input = document.getElementById("connection-password") as HTMLInputElement;
-            if (input) {
-                input.type = input.type === "password" ? "text" : "password";
-            }
-        });
-    }
-
     // Tool settings modal
     const closeToolSettingsModal = document.getElementById("close-tool-settings-modal");
     if (closeToolSettingsModal) {

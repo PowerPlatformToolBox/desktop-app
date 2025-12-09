@@ -3,7 +3,41 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { closeModal, updateAuthFieldsVisibility } from "./modalManagement";
+import type { ModalWindowMessagePayload } from "../../common/types";
+import { closeBrowserWindowModal, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import { getAddConnectionModalControllerScript } from "./modals/addConnection/controller";
+import { getAddConnectionModalView } from "./modals/addConnection/view";
+
+type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
+type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
+
+interface ConnectionFormPayload {
+    name?: string;
+    url?: string;
+    environment?: ConnectionEnvironment;
+    authenticationType?: ConnectionAuthenticationType;
+    clientId?: string;
+    clientSecret?: string;
+    tenantId?: string;
+    username?: string;
+    password?: string;
+    optionalClientId?: string;
+}
+
+const ADD_CONNECTION_MODAL_CHANNELS = {
+    submit: "add-connection:submit",
+    submitReady: "add-connection:submit:ready",
+    test: "add-connection:test",
+    testReady: "add-connection:test:ready",
+    testFeedback: "add-connection:test:feedback",
+} as const;
+
+const ADD_CONNECTION_MODAL_DIMENSIONS = {
+    width: 520,
+    height: 700,
+};
+
+let addConnectionModalHandlersRegistered = false;
 
 /**
  * Update footer connection information
@@ -41,6 +75,45 @@ export async function updateFooterConnection(): Promise<void> {
     } catch (error) {
         console.error("Failed to update footer connection:", error);
     }
+}
+
+export function initializeAddConnectionModalBridge(): void {
+    if (addConnectionModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleAddConnectionModalMessage);
+    addConnectionModalHandlersRegistered = true;
+}
+
+export async function openAddConnectionModal(): Promise<void> {
+    initializeAddConnectionModalBridge();
+    await showBrowserWindowModal({
+        id: "add-connection-browser-modal",
+        html: buildAddConnectionModalHtml(),
+        width: ADD_CONNECTION_MODAL_DIMENSIONS.width,
+        height: ADD_CONNECTION_MODAL_DIMENSIONS.height,
+    });
+}
+
+function handleAddConnectionModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    switch (payload.channel) {
+        case ADD_CONNECTION_MODAL_CHANNELS.submit:
+            void handleAddConnectionSubmit(payload.data as ConnectionFormPayload);
+            break;
+        case ADD_CONNECTION_MODAL_CHANNELS.test:
+            void handleTestConnectionRequest(payload.data as ConnectionFormPayload);
+            break;
+        default:
+            break;
+    }
+}
+
+function buildAddConnectionModalHtml(): string {
+    const { styles, body } = getAddConnectionModalView();
+    const script = getAddConnectionModalControllerScript(ADD_CONNECTION_MODAL_CHANNELS);
+    return `${styles}\n${body}\n${script}`.trim();
 }
 
 /**
@@ -246,120 +319,28 @@ export async function handleReauthentication(connectionId: string): Promise<void
     }
 }
 
-/**
- * Add a new connection
- */
-export async function addConnection(): Promise<void> {
-    const nameInput = document.getElementById("connection-name") as HTMLInputElement;
-    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
-    const environmentSelect = document.getElementById("connection-environment") as HTMLSelectElement;
-    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
-    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
-    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
-    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
-    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
-    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
-    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
-
-    // Check if all elements exist
-    if (!nameInput || !urlInput || !environmentSelect || !authTypeSelect) {
-        console.error("Connection form elements not found");
-        await window.toolboxAPI.utils.showNotification({
-            title: "Error",
-            body: "Connection form not properly initialized.",
-            type: "error",
-        });
-        return;
-    }
-
-    const name = nameInput.value.trim();
-    const url = urlInput.value.trim();
-    const environment = environmentSelect.value as "Dev" | "Test" | "UAT" | "Production";
-    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
-
-    if (!name || !url) {
+async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): Promise<void> {
+    const validationMessage = validateConnectionPayload(formPayload, "add");
+    if (validationMessage) {
         await window.toolboxAPI.utils.showNotification({
             title: "Invalid Input",
-            body: "Please provide both connection name and URL.",
+            body: validationMessage,
             type: "error",
         });
+        await signalAddConnectionSubmitReady();
         return;
     }
 
-    // Validate based on authentication type
-    if (authenticationType === "clientSecret") {
-        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Invalid Input",
-                body: "Client ID, Client Secret, and Tenant ID are required for Client ID/Secret authentication.",
-                type: "error",
-            });
-            return;
-        }
-    } else if (authenticationType === "usernamePassword") {
-        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Invalid Input",
-                body: "Username and Password are required for Username/Password authentication.",
-                type: "error",
-            });
-            return;
-        }
-    }
-
-    const connection: any = {
-        id: Date.now().toString(),
-        name,
-        url,
-        environment,
-        authenticationType,
-        createdAt: new Date().toISOString(),
-        isActive: false,
-    };
-
-    // Add authentication-specific fields
-    if (authenticationType === "clientSecret") {
-        connection.clientId = clientIdInput.value.trim();
-        connection.clientSecret = clientSecretInput.value.trim();
-        connection.tenantId = tenantIdInput.value.trim();
-    } else if (authenticationType === "usernamePassword") {
-        connection.username = usernameInput.value.trim();
-        connection.password = passwordInput.value.trim();
-        if (optionalClientIdInput?.value.trim()) {
-            connection.clientId = optionalClientIdInput.value.trim();
-        }
-    } else if (authenticationType === "interactive") {
-        if (optionalClientIdInput?.value.trim()) {
-            connection.clientId = optionalClientIdInput.value.trim();
-        }
-    }
+    const connection = buildConnectionFromPayload(formPayload!, "add");
 
     try {
-        console.log("Adding connection:", { ...connection, password: connection.password ? "***" : undefined, clientSecret: connection.clientSecret ? "***" : undefined });
         await window.toolboxAPI.connections.add(connection);
-
         await window.toolboxAPI.utils.showNotification({
             title: "Connection Added",
-            body: `Connection "${name}" has been added.`,
+            body: `Connection "${connection.name}" has been added.`,
             type: "success",
         });
-
-        // Clear form
-        nameInput.value = "";
-        urlInput.value = "";
-        environmentSelect.value = "Dev";
-        authTypeSelect.value = "interactive";
-        if (clientIdInput) clientIdInput.value = "";
-        if (clientSecretInput) clientSecretInput.value = "";
-        if (tenantIdInput) tenantIdInput.value = "";
-        if (usernameInput) usernameInput.value = "";
-        if (passwordInput) passwordInput.value = "";
-        if (optionalClientIdInput) optionalClientIdInput.value = "";
-
-        // Reset field visibility
-        updateAuthFieldsVisibility();
-
-        closeModal("add-connection-modal");
+        await closeBrowserWindowModal();
         await loadConnections();
     } catch (error) {
         console.error("Error adding connection:", error);
@@ -368,101 +349,42 @@ export async function addConnection(): Promise<void> {
             body: (error as Error).message,
             type: "error",
         });
+        await signalAddConnectionSubmitReady();
     }
 }
 
-/**
- * Test a connection before saving
- */
-export async function testConnection(): Promise<void> {
-    const urlInput = document.getElementById("connection-url") as HTMLInputElement;
-    const authTypeSelect = document.getElementById("connection-authentication-type") as HTMLSelectElement;
-    const clientIdInput = document.getElementById("connection-client-id") as HTMLInputElement;
-    const clientSecretInput = document.getElementById("connection-client-secret") as HTMLInputElement;
-    const tenantIdInput = document.getElementById("connection-tenant-id") as HTMLInputElement;
-    const usernameInput = document.getElementById("connection-username") as HTMLInputElement;
-    const passwordInput = document.getElementById("connection-password") as HTMLInputElement;
-    const optionalClientIdInput = document.getElementById("connection-optional-client-id") as HTMLInputElement;
-    const testBtn = document.getElementById("test-connection-btn") as HTMLButtonElement;
-
-    if (!urlInput || !authTypeSelect || !testBtn) {
-        return;
-    }
-
-    const url = urlInput.value.trim();
-    const authenticationType = authTypeSelect.value as "interactive" | "clientSecret" | "usernamePassword";
-
-    if (!url) {
+async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload): Promise<void> {
+    await setAddConnectionTestFeedback("");
+    const validationMessage = validateConnectionPayload(formPayload, "test");
+    if (validationMessage) {
         await window.toolboxAPI.utils.showNotification({
             title: "Invalid Input",
-            body: "Please provide an environment URL.",
+            body: validationMessage,
             type: "error",
         });
+        await setAddConnectionTestFeedback(validationMessage);
+        await signalAddConnectionTestReady();
         return;
     }
 
-    // Build test connection object
-    const testConn: any = {
-        id: "test",
-        name: "Test Connection",
-        url,
-        environment: "Test",
-        authenticationType,
-        createdAt: new Date().toISOString(),
-    };
-
-    // Add authentication-specific fields
-    if (authenticationType === "clientSecret") {
-        if (!clientIdInput?.value.trim() || !clientSecretInput?.value.trim() || !tenantIdInput?.value.trim()) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Invalid Input",
-                body: "Client ID, Client Secret, and Tenant ID are required for testing Client ID/Secret authentication.",
-                type: "error",
-            });
-            return;
-        }
-        testConn.clientId = clientIdInput.value.trim();
-        testConn.clientSecret = clientSecretInput.value.trim();
-        testConn.tenantId = tenantIdInput.value.trim();
-    } else if (authenticationType === "usernamePassword") {
-        if (!usernameInput?.value.trim() || !passwordInput?.value.trim()) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Invalid Input",
-                body: "Username and Password are required for testing Username/Password authentication.",
-                type: "error",
-            });
-            return;
-        }
-        testConn.username = usernameInput.value.trim();
-        testConn.password = passwordInput.value.trim();
-        if (optionalClientIdInput?.value.trim()) {
-            testConn.clientId = optionalClientIdInput.value.trim();
-        }
-    } else if (authenticationType === "interactive") {
-        if (optionalClientIdInput?.value.trim()) {
-            testConn.clientId = optionalClientIdInput.value.trim();
-        }
-    }
-
-    // Disable the test button and show loading state
-    testBtn.disabled = true;
-    testBtn.textContent = "Testing...";
+    const testConn = buildConnectionFromPayload(formPayload!, "test");
 
     try {
         const result = await window.toolboxAPI.connections.test(testConn);
-
         if (result.success) {
             await window.toolboxAPI.utils.showNotification({
                 title: "Connection Successful",
                 body: "Successfully connected to the environment!",
                 type: "success",
             });
+            await setAddConnectionTestFeedback("");
         } else {
             await window.toolboxAPI.utils.showNotification({
                 title: "Connection Failed",
                 body: result.error || "Failed to connect to the environment.",
                 type: "error",
             });
+            await setAddConnectionTestFeedback(result.error || "Failed to connect to the environment.");
         }
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
@@ -470,10 +392,9 @@ export async function testConnection(): Promise<void> {
             body: (error as Error).message,
             type: "error",
         });
+        await setAddConnectionTestFeedback((error as Error).message);
     } finally {
-        // Re-enable the button
-        testBtn.disabled = false;
-        testBtn.textContent = "Test Connection";
+        await signalAddConnectionTestReady();
     }
 }
 
@@ -505,6 +426,102 @@ export async function deleteConnection(id: string): Promise<void> {
             type: "error",
         });
     }
+}
+
+function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "test"): string | null {
+    if (!formPayload) {
+        return "Connection form data is unavailable.";
+    }
+
+    if (!sanitizeInput(formPayload.url)) {
+        return "Please provide an environment URL.";
+    }
+
+    if (mode === "add" && !sanitizeInput(formPayload.name)) {
+        return "Please provide a connection name.";
+    }
+
+    const authType = normalizeAuthenticationType(formPayload.authenticationType);
+
+    if (authType === "clientSecret") {
+        if (!sanitizeInput(formPayload.clientId) || !sanitizeInput(formPayload.clientSecret) || !sanitizeInput(formPayload.tenantId)) {
+            return "Client ID, Client Secret, and Tenant ID are required for Client ID/Secret authentication.";
+        }
+    } else if (authType === "usernamePassword") {
+        if (!sanitizeInput(formPayload.username) || !sanitizeInput(formPayload.password)) {
+            return "Username and Password are required for Username/Password authentication.";
+        }
+    }
+
+    return null;
+}
+
+function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "test"): any {
+    const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
+    const connection: any = {
+        id: mode === "add" ? Date.now().toString() : "test",
+        name: mode === "add" ? sanitizeInput(formPayload.name) : "Test Connection",
+        url: sanitizeInput(formPayload.url),
+        environment: mode === "add" ? normalizeEnvironment(formPayload.environment) : "Test",
+        authenticationType,
+        createdAt: new Date().toISOString(),
+        isActive: false,
+    };
+
+    if (authenticationType === "clientSecret") {
+        connection.clientId = sanitizeInput(formPayload.clientId);
+        connection.clientSecret = sanitizeInput(formPayload.clientSecret);
+        connection.tenantId = sanitizeInput(formPayload.tenantId);
+    } else if (authenticationType === "usernamePassword") {
+        connection.username = sanitizeInput(formPayload.username);
+        connection.password = sanitizeInput(formPayload.password);
+        const optionalClientId = sanitizeInput(formPayload.optionalClientId);
+        if (optionalClientId) {
+            connection.clientId = optionalClientId;
+        }
+    } else if (authenticationType === "interactive") {
+        const optionalClientId = sanitizeInput(formPayload.optionalClientId);
+        if (optionalClientId) {
+            connection.clientId = optionalClientId;
+        }
+    }
+
+    return connection;
+}
+
+function sanitizeInput(value?: string): string {
+    return (value || "").trim();
+}
+
+function normalizeEnvironment(value?: string): ConnectionEnvironment {
+    const normalized = (value || "Dev").toLowerCase();
+    const map: Record<string, ConnectionEnvironment> = {
+        dev: "Dev",
+        test: "Test",
+        uat: "UAT",
+        production: "Production",
+        prod: "Production",
+    };
+    return map[normalized] || "Dev";
+}
+
+function normalizeAuthenticationType(value?: string): ConnectionAuthenticationType {
+    if (value === "clientSecret" || value === "usernamePassword") {
+        return value;
+    }
+    return "interactive";
+}
+
+async function signalAddConnectionSubmitReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: ADD_CONNECTION_MODAL_CHANNELS.submitReady });
+}
+
+async function signalAddConnectionTestReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: ADD_CONNECTION_MODAL_CHANNELS.testReady });
+}
+
+async function setAddConnectionTestFeedback(message?: string): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: ADD_CONNECTION_MODAL_CHANNELS.testFeedback, data: message ?? "" });
 }
 
 /**

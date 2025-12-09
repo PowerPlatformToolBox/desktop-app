@@ -3,12 +3,12 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { Theme } from "./common";
-import { ToolContext, Tool, ToolSettings } from "./tool";
-import { DataverseExecuteRequest } from "./dataverse";
+import { ModalWindowMessagePayload, ModalWindowOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
+import { DataverseExecuteRequest } from "./dataverse";
 import { UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
+import { Tool, ToolContext, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -37,6 +37,9 @@ export interface UtilsAPI {
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
     showLoading: (message?: string) => Promise<void>;
     hideLoading: () => Promise<void>;
+    showModalWindow: (options: ModalWindowOptions) => Promise<void>;
+    closeModalWindow: () => Promise<void>;
+    sendModalMessage: (payload: ModalWindowMessagePayload) => Promise<void>;
 }
 
 /**
