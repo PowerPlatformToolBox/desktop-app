@@ -7,6 +7,7 @@ export interface ToolDetailModalState {
     toolId: string;
     toolName: string;
     isInstalled: boolean;
+    readmeUrl?: string | null;
 }
 
 export interface ToolDetailModalControllerConfig {
@@ -30,6 +31,8 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
     const installedBadge = document.getElementById("tool-detail-installed-badge");
     const feedback = document.getElementById("tool-detail-feedback");
     const closeBtn = document.getElementById("tool-detail-close-btn");
+    const readmeContainer = document.getElementById("tool-detail-readme-content");
+    const readmeUrl = typeof CONFIG.state.readmeUrl === "string" && CONFIG.state.readmeUrl.trim() ? CONFIG.state.readmeUrl.trim() : null;
 
     const setInstalledState = (isInstalled) => {
         if (installBtn instanceof HTMLButtonElement) {
@@ -71,6 +74,66 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
     if (CONFIG.state.isInstalled) {
         setInstalledState(true);
     }
+
+    const MARKED_CDN_SRC = "https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js";
+
+    const ensureMarkedLoaded = () => {
+        if (window.marked) {
+            return Promise.resolve(window.marked);
+        }
+
+        return new Promise((resolve) => {
+            const existingScript = document.querySelector("script[data-third-party='marked']");
+            if (existingScript) {
+                existingScript.addEventListener("load", () => resolve(window.marked));
+                existingScript.addEventListener("error", () => resolve(undefined));
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.src = MARKED_CDN_SRC;
+            script.async = true;
+            script.defer = true;
+            script.dataset.thirdParty = "marked";
+            script.onload = () => resolve(window.marked);
+            script.onerror = () => resolve(undefined);
+            document.head.appendChild(script);
+        });
+    };
+
+    const renderReadmeMarkdown = async () => {
+        if (!readmeContainer) {
+            return;
+        }
+
+        if (!readmeUrl) {
+            readmeContainer.textContent = "README is not available for this tool.";
+            return;
+        }
+
+        readmeContainer.textContent = "Loading README...";
+
+        try {
+            const response = await fetch(readmeUrl, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error("HTTP " + response.status);
+            }
+
+            const markdown = await response.text();
+            const markedLib = await ensureMarkedLoaded();
+
+            if (markedLib && typeof markedLib.parse === "function") {
+                readmeContainer.innerHTML = markedLib.parse(markdown);
+            } else {
+                readmeContainer.textContent = markdown;
+            }
+        } catch (error) {
+            console.error("Failed to load README", error);
+            readmeContainer.textContent = "Unable to load README.";
+        }
+    };
+
+    void renderReadmeMarkdown();
 
     modalBridge.onMessage?.((payload) => {
         if (!payload || typeof payload !== "object") return;

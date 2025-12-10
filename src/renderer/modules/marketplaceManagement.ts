@@ -379,6 +379,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         metaBadges: metaBadges.map((badge) => escapeHtml(badge)),
         categories: categories,
         isInstalled,
+        readmeUrl: tool.readmeUrl,
     });
 
     const script = getToolDetailModalControllerScript({
@@ -387,6 +388,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
             toolId: tool.id,
             toolName: tool.name,
             isInstalled,
+            readmeUrl: tool.readmeUrl || null,
         },
     });
 

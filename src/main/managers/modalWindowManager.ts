@@ -51,8 +51,6 @@ export class ModalWindowManager {
             .catch((error) => {
                 console.error("Failed to load modal content", error);
             });
-
-        modalWindow.webContents.openDevTools();
     }
 
     hideModal(): void {
@@ -139,7 +137,7 @@ export class ModalWindowManager {
 <html>
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: https://github.com/PowerPlatformToolBox/pptb-web/releases/download/ https://release-assets.githubusercontent.com/; font-src data:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src data: https://github.com/PowerPlatformToolBox/pptb-web/releases/download/ https://release-assets.githubusercontent.com/; font-src data:; connect-src https:;" />
     <style>
         html, body {
             margin: 0;

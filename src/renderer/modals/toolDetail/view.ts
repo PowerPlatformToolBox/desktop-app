@@ -12,6 +12,7 @@ export interface ToolDetailModalViewModel {
     metaBadges: string[];
     categories: string[];
     isInstalled: boolean;
+    readmeUrl?: string;
 }
 
 export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalViewTemplate {
@@ -174,6 +175,9 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         display: flex;
         flex-direction: column;
         gap: 16px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .tool-detail-readable {
@@ -188,6 +192,10 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         border-radius: 16px;
         padding: 20px;
         height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow: hidden;
     }
 
     .tool-detail-readme-card h3 {
@@ -195,20 +203,13 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         margin-bottom: 16px;
     }
 
-    .tool-detail-feedback {
-        font-size: 13px;
-        min-height: 18px;
-        color: rgba(255, 255, 255, 0.75);
-    }
-
-    .tool-detail-feedback.error {
-        color: #ff9a9a;
-    }
-
     .markdown-content {
         line-height: 1.6;
         font-size: 14px;
         color: #f3f3f3;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     .markdown-content h1,
@@ -266,6 +267,8 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     const badgeMarkup = model.metaBadges.map((badge) => `<span>${badge}</span>`).join("");
     const tagsMarkup = model.categories.length ? model.categories.map((tag) => `<span>${tag}</span>`).join("") : "";
 
+    const readmePlaceholder = model.readmeUrl ? "Loading README..." : "README is not available for this tool.";
+
     const body = `
 <div class="tool-detail-modal-panel" data-tool-id="${model.toolId}">
     <div class="tool-detail-modal-header">
@@ -283,7 +286,6 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
                     <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""}>Install</button>
                     <span id="tool-detail-installed-badge" class="tool-installed-badge" ${model.isInstalled ? "" : 'style="display:none"'}>Installed</span>
                 </div>
-                <div id="tool-detail-feedback" class="tool-detail-feedback"></div>
             </div>
         </div>
         <button id="tool-detail-close-btn" class="tool-detail-close-btn" aria-label="Close">&times;</button>
@@ -291,7 +293,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     <div class="tool-detail-body">
         <div class="tool-detail-readme-card">
             <h3>README</h3>
-            <div id="tool-detail-readme-content" class="markdown-content"></div>
+            <div id="tool-detail-readme-content" class="markdown-content">${readmePlaceholder}</div>
         </div>
     </div>
 </div>`;
