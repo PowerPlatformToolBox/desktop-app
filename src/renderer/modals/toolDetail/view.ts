@@ -153,7 +153,15 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         flex-shrink: 0;
     }
 
-    .tool-detail-icon-shell img,
+    .tool-detail-icon-shell img {
+        width: 80px;
+        height: 80px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        object-fit: contain;
+    }
+
     .tool-detail-icon-shell span {
         width: 64px;
         height: 64px;

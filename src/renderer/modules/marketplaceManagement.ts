@@ -4,6 +4,7 @@
  */
 
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "../../common/types";
+import toolDefaultIconDarkSvg from "../icons/dark/tool-default.svg?raw";
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
@@ -393,8 +394,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 }
 
 function buildToolIconHtml(tool: ToolDetail): string {
-    const isDarkTheme = document.body.classList.contains("dark-theme");
-    const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+    const defaultToolIcon = svgToDataUri(toolDefaultIconDarkSvg);
     const iconUrl = tool.icon;
 
     if (!iconUrl) {
@@ -414,6 +414,10 @@ function buildToolIconHtml(tool: ToolDetail): string {
 
 function escapeHtml(value: string): string {
     return value ? value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : "";
+}
+
+function svgToDataUri(svgContent: string): string {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`;
 }
 
 function formatError(error: unknown): string {
