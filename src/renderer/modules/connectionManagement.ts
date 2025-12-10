@@ -3,10 +3,19 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import type { ModalWindowMessagePayload } from "../../common/types";
+import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
-import { closeBrowserWindowModal, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
+import { getSelectConnectionModalView } from "../modals/selectConnection/view";
+import {
+    closeBrowserWindowModal,
+    onBrowserWindowModalMessage,
+    offBrowserWindowModalClosed,
+    onBrowserWindowModalClosed,
+    sendBrowserWindowModalMessage,
+    showBrowserWindowModal,
+} from "./browserWindowModals";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
@@ -37,7 +46,28 @@ const ADD_CONNECTION_MODAL_DIMENSIONS = {
     height: 700,
 };
 
+const SELECT_CONNECTION_MODAL_CHANNELS = {
+    selectConnection: "select-connection:select",
+    connectReady: "select-connection:connect:ready",
+    populateConnections: "select-connection:populate",
+} as const;
+
+const SELECT_CONNECTION_MODAL_DIMENSIONS = {
+    width: 520,
+    height: 600,
+};
+
 let addConnectionModalHandlersRegistered = false;
+let selectConnectionModalHandlersRegistered = false;
+
+// Store promise handlers for select connection modal
+const selectConnectionModalPromiseHandlers: {
+    resolve: (() => void) | null;
+    reject: ((error: Error) => void) | null;
+} = {
+    resolve: null,
+    reject: null,
+};
 
 /**
  * Update footer connection information
@@ -114,6 +144,144 @@ function buildAddConnectionModalHtml(): string {
     const { styles, body } = getAddConnectionModalView();
     const script = getAddConnectionModalControllerScript(ADD_CONNECTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();
+}
+
+/**
+ * Initialize select connection modal bridge
+ */
+export function initializeSelectConnectionModalBridge(): void {
+    if (selectConnectionModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleSelectConnectionModalMessage);
+    selectConnectionModalHandlersRegistered = true;
+}
+
+/**
+ * Open the select connection modal
+ * Returns a promise that resolves when a connection is selected and connected, or rejects if cancelled
+ */
+export async function openSelectConnectionModal(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        initializeSelectConnectionModalBridge();
+        
+        // Store resolve/reject handlers for later use
+        selectConnectionModalPromiseHandlers.resolve = resolve;
+        selectConnectionModalPromiseHandlers.reject = reject;
+        
+        // Listen for modal close event to reject if not already resolved
+        const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
+            if (selectConnectionModalPromiseHandlers.reject && payload?.id === "select-connection-browser-modal") {
+                // Modal was closed without selecting a connection
+                selectConnectionModalPromiseHandlers.reject(new Error("Connection selection cancelled"));
+                selectConnectionModalPromiseHandlers.resolve = null;
+                selectConnectionModalPromiseHandlers.reject = null;
+                // Remove the handler after first call
+                offBrowserWindowModalClosed(modalClosedHandler);
+            }
+        };
+        
+        onBrowserWindowModalClosed(modalClosedHandler);
+        
+        showBrowserWindowModal({
+            id: "select-connection-browser-modal",
+            html: buildSelectConnectionModalHtml(),
+            width: SELECT_CONNECTION_MODAL_DIMENSIONS.width,
+            height: SELECT_CONNECTION_MODAL_DIMENSIONS.height,
+        }).catch(reject);
+    });
+}
+
+function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    switch (payload.channel) {
+        case SELECT_CONNECTION_MODAL_CHANNELS.selectConnection:
+            void handleSelectConnectionRequest(payload.data as { connectionId?: string });
+            break;
+        case SELECT_CONNECTION_MODAL_CHANNELS.populateConnections:
+            void handlePopulateConnectionsRequest();
+            break;
+        default:
+            break;
+    }
+}
+
+function buildSelectConnectionModalHtml(): string {
+    const { styles, body } = getSelectConnectionModalView();
+    const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS);
+    return `${styles}\n${body}\n${script}`.trim();
+}
+
+async function handleSelectConnectionRequest(data?: { connectionId?: string }): Promise<void> {
+    const connectionId = data?.connectionId;
+    
+    if (!connectionId) {
+        await signalSelectConnectionReady();
+        return;
+    }
+
+    try {
+        // Connect to the selected connection - this will await the full authentication process
+        await connectToConnection(connectionId);
+        
+        // Verify the connection is actually active before closing modal
+        // This ensures interactive auth has completed fully
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+        if (!activeConnection || activeConnection.id !== connectionId) {
+            throw new Error("Connection was not successfully established");
+        }
+        
+        // Resolve the promise BEFORE closing the modal to avoid race condition
+        // where modal close handler might reject the promise
+        const resolveHandler = selectConnectionModalPromiseHandlers.resolve;
+        selectConnectionModalPromiseHandlers.resolve = null;
+        selectConnectionModalPromiseHandlers.reject = null;
+        
+        // Close the modal
+        await closeBrowserWindowModal();
+        
+        // Now resolve the promise after handlers are cleared
+        if (resolveHandler) {
+            resolveHandler();
+        }
+    } catch (error) {
+        console.error("Error connecting to selected connection:", error);
+        await signalSelectConnectionReady();
+        
+        // Don't close modal on error - let user try again or cancel
+    }
+}
+
+async function handlePopulateConnectionsRequest(): Promise<void> {
+    try {
+        const connections = await window.toolboxAPI.connections.getAll();
+        
+        // Send connections list to modal
+        await sendBrowserWindowModalMessage({
+            channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
+            data: {
+                connections: connections.map((conn: DataverseConnection) => ({
+                    id: conn.id,
+                    name: conn.name,
+                    url: conn.url,
+                    environment: conn.environment,
+                    authenticationType: conn.authenticationType,
+                    isActive: conn.isActive || false,
+                })),
+            },
+        });
+    } catch (error) {
+        console.error("Failed to populate connections:", error);
+        await sendBrowserWindowModalMessage({
+            channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
+            data: { connections: [] },
+        });
+    }
+}
+
+async function signalSelectConnectionReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: SELECT_CONNECTION_MODAL_CHANNELS.connectReady });
 }
 
 /**

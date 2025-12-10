@@ -4,6 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
+import { openSelectConnectionModal } from "./connectionManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -128,6 +129,28 @@ export async function launchTool(toolId: string): Promise<void> {
         if (openTools.has(toolId)) {
             switchToTool(toolId);
             return;
+        }
+
+        // Check if there's an active connection before launching the tool
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+        
+        if (!activeConnection) {
+            console.log("No active connection found. Showing connection selection modal...");
+            
+            try {
+                // Show the select connection modal and wait for user to connect
+                await openSelectConnectionModal();
+                console.log("Connection established. Continuing with tool launch...");
+            } catch (error) {
+                // User cancelled the connection selection
+                console.log("Connection selection cancelled:", error);
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Launch Cancelled",
+                    body: "A connection is required to use this tool. Please connect to an environment to continue.",
+                    type: "info",
+                });
+                return;
+            }
         }
 
         // Load the tool
