@@ -232,14 +232,18 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
             throw new Error("Connection was not successfully established");
         }
         
+        // Resolve the promise BEFORE closing the modal to avoid race condition
+        // where modal close handler might reject the promise
+        const resolveHandler = selectConnectionModalPromiseHandlers.resolve;
+        selectConnectionModalPromiseHandlers.resolve = null;
+        selectConnectionModalPromiseHandlers.reject = null;
+        
         // Close the modal
         await closeBrowserWindowModal();
         
-        // Resolve the promise
-        if (selectConnectionModalPromiseHandlers.resolve) {
-            selectConnectionModalPromiseHandlers.resolve();
-            selectConnectionModalPromiseHandlers.resolve = null;
-            selectConnectionModalPromiseHandlers.reject = null;
+        // Now resolve the promise after handlers are cleared
+        if (resolveHandler) {
+            resolveHandler();
         }
     } catch (error) {
         console.error("Error connecting to selected connection:", error);
