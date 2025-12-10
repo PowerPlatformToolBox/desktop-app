@@ -1,4 +1,6 @@
 name: Delete old workflow runs
+permissions:
+  actions: write
 on:
   schedule:
     - cron: '0 0 1 * *'
