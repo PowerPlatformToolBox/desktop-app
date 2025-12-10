@@ -222,8 +222,15 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
     }
 
     try {
-        // Connect to the selected connection
+        // Connect to the selected connection - this will await the full authentication process
         await connectToConnection(connectionId);
+        
+        // Verify the connection is actually active before closing modal
+        // This ensures interactive auth has completed fully
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+        if (!activeConnection || activeConnection.id !== connectionId) {
+            throw new Error("Connection was not successfully established");
+        }
         
         // Close the modal
         await closeBrowserWindowModal();
