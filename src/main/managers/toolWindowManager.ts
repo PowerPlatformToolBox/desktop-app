@@ -3,6 +3,8 @@ import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { Tool } from "../../common/types";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
+import { ConnectionsManager } from "./connectionsManager";
+import { SettingsManager } from "./settingsManager";
 
 /**
  * ToolWindowManager
@@ -20,14 +22,18 @@ import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 export class ToolWindowManager {
     private mainWindow: BrowserWindow;
     private browserviewProtocolManager: BrowserviewProtocolManager;
+    private connectionsManager: ConnectionsManager;
+    private settingsManager: SettingsManager;
     private toolViews: Map<string, BrowserView> = new Map();
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
-    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager) {
+    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager) {
         this.mainWindow = mainWindow;
         this.browserviewProtocolManager = browserviewProtocolManager;
+        this.connectionsManager = connectionsManager;
+        this.settingsManager = settingsManager;
         this.setupIpcHandlers();
     }
 
@@ -144,15 +150,35 @@ export class ToolWindowManager {
             // Store the view
             this.toolViews.set(toolId, toolView);
 
+            // Get connection information for this tool
+            const toolConnectionId = this.settingsManager.getToolConnection(toolId);
+            let connectionUrl: string | null = null;
+            
+            if (toolConnectionId) {
+                // Tool has a specific connection assigned
+                const connection = this.connectionsManager.getConnectionById(toolConnectionId);
+                if (connection) {
+                    connectionUrl = connection.url;
+                }
+            } else {
+                // Fall back to global active connection
+                const activeConnection = this.connectionsManager.getActiveConnection();
+                if (activeConnection) {
+                    connectionUrl = activeConnection.url;
+                }
+            }
+
             // Send tool context immediately (don't wait for did-finish-load)
             // The preload script will receive this before the tool code runs
             const toolContext = {
                 toolId: tool.id,
                 toolName: tool.name,
                 version: tool.version,
+                connectionUrl: connectionUrl,
+                connectionId: toolConnectionId,
             };
             toolView.webContents.send("toolbox:context", toolContext);
-            console.log(`[ToolWindowManager] Sent tool context for ${toolId}`);
+            console.log(`[ToolWindowManager] Sent tool context for ${toolId} with connection:`, connectionUrl ? "yes" : "no");
 
             // Show this tool
             await this.switchToTool(toolId);
@@ -369,6 +395,41 @@ export class ToolWindowManager {
                 console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
             }
         }
+    }
+
+    /**
+     * Update connection context for a specific tool
+     * Called when a tool's connection is changed
+     */
+    async updateToolConnection(toolId: string, connectionId: string | null): Promise<void> {
+        const toolView = this.toolViews.get(toolId);
+        if (!toolView || toolView.webContents.isDestroyed()) {
+            return;
+        }
+
+        let connectionUrl: string | null = null;
+        
+        if (connectionId) {
+            const connection = this.connectionsManager.getConnectionById(connectionId);
+            if (connection) {
+                connectionUrl = connection.url;
+            }
+        }
+
+        // Send updated connection context to the tool
+        toolView.webContents.send("toolbox:connection-changed", {
+            connectionUrl: connectionUrl,
+            connectionId: connectionId,
+        });
+        
+        console.log(`[ToolWindowManager] Updated connection for tool ${toolId}:`, connectionUrl ? "connected" : "disconnected");
+    }
+
+    /**
+     * Get connection ID for a tool (from settings)
+     */
+    getToolConnectionId(toolId: string): string | null {
+        return this.settingsManager.getToolConnection(toolId);
     }
 
     /**

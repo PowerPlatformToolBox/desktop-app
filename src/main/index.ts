@@ -446,6 +446,23 @@ class ToolBoxApp {
             return this.settingsManager.getCspConsents();
         });
 
+        // Tool-Connection mapping handlers
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, (_, toolId, connectionId) => {
+            this.settingsManager.setToolConnection(toolId, connectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_CONNECTION, (_, toolId) => {
+            return this.settingsManager.getToolConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, (_, toolId) => {
+            this.settingsManager.removeToolConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS, () => {
+            return this.settingsManager.getAllToolConnections();
+        });
+
         // Webview protocol handler
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, (_, toolId) => {
             return this.browserviewProtocolManager.buildToolUrl(toolId);
@@ -924,7 +941,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);

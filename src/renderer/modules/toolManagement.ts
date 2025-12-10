@@ -4,7 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
-import { openSelectConnectionModal } from "./connectionManagement";
+import { openSelectConnectionModal, updateFooterConnection } from "./connectionManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -220,7 +220,7 @@ export async function launchTool(toolId: string): Promise<void> {
             id: toolId,
             tool: tool,
             isPinned: false,
-            connectionId: null,
+            connectionId: await window.toolboxAPI.getToolConnection(toolId),
         });
 
         // Create and add tab
@@ -317,7 +317,7 @@ export function createTab(toolId: string, tool: any): void {
 /**
  * Switch to a tool tab
  */
-export function switchToTool(toolId: string): void {
+export async function switchToTool(toolId: string): Promise<void> {
     if (!openTools.has(toolId)) return;
 
     // Normal single view mode
@@ -337,6 +337,9 @@ export function switchToTool(toolId: string): void {
     window.toolboxAPI.switchToolWindow(toolId).catch((error: any) => {
         console.error("Failed to switch tool window:", error);
     });
+
+    // Update connection status display based on this tool's connection
+    await updateActiveToolConnectionStatus();
 }
 
 /**
@@ -537,11 +540,18 @@ export async function restoreSession(): Promise<void> {
 /**
  * Set connection for a tool
  */
-export function setToolConnection(toolId: string, connectionId: string | null): void {
+export async function setToolConnection(toolId: string, connectionId: string | null): Promise<void> {
     const tool = openTools.get(toolId);
     if (!tool) return;
 
     tool.connectionId = connectionId;
+
+    // Save to backend
+    if (connectionId) {
+        await window.toolboxAPI.setToolConnection(toolId, connectionId);
+    } else {
+        await window.toolboxAPI.removeToolConnection(toolId);
+    }
 
     // Update connection badge on tab
     const badge = document.getElementById(`tab-connection-${toolId}`);
@@ -557,7 +567,11 @@ export function setToolConnection(toolId: string, connectionId: string | null): 
 
     saveSession();
 
-    // Notify tool of connection change (in a real implementation, this would message the webview)
+    // Update sidebar and footer if this is the active tool
+    if (activeToolId === toolId) {
+        await updateActiveToolConnectionStatus();
+    }
+
     console.log(`Tool ${toolId} connection set to:`, connectionId);
 }
 
@@ -614,4 +628,56 @@ export function setupKeyboardShortcuts(): void {
             switchToTool(toolIds[prevIndex]);
         }
     });
+}
+
+/**
+ * Update sidebar and footer connection status based on active tool's connection
+ */
+export async function updateActiveToolConnectionStatus(): Promise<void> {
+    if (!activeToolId) {
+        // No active tool, show global connection
+        await updateFooterConnection();
+        return;
+    }
+
+    const activeTool = openTools.get(activeToolId);
+    if (!activeTool) return;
+
+    // Get the tool's specific connection, or fall back to global
+    const toolConnectionId = activeTool.connectionId;
+    
+    if (toolConnectionId) {
+        // Tool has a specific connection
+        const connections = await window.toolboxAPI.connections.getAll();
+        const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
+        
+        if (toolConnection) {
+            // Update footer to show tool's connection
+            const footerConnectionName = document.getElementById("footer-connection-name");
+            const footerChangeBtn = document.getElementById("footer-change-connection-btn");
+            
+            if (footerConnectionName) {
+                // Check if token is expired
+                let isExpired = false;
+                if (toolConnection.tokenExpiry) {
+                    const expiryDate = new Date(toolConnection.tokenExpiry);
+                    const now = new Date();
+                    isExpired = expiryDate.getTime() <= now.getTime();
+                }
+                
+                const warningIcon = isExpired ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
+                const toolIndicator = `<span style="opacity: 0.7; margin-left: 4px;" title="Tool-specific connection">(${activeTool.tool.name})</span>`;
+                
+                footerConnectionName.innerHTML = `${toolConnection.name} (${toolConnection.environment})${warningIcon}${toolIndicator}`;
+                
+                if (footerChangeBtn) {
+                    footerChangeBtn.style.display = "inline";
+                }
+            }
+            return;
+        }
+    }
+    
+    // Tool doesn't have a specific connection, show global active connection
+    await updateFooterConnection();
 }
