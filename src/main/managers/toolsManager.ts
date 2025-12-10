@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { Tool, ToolManifest } from "../../types";
+import { CspExceptions, Tool, ToolManifest } from "../../common/types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -16,6 +16,7 @@ interface ToolPackageJson {
     description?: string;
     author?: string;
     icon?: string;
+    cspExceptions?: CspExceptions;
 }
 
 /**
@@ -28,10 +29,10 @@ export class ToolManager extends EventEmitter {
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
 
-    constructor(toolsDirectory: string, registryUrl?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, registryUrl);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -78,8 +79,14 @@ export class ToolManager extends EventEmitter {
             name: manifest.name,
             version: manifest.version,
             description: manifest.description,
-            author: manifest.author,
-            icon: manifest.icon,
+            authors: manifest.authors,
+            iconUrl: manifest.icon,
+            cspExceptions: manifest.cspExceptions,
+            categories: manifest.categories,
+            license: manifest.license,
+            downloads: manifest.downloads,
+            rating: manifest.rating,
+            aum: manifest.aum,
         };
 
         this.tools.set(tool.id, tool);
@@ -164,18 +171,18 @@ export class ToolManager extends EventEmitter {
      */
     async updateTool(toolId: string): Promise<ToolManifest> {
         console.log(`[ToolManager] Updating tool: ${toolId}`);
-        
+
         // Unload the tool first if it's loaded
         if (this.isToolLoaded(toolId)) {
             this.unloadTool(toolId);
         }
-        
+
         // Re-install the tool (this will fetch the latest version from registry)
         const manifest = await this.registryManager.installTool(toolId);
-        
+
         // Load the updated tool
         await this.loadTool(toolId);
-        
+
         return manifest;
     }
 
@@ -198,7 +205,8 @@ export class ToolManager extends EventEmitter {
             const isWindows = process.platform === "win32";
             const cmd = isWindows ? `${command}.cmd` : command;
 
-            const check = spawn(cmd, ["--version"], { shell: true });
+            // Don't use shell to avoid issues with spaces in paths
+            const check = spawn(cmd, ["--version"]);
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -255,7 +263,9 @@ export class ToolManager extends EventEmitter {
                     ? ["add", packageName, "--dir", this.toolsDirectory, "--no-optional", "--prod"]
                     : ["install", packageName, "--prefix", this.toolsDirectory, "--no-optional", "--production"];
 
-            const install = spawn(pkgManager.command, args, { shell: true });
+            // Don't use shell: true to avoid issues with spaces in paths
+            // The command array is already in the correct format for spawn
+            const install = spawn(pkgManager.command, args);
 
             let stderr = "";
 
@@ -318,6 +328,73 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Load an npm-installed tool from node_modules (DEBUG MODE ONLY)
+     * This is called after installToolForDebug to register the tool in the tools map
+     * @param packageName - npm package name
+     */
+    async loadNpmTool(packageName: string): Promise<Tool> {
+        console.log(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
+
+        // Construct path to the installed package
+        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+
+        // Verify the path exists
+        if (!fs.existsSync(toolPath)) {
+            throw new Error(`Npm tool not found at: ${toolPath}\n\nPlease install the tool first.`);
+        }
+
+        // Look for package.json
+        const packageJsonPath = path.join(toolPath, "package.json");
+        if (!fs.existsSync(packageJsonPath)) {
+            throw new Error(`No package.json found in: ${toolPath}`);
+        }
+
+        // Read and parse package.json
+        let packageJson: ToolPackageJson;
+        try {
+            const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
+            packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
+        } catch (error) {
+            throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
+        }
+
+        // Verify required fields
+        if (!packageJson.name) {
+            throw new Error("package.json missing required field: name");
+        }
+
+        // Check for dist directory and index.html
+        const distPath = path.join(toolPath, "dist");
+        const indexHtmlPath = path.join(distPath, "index.html");
+
+        if (!fs.existsSync(indexHtmlPath)) {
+            throw new Error(`No dist/index.html found in: ${toolPath}\n\nThe tool package may not be built correctly or may not be compatible with Power Platform Toolbox.`);
+        }
+
+        // Exact behavior: remove all '@', replace all '/' with '-'
+        const sanitizedToolId = packageJson.name.replace(/@/g, "").replace(/\//g, "-");
+
+        // Create a tool object with npm path metadata
+        const toolId = `npm-${sanitizedToolId}`;
+        const tool: Tool = {
+            id: toolId,
+            name: packageJson.displayName || packageJson.name,
+            version: packageJson.version || "0.0.0",
+            description: packageJson.description || "Tool installed from npm",
+            authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
+            iconUrl: packageJson.icon,
+            npmPackageName: packageName, // Store the npm package name for loading
+            cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+        };
+
+        this.tools.set(toolId, tool);
+        this.emit("tool:loaded", tool);
+
+        console.log(`[ToolManager] [DEBUG] Npm tool loaded: ${tool.name} (${toolId})`);
+        return tool;
+    }
+
+    /**
      * Get webview HTML for a tool with absolute file paths
      * Context (connection URL, token) is passed via postMessage after iframe loads
      */
@@ -377,33 +454,12 @@ export class ToolManager extends EventEmitter {
         const platform = process.platform;
 
         if (platform === "win32") {
-            return [
-                "C:\\Windows",
-                "C:\\Program Files",
-                "C:\\Program Files (x86)",
-                "C:\\ProgramData",
-                "C:\\System32",
-            ];
+            return ["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData", "C:\\System32"];
         } else if (platform === "darwin") {
-            return [
-                "/System",
-                "/Library",
-                "/usr",
-                "/bin",
-                "/sbin",
-                "/private",
-            ];
+            return ["/System", "/Library", "/usr", "/bin", "/sbin", "/private"];
         } else {
             // Linux and other Unix-like systems
-            return [
-                "/usr",
-                "/bin",
-                "/sbin",
-                "/etc",
-                "/root",
-                "/sys",
-                "/proc",
-            ];
+            return ["/usr", "/bin", "/sbin", "/etc", "/root", "/sys", "/proc"];
         }
     }
 
@@ -499,16 +555,20 @@ export class ToolManager extends EventEmitter {
             );
         }
 
+        // Exact behavior: remove all '@', replace all '/' with '-'
+        const sanitizedToolId = packageJson.name.replace(/@/g, "").replace(/\//g, "-");
+
         // Create a tool object with local path metadata
-        const toolId = `local:${packageJson.name}`;
+        const toolId = `local-${sanitizedToolId}`;
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
-            author: packageJson.author || "Local Developer",
-            icon: packageJson.icon,
+            authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
+            iconUrl: packageJson.icon,
             localPath: localPath, // Store the local path for loading
+            cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
         };
 
         this.tools.set(toolId, tool);

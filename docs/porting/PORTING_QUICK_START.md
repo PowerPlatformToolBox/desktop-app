@@ -218,8 +218,8 @@ const metadata = await window.dataverseAPI.getEntityMetadata("account");
 
 ## 🆘 Getting Help
 
-- **GitHub Issues**: [Report bugs or ask questions](https://github.com/PowerPlatform-ToolBox/desktop-app/issues)
-- **Discussions**: [Join the community](https://github.com/PowerPlatform-ToolBox/desktop-app/discussions)
+- **GitHub Issues**: [Report bugs or ask questions](https://github.com/PowerPlatformToolBox/desktop-app/issues)
+- **Discussions**: [Join the community](https://github.com/PowerPlatformToolBox/desktop-app/discussions)
 - **Sample Code**: Check out [working examples](../examples/)
 
 ## 🎯 Example: Minimal Tool

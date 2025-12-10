@@ -2,7 +2,8 @@ import { LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
-import { DataverseConnection } from "../../types";
+import { EVENT_CHANNELS } from "../../common/ipc/channels";
+import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
 /**
@@ -183,7 +184,7 @@ export class AuthManager {
      */
     private showErrorDialog(message: string, parentWindow?: BrowserWindow): void {
         if (parentWindow) {
-            parentWindow.webContents.send("show-auth-error-dialog", message);
+            parentWindow.webContents.send(EVENT_CHANNELS.SHOW_AUTH_ERROR_DIALOG, message);
         }
     }
 

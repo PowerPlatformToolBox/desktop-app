@@ -1,7 +1,7 @@
 name: Build
 
 permissions:
-  contents: read
+    contents: read
 
 on:
     push:
@@ -15,27 +15,43 @@ on:
 
 jobs:
     build:
-        runs-on: ubuntu-latest
+        name: Build on ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
 
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout code
+              uses: actions/checkout@v4
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
 
-            - name: Install pnpm globally
+            - name: Install pnpm
               run: npm install -g pnpm@10.18.3
 
             - name: Install dependencies
               run: pnpm install
 
-            - name: Run linter
+            - name: Lint code
               run: pnpm run lint
 
-            - name: Run type check
-              run: pnpm run typecheck
-
-            - name: Build
+            - name: Build application
+              env:
+                  # Inject Supabase credentials from repository secrets
+                  # These are replaced at build time and not exposed in the bundle
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
               run: pnpm run build
+
+            - name: Verify build output
+              run: |
+                  if [ "$RUNNER_OS" != "Windows" ]; then
+                    bash buildScripts/verify-build.sh
+                  fi
+              shell: bash

@@ -76,27 +76,27 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
--   [Known Issues](#known-issues)
--   [Features Overview](#features-overview)
--   [Architecture](#architecture)
--   [Security Model](#security-model)
--   [Tool Development](#tool-development)
-    -   [Sample Tools Repository](#sample-tools-repository)
--   [ToolBox development](#toolbox-development)
-    -   [Installing Tools](#installing-tools)
-    -   [Tool Security](#tool-security)
--   [Dataverse Connections](#dataverse-connections)
--   [Releases \& Downloads](#releases--downloads)
-    -   [Download Latest Release](#download-latest-release)
--   [Auto-Updates](#auto-updates)
-    -   [Enabling Auto-Updates](#enabling-auto-updates)
-    -   [Manual Update Check](#manual-update-check)
-    -   [Update Process](#update-process)
--   [Documentation](#documentation)
-    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
--   [Discussions](#discussions)
--   [License](#license)
--   [Contributing](#contributing)
+- [Known Issues](#known-issues)
+- [Features Overview](#features-overview)
+- [Architecture](#architecture)
+- [Security Model](#security-model)
+- [Tool Development](#tool-development)
+  - [Sample Tools Repository](#sample-tools-repository)
+- [ToolBox development](#toolbox-development)
+  - [Installing Tools](#installing-tools)
+  - [Tool Security](#tool-security)
+- [Dataverse Connections](#dataverse-connections)
+- [Releases \& Downloads](#releases--downloads)
+  - [Download Latest Release](#download-latest-release)
+- [Auto-Updates](#auto-updates)
+  - [Enabling Auto-Updates](#enabling-auto-updates)
+  - [Manual Update Check](#manual-update-check)
+  - [Update Process](#update-process)
+- [Documentation](#documentation)
+  - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
+- [Discussions](#discussions)
+- [License](#license)
+- [Contributing](#contributing)
 
 ## Known Issues
 
@@ -106,6 +106,7 @@
 
 -   **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
 -   **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
+-   **🛡️ Per-Tool CSP**: Content Security Policy configuration with user consent for external resource access
 -   **🔗 Dataverse Connections**: Create and manage connections to Dataverse environments
 -   **⚙️ Settings Management**:
     -   User settings for the ToolBox application
@@ -127,6 +128,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
 -   **Structured IPC**: All communication via validated message protocol
 -   **Limited API Surface**: Tools only access specific ToolBox APIs
 -   **No Direct Access**: Tools cannot access file system, Electron APIs, or other tools
+-   **Per-Tool CSP**: Tools request specific Content Security Policy exceptions with user consent (see [CSP Configuration](docs/CSP_CONFIGURATION.md))
 
 ## Tool Development
 
@@ -226,7 +228,7 @@ The application supports automatic updates to keep your ToolBox up to date:
 
 ## Discussions
 
-If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatform-ToolBox/desktop-app/discussions).
+If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatformToolBox/desktop-app/discussions).
 
 ## License
 
@@ -268,3 +270,5 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+<!--Force Checkin 11/27; 10:00 AM-->

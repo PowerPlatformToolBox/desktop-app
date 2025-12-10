@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { ToolSettings, UserSettings } from '../../types';
+import { ToolSettings, UserSettings } from '../../common/types';
 
 /**
  * Manages user settings using electron-store
@@ -22,6 +22,7 @@ export class SettingsManager {
         connections: [], // Kept for backwards compatibility, but use ConnectionsManager instead
         installedTools: [],
         favoriteTools: [],
+        cspConsents: {}, // Track CSP consent for each tool
       },
     });
 
@@ -98,7 +99,7 @@ export class SettingsManager {
    */
   removeInstalledTool(packageName: string): void {
     const installedTools = this.store.get('installedTools') || [];
-    const filtered = installedTools.filter(t => t !== packageName);
+    const filtered = installedTools.filter((t: string) => t !== packageName);
     this.store.set('installedTools', filtered);
   }
 
@@ -125,7 +126,7 @@ export class SettingsManager {
    */
   removeFavoriteTool(toolId: string): void {
     const favoriteTools = this.store.get('favoriteTools') || [];
-    const filtered = favoriteTools.filter(t => t !== toolId);
+    const filtered = favoriteTools.filter((t: string) => t !== toolId);
     this.store.set('favoriteTools', filtered);
   }
 
@@ -155,5 +156,38 @@ export class SettingsManager {
       this.addFavoriteTool(toolId);
       return true;
     }
+  }
+
+  /**
+   * Check if CSP consent has been granted for a tool
+   */
+  hasCspConsent(toolId: string): boolean {
+    const cspConsents = this.store.get('cspConsents') || {};
+    return cspConsents[toolId] === true;
+  }
+
+  /**
+   * Grant CSP consent for a tool
+   */
+  grantCspConsent(toolId: string): void {
+    const cspConsents = this.store.get('cspConsents') || {};
+    cspConsents[toolId] = true;
+    this.store.set('cspConsents', cspConsents);
+  }
+
+  /**
+   * Revoke CSP consent for a tool
+   */
+  revokeCspConsent(toolId: string): void {
+    const cspConsents = this.store.get('cspConsents') || {};
+    delete cspConsents[toolId];
+    this.store.set('cspConsents', cspConsents);
+  }
+
+  /**
+   * Get all tools with CSP consent
+   */
+  getCspConsents(): { [toolId: string]: boolean } {
+    return this.store.get('cspConsents') || {};
   }
 }

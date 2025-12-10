@@ -1,4 +1,4 @@
-name: Nightly Pre-Release
+name: Insider Pre-Release
 
 on:
     schedule:
@@ -58,14 +58,14 @@ jobs:
             - name: Install dependencies
               run: pnpm install
 
-            - name: Update version for nightly build
+            - name: Update version for insider build
               id: version
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
                   DATE_TAG=$(date +%Y%m%d)
                   NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-                  echo "📦 Nightly version: $NEW_VERSION"
+                  echo "📦 Insider version: $NEW_VERSION"
 
                   # Update package.json with new version
                   node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version='$NEW_VERSION'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
@@ -73,24 +73,33 @@ jobs:
 
             - name: Build application
               run: pnpm run build
+              env:
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (Ubuntu)
               if: matrix.os == 'ubuntu-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (Windows)
               if: matrix.os == 'windows-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
               run: pnpm run package
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
                   # Skip code signing if no certificate is configured
                   # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
                   CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -145,7 +154,7 @@ jobs:
                   DATE_TAG=$(date +%Y%m%d)
                   NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-                  echo "release_name=Nightly Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "release_name=Insider Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
               shell: bash
 
             - name: Download all artifacts
@@ -160,11 +169,11 @@ jobs:
               run: |
                   echo "📦 Preparing release files..."
                   mkdir -p release-files
-                  
+
                   # Copy installer files and latest*.yml files (needed for electron-updater)
                   # Exclude builder-debug.yml files (duplicate names across platforms)
                   find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
-                  
+
                   echo "✅ Release files prepared"
                   ls -lh release-files/
               shell: bash
@@ -174,8 +183,8 @@ jobs:
                   echo "🗑️ Deleting old pre-releases..."
 
                   # Get all pre-releases (not full releases) - using higher limit to capture more
-                  # Note: gh release list returns releases sorted by creation date (newest first)
-                  gh release list --limit 1000 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | while IFS= read -r TAG; do
+                  # Note: gh release list returns releases sorted by creation date (newest first); skips first 2 pre-releases
+                  gh release list --limit 1000 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | awk 'NR>2' | while IFS= read -r TAG; do
                     if [ -n "$TAG" ]; then
                       echo "Deleting pre-release: $TAG"
                       gh release delete "$TAG" --yes --cleanup-tag || echo "⚠️ Failed to delete $TAG (may not exist or already deleted)"
@@ -183,7 +192,7 @@ jobs:
                   done
 
                   echo "✅ Pre-release cleanup completed"
-                  
+
                   # Wait a moment for GitHub API to process deletions
                   echo "⏳ Waiting for deletion to propagate..."
                   sleep 5
@@ -196,7 +205,7 @@ jobs:
                   tag_name: v${{ steps.version.outputs.new_version }}
                   name: ${{ steps.version.outputs.release_name }}
                   body: |
-                      # 🌙 Nightly Development Build
+                      # 👀 Insider Pre-Release
 
                       ## TESTING PURPOSES ONLY - NOT FOR PRODUCTION USE
 
@@ -207,7 +216,7 @@ jobs:
 
                       ## ⚠️ Pre-release Warning
 
-                      This is an automated nightly build from the development branch. It may contain:
+                      This is an automated insider build from the development branch. It may contain:
                       - 🐛 Bugs and instability
                       - 🚧 Incomplete features
                       - 💥 Breaking changes
@@ -231,7 +240,7 @@ jobs:
                       - [Report an issue](${{ github.server_url }}/${{ github.repository }}/issues/new)
 
                       ---
-                      *This release was automatically generated by the nightly build workflow.*
+                      *This release was automatically generated by the nightly insider packaging workflow.*
                   files: |
                       release-files/*
                   prerelease: true
