@@ -80,7 +80,7 @@ export class ToolManager extends EventEmitter {
             version: manifest.version,
             description: manifest.description,
             authors: manifest.authors,
-            icon: manifest.icon,
+            iconUrl: manifest.icon,
             cspExceptions: manifest.cspExceptions,
             categories: manifest.categories,
             license: manifest.license,
@@ -382,7 +382,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            icon: packageJson.icon,
+            iconUrl: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
         };
@@ -566,7 +566,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            icon: packageJson.icon,
+            iconUrl: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
         };

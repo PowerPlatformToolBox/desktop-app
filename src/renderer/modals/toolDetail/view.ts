@@ -11,7 +11,6 @@ export interface ToolDetailModalViewModel {
     iconHtml: string;
     metaBadges: string[];
     categories: string[];
-    readmeHtml: string;
     isInstalled: boolean;
 }
 
@@ -284,7 +283,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     <div class="tool-detail-body">
         <div class="tool-detail-readme-card">
             <h3>README</h3>
-            <div id="tool-detail-readme-content" class="markdown-content">${model.readmeHtml}</div>
+            <div id="tool-detail-readme-content" class="markdown-content"></div>
         </div>
     </div>
 </div>`;

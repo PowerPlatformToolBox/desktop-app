@@ -3,39 +3,17 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "../../common/types";
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
-interface RegistryTool {
-    id: string;
-    name: string;
-    description: string;
-    authors?: string[];
-    version: string;
-    icon?: string;
-    downloadUrl?: string;
-    readme?: string;
-    categories?: string[];
-    downloads?: number;
-    rating?: number;
-    aum?: number;
-}
-
 interface InstalledTool {
     id: string;
     version: string;
     name?: string;
-}
-
-interface ExtendedToolDetail extends ToolDetail {
-    icon?: string;
-    iconUrl?: string;
-    readme?: string;
-    readmeUrl?: string;
 }
 
 // Tool library loaded from registry
@@ -52,7 +30,7 @@ const TOOL_DETAIL_MODAL_DIMENSIONS = {
 };
 
 let toolDetailModalHandlersRegistered = false;
-let activeToolDetailModal: { tool: ExtendedToolDetail; isInstalled: boolean } | null = null;
+let activeToolDetailModal: { tool: ToolDetail; isInstalled: boolean } | null = null;
 
 /**
  * Get tool library
@@ -67,12 +45,11 @@ export function getToolLibrary(): ToolDetail[] {
 export async function loadToolsLibrary(): Promise<void> {
     try {
         // Fetch tools from registry
-        // TODO readmeurl
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
         console.log(registryTools);
 
         // Map registry tools to the format expected by the UI
-        toolLibrary = (registryTools as RegistryTool[]).map(
+        toolLibrary = (registryTools as Tool[]).map(
             (tool) =>
                 ({
                     id: tool.id,
@@ -81,10 +58,11 @@ export async function loadToolsLibrary(): Promise<void> {
                     authors: tool.authors,
                     categories: tool.categories,
                     version: tool.version,
-                    icon: tool.icon,
+                    icon: tool.iconUrl,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     aum: tool.aum,
+                    readmeUrl: tool.readmeUrl,
                 } as ToolDetail),
         );
 
@@ -291,13 +269,11 @@ export async function loadMarketplace(): Promise<void> {
  */
 async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
     initializeToolDetailModalBridge();
-    const extendedTool = tool as ExtendedToolDetail;
-    activeToolDetailModal = { tool: extendedTool, isInstalled };
+    activeToolDetailModal = { tool, isInstalled };
 
     try {
-        const readmeHtml = await loadToolReadmeHtml(extendedTool);
-        const modalHtml = buildToolDetailModalHtml(extendedTool, readmeHtml, isInstalled);
-
+        //const readmeHtml = await loadToolReadmeHtml(tool);
+        const modalHtml = buildToolDetailModalHtml(tool, isInstalled);
         await showBrowserWindowModal({
             id: `tool-detail-modal-${tool.id}`,
             html: modalHtml,
@@ -385,7 +361,7 @@ function handleToolDetailModalClosed(payload: ModalWindowClosedPayload): void {
     }
 }
 
-function buildToolDetailModalHtml(tool: ExtendedToolDetail, readmeHtml: string, isInstalled: boolean): string {
+function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): string {
     const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown author";
     const metaBadges: string[] = [];
     if (tool.version) metaBadges.push(`v${tool.version}`);
@@ -401,7 +377,6 @@ function buildToolDetailModalHtml(tool: ExtendedToolDetail, readmeHtml: string, 
         authors: escapeHtml(authorsDisplay),
         metaBadges: metaBadges.map((badge) => escapeHtml(badge)),
         categories: categories,
-        readmeHtml,
         isInstalled,
     });
 
@@ -417,29 +392,10 @@ function buildToolDetailModalHtml(tool: ExtendedToolDetail, readmeHtml: string, 
     return `${styles}\n${body}\n${script}`.trim();
 }
 
-async function loadToolReadmeHtml(tool: ExtendedToolDetail): Promise<string> {
-    const readmeUrl = tool.readme || tool.readmeUrl;
-    if (!readmeUrl) {
-        return '<p class="loading-text">No README available</p>';
-    }
-
-    try {
-        const response = await fetch(readmeUrl);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const markdown = await response.text();
-        return convertMarkdownToHtml(markdown);
-    } catch (error) {
-        console.error("Failed to load README", error);
-        return '<p class="loading-text">Failed to load README</p>';
-    }
-}
-
-function buildToolIconHtml(tool: ExtendedToolDetail): string {
+function buildToolIconHtml(tool: ToolDetail): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-    const iconUrl = tool.iconUrl || tool.icon;
+    const iconUrl = tool.icon;
 
     if (!iconUrl) {
         return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
@@ -454,44 +410,6 @@ function buildToolIconHtml(tool: ExtendedToolDetail): string {
     }
 
     return `<span style="font-size:20px;font-weight:600">${escapeHtml(iconUrl)}</span>`;
-}
-
-/**
- * Simple markdown to HTML converter
- */
-function convertMarkdownToHtml(markdown: string): string {
-    let html = markdown;
-
-    // Headers
-    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
-
-    // Bold
-    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-    // Italic
-    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-    // Code blocks
-    html = html.replace(/```([^`]+)```/gs, "<pre><code>$1</code></pre>");
-
-    // Line breaks
-    html = html.replace(/\n\n/g, "</p><p>");
-    html = html.replace(/\n/g, "<br>");
-
-    // Wrap in paragraphs if not already in a tag
-    if (!html.startsWith("<")) {
-        html = "<p>" + html + "</p>";
-    }
-
-    return html;
 }
 
 function escapeHtml(value: string): string {

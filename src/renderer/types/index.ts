@@ -80,4 +80,5 @@ export interface ToolDetail {
     downloads?: number;
     rating?: number;
     aum?: number;
+    readmeUrl?: string;
 }

@@ -13,7 +13,7 @@ export interface Tool {
     version: string;
     description: string;
     authors?: string[];
-    icon?: string;
+    iconUrl?: string;
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
     npmPackageName?: string; // For npm-installed tools - package name in node_modules
@@ -23,6 +23,7 @@ export interface Tool {
     downloads?: number;
     rating?: number;
     aum?: number;
+    readmeUrl?: string;
 }
 
 /**
