@@ -216,15 +216,25 @@ export async function launchTool(toolId: string): Promise<void> {
         console.log(`[Tool Launch] Tool window created via BrowserView: ${toolId}`);
 
         // Store the open tool (no webview container needed - managed by backend)
+        const toolConnectionId = await window.toolboxAPI.getToolConnection(toolId);
         openTools.set(toolId, {
             id: toolId,
             tool: tool,
             isPinned: false,
-            connectionId: await window.toolboxAPI.getToolConnection(toolId),
+            connectionId: toolConnectionId,
         });
 
         // Create and add tab
         createTab(toolId, tool);
+
+        // Update connection badge if tool has a specific connection
+        if (toolConnectionId) {
+            const badge = document.getElementById(`tab-connection-${toolId}`);
+            if (badge) {
+                badge.style.display = "inline";
+                badge.title = "Tool-specific connection";
+            }
+        }
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(toolId);
@@ -530,12 +540,11 @@ export async function restoreSession(): Promise<void> {
                 if (toolInfo.isPinned) {
                     togglePinTab(toolInfo.id);
                 }
-                if (toolInfo.connectionId) {
-                    setToolConnection(toolInfo.id, toolInfo.connectionId);
-                }
+                // Note: toolInfo.connectionId is now loaded from settings during launchTool
+                // so we don't need to set it here explicitly
             }
             if (session.activeToolId && openTools.has(session.activeToolId)) {
-                switchToTool(session.activeToolId);
+                await switchToTool(session.activeToolId);
             }
         }
     } catch (error) {
