@@ -139,17 +139,21 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     closeButton?.addEventListener('click', closeModal);
 
     // Listen for messages from main process
-    modalBridge.onMessage?.((payload) => {
-        if (!payload || typeof payload !== 'object') return;
-        
-        if (payload.channel === CHANNELS.connectReady) {
-            setButtonState(connectButton, false, "", "Connect");
-        }
-        
-        if (payload.channel === CHANNELS.populateConnections) {
-            renderConnections(payload.data?.connections || []);
-        }
-    });
+    if (modalBridge.onMessage) {
+        modalBridge.onMessage((payload) => {
+            if (!payload || typeof payload !== 'object') return;
+            
+            if (payload.channel === CHANNELS.connectReady) {
+                setButtonState(connectButton, false, "", "Connect");
+            }
+            
+            if (payload.channel === CHANNELS.populateConnections) {
+                renderConnections(payload.data?.connections || []);
+            }
+        });
+    } else {
+        console.warn("modalBridge.onMessage is not available");
+    }
 
     // Request connections list from main process
     modalBridge.send(CHANNELS.populateConnections, {});
