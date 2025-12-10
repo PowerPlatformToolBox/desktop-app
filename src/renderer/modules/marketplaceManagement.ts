@@ -3,8 +3,11 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
+import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
+import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
-import { closeModal, openModal } from "./modalManagement";
+import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 interface RegistryTool {
@@ -38,6 +41,19 @@ interface ExtendedToolDetail extends ToolDetail {
 // Tool library loaded from registry
 let toolLibrary: ToolDetail[] = [];
 
+const TOOL_DETAIL_MODAL_CHANNELS = {
+    install: "tool-detail:install",
+    installResult: "tool-detail:install:result",
+} as const;
+
+const TOOL_DETAIL_MODAL_DIMENSIONS = {
+    width: 860,
+    height: 720,
+};
+
+let toolDetailModalHandlersRegistered = false;
+let activeToolDetailModal: { tool: ExtendedToolDetail; isInstalled: boolean } | null = null;
+
 /**
  * Get tool library
  */
@@ -51,24 +67,26 @@ export function getToolLibrary(): ToolDetail[] {
 export async function loadToolsLibrary(): Promise<void> {
     try {
         // Fetch tools from registry
+        // TODO readmeurl
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
+        console.log(registryTools);
 
         // Map registry tools to the format expected by the UI
-        toolLibrary = (registryTools as RegistryTool[]).map((tool) => ({
-            id: tool.id,
-            name: tool.name,
-            description: tool.description,
-            authors: tool.authors,
-            category: tool.categories && tool.categories.length > 0 ? tool.categories[0] : "Tools",
-            tags: tool.categories,
-            version: tool.version,
-            iconUrl: tool.icon,
-            downloadUrl: tool.downloadUrl,
-            readmeUrl: tool.readme,
-            downloads: tool.downloads,
-            rating: tool.rating,
-            aum: tool.aum,
-        }));
+        toolLibrary = (registryTools as RegistryTool[]).map(
+            (tool) =>
+                ({
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    authors: tool.authors,
+                    categories: tool.categories,
+                    version: tool.version,
+                    icon: tool.icon,
+                    downloads: tool.downloads,
+                    rating: tool.rating,
+                    aum: tool.aum,
+                } as ToolDetail),
+        );
 
         console.log(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
@@ -104,13 +122,14 @@ export async function loadMarketplace(): Promise<void> {
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null; // Fluent UI text field
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
 
-    const filteredTools = toolLibrary.filter((tool) => {
-        if (!searchTerm) return true;
-        const haystacks: string[] = [tool.name, tool.description, tool.category];
-        if (tool.authors && tool.authors.length) haystacks.push(tool.authors.join(", "));
-        if (tool.tags && tool.tags.length) haystacks.push(tool.tags.join(", "));
-        return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
-    });
+    const filteredTools = !searchTerm
+        ? toolLibrary
+        : toolLibrary.filter((t) => {
+              const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
+              if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+              if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
+              return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
+          });
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
@@ -130,8 +149,8 @@ export async function loadMarketplace(): Promise<void> {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            const topTags = tool.tags && tool.tags.length ? tool.tags.slice(0, 2) : [];
-            const tagsHtml = topTags.length ? topTags.map((t) => `<span class="marketplace-tag">${t}</span>`).join("") : "";
+            const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
+            const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
                 ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
@@ -139,25 +158,22 @@ export async function loadMarketplace(): Promise<void> {
             </div>`;
             const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "";
 
-            // Determine tool icon: use URL if provided, otherwise use default icon
+            // Icon handling (retain improved fallback logic)
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
-            if (tool.iconUrl) {
-                // Check if icon is a URL (starts with http:// or https://)
-                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="marketplace-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+            if (tool.icon) {
+                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
                 } else {
-                    // Assume it's an emoji or text
-                    toolIconHtml = `<span class="marketplace-item-icon-text">${tool.iconUrl}</span>`;
+                    toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
                 }
             } else {
-                // Use default icon
-                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="marketplace-item-icon-img" />`;
+                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
             }
 
             return `
         <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
-            <div class="marketplace-item-top-tags">${tagsHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}</div>
+            <div class="marketplace-item-top-tags">${categoriesHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}</div>
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -271,114 +287,173 @@ export async function loadMarketplace(): Promise<void> {
 }
 
 /**
- * Open tool detail modal
+ * Open tool detail modal (BrowserWindow-based)
  */
 async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
-    const modal = document.getElementById("tool-detail-modal");
-    if (!modal) return;
+    initializeToolDetailModalBridge();
+    const extendedTool = tool as ExtendedToolDetail;
+    activeToolDetailModal = { tool: extendedTool, isInstalled };
 
-    // Set tool info
-    const nameElement = document.getElementById("tool-detail-name");
-    const descElement = document.getElementById("tool-detail-description");
-    const authorElement = document.getElementById("tool-detail-author");
-    const categoryElement = document.getElementById("tool-detail-category");
-    const installBtn = document.getElementById("tool-detail-install-btn");
-    const installedBadge = document.getElementById("tool-detail-installed-badge");
-    const readmeContent = document.getElementById("tool-detail-readme-content");
-    const iconElement = document.getElementById("tool-detail-icon");
+    try {
+        const readmeHtml = await loadToolReadmeHtml(extendedTool);
+        const modalHtml = buildToolDetailModalHtml(extendedTool, readmeHtml, isInstalled);
 
-    if (nameElement) nameElement.textContent = tool.name;
-    if (descElement) descElement.textContent = tool.description;
-    if (authorElement) authorElement.textContent = `Authors: ${tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown"}`;
-    if (categoryElement) categoryElement.textContent = `Category: ${tool.category}`;
+        await showBrowserWindowModal({
+            id: `tool-detail-modal-${tool.id}`,
+            html: modalHtml,
+            width: TOOL_DETAIL_MODAL_DIMENSIONS.width,
+            height: TOOL_DETAIL_MODAL_DIMENSIONS.height,
+        });
+    } catch (error) {
+        console.error("Failed to open tool detail modal", error);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Tool Details",
+            body: `Unable to open modal: ${formatError(error)}`,
+            type: "error",
+        });
+        activeToolDetailModal = null;
+    }
+}
 
-    // Icon handling (emoji, image URL, or fallback)
-    if (iconElement) {
-        const isDarkTheme = document.body.classList.contains("dark-theme");
-        const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-        let content = "";
-        const iconUrl: string | undefined = (tool as ExtendedToolDetail).iconUrl || (tool as ExtendedToolDetail).icon;
-        if (iconUrl) {
-            if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
-                content = `<img src="${iconUrl}" alt="${tool.name} icon" onerror="this.src='${defaultToolIcon}'" />`;
-            } else if (iconUrl.length <= 4) {
-                // Likely an emoji or short text token
-                content = `<span style="font-size:48px;line-height:1">${iconUrl}</span>`;
-            } else {
-                // Treat as text fallback
-                content = `<span style="font-size:20px;font-weight:600">${iconUrl}</span>`;
-            }
-        } else {
-            content = `<img src="${defaultToolIcon}" alt="Tool icon" />`;
-        }
-        iconElement.innerHTML = content;
+function initializeToolDetailModalBridge(): void {
+    if (toolDetailModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleToolDetailModalMessage);
+    onBrowserWindowModalClosed(handleToolDetailModalClosed);
+    toolDetailModalHandlersRegistered = true;
+}
+
+function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload.channel !== "string") return;
+
+    switch (payload.channel) {
+        case TOOL_DETAIL_MODAL_CHANNELS.install:
+            void handleToolDetailInstallRequest();
+            break;
+        default:
+            break;
+    }
+}
+
+async function handleToolDetailInstallRequest(): Promise<void> {
+    if (!activeToolDetailModal) return;
+
+    try {
+        await window.toolboxAPI.installToolFromRegistry(activeToolDetailModal.tool.id);
+
+        window.toolboxAPI.utils.showNotification({
+            title: "Tool Installed",
+            body: `${activeToolDetailModal.tool.name} has been installed successfully`,
+            type: "success",
+        });
+
+        activeToolDetailModal.isInstalled = true;
+
+        await loadMarketplace();
+        await loadSidebarTools();
+
+        await sendBrowserWindowModalMessage({
+            channel: TOOL_DETAIL_MODAL_CHANNELS.installResult,
+            data: {
+                success: true,
+            },
+        });
+    } catch (error) {
+        const errorMessage = formatError(error);
+        await sendBrowserWindowModalMessage({
+            channel: TOOL_DETAIL_MODAL_CHANNELS.installResult,
+            data: {
+                success: false,
+                error: errorMessage,
+            },
+        });
+        await window.toolboxAPI.utils.showNotification({
+            title: "Installation Failed",
+            body: `Failed to install tool: ${errorMessage}`,
+            type: "error",
+        });
+    }
+}
+
+function handleToolDetailModalClosed(payload: ModalWindowClosedPayload): void {
+    if (!payload || typeof payload.id !== "string") {
+        activeToolDetailModal = null;
+        return;
     }
 
-    // Show install button or installed badge
-    if (installBtn && installedBadge) {
-        if (isInstalled) {
-            installBtn.style.display = "none";
-            installedBadge.style.display = "inline-flex";
-        } else {
-            installBtn.style.display = "block";
-            installedBadge.style.display = "none";
+    if (payload.id.startsWith("tool-detail-modal-")) {
+        activeToolDetailModal = null;
+    }
+}
 
-            // Setup install button handler
-            const newInstallBtn = installBtn.cloneNode(true) as HTMLButtonElement;
-            installBtn.parentNode?.replaceChild(newInstallBtn, installBtn);
+function buildToolDetailModalHtml(tool: ExtendedToolDetail, readmeHtml: string, isInstalled: boolean): string {
+    const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown author";
+    const metaBadges: string[] = [];
+    if (tool.version) metaBadges.push(`v${tool.version}`);
+    if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
+    if (tool.rating !== undefined) metaBadges.push(`${tool.rating.toFixed(1)} rating`);
+    const categories = tool.categories && tool.categories.length ? tool.categories.map((category) => escapeHtml(category)) : [];
 
-            newInstallBtn.addEventListener("click", async () => {
-                newInstallBtn.disabled = true;
-                newInstallBtn.textContent = "Installing...";
+    const { styles, body } = getToolDetailModalView({
+        toolId: escapeHtml(tool.id),
+        name: escapeHtml(tool.name),
+        description: escapeHtml(tool.description || ""),
+        iconHtml: buildToolIconHtml(tool),
+        authors: escapeHtml(authorsDisplay),
+        metaBadges: metaBadges.map((badge) => escapeHtml(badge)),
+        categories: categories,
+        readmeHtml,
+        isInstalled,
+    });
 
-                try {
-                    await window.toolboxAPI.installTool(tool.id);
+    const script = getToolDetailModalControllerScript({
+        channels: TOOL_DETAIL_MODAL_CHANNELS,
+        state: {
+            toolId: tool.id,
+            toolName: tool.name,
+            isInstalled,
+        },
+    });
 
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Tool Installed",
-                        body: `${tool.name} has been installed successfully`,
-                        type: "success",
-                    });
+    return `${styles}\n${body}\n${script}`.trim();
+}
 
-                    // Close modal and reload
-                    closeModal("tool-detail-modal");
-                    await loadMarketplace();
-                    await loadSidebarTools();
-                } catch (error) {
-                    newInstallBtn.disabled = false;
-                    newInstallBtn.textContent = "Install";
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Installation Failed",
-                        body: `Failed to install tool: ${error}`,
-                        type: "error",
-                    });
-                }
-            });
-        }
+async function loadToolReadmeHtml(tool: ExtendedToolDetail): Promise<string> {
+    const readmeUrl = tool.readme || tool.readmeUrl;
+    if (!readmeUrl) {
+        return '<p class="loading-text">No README available</p>';
     }
 
-    // Load README
-    if (readmeContent) {
-        readmeContent.innerHTML = '<p class="loading-text">Loading README...</p>';
-
-        const readmeUrl = (tool as ExtendedToolDetail).readme || (tool as ExtendedToolDetail).readmeUrl;
-        if (readmeUrl) {
-            try {
-                const response = await fetch(readmeUrl);
-                const markdown = await response.text();
-
-                // Simple markdown to HTML conversion
-                const html = convertMarkdownToHtml(markdown);
-                readmeContent.innerHTML = html;
-            } catch (error) {
-                readmeContent.innerHTML = '<p class="loading-text">Failed to load README</p>';
-            }
-        } else {
-            readmeContent.innerHTML = '<p class="loading-text">No README available</p>';
+    try {
+        const response = await fetch(readmeUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
+        const markdown = await response.text();
+        return convertMarkdownToHtml(markdown);
+    } catch (error) {
+        console.error("Failed to load README", error);
+        return '<p class="loading-text">Failed to load README</p>';
+    }
+}
+
+function buildToolIconHtml(tool: ExtendedToolDetail): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+    const iconUrl = tool.iconUrl || tool.icon;
+
+    if (!iconUrl) {
+        return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
     }
 
-    openModal("tool-detail-modal");
+    if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
+        return `<img src="${iconUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${defaultToolIcon}'" />`;
+    }
+
+    if (iconUrl.length <= 4) {
+        return `<span style="font-size:48px;line-height:1">${escapeHtml(iconUrl)}</span>`;
+    }
+
+    return `<span style="font-size:20px;font-weight:600">${escapeHtml(iconUrl)}</span>`;
 }
 
 /**
@@ -417,4 +492,18 @@ function convertMarkdownToHtml(markdown: string): string {
     }
 
     return html;
+}
+
+function escapeHtml(value: string): string {
+    return value ? value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : "";
+}
+
+function formatError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return String(error);
+    }
 }

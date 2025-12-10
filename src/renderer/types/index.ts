@@ -65,29 +65,9 @@ export interface SessionData {
 }
 
 /**
- * Tool detail for marketplace display
+ * Tool detail for installed & marketplace display
  */
 export interface ToolDetail {
-    id: string;
-    name: string;
-    description: string;
-    authors?: string[];
-    category: string;
-    tags?: string[]; // deprecated, use categories in source mapping
-    version: string;
-    iconUrl?: string;
-    downloadUrl?: string;
-    publishedAt?: string;
-    readmeUrl?: string;
-    downloads?: number;
-    rating?: number;
-    aum?: number;
-}
-
-/**
- * Sidebar tool representation
- */
-export interface SidebarTool {
     id: string;
     name: string;
     version: string;

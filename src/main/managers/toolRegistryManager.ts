@@ -192,7 +192,6 @@ export class ToolRegistryManager extends EventEmitter {
             const tools: ToolRegistryEntry[] = (toolsData as unknown as SupabaseTool[]).map((tool) => {
                 const categories = (tool.tool_categories || []).map((row) => row.categories?.name?.trim()).filter((n): n is string => !!n);
                 const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
-                const author = contributors.length === 0 ? "Unknown" : contributors.join(", ");
                 let downloads: number | undefined;
                 let rating: number | undefined;
                 let aum: number | undefined;
@@ -207,16 +206,15 @@ export class ToolRegistryManager extends EventEmitter {
                     id: tool.id,
                     name: tool.name,
                     description: tool.description,
-                    author,
                     authors: contributors,
                     version: tool.version || "1.0.0",
-                    icon: tool.iconurl,
+                    iconUrl: tool.iconurl,
                     downloadUrl: tool.downloadurl,
+                    readmeUrl: tool.readmeurl,
                     publishedAt: tool.published_at || new Date().toISOString(),
-                    readme: tool.readmeurl,
                     checksum: tool.checksum,
                     size: tool.size ? Number(tool.size) || undefined : undefined,
-                    tags: categories,
+                    categories: categories,
                     cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
                     license: tool.license,
                     downloads,
@@ -433,14 +431,14 @@ export class ToolRegistryManager extends EventEmitter {
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
             authors,
-            icon: tool.icon || packageJson.icon,
+            icon: tool.iconUrl || packageJson.icon,
             installPath: toolPath,
             installedAt: new Date().toISOString(),
             source: "registry",
             sourceUrl: tool.downloadUrl,
-            readme: tool.readme, // Include readme URL from registry
+            readme: tool.readmeUrl, // Include readme URL from registry
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
-            categories: tool.tags,
+            categories: tool.categories,
             license: tool.license || packageJson.license,
             downloads: tool.downloads,
             rating: tool.rating,

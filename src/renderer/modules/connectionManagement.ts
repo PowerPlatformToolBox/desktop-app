@@ -4,9 +4,9 @@
  */
 
 import type { ModalWindowMessagePayload } from "../../common/types";
+import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
+import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { closeBrowserWindowModal, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
-import { getAddConnectionModalControllerScript } from "./modals/addConnection/controller";
-import { getAddConnectionModalView } from "./modals/addConnection/view";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";

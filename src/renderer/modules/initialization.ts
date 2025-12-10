@@ -409,12 +409,6 @@ function setupModalButtons(): void {
     if (closeAuthErrorBtn) {
         closeAuthErrorBtn.addEventListener("click", () => closeModal("auth-error-modal"));
     }
-
-    // Tool detail modal
-    const closeToolDetailModal = document.getElementById("close-tool-detail-modal");
-    if (closeToolDetailModal) {
-        closeToolDetailModal.addEventListener("click", () => closeModal("tool-detail-modal"));
-    }
 }
 
 /**

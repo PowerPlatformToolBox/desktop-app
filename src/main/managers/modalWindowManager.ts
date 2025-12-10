@@ -51,6 +51,8 @@ export class ModalWindowManager {
             .catch((error) => {
                 console.error("Failed to load modal content", error);
             });
+
+        modalWindow.webContents.openDevTools();
     }
 
     hideModal(): void {

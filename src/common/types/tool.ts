@@ -32,16 +32,15 @@ export interface ToolRegistryEntry {
     id: string;
     name: string;
     description: string;
-    author: string;
     authors?: string[]; // full list of contributors
     version: string;
-    icon?: string;
+    iconUrl?: string;
     downloadUrl: string;
+    readmeUrl?: string; // URL or relative path to README file
     checksum?: string;
     size?: number;
     publishedAt: string;
-    tags?: string[];
-    readme?: string; // URL or relative path to README file
+    categories?: string[];
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     license?: string; // SPDX or license name
     downloads?: number; // analytics - total downloads
