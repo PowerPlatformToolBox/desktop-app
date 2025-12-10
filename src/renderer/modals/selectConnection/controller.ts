@@ -139,7 +139,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     closeButton?.addEventListener('click', closeModal);
 
     // Listen for messages from main process
-    if (modalBridge.onMessage) {
+    if (modalBridge?.onMessage) {
         modalBridge.onMessage((payload) => {
             if (!payload || typeof payload !== 'object') return;
             

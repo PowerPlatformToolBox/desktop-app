@@ -3,8 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import type { DataverseConnection } from "../../common/types/connection";
-import type { ModalWindowMessagePayload } from "../../common/types";
+import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
@@ -169,7 +168,7 @@ export async function openSelectConnectionModal(): Promise<void> {
         selectConnectionModalPromiseHandlers.reject = reject;
         
         // Listen for modal close event to reject if not already resolved
-        const modalClosedHandler = (payload: { id?: string | null }) => {
+        const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
             if (selectConnectionModalPromiseHandlers.reject && payload?.id === "select-connection-browser-modal") {
                 // Modal was closed without selecting a connection
                 selectConnectionModalPromiseHandlers.reject(new Error("Connection selection cancelled"));
