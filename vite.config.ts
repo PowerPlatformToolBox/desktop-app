@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
                         preload: "src/main/preload.ts",
                         toolPreloadBridge: "src/main/toolPreloadBridge.ts",
                         notificationPreload: "src/main/notificationPreload.ts",
+                        modalPreload: "src/main/modalPreload.ts",
                     },
                     vite: {
                         build: {

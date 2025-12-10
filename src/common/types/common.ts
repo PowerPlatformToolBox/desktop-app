@@ -27,6 +27,32 @@ export interface NotificationOptions {
 }
 
 /**
+ * BrowserWindow-backed modal configuration
+ */
+export interface ModalWindowOptions {
+    id?: string;
+    html: string;
+    width: number;
+    height: number;
+    resizable?: boolean;
+}
+
+/**
+ * Payload emitted from BrowserWindow modal content via modalBridge
+ */
+export interface ModalWindowMessagePayload<TData = unknown> {
+    channel: string;
+    data?: TData;
+}
+
+/**
+ * Payload broadcast when a modal window closes
+ */
+export interface ModalWindowClosedPayload {
+    id?: string | null;
+}
+
+/**
  * Theme type
  */
 export type Theme = "light" | "dark" | "system";

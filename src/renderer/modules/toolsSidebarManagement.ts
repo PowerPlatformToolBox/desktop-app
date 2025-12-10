@@ -3,7 +3,7 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
-import { SidebarTool } from "../types/index";
+import { ToolDetail } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { launchTool } from "./toolManagement";
 
@@ -31,7 +31,7 @@ export async function loadSidebarTools(): Promise<void> {
 
         // Enrich tools with update info and favorite status
         const toolsWithUpdateInfo = await Promise.all(
-            tools.map(async (tool: SidebarTool) => {
+            tools.map(async (tool: ToolDetail) => {
                 const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
                 return {
                     ...tool,
@@ -75,7 +75,7 @@ export async function loadSidebarTools(): Promise<void> {
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
-            .map((tool: SidebarTool & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
+            .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
                 const isFavorite = !!tool.isFavorite;
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 

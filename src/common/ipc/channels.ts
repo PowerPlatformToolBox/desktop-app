@@ -92,6 +92,9 @@ export const UTIL_CHANNELS = {
     HIDE_LOADING: "hide-loading",
     OPEN_EXTERNAL: "open-external",
     GET_EVENT_HISTORY: "get-event-history",
+    SHOW_MODAL_WINDOW: "show-modal-window",
+    CLOSE_MODAL_WINDOW: "close-modal-window",
+    SEND_MODAL_MESSAGE: "send-modal-message",
 } as const;
 
 // Auto-update-related IPC channels
@@ -134,6 +137,16 @@ export const EVENT_CHANNELS = {
     TOKEN_EXPIRED: "token-expired",
     SHOW_LOADING_SCREEN: "show-loading-screen",
     HIDE_LOADING_SCREEN: "hide-loading-screen",
+    MODAL_WINDOW_OPENED: "modal-window:opened",
+    MODAL_WINDOW_CLOSED: "modal-window:closed",
+    MODAL_WINDOW_MESSAGE: "modal-window:message",
+} as const;
+
+// Internal BrowserWindow modal channels (modal content -> main process)
+export const MODAL_WINDOW_CHANNELS = {
+    CLOSE: "modal-window:close",
+    MESSAGE: "modal-window:event",
+    RENDERER_MESSAGE: "modal-window:renderer-message",
 } as const;
 
 // Type helper to extract channel names

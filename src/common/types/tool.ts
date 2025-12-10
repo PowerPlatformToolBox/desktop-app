@@ -13,7 +13,7 @@ export interface Tool {
     version: string;
     description: string;
     authors?: string[];
-    icon?: string;
+    iconUrl?: string;
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
     npmPackageName?: string; // For npm-installed tools - package name in node_modules
@@ -23,6 +23,7 @@ export interface Tool {
     downloads?: number;
     rating?: number;
     aum?: number;
+    readmeUrl?: string;
 }
 
 /**
@@ -32,16 +33,15 @@ export interface ToolRegistryEntry {
     id: string;
     name: string;
     description: string;
-    author: string;
     authors?: string[]; // full list of contributors
     version: string;
-    icon?: string;
+    iconUrl?: string;
     downloadUrl: string;
+    readmeUrl?: string; // URL or relative path to README file
     checksum?: string;
     size?: number;
     publishedAt: string;
-    tags?: string[];
-    readme?: string; // URL or relative path to README file
+    categories?: string[];
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     license?: string; // SPDX or license name
     downloads?: number; // analytics - total downloads

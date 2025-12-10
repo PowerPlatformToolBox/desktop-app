@@ -29,5 +29,10 @@ declare global {
     }
 }
 
+declare module "*.svg?raw" {
+    const content: string;
+    export default content;
+}
+
 // Make this file a module so the global augmentation is applied
 export {};
