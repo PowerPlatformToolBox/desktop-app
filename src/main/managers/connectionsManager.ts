@@ -83,10 +83,6 @@ export class ConnectionsManager {
   addConnection(connection: DataverseConnection): void {
     const connections = this.store.get('connections');
     
-    // Ensure connection is not marked as active when first added
-    // Connection should only be marked active after successful authentication
-    connection.isActive = false;
-    
     // Encrypt sensitive fields before storing
     const encryptedConnection = this.encryptionManager.encryptFields(
       connection, 
@@ -137,66 +133,27 @@ export class ConnectionsManager {
   }
 
   /**
-   * Set active connection (only one can be active at a time) with encrypted tokens
+   * Update connection tokens with encryption (called after authentication/refresh)
    */
-  setActiveConnection(id: string, authTokens?: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
+  updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
     const connections = this.store.get('connections');
-    connections.forEach(c => {
-      c.isActive = c.id === id;
-      if (c.isActive) {
-        c.lastUsedAt = new Date().toISOString();
-        if (authTokens) {
-          // Encrypt tokens before storing
-          c.accessToken = this.encryptionManager.encrypt(authTokens.accessToken);
-          c.refreshToken = authTokens.refreshToken 
-            ? this.encryptionManager.encrypt(authTokens.refreshToken)
-            : undefined;
-          c.tokenExpiry = authTokens.expiresOn.toISOString();
-        }
-      }
-    });
-    this.store.set('connections', connections);
-  }
-
-  /**
-   * Get the currently active connection with decrypted sensitive fields
-   */
-  getActiveConnection(): DataverseConnection | null {
-    const connections = this.store.get('connections');
-    const activeConnection = connections.find(c => c.isActive);
+    const connection = connections.find(c => c.id === id);
     
-    if (!activeConnection) {
-      return null;
+    if (!connection) {
+      throw new Error('Connection not found');
     }
     
-    // Decrypt sensitive fields
-    return this.encryptionManager.decryptFields(activeConnection, SENSITIVE_CONNECTION_FIELDS);
-  }
-
-  /**
-   * Disconnect (deactivate) the current connection
-   */
-  disconnectActiveConnection(): void {
-    const connections = this.store.get('connections');
-    connections.forEach(c => c.isActive = false);
+    // Update lastUsedAt timestamp
+    connection.lastUsedAt = new Date().toISOString();
+    
+    // Encrypt tokens before storing
+    connection.accessToken = this.encryptionManager.encrypt(authTokens.accessToken);
+    connection.refreshToken = authTokens.refreshToken 
+      ? this.encryptionManager.encrypt(authTokens.refreshToken)
+      : undefined;
+    connection.tokenExpiry = authTokens.expiresOn.toISOString();
+    
     this.store.set('connections', connections);
-  }
-
-  /**
-   * Check if a connection's token is expired
-   */
-  isConnectionTokenExpired(connectionId: string): boolean {
-    const connections = this.store.get('connections');
-    const connection = connections.find(c => c.id === connectionId);
-    
-    if (!connection || !connection.tokenExpiry) {
-      return false;
-    }
-
-    const expiryDate = new Date(connection.tokenExpiry);
-    const now = new Date();
-    
-    return expiryDate.getTime() <= now.getTime();
   }
 
   /**

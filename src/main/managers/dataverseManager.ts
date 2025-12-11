@@ -57,12 +57,13 @@ export class DataverseManager {
     }
 
     /**
-     * Get the active connection and ensure it has a valid access token
+     * Get a connection by ID and ensure it has a valid access token
+     * @param connectionId The ID of the connection to use
      */
-    private async getActiveConnectionWithToken(): Promise<{ connection: DataverseConnection; accessToken: string }> {
-        const connection = this.connectionsManager.getActiveConnection();
+    private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
+        const connection = this.connectionsManager.getConnectionById(connectionId);
         if (!connection) {
-            throw new Error("No active connection. Please connect to a Dataverse environment first.");
+            throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
         if (!connection.accessToken) {
@@ -79,7 +80,7 @@ export class DataverseManager {
                 if (connection.refreshToken) {
                     try {
                         const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                        this.connectionsManager.setActiveConnection(connection.id, {
+                        this.connectionsManager.updateConnectionTokens(connection.id, {
                             accessToken: authResult.accessToken,
                             refreshToken: authResult.refreshToken,
                             expiresOn: authResult.expiresOn,
