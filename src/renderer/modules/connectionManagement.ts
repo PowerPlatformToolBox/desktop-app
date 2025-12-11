@@ -8,6 +8,8 @@ import { getAddConnectionModalControllerScript } from "../modals/addConnection/c
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
+import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
+import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
 import {
     closeBrowserWindowModal,
     onBrowserWindowModalMessage,
@@ -57,12 +59,33 @@ const SELECT_CONNECTION_MODAL_DIMENSIONS = {
     height: 600,
 };
 
+const SELECT_MULTI_CONNECTION_MODAL_CHANNELS = {
+    selectConnections: "select-multi-connection:select",
+    connectReady: "select-multi-connection:connect:ready",
+    populateConnections: "select-multi-connection:populate",
+} as const;
+
+const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
+    width: 600,
+    height: 700,
+};
+
 let addConnectionModalHandlersRegistered = false;
 let selectConnectionModalHandlersRegistered = false;
+let selectMultiConnectionModalHandlersRegistered = false;
 
 // Store promise handlers for select connection modal
 const selectConnectionModalPromiseHandlers: {
     resolve: (() => void) | null;
+    reject: ((error: Error) => void) | null;
+} = {
+    resolve: null,
+    reject: null,
+};
+
+// Store promise handlers for select multi-connection modal
+const selectMultiConnectionModalPromiseHandlers: {
+    resolve: ((result: { primaryConnectionId: string; secondaryConnectionId: string }) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -295,6 +318,132 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
 
 async function signalSelectConnectionReady(): Promise<void> {
     await sendBrowserWindowModalMessage({ channel: SELECT_CONNECTION_MODAL_CHANNELS.connectReady });
+}
+
+/**
+ * Initialize select multi-connection modal bridge
+ */
+export function initializeSelectMultiConnectionModalBridge(): void {
+    if (selectMultiConnectionModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleSelectMultiConnectionModalMessage);
+    selectMultiConnectionModalHandlersRegistered = true;
+}
+
+/**
+ * Open the select multi-connection modal for tools that require two connections
+ * Returns a promise that resolves with both connection IDs, or rejects if cancelled
+ */
+export async function openSelectMultiConnectionModal(): Promise<{ primaryConnectionId: string; secondaryConnectionId: string }> {
+    return new Promise((resolve, reject) => {
+        initializeSelectMultiConnectionModalBridge();
+        
+        // Store resolve/reject handlers for later use
+        selectMultiConnectionModalPromiseHandlers.resolve = resolve;
+        selectMultiConnectionModalPromiseHandlers.reject = reject;
+        
+        // Listen for modal close event to reject if not already resolved
+        const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
+            if (selectMultiConnectionModalPromiseHandlers.reject && payload?.id === "select-multi-connection-browser-modal") {
+                // Modal was closed without selecting connections
+                selectMultiConnectionModalPromiseHandlers.reject(new Error("Multi-connection selection cancelled"));
+                selectMultiConnectionModalPromiseHandlers.resolve = null;
+                selectMultiConnectionModalPromiseHandlers.reject = null;
+                // Remove the handler after first call
+                offBrowserWindowModalClosed(modalClosedHandler);
+            }
+        };
+        
+        onBrowserWindowModalClosed(modalClosedHandler);
+        
+        showBrowserWindowModal({
+            id: "select-multi-connection-browser-modal",
+            html: buildSelectMultiConnectionModalHtml(),
+            width: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.width,
+            height: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.height,
+        }).catch(reject);
+    });
+}
+
+function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    switch (payload.channel) {
+        case SELECT_MULTI_CONNECTION_MODAL_CHANNELS.selectConnections:
+            void handleSelectMultiConnectionsRequest(payload.data as { primaryConnectionId?: string; secondaryConnectionId?: string });
+            break;
+        case SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections:
+            void handlePopulateMultiConnectionsRequest();
+            break;
+        default:
+            break;
+    }
+}
+
+function buildSelectMultiConnectionModalHtml(): string {
+    const { styles, body } = getSelectMultiConnectionModalView();
+    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS);
+    return `${styles}\n${body}\n${script}`.trim();
+}
+
+async function handleSelectMultiConnectionsRequest(data?: { primaryConnectionId?: string; secondaryConnectionId?: string }): Promise<void> {
+    const primaryConnectionId = data?.primaryConnectionId;
+    const secondaryConnectionId = data?.secondaryConnectionId;
+    
+    if (!primaryConnectionId || !secondaryConnectionId) {
+        await signalSelectMultiConnectionReady();
+        return;
+    }
+
+    try {
+        // Resolve the promise BEFORE closing the modal
+        const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
+        selectMultiConnectionModalPromiseHandlers.resolve = null;
+        selectMultiConnectionModalPromiseHandlers.reject = null;
+        
+        // Close the modal
+        await closeBrowserWindowModal();
+        
+        // Now resolve the promise with both connection IDs
+        if (resolveHandler) {
+            resolveHandler({ primaryConnectionId, secondaryConnectionId });
+        }
+    } catch (error) {
+        console.error("Error selecting multi-connections:", error);
+        await signalSelectMultiConnectionReady();
+    }
+}
+
+async function handlePopulateMultiConnectionsRequest(): Promise<void> {
+    try {
+        const connections = await window.toolboxAPI.connections.getAll();
+        
+        // Send connections list to modal
+        await sendBrowserWindowModalMessage({
+            channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
+            data: {
+                connections: connections.map((conn: DataverseConnection) => ({
+                    id: conn.id,
+                    name: conn.name,
+                    url: conn.url,
+                    environment: conn.environment,
+                    authenticationType: conn.authenticationType,
+                    isActive: conn.isActive || false,
+                })),
+            },
+        });
+    } catch (error) {
+        console.error("Failed to populate multi-connections:", error);
+        await sendBrowserWindowModalMessage({
+            channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
+            data: { connections: [] },
+        });
+    }
+}
+
+async function signalSelectMultiConnectionReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady });
 }
 
 /**

@@ -87,6 +87,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     removeToolConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, toolId),
     getAllToolConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS),
 
+    // Tool secondary connection management
+    setToolSecondaryConnection: (toolId: string, connectionId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, toolId, connectionId),
+    getToolSecondaryConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, toolId),
+    removeToolSecondaryConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, toolId),
+    getAllToolSecondaryConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS),
+
     // Webview URL generation - Only for PPTB UI
     getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, toolId),
 

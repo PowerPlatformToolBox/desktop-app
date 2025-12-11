@@ -212,6 +212,10 @@ class ToolBoxApp {
             return this.connectionsManager.getConnections();
         });
 
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (event, connectionId: string) => {
+            return this.connectionsManager.getConnectionById(connectionId);
+        });
+
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
             const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
@@ -461,6 +465,23 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS, () => {
             return this.settingsManager.getAllToolConnections();
+        });
+
+        // Tool secondary connection management
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, (_, toolId: string, connectionId: string) => {
+            this.settingsManager.setToolSecondaryConnection(toolId, connectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            return this.settingsManager.getToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            this.settingsManager.removeToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS, () => {
+            return this.settingsManager.getAllToolSecondaryConnections();
         });
 
         // Webview protocol handler

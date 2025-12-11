@@ -5,6 +5,13 @@
 import { CspExceptions } from "./common";
 
 /**
+ * Tool features configuration
+ */
+export interface ToolFeatures {
+    "multi-connection"?: boolean;
+}
+
+/**
  * Represents a tool that can be loaded into the ToolBox
  */
 export interface Tool {
@@ -24,6 +31,7 @@ export interface Tool {
     rating?: number;
     aum?: number;
     readmeUrl?: string;
+    features?: ToolFeatures; // Tool features configuration
 }
 
 /**
@@ -47,6 +55,7 @@ export interface ToolRegistryEntry {
     downloads?: number; // analytics - total downloads
     rating?: number; // analytics - average rating
     aum?: number; // analytics - active user months
+    features?: ToolFeatures; // Tool features configuration
 }
 
 /**
@@ -70,6 +79,7 @@ export interface ToolManifest {
     downloads?: number;
     rating?: number;
     aum?: number;
+    features?: ToolFeatures; // Tool features configuration
 }
 
 /**
@@ -86,6 +96,9 @@ export interface ToolSettings {
 export interface ToolContext {
     toolId: string;
     connectionUrl: string | null;
+    connectionId?: string | null;
+    secondaryConnectionUrl?: string | null;
+    secondaryConnectionId?: string | null;
 }
 
 /**

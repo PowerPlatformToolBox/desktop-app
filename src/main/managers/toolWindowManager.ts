@@ -153,18 +153,33 @@ export class ToolWindowManager {
             // Get connection information for this tool
             const toolConnectionId = this.settingsManager.getToolConnection(toolId);
             let connectionUrl: string | null = null;
+            let connectionId: string | null = null;
+            let secondaryConnectionUrl: string | null = null;
+            let secondaryConnectionId: string | null = null;
             
             if (toolConnectionId) {
                 // Tool has a specific connection assigned
                 const connection = this.connectionsManager.getConnectionById(toolConnectionId);
                 if (connection) {
                     connectionUrl = connection.url;
+                    connectionId = toolConnectionId;
                 }
             } else {
                 // Fall back to global active connection
                 const activeConnection = this.connectionsManager.getActiveConnection();
                 if (activeConnection) {
                     connectionUrl = activeConnection.url;
+                    connectionId = activeConnection.id;
+                }
+            }
+
+            // Check if tool has a secondary connection (for multi-connection tools)
+            const secondaryToolConnectionId = this.settingsManager.getToolSecondaryConnection(toolId);
+            if (secondaryToolConnectionId) {
+                const secondaryConnection = this.connectionsManager.getConnectionById(secondaryToolConnectionId);
+                if (secondaryConnection) {
+                    secondaryConnectionUrl = secondaryConnection.url;
+                    secondaryConnectionId = secondaryToolConnectionId;
                 }
             }
 
@@ -175,10 +190,12 @@ export class ToolWindowManager {
                 toolName: tool.name,
                 version: tool.version,
                 connectionUrl: connectionUrl,
-                connectionId: toolConnectionId,
+                connectionId: connectionId,
+                secondaryConnectionUrl: secondaryConnectionUrl,
+                secondaryConnectionId: secondaryConnectionId,
             };
             toolView.webContents.send("toolbox:context", toolContext);
-            console.log(`[ToolWindowManager] Sent tool context for ${toolId} with connection:`, connectionUrl ? "yes" : "no");
+            console.log(`[ToolWindowManager] Sent tool context for ${toolId} with connection:`, connectionUrl ? "yes" : "no", "secondary:", secondaryConnectionUrl ? "yes" : "no");
 
             // Show this tool
             await this.switchToTool(toolId);

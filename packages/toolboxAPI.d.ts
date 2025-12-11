@@ -12,6 +12,9 @@ declare namespace ToolBoxAPI {
     export interface ToolContext {
         toolId: string | null;
         connectionUrl: string | null;
+        connectionId?: string | null;
+        secondaryConnectionUrl?: string | null;
+        secondaryConnectionId?: string | null;
     }
 
     /**
@@ -120,6 +123,21 @@ declare namespace ToolBoxAPI {
          * Get the currently active Dataverse connection
          */
         getActiveConnection: () => Promise<DataverseConnection | null>;
+        
+        /**
+         * Get the secondary connection for multi-connection tools
+         */
+        getSecondaryConnection: () => Promise<DataverseConnection | null>;
+        
+        /**
+         * Get the secondary connection URL for multi-connection tools
+         */
+        getSecondaryConnectionUrl: () => Promise<string | null>;
+        
+        /**
+         * Get the secondary connection ID for multi-connection tools
+         */
+        getSecondaryConnectionId: () => Promise<string | null>;
     }
 
     /**

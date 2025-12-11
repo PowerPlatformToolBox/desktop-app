@@ -30,6 +30,10 @@ export const SETTINGS_CHANNELS = {
     GET_TOOL_CONNECTION: "get-tool-connection",
     REMOVE_TOOL_CONNECTION: "remove-tool-connection",
     GET_ALL_TOOL_CONNECTIONS: "get-all-tool-connections",
+    SET_TOOL_SECONDARY_CONNECTION: "set-tool-secondary-connection",
+    GET_TOOL_SECONDARY_CONNECTION: "get-tool-secondary-connection",
+    REMOVE_TOOL_SECONDARY_CONNECTION: "remove-tool-secondary-connection",
+    GET_ALL_TOOL_SECONDARY_CONNECTIONS: "get-all-tool-secondary-connections",
 } as const;
 
 // Connection-related IPC channels
@@ -38,6 +42,7 @@ export const CONNECTION_CHANNELS = {
     UPDATE_CONNECTION: "update-connection",
     DELETE_CONNECTION: "delete-connection",
     GET_CONNECTIONS: "get-connections",
+    GET_CONNECTION_BY_ID: "get-connection-by-id",
     SET_ACTIVE_CONNECTION: "set-active-connection",
     GET_ACTIVE_CONNECTION: "get-active-connection",
     DISCONNECT_CONNECTION: "disconnect-connection",

@@ -4,7 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
-import { openSelectConnectionModal } from "./connectionManagement";
+import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -131,29 +131,7 @@ export async function launchTool(toolId: string): Promise<void> {
             return;
         }
 
-        // Check if there's an active connection before launching the tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        
-        if (!activeConnection) {
-            console.log("No active connection found. Showing connection selection modal...");
-            
-            try {
-                // Show the select connection modal and wait for user to connect
-                await openSelectConnectionModal();
-                console.log("Connection established. Continuing with tool launch...");
-            } catch (error) {
-                // User cancelled the connection selection
-                console.log("Connection selection cancelled:", error);
-                window.toolboxAPI.utils.showNotification({
-                    title: "Tool Launch Cancelled",
-                    body: "A connection is required to use this tool. Please connect to an environment to continue.",
-                    type: "info",
-                });
-                return;
-            }
-        }
-
-        // Load the tool
+        // Load the tool first to check if it requires multi-connection
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
             window.toolboxAPI.utils.showNotification({
@@ -162,6 +140,56 @@ export async function launchTool(toolId: string): Promise<void> {
                 type: "error",
             });
             return;
+        }
+
+        // Check if tool requires multi-connection
+        const requiresMultiConnection = tool.features && tool.features["multi-connection"] === true;
+
+        if (requiresMultiConnection) {
+            // Tool requires two connections
+            console.log("Tool requires multi-connection. Showing multi-connection modal...");
+            
+            try {
+                // Show the select multi-connection modal and wait for user to select both connections
+                const { primaryConnectionId, secondaryConnectionId } = await openSelectMultiConnectionModal();
+                console.log("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+
+                // Store the connection IDs in settings for this tool
+                await window.toolboxAPI.setToolConnection(toolId, primaryConnectionId);
+                await window.toolboxAPI.setToolSecondaryConnection(toolId, secondaryConnectionId);
+            } catch (error) {
+                // User cancelled the multi-connection selection
+                console.log("Multi-connection selection cancelled:", error);
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Launch Cancelled",
+                    body: "This tool requires two connections. Please select both connections to continue.",
+                    type: "info",
+                });
+                return;
+            }
+        } else {
+            // Regular single-connection flow
+            // Check if there's an active connection before launching the tool
+            const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+            
+            if (!activeConnection) {
+                console.log("No active connection found. Showing connection selection modal...");
+                
+                try {
+                    // Show the select connection modal and wait for user to connect
+                    await openSelectConnectionModal();
+                    console.log("Connection established. Continuing with tool launch...");
+                } catch (error) {
+                    // User cancelled the connection selection
+                    console.log("Connection selection cancelled:", error);
+                    window.toolboxAPI.utils.showNotification({
+                        title: "Tool Launch Cancelled",
+                        body: "A connection is required to use this tool. Please connect to an environment to continue.",
+                        type: "info",
+                    });
+                    return;
+                }
+            }
         }
 
         // Check if tool requires CSP exceptions
