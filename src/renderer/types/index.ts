@@ -6,10 +6,12 @@
  * Interface for an open tool instance
  */
 export interface OpenTool {
-    id: string;
+    instanceId: string; // Unique instance ID (e.g., "toolId-uuid")
+    toolId: string; // The base tool ID
     tool: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     isPinned: boolean;
-    connectionId: string | null;
+    connectionId: string | null; // Primary connection
+    secondaryConnectionId: string | null; // Secondary connection (for multi-connection tools)
 }
 
 /**
@@ -57,9 +59,11 @@ export interface SettingsState {
  */
 export interface SessionData {
     openTools: Array<{
-        id: string;
+        instanceId: string;
+        toolId: string;
         isPinned: boolean;
         connectionId: string | null;
+        secondaryConnectionId: string | null;
     }>;
     activeToolId: string | null;
 }
