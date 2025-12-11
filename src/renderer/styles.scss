@@ -27,6 +27,11 @@
     --elevation-high: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
     --elevation-medium: 0 12px 28px -8px rgba(0, 0, 0, 0.3);
     --backdrop-blur: blur(28px);
+    /* Environment border colors - Light theme */
+    --env-border-dev: #{$env-border-dev-light};
+    --env-border-test: #{$env-border-test-light};
+    --env-border-uat: #{$env-border-uat-light};
+    --env-border-prod: #{$env-border-prod-light};
 }
 
 /* Dark theme */
@@ -38,6 +43,11 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
+    /* Environment border colors - Dark theme */
+    --env-border-dev: #{$env-border-dev-dark};
+    --env-border-test: #{$env-border-test-dark};
+    --env-border-uat: #{$env-border-uat-dark};
+    --env-border-prod: #{$env-border-prod-dark};
 }
 
 * {
@@ -1226,6 +1236,24 @@ body {
     display: flex;
     position: relative;
     overflow: hidden;
+    transition: border-color 0.3s ease;
+}
+
+/* Environment-specific border styles */
+.tool-panel-content-wrapper.env-dev {
+    border: 3px solid var(--env-border-dev);
+}
+
+.tool-panel-content-wrapper.env-test {
+    border: 3px solid var(--env-border-test);
+}
+
+.tool-panel-content-wrapper.env-uat {
+    border: 3px solid var(--env-border-uat);
+}
+
+.tool-panel-content-wrapper.env-production {
+    border: 3px solid var(--env-border-prod);
 }
 
 .tool-panel-content-wrapper.split-view .tool-panel-content {
