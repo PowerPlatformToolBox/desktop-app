@@ -336,6 +336,8 @@ export async function switchToTool(toolId: string): Promise<void> {
     // Update tab active states
     document.querySelectorAll(".tool-tab").forEach((tab) => {
         tab.classList.remove("active");
+        // Also remove environment classes from all tabs
+        tab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
     });
     const activeTab = document.getElementById(`tool-tab-${toolId}`);
     if (activeTab) {
@@ -698,20 +700,35 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
 }
 
 /**
- * Update the tool panel border based on the connection environment
+ * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
 function updateToolPanelBorder(environment: string | null): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
-    if (!toolPanelWrapper) return;
+    if (toolPanelWrapper) {
+        // Remove all environment classes from panel
+        toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
 
-    // Remove all environment classes
-    toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+        // Add the appropriate class based on environment
+        if (environment) {
+            const envClass = `env-${environment.toLowerCase()}`;
+            toolPanelWrapper.classList.add(envClass);
+        }
+    }
 
-    // Add the appropriate class based on environment
-    if (environment) {
-        const envClass = `env-${environment.toLowerCase()}`;
-        toolPanelWrapper.classList.add(envClass);
+    // Update the active tab with environment class
+    if (activeToolId) {
+        const activeTab = document.getElementById(`tool-tab-${activeToolId}`);
+        if (activeTab) {
+            // Remove all environment classes from tab
+            activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+
+            // Add the appropriate class based on environment
+            if (environment) {
+                const envClass = `env-${environment.toLowerCase()}`;
+                activeTab.classList.add(envClass);
+            }
+        }
     }
 }
 
