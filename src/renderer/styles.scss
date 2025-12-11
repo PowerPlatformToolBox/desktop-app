@@ -1241,19 +1241,19 @@ body {
 
 /* Environment-specific border styles */
 .tool-panel-content-wrapper.env-dev {
-    border: 3px solid var(--env-border-dev);
+    border: 5px solid var(--env-border-dev);
 }
 
 .tool-panel-content-wrapper.env-test {
-    border: 3px solid var(--env-border-test);
+    border: 5px solid var(--env-border-test);
 }
 
 .tool-panel-content-wrapper.env-uat {
-    border: 3px solid var(--env-border-uat);
+    border: 5px solid var(--env-border-uat);
 }
 
 .tool-panel-content-wrapper.env-production {
-    border: 3px solid var(--env-border-prod);
+    border: 5px solid var(--env-border-prod);
 }
 
 .tool-panel-content-wrapper.split-view .tool-panel-content {
