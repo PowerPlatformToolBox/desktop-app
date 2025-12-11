@@ -81,6 +81,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
+    // Tool-Connection mapping - Only for PPTB UI
+    setToolConnection: (toolId: string, connectionId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, toolId, connectionId),
+    getToolConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_CONNECTION, toolId),
+    removeToolConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, toolId),
+    getAllToolConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS),
+
     // Webview URL generation - Only for PPTB UI
     getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, toolId),
 

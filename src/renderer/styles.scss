@@ -834,6 +834,18 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.connection-status:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark-theme .connection-status:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .connection-status.connected {
@@ -3287,4 +3299,59 @@ body.dark-theme .csp-warning ul {
         opacity: 1;
         transform: translateX(0);
     }
+}
+
+/* Context Menu for Tool Tabs */
+.context-menu {
+    background: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.context-menu-header {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+    color: var(--text-primary);
+}
+
+.context-menu-item:hover:not(.disabled) {
+    background: var(--background-hover);
+}
+
+.context-menu-item.active {
+    background: var(--primary-color-alpha);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 0;
+}
+
+.context-menu-item span {
+    flex: 1;
 }

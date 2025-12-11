@@ -4,7 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
-import { openSelectConnectionModal } from "./connectionManagement";
+import { openSelectConnectionModal, updateFooterConnection } from "./connectionManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -216,15 +216,25 @@ export async function launchTool(toolId: string): Promise<void> {
         console.log(`[Tool Launch] Tool window created via BrowserView: ${toolId}`);
 
         // Store the open tool (no webview container needed - managed by backend)
+        const toolConnectionId = await window.toolboxAPI.getToolConnection(toolId);
         openTools.set(toolId, {
             id: toolId,
             tool: tool,
             isPinned: false,
-            connectionId: null,
+            connectionId: toolConnectionId,
         });
 
         // Create and add tab
         createTab(toolId, tool);
+
+        // Update connection badge if tool has a specific connection
+        if (toolConnectionId) {
+            const badge = document.getElementById(`tab-connection-${toolId}`);
+            if (badge) {
+                badge.style.display = "inline";
+                badge.title = "Tool-specific connection";
+            }
+        }
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(toolId);
@@ -317,7 +327,7 @@ export function createTab(toolId: string, tool: any): void {
 /**
  * Switch to a tool tab
  */
-export function switchToTool(toolId: string): void {
+export async function switchToTool(toolId: string): Promise<void> {
     if (!openTools.has(toolId)) return;
 
     // Normal single view mode
@@ -337,6 +347,9 @@ export function switchToTool(toolId: string): void {
     window.toolboxAPI.switchToolWindow(toolId).catch((error: any) => {
         console.error("Failed to switch tool window:", error);
     });
+
+    // Update connection status display based on this tool's connection
+    await updateActiveToolConnectionStatus();
 }
 
 /**
@@ -521,12 +534,11 @@ export async function restoreSession(): Promise<void> {
                 if (toolInfo.isPinned) {
                     togglePinTab(toolInfo.id);
                 }
-                if (toolInfo.connectionId) {
-                    setToolConnection(toolInfo.id, toolInfo.connectionId);
-                }
+                // Note: toolInfo.connectionId is now loaded from settings during launchTool
+                // so we don't need to set it here explicitly
             }
             if (session.activeToolId && openTools.has(session.activeToolId)) {
-                switchToTool(session.activeToolId);
+                await switchToTool(session.activeToolId);
             }
         }
     } catch (error) {
@@ -537,11 +549,18 @@ export async function restoreSession(): Promise<void> {
 /**
  * Set connection for a tool
  */
-export function setToolConnection(toolId: string, connectionId: string | null): void {
+export async function setToolConnection(toolId: string, connectionId: string | null): Promise<void> {
     const tool = openTools.get(toolId);
     if (!tool) return;
 
     tool.connectionId = connectionId;
+
+    // Save to backend
+    if (connectionId) {
+        await window.toolboxAPI.setToolConnection(toolId, connectionId);
+    } else {
+        await window.toolboxAPI.removeToolConnection(toolId);
+    }
 
     // Update connection badge on tab
     const badge = document.getElementById(`tab-connection-${toolId}`);
@@ -557,7 +576,11 @@ export function setToolConnection(toolId: string, connectionId: string | null): 
 
     saveSession();
 
-    // Notify tool of connection change (in a real implementation, this would message the webview)
+    // Update sidebar and footer if this is the active tool
+    if (activeToolId === toolId) {
+        await updateActiveToolConnectionStatus();
+    }
+
     console.log(`Tool ${toolId} connection set to:`, connectionId);
 }
 
@@ -614,4 +637,187 @@ export function setupKeyboardShortcuts(): void {
             switchToTool(toolIds[prevIndex]);
         }
     });
+}
+
+/**
+ * Update sidebar and footer connection status based on active tool's connection
+ */
+export async function updateActiveToolConnectionStatus(): Promise<void> {
+    const statusElement = document.getElementById("connection-status");
+    if (!statusElement) return;
+
+    if (!activeToolId) {
+        // No active tool, show "Not Connected"
+        statusElement.textContent = "Not Connected";
+        statusElement.className = "connection-status";
+        return;
+    }
+
+    const activeTool = openTools.get(activeToolId);
+    if (!activeTool) return;
+
+    // Get the tool's specific connection
+    const toolConnectionId = activeTool.connectionId;
+    
+    if (toolConnectionId) {
+        // Tool has a specific connection
+        const connections = await window.toolboxAPI.connections.getAll();
+        const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
+        
+        if (toolConnection) {
+            // Check if token is expired
+            let isExpired = false;
+            if (toolConnection.tokenExpiry) {
+                const expiryDate = new Date(toolConnection.tokenExpiry);
+                const now = new Date();
+                isExpired = expiryDate.getTime() <= now.getTime();
+            }
+            
+            // Format: "ToolName is connected to: ConnectionName"
+            if (isExpired) {
+                statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
+                statusElement.className = "connection-status expired";
+            } else {
+                statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
+                statusElement.className = "connection-status connected";
+            }
+            return;
+        }
+    }
+    
+    // Tool doesn't have a specific connection
+    statusElement.textContent = `${activeTool.tool.name} is not connected`;
+    statusElement.className = "connection-status";
+}
+
+/**
+ * Show context menu for tool tab
+ */
+async function showToolTabContextMenu(toolId: string, x: number, y: number): Promise<void> {
+    // Remove any existing context menu
+    const existingMenu = document.getElementById("tool-tab-context-menu");
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    const menu = document.createElement("div");
+    menu.id = "tool-tab-context-menu";
+    menu.className = "context-menu";
+    menu.style.position = "fixed";
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.style.zIndex = "10000";
+
+    // Get available connections
+    const connections = await window.toolboxAPI.connections.getAll();
+    const currentTool = openTools.get(toolId);
+    const currentConnectionId = currentTool?.connectionId;
+
+    let menuHtml = `<div class="context-menu-header">Connection for ${currentTool?.tool.name || "Tool"}</div>`;
+    
+    // Add "Use Global Connection" option
+    menuHtml += `
+        <div class="context-menu-item ${!currentConnectionId ? "active" : ""}" data-action="use-global">
+            <span>✓ Use Global Connection</span>
+        </div>
+    `;
+
+    // Add separator
+    if (connections.length > 0) {
+        menuHtml += `<div class="context-menu-separator"></div>`;
+        menuHtml += `<div class="context-menu-header">Tool-Specific Connection</div>`;
+    }
+
+    // Add connection options
+    if (connections.length === 0) {
+        menuHtml += `<div class="context-menu-item disabled">No connections available</div>`;
+    } else {
+        connections.forEach((conn: any) => {
+            const isActive = conn.id === currentConnectionId;
+            menuHtml += `
+                <div class="context-menu-item ${isActive ? "active" : ""}" data-action="set-connection" data-connection-id="${conn.id}">
+                    <span>${isActive ? "✓ " : ""}${conn.name} (${conn.environment})</span>
+                </div>
+            `;
+        });
+    }
+
+    menu.innerHTML = menuHtml;
+    document.body.appendChild(menu);
+
+    // Add event listeners to menu items
+    menu.querySelectorAll(".context-menu-item:not(.disabled)").forEach((item) => {
+        item.addEventListener("click", async (e) => {
+            const target = e.currentTarget as HTMLElement;
+            const action = target.getAttribute("data-action");
+            
+            if (action === "use-global") {
+                await setToolConnection(toolId, null);
+            } else if (action === "set-connection") {
+                const connectionId = target.getAttribute("data-connection-id");
+                if (connectionId) {
+                    await setToolConnection(toolId, connectionId);
+                }
+            }
+            
+            menu.remove();
+        });
+    });
+
+    // Close menu when clicking outside
+    const closeMenu = (e: MouseEvent) => {
+        if (!menu.contains(e.target as Node)) {
+            menu.remove();
+            document.removeEventListener("click", closeMenu);
+        }
+    };
+    
+    // Add click listener after a small delay to prevent immediate closing
+    setTimeout(() => {
+        document.addEventListener("click", closeMenu);
+    }, 100);
+}
+
+/**
+ * Open connection selection modal for the active tool using the BrowserWindow modal framework
+ * This modal allows selecting a connection to associate with the active tool
+ */
+export async function openToolConnectionModal(): Promise<void> {
+    if (!activeToolId) {
+        window.toolboxAPI.utils.showNotification({
+            title: "No Active Tool",
+            body: "Please select a tool first before changing its connection.",
+            type: "warning",
+        });
+        return;
+    }
+
+    const activeTool = openTools.get(activeToolId);
+    if (!activeTool) return;
+
+    try {
+        // Use the existing selectConnection modal but with tool-specific behavior
+        // Import connectionManagement functions dynamically
+        const { openSelectConnectionModal } = await import("./connectionManagement");
+        
+        // Open the modal and pass the tool's current connection ID to highlight it
+        await openSelectConnectionModal(activeTool.connectionId);
+        
+        // After modal closes with a successful connection, update the tool's connection
+        // The modal handles authentication, we just need to associate it with the tool
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+        
+        if (activeConnection && activeToolId) {
+            await setToolConnection(activeToolId, activeConnection.id);
+            
+            window.toolboxAPI.utils.showNotification({
+                title: "Connection Set",
+                body: `${activeTool.tool.name} is now connected to ${activeConnection.name}.`,
+                type: "success",
+            });
+        }
+    } catch (error) {
+        // User cancelled or error occurred
+        console.log("Connection selection cancelled or failed:", error);
+    }
 }

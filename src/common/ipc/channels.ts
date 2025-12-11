@@ -26,6 +26,10 @@ export const SETTINGS_CHANNELS = {
     GRANT_CSP_CONSENT: "grant-csp-consent",
     REVOKE_CSP_CONSENT: "revoke-csp-consent",
     GET_CSP_CONSENTS: "get-csp-consents",
+    SET_TOOL_CONNECTION: "set-tool-connection",
+    GET_TOOL_CONNECTION: "get-tool-connection",
+    REMOVE_TOOL_CONNECTION: "remove-tool-connection",
+    GET_ALL_TOOL_CONNECTIONS: "get-all-tool-connections",
 } as const;
 
 // Connection-related IPC channels

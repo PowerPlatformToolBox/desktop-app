@@ -149,6 +149,16 @@ function setupSidebarButtons(): void {
         });
     }
 
+    // Main footer connection status - click to open connection selector for active tool
+    const connectionStatus = document.getElementById("connection-status");
+    if (connectionStatus) {
+        connectionStatus.addEventListener("click", async () => {
+            // Import the function dynamically to avoid circular dependencies
+            const { openToolConnectionModal } = await import("./toolManagement");
+            await openToolConnectionModal();
+        });
+    }
+
     // Sidebar save settings button
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {

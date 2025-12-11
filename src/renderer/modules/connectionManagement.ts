@@ -69,6 +69,9 @@ const selectConnectionModalPromiseHandlers: {
     reject: null,
 };
 
+// Store the connection ID to highlight in the modal (for tool-specific connection selection)
+let highlightConnectionId: string | null = null;
+
 /**
  * Update footer connection information
  */
@@ -158,10 +161,14 @@ export function initializeSelectConnectionModalBridge(): void {
 /**
  * Open the select connection modal
  * Returns a promise that resolves when a connection is selected and connected, or rejects if cancelled
+ * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
  */
-export async function openSelectConnectionModal(): Promise<void> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<void> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
+        
+        // Store the tool connection ID to highlight in the modal
+        highlightConnectionId = toolConnectionId || null;
         
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -174,6 +181,7 @@ export async function openSelectConnectionModal(): Promise<void> {
                 selectConnectionModalPromiseHandlers.reject(new Error("Connection selection cancelled"));
                 selectConnectionModalPromiseHandlers.resolve = null;
                 selectConnectionModalPromiseHandlers.reject = null;
+                highlightConnectionId = null; // Clear highlight
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -238,6 +246,9 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         selectConnectionModalPromiseHandlers.resolve = null;
         selectConnectionModalPromiseHandlers.reject = null;
         
+        // Clear highlight connection ID
+        highlightConnectionId = null;
+        
         // Close the modal
         await closeBrowserWindowModal();
         
@@ -267,7 +278,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                     url: conn.url,
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
-                    isActive: conn.isActive || false,
+                    // If highlightConnectionId is set (tool-specific modal), use it to mark as active
+                    // Otherwise, use the global isActive property
+                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : (conn.isActive || false),
                 })),
             },
         });
@@ -718,33 +731,14 @@ export async function loadSidebarConnections(): Promise<void> {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
 
-                // Check if token is expired
-                let isExpired = false;
-                if (conn.isActive && conn.tokenExpiry) {
-                    const expiryDate = new Date(conn.tokenExpiry);
-                    const now = new Date();
-                    isExpired = expiryDate.getTime() <= now.getTime();
-                }
-
-                const warningIcon = isExpired ? `<span class="connection-warning-icon" title="Token Expired - Re-authentication Required" style="color: #f59e0b; margin-left: 4px;">⚠</span>` : "";
-
                 return `
-                <div class="connection-item-pptb ${conn.isActive ? "active" : ""} ${isExpired ? "expired" : ""}">
+                <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
-                        <div class="connection-item-name-pptb">${conn.name}${warningIcon}</div>
+                        <div class="connection-item-name-pptb">${conn.name}</div>
                         <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
                     <div class="connection-item-url-pptb">${conn.url}</div>
-                    <div class="connection-item-actions-pptb" style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            ${
-                                conn.isActive
-                                    ? isExpired
-                                        ? `<button class="fluent-button fluent-button-primary" data-action="reauth" data-connection-id="${conn.id}">Re-authenticate</button>`
-                                        : `<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>`
-                                    : `<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="${conn.id}">Connect</button>`
-                            }
-                        </div>
+                    <div class="connection-item-actions-pptb" style="display: flex; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
                             <img src="${iconPath}" alt="Delete" style="width:16px; height:16px;" />
                         </button>
@@ -761,38 +755,17 @@ export async function loadSidebarConnections(): Promise<void> {
                 const action = target.getAttribute("data-action");
                 const connectionId = target.getAttribute("data-connection-id");
 
-                if (action === "connect" && connectionId) {
-                    // Disable button while connecting
-                    target.disabled = true;
-                    target.textContent = "Connecting...";
-
-                    try {
-                        await connectToConnection(connectionId);
-                    } catch (error) {
-                        // Error is already handled in connectToConnection
-                    } finally {
-                        // Reload will refresh the button state
-                    }
-                } else if (action === "disconnect") {
-                    await disconnectConnection();
-                } else if (action === "reauth" && connectionId) {
-                    // Re-authenticate expired connection
-                    target.disabled = true;
-                    target.textContent = "Re-authenticating...";
-                    await handleReauthentication(connectionId);
-                } else if (action === "delete" && connectionId) {
+                if (action === "delete" && connectionId) {
                     if (confirm("Are you sure you want to delete this connection?")) {
                         await window.toolboxAPI.connections.delete(connectionId);
                         loadSidebarConnections();
-                        updateFooterConnection();
+                        // Import and call updateActiveToolConnectionStatus from toolManagement
+                        const { updateActiveToolConnectionStatus } = await import("./toolManagement");
+                        await updateActiveToolConnectionStatus();
                     }
                 }
             });
         });
-
-        // Update footer status
-        const activeConn = connections.find((c: any) => c.isActive);
-        updateFooterConnectionStatus(activeConn || null);
     } catch (error) {
         console.error("Failed to load connections:", error);
     }
