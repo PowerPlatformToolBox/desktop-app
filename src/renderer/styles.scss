@@ -3344,3 +3344,25 @@ body.dark-theme .csp-warning ul {
     flex: 1;
 }
 
+
+/* Tool Connection Modal */
+.connection-selection-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.connection-selection-item:not(.connected):hover {
+    background: var(--background-hover) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.connection-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-left: 8px;
+}
