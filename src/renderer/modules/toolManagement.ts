@@ -643,12 +643,13 @@ export function setupKeyboardShortcuts(): void {
  * Update sidebar and footer connection status based on active tool's connection
  */
 export async function updateActiveToolConnectionStatus(): Promise<void> {
+    const statusElement = document.getElementById("connection-status");
+    if (!statusElement) return;
+
     if (!activeToolId) {
         // No active tool, show "Not Connected"
-        const footerConnectionName = document.getElementById("footer-connection-name");
-        if (footerConnectionName) {
-            footerConnectionName.innerHTML = "Not Connected";
-        }
+        statusElement.textContent = "Not Connected";
+        statusElement.className = "connection-status";
         return;
     }
 
@@ -664,32 +665,29 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
         
         if (toolConnection) {
-            // Update footer to show tool's connection
-            const footerConnectionName = document.getElementById("footer-connection-name");
+            // Check if token is expired
+            let isExpired = false;
+            if (toolConnection.tokenExpiry) {
+                const expiryDate = new Date(toolConnection.tokenExpiry);
+                const now = new Date();
+                isExpired = expiryDate.getTime() <= now.getTime();
+            }
             
-            if (footerConnectionName) {
-                // Check if token is expired
-                let isExpired = false;
-                if (toolConnection.tokenExpiry) {
-                    const expiryDate = new Date(toolConnection.tokenExpiry);
-                    const now = new Date();
-                    isExpired = expiryDate.getTime() <= now.getTime();
-                }
-                
-                const warningIcon = isExpired ? ` <span style="color: #f59e0b;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
-                
-                // Format: "ToolName is connected to: ConnectionName"
-                footerConnectionName.innerHTML = `${activeTool.tool.name} is connected to: ${toolConnection.name}${warningIcon}`;
+            // Format: "ToolName is connected to: ConnectionName"
+            if (isExpired) {
+                statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
+                statusElement.className = "connection-status expired";
+            } else {
+                statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
+                statusElement.className = "connection-status connected";
             }
             return;
         }
     }
     
     // Tool doesn't have a specific connection
-    const footerConnectionName = document.getElementById("footer-connection-name");
-    if (footerConnectionName) {
-        footerConnectionName.innerHTML = `${activeTool.tool.name} is not connected`;
-    }
+    statusElement.textContent = `${activeTool.tool.name} is not connected`;
+    statusElement.className = "connection-status";
 }
 
 /**

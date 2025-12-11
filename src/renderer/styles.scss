@@ -834,6 +834,18 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.connection-status:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark-theme .connection-status:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .connection-status.connected {
@@ -1652,16 +1664,6 @@ body {
 
 .footer-value {
     color: rgba(255, 255, 255, 0.9);
-}
-
-#footer-connection-name {
-    cursor: pointer;
-    transition: color 0.2s ease, text-decoration 0.2s ease;
-}
-
-#footer-connection-name:hover {
-    color: var(--primary-color);
-    text-decoration: underline;
 }
 
 .footer-link-btn {

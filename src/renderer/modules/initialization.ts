@@ -149,10 +149,10 @@ function setupSidebarButtons(): void {
         });
     }
 
-    // Footer connection name - click to open connection selector for active tool
-    const footerConnectionName = document.getElementById("footer-connection-name");
-    if (footerConnectionName) {
-        footerConnectionName.addEventListener("click", async () => {
+    // Main footer connection status - click to open connection selector for active tool
+    const connectionStatus = document.getElementById("connection-status");
+    if (connectionStatus) {
+        connectionStatus.addEventListener("click", async () => {
             // Import the function dynamically to avoid circular dependencies
             const { openToolConnectionModal } = await import("./toolManagement");
             await openToolConnectionModal();
