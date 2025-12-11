@@ -145,3 +145,5 @@ vite.config.ts.timestamp-*
 # Electron build artifacts
 build/
 dist/
+package-lock.json
+.vscode/settings.json
