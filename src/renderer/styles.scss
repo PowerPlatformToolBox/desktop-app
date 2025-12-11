@@ -1654,6 +1654,16 @@ body {
     color: rgba(255, 255, 255, 0.9);
 }
 
+#footer-connection-name {
+    cursor: pointer;
+    transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+#footer-connection-name:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
 .footer-link-btn {
     background: none;
     border: none;

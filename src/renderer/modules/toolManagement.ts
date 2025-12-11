@@ -311,12 +311,6 @@ export function createTab(toolId: string, tool: any): void {
         switchToTool(toolId);
     });
 
-    // Right-click context menu for connection management
-    tab.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        showToolTabContextMenu(toolId, e.clientX, e.clientY);
-    });
-
     // Drag and drop events
     tab.addEventListener("dragstart", (e) => handleDragStart(e, tab));
     tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
@@ -682,12 +676,10 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                     isExpired = expiryDate.getTime() <= now.getTime();
                 }
                 
-                const warningIcon = isExpired ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
+                const warningIcon = isExpired ? ` <span style="color: #f59e0b;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
                 
-                // New format: "ToolName is connected to: ConnectionName"
+                // Format: "ToolName is connected to: ConnectionName"
                 footerConnectionName.innerHTML = `${activeTool.tool.name} is connected to: ${toolConnection.name}${warningIcon}`;
-                footerConnectionName.style.cursor = "pointer";
-                footerConnectionName.title = "Click to change connection";
             }
             return;
         }
@@ -697,8 +689,6 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const footerConnectionName = document.getElementById("footer-connection-name");
     if (footerConnectionName) {
         footerConnectionName.innerHTML = `${activeTool.tool.name} is not connected`;
-        footerConnectionName.style.cursor = "pointer";
-        footerConnectionName.title = "Click to select connection";
     }
 }
 
