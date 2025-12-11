@@ -800,8 +800,8 @@ export async function openToolConnectionModal(): Promise<void> {
         // Import connectionManagement functions dynamically
         const { openSelectConnectionModal } = await import("./connectionManagement");
         
-        // Open the modal and wait for a connection to be selected
-        await openSelectConnectionModal();
+        // Open the modal and pass the tool's current connection ID to highlight it
+        await openSelectConnectionModal(activeTool.connectionId);
         
         // After modal closes with a successful connection, update the tool's connection
         // The modal handles authentication, we just need to associate it with the tool

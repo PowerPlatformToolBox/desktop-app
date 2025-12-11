@@ -69,6 +69,9 @@ const selectConnectionModalPromiseHandlers: {
     reject: null,
 };
 
+// Store the connection ID to highlight in the modal (for tool-specific connection selection)
+let highlightConnectionId: string | null = null;
+
 /**
  * Update footer connection information
  */
@@ -158,10 +161,14 @@ export function initializeSelectConnectionModalBridge(): void {
 /**
  * Open the select connection modal
  * Returns a promise that resolves when a connection is selected and connected, or rejects if cancelled
+ * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
  */
-export async function openSelectConnectionModal(): Promise<void> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<void> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
+        
+        // Store the tool connection ID to highlight in the modal
+        highlightConnectionId = toolConnectionId || null;
         
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -174,6 +181,7 @@ export async function openSelectConnectionModal(): Promise<void> {
                 selectConnectionModalPromiseHandlers.reject(new Error("Connection selection cancelled"));
                 selectConnectionModalPromiseHandlers.resolve = null;
                 selectConnectionModalPromiseHandlers.reject = null;
+                highlightConnectionId = null; // Clear highlight
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -238,6 +246,9 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         selectConnectionModalPromiseHandlers.resolve = null;
         selectConnectionModalPromiseHandlers.reject = null;
         
+        // Clear highlight connection ID
+        highlightConnectionId = null;
+        
         // Close the modal
         await closeBrowserWindowModal();
         
@@ -267,7 +278,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                     url: conn.url,
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
-                    isActive: conn.isActive || false,
+                    // If highlightConnectionId is set (tool-specific modal), use it to mark as active
+                    // Otherwise, use the global isActive property
+                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : (conn.isActive || false),
                 })),
             },
         });
