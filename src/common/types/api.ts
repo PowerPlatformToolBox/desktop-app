@@ -128,6 +128,12 @@ export interface ToolboxAPI {
     isFavoriteTool: (toolId: string) => Promise<boolean>;
     toggleFavoriteTool: (toolId: string) => Promise<boolean>;
 
+    // Tool-specific connection management
+    setToolConnection: (toolId: string, connectionId: string) => Promise<void>;
+    getToolConnection: (toolId: string) => Promise<string | null>;
+    removeToolConnection: (toolId: string) => Promise<void>;
+    getAllToolConnections: () => Promise<Record<string, string>>;
+
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => Promise<Tool>;
     getLocalToolWebviewHtml: (localPath: string) => Promise<string | null>;

@@ -4,7 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
-import { openSelectConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { openSelectConnectionModal } from "./connectionManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -336,6 +336,8 @@ export async function switchToTool(toolId: string): Promise<void> {
     // Update tab active states
     document.querySelectorAll(".tool-tab").forEach((tab) => {
         tab.classList.remove("active");
+        // Also remove environment classes from all tabs
+        tab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
     });
     const activeTab = document.getElementById(`tool-tab-${toolId}`);
     if (activeTab) {
@@ -650,6 +652,8 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         // No active tool, show "Not Connected"
         statusElement.textContent = "Not Connected";
         statusElement.className = "connection-status";
+        // Clear tool panel border
+        updateToolPanelBorder(null);
         return;
     }
 
@@ -681,6 +685,9 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
                 statusElement.className = "connection-status connected";
             }
+            
+            // Update tool panel border based on environment
+            updateToolPanelBorder(toolConnection.environment);
             return;
         }
     }
@@ -688,95 +695,131 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     // Tool doesn't have a specific connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
+    // Clear tool panel border
+    updateToolPanelBorder(null);
+}
+
+/**
+ * Update the tool panel border and tab highlight based on the connection environment
+ * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
+ */
+function updateToolPanelBorder(environment: string | null): void {
+    const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
+    if (toolPanelWrapper) {
+        // Remove all environment classes from panel
+        toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+
+        // Add the appropriate class based on environment
+        if (environment) {
+            const envClass = `env-${environment.toLowerCase()}`;
+            toolPanelWrapper.classList.add(envClass);
+        }
+    }
+
+    // Update the active tab with environment class
+    if (activeToolId) {
+        const activeTab = document.getElementById(`tool-tab-${activeToolId}`);
+        if (activeTab) {
+            // Remove all environment classes from tab
+            activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+
+            // Add the appropriate class based on environment
+            if (environment) {
+                const envClass = `env-${environment.toLowerCase()}`;
+                activeTab.classList.add(envClass);
+            }
+        }
+    }
 }
 
 /**
  * Show context menu for tool tab
+ * @deprecated Currently unused, may be implemented in the future
  */
-async function showToolTabContextMenu(toolId: string, x: number, y: number): Promise<void> {
-    // Remove any existing context menu
-    const existingMenu = document.getElementById("tool-tab-context-menu");
-    if (existingMenu) {
-        existingMenu.remove();
-    }
+// async function showToolTabContextMenu(toolId: string, x: number, y: number): Promise<void> {
+//     // Remove any existing context menu
+//     const existingMenu = document.getElementById("tool-tab-context-menu");
+//     if (existingMenu) {
+//         existingMenu.remove();
+//     }
 
-    const menu = document.createElement("div");
-    menu.id = "tool-tab-context-menu";
-    menu.className = "context-menu";
-    menu.style.position = "fixed";
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
-    menu.style.zIndex = "10000";
+//     const menu = document.createElement("div");
+//     menu.id = "tool-tab-context-menu";
+//     menu.className = "context-menu";
+//     menu.style.position = "fixed";
+//     menu.style.left = `${x}px`;
+//     menu.style.top = `${y}px`;
+//     menu.style.zIndex = "10000";
 
-    // Get available connections
-    const connections = await window.toolboxAPI.connections.getAll();
-    const currentTool = openTools.get(toolId);
-    const currentConnectionId = currentTool?.connectionId;
+//     // Get available connections
+//     const connections = await window.toolboxAPI.connections.getAll();
+//     const currentTool = openTools.get(toolId);
+//     const currentConnectionId = currentTool?.connectionId;
 
-    let menuHtml = `<div class="context-menu-header">Connection for ${currentTool?.tool.name || "Tool"}</div>`;
+//     let menuHtml = `<div class="context-menu-header">Connection for ${currentTool?.tool.name || "Tool"}</div>`;
     
-    // Add "Use Global Connection" option
-    menuHtml += `
-        <div class="context-menu-item ${!currentConnectionId ? "active" : ""}" data-action="use-global">
-            <span>✓ Use Global Connection</span>
-        </div>
-    `;
+//     // Add "Use Global Connection" option
+//     menuHtml += `
+//         <div class="context-menu-item ${!currentConnectionId ? "active" : ""}" data-action="use-global">
+//             <span>✓ Use Global Connection</span>
+//         </div>
+//     `;
 
-    // Add separator
-    if (connections.length > 0) {
-        menuHtml += `<div class="context-menu-separator"></div>`;
-        menuHtml += `<div class="context-menu-header">Tool-Specific Connection</div>`;
-    }
+//     // Add separator
+//     if (connections.length > 0) {
+//         menuHtml += `<div class="context-menu-separator"></div>`;
+//         menuHtml += `<div class="context-menu-header">Tool-Specific Connection</div>`;
+//     }
 
-    // Add connection options
-    if (connections.length === 0) {
-        menuHtml += `<div class="context-menu-item disabled">No connections available</div>`;
-    } else {
-        connections.forEach((conn: any) => {
-            const isActive = conn.id === currentConnectionId;
-            menuHtml += `
-                <div class="context-menu-item ${isActive ? "active" : ""}" data-action="set-connection" data-connection-id="${conn.id}">
-                    <span>${isActive ? "✓ " : ""}${conn.name} (${conn.environment})</span>
-                </div>
-            `;
-        });
-    }
+//     // Add connection options
+//     if (connections.length === 0) {
+//         menuHtml += `<div class="context-menu-item disabled">No connections available</div>`;
+//     } else {
+//         connections.forEach((conn: any) => {
+//             const isActive = conn.id === currentConnectionId;
+//             menuHtml += `
+//                 <div class="context-menu-item ${isActive ? "active" : ""}" data-action="set-connection" data-connection-id="${conn.id}">
+//                     <span>${isActive ? "✓ " : ""}${conn.name} (${conn.environment})</span>
+//                 </div>
+//             `;
+//         });
+//     }
 
-    menu.innerHTML = menuHtml;
-    document.body.appendChild(menu);
+//     menu.innerHTML = menuHtml;
+//     document.body.appendChild(menu);
 
-    // Add event listeners to menu items
-    menu.querySelectorAll(".context-menu-item:not(.disabled)").forEach((item) => {
-        item.addEventListener("click", async (e) => {
-            const target = e.currentTarget as HTMLElement;
-            const action = target.getAttribute("data-action");
+//     // Add event listeners to menu items
+//     menu.querySelectorAll(".context-menu-item:not(.disabled)").forEach((item) => {
+//         item.addEventListener("click", async (e) => {
+//             const target = e.currentTarget as HTMLElement;
+//             const action = target.getAttribute("data-action");
             
-            if (action === "use-global") {
-                await setToolConnection(toolId, null);
-            } else if (action === "set-connection") {
-                const connectionId = target.getAttribute("data-connection-id");
-                if (connectionId) {
-                    await setToolConnection(toolId, connectionId);
-                }
-            }
+//             if (action === "use-global") {
+//                 await setToolConnection(toolId, null);
+//             } else if (action === "set-connection") {
+//                 const connectionId = target.getAttribute("data-connection-id");
+//                 if (connectionId) {
+//                     await setToolConnection(toolId, connectionId);
+//                 }
+//             }
             
-            menu.remove();
-        });
-    });
+//             menu.remove();
+//         });
+//     });
 
-    // Close menu when clicking outside
-    const closeMenu = (e: MouseEvent) => {
-        if (!menu.contains(e.target as Node)) {
-            menu.remove();
-            document.removeEventListener("click", closeMenu);
-        }
-    };
+//     // Close menu when clicking outside
+//     const closeMenu = (e: MouseEvent) => {
+//         if (!menu.contains(e.target as Node)) {
+//             menu.remove();
+//             document.removeEventListener("click", closeMenu);
+//         }
+//     };
     
-    // Add click listener after a small delay to prevent immediate closing
-    setTimeout(() => {
-        document.addEventListener("click", closeMenu);
-    }, 100);
-}
+//     // Add click listener after a small delay to prevent immediate closing
+//     setTimeout(() => {
+//         document.addEventListener("click", closeMenu);
+//     }, 100);
+// }
 
 /**
  * Open connection selection modal for the active tool using the BrowserWindow modal framework
