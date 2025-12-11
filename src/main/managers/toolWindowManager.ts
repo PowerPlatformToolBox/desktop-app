@@ -25,6 +25,7 @@ export class ToolWindowManager {
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
     private toolViews: Map<string, BrowserView> = new Map(); // Maps instanceId -> BrowserView
+    private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
     private activeToolId: string | null = null; // Stores instanceId (not toolId)
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
@@ -205,8 +206,14 @@ export class ToolWindowManager {
             toolView.webContents.send("toolbox:context", toolContext);
             console.log(`[ToolWindowManager] Sent tool context for ${instanceId} with connection:`, connectionUrl ? "yes" : "no", "secondary:", secondaryConnectionUrl ? "yes" : "no");
 
-            // Show this tool
-            await this.switchToTool(toolId);
+            // Store connection info for this instance so IPC handlers can use it
+            this.toolConnectionInfo.set(instanceId, {
+                primaryConnectionId: connectionId,
+                secondaryConnectionId: secondaryConnectionId,
+            });
+
+            // Show this tool instance
+            await this.switchToTool(instanceId);
 
             console.log(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
