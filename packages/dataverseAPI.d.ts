@@ -210,7 +210,7 @@ declare namespace DataverseAPI {
          * @returns Object containing entity metadata
          *
          * @example
-         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName', 'DisplayName']);
+         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName', 'DisplayName', 'EntitySetName']);
          * console.log('Logical Name:', metadata.LogicalName);
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
          *
@@ -225,17 +225,17 @@ declare namespace DataverseAPI {
 
         /**
          * Get metadata for all entities
-         *
+         * @param selectColumns - Optional array of column names to retrieve (retrieves LogicalName, DisplayName, MetadataId by default)
          * @returns Object with value array containing all entity metadata
          *
          * @example
-         * const allEntities = await dataverseAPI.getAllEntitiesMetadata();
+         * const allEntities = await dataverseAPI.getAllEntitiesMetadata(['LogicalName', 'DisplayName', 'EntitySetName'] );
          * console.log(`Total entities: ${allEntities.value.length}`);
          * allEntities.value.forEach(entity => {
          *     console.log(`${entity.LogicalName} - ${entity.DisplayName?.LocalizedLabels[0]?.Label}`);
          * });
          */
-        getAllEntitiesMetadata: () => Promise<EntityMetadataCollection>;
+        getAllEntitiesMetadata: (selectColumns?: string[]) => Promise<EntityMetadataCollection>;
 
         /**
          * Get related metadata for a specific entity (attributes, relationships, etc.)
