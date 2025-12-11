@@ -779,7 +779,7 @@ async function showToolTabContextMenu(toolId: string, x: number, y: number): Pro
 }
 
 /**
- * Open connection selection modal for the active tool
+ * Open connection selection modal for the active tool using the BrowserWindow modal framework
  * This modal allows selecting a connection to associate with the active tool
  */
 export async function openToolConnectionModal(): Promise<void> {
@@ -795,122 +795,29 @@ export async function openToolConnectionModal(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Remove any existing modal
-    const existingModal = document.getElementById("tool-connection-modal");
-    if (existingModal) {
-        existingModal.remove();
-    }
-
-    // Get all connections
-    const connections = await window.toolboxAPI.connections.getAll();
-    const currentConnectionId = activeTool.connectionId;
-
-    // Create modal
-    const modal = document.createElement("div");
-    modal.id = "tool-connection-modal";
-    modal.className = "modal active";
-    modal.style.zIndex = "10000";
-
-    let modalContent = `
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2>Select Connection for ${activeTool.tool.name}</h2>
-                <button class="modal-close" id="close-tool-connection-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-    `;
-
-    if (connections.length === 0) {
-        modalContent += `
-            <div class="empty-state">
-                <p>No connections available.</p>
-                <p class="empty-state-hint">Please add a connection first.</p>
-            </div>
-        `;
-    } else {
-        modalContent += `<div class="connection-selection-list">`;
+    try {
+        // Use the existing selectConnection modal but with tool-specific behavior
+        // Import connectionManagement functions dynamically
+        const { openSelectConnectionModal } = await import("./connectionManagement");
         
-        connections.forEach((conn: any) => {
-            const isConnected = conn.id === currentConnectionId;
-            const disabledAttr = isConnected ? 'disabled' : '';
-            const connectedTag = isConnected ? '<span class="connection-tag">Connected</span>' : '';
+        // Open the modal and wait for a connection to be selected
+        await openSelectConnectionModal();
+        
+        // After modal closes with a successful connection, update the tool's connection
+        // The modal handles authentication, we just need to associate it with the tool
+        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
+        
+        if (activeConnection && activeToolId) {
+            await setToolConnection(activeToolId, activeConnection.id);
             
-            modalContent += `
-                <div class="connection-selection-item ${isConnected ? 'connected' : ''}" 
-                     style="padding: 16px; margin-bottom: 8px; border: 1px solid var(--border-color); border-radius: 8px; ${isConnected ? 'background: var(--background-secondary); opacity: 0.7;' : 'cursor: pointer;'}"
-                     ${!isConnected ? `data-connection-id="${conn.id}"` : ''}>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: 500; margin-bottom: 4px;">${conn.name} ${connectedTag}</div>
-                            <div style="font-size: 13px; color: var(--text-secondary);">${conn.url}</div>
-                            <span class="connection-env-pill env-${conn.environment.toLowerCase()}" style="margin-top: 4px; display: inline-block;">${conn.environment}</span>
-                        </div>
-                        ${!isConnected ? '<div style="color: var(--primary-color);">→</div>' : ''}
-                    </div>
-                </div>
-            `;
-        });
-        
-        modalContent += `</div>`;
-    }
-
-    modalContent += `
-            </div>
-            <div class="modal-footer">
-                <button class="fluent-button fluent-button-secondary" id="cancel-tool-connection-modal">Cancel</button>
-            </div>
-        </div>
-    `;
-
-    modal.innerHTML = modalContent;
-    document.body.appendChild(modal);
-
-    // Add event listeners
-    const closeBtn = modal.querySelector("#close-tool-connection-modal");
-    const cancelBtn = modal.querySelector("#cancel-tool-connection-modal");
-    
-    const closeModal = () => {
-        modal.classList.remove("active");
-        setTimeout(() => modal.remove(), 300);
-    };
-
-    closeBtn?.addEventListener("click", closeModal);
-    cancelBtn?.addEventListener("click", closeModal);
-
-    // Add click listeners to connection items
-    modal.querySelectorAll(".connection-selection-item[data-connection-id]").forEach((item) => {
-        item.addEventListener("click", async () => {
-            const connectionId = item.getAttribute("data-connection-id");
-            if (connectionId) {
-                try {
-                    // Authenticate and connect the tool to this connection
-                    await window.toolboxAPI.connections.setActive(connectionId);
-                    
-                    // Set this connection for the active tool
-                    await setToolConnection(activeToolId!, connectionId);
-                    
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Connection Set",
-                        body: `${activeTool.tool.name} is now connected to the selected connection.`,
-                        type: "success",
-                    });
-                    
-                    closeModal();
-                } catch (error) {
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Connection Failed",
-                        body: (error as Error).message,
-                        type: "error",
-                    });
-                }
-            }
-        });
-    });
-
-    // Close on outside click
-    modal.addEventListener("click", (e) => {
-        if (e.target === modal) {
-            closeModal();
+            window.toolboxAPI.utils.showNotification({
+                title: "Connection Set",
+                body: `${activeTool.tool.name} is now connected to ${activeConnection.name}.`,
+                type: "success",
+            });
         }
-    });
+    } catch (error) {
+        // User cancelled or error occurred
+        console.log("Connection selection cancelled or failed:", error);
+    }
 }
