@@ -24,8 +24,8 @@ export class ToolWindowManager {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
-    private toolViews: Map<string, BrowserView> = new Map();
-    private activeToolId: string | null = null;
+    private toolViews: Map<string, BrowserView> = new Map(); // Maps instanceId -> BrowserView
+    private activeToolId: string | null = null; // Stores instanceId (not toolId)
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
@@ -42,26 +42,27 @@ export class ToolWindowManager {
      */
     private setupIpcHandlers(): void {
         // Launch tool (create BrowserView and load tool)
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, toolId: string, tool: Tool) => {
-            return this.launchTool(toolId, tool);
+        // Now accepts instanceId instead of toolId
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool) => {
+            return this.launchTool(instanceId, tool);
         });
 
         // Switch to a different tool
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.SWITCH, async (event, toolId: string) => {
-            return this.switchToTool(toolId);
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SWITCH, async (event, instanceId: string) => {
+            return this.switchToTool(instanceId);
         });
 
         // Close a tool
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, toolId: string) => {
-            return this.closeTool(toolId);
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, instanceId: string) => {
+            return this.closeTool(instanceId);
         });
 
-        // Get active tool ID
+        // Get active tool ID (now returns instanceId)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_ACTIVE, async () => {
             return this.activeToolId;
         });
 
-        // Get all open tool IDs
+        // Get all open tool IDs (now returns instanceIds)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS, async () => {
             return Array.from(this.toolViews.keys());
         });
@@ -112,14 +113,19 @@ export class ToolWindowManager {
 
     /**
      * Launch a tool in a new BrowserView
+     * @param instanceId Unique instance identifier (e.g., "toolId-timestamp-random")
+     * @param tool Tool metadata
      */
-    async launchTool(toolId: string, tool: Tool): Promise<boolean> {
+    async launchTool(instanceId: string, tool: Tool): Promise<boolean> {
         try {
-            console.log(`[ToolWindowManager] Launching tool: ${toolId}`);
+            console.log(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
-            // If tool is already open, just switch to it
-            if (this.toolViews.has(toolId)) {
-                await this.switchToTool(toolId);
+            // Extract actual toolId from instanceId (format: toolId-timestamp-random)
+            const toolId = instanceId.split('-').slice(0, -2).join('-');
+
+            // Check if this specific instance is already open (shouldn't happen, but safety check)
+            if (this.toolViews.has(instanceId)) {
+                await this.switchToTool(instanceId);
                 return true;
             }
 
@@ -140,17 +146,19 @@ export class ToolWindowManager {
                 },
             });
 
-            // Get tool URL from custom protocol
+            // Get tool URL from custom protocol using the base toolId
             const toolUrl = this.browserviewProtocolManager.buildToolUrl(toolId);
             console.log(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
 
-            // Store the view
-            this.toolViews.set(toolId, toolView);
+            // Store the view with instanceId as key
+            this.toolViews.set(instanceId, toolView);
 
-            // Get connection information for this tool
+            // Get connection information for this tool instance
+            // Note: Connections are per-instance, but settings store per-toolId
+            // This is a limitation we're accepting for now
             const toolConnectionId = this.settingsManager.getToolConnection(toolId);
             let connectionUrl: string | null = null;
             let connectionId: string | null = null;
@@ -195,39 +203,40 @@ export class ToolWindowManager {
                 secondaryConnectionId: secondaryConnectionId,
             };
             toolView.webContents.send("toolbox:context", toolContext);
-            console.log(`[ToolWindowManager] Sent tool context for ${toolId} with connection:`, connectionUrl ? "yes" : "no", "secondary:", secondaryConnectionUrl ? "yes" : "no");
+            console.log(`[ToolWindowManager] Sent tool context for ${instanceId} with connection:`, connectionUrl ? "yes" : "no", "secondary:", secondaryConnectionUrl ? "yes" : "no");
 
             // Show this tool
             await this.switchToTool(toolId);
 
-            console.log(`[ToolWindowManager] Tool launched successfully: ${toolId}`);
+            console.log(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error launching tool ${toolId}:`, error);
+            console.error(`[ToolWindowManager] Error launching tool instance ${instanceId}:`, error);
             return false;
         }
     }
 
     /**
      * Switch to a different tool (show its BrowserView)
+     * @param instanceId The instance identifier to switch to
      */
-    async switchToTool(toolId: string): Promise<boolean> {
+    async switchToTool(instanceId: string): Promise<boolean> {
         try {
-            const toolView = this.toolViews.get(toolId);
+            const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
-                console.error(`[ToolWindowManager] Tool not found: ${toolId}`);
+                console.error(`[ToolWindowManager] Tool instance not found: ${instanceId}`);
                 return false;
             }
 
             // Hide current tool if any
-            if (this.activeToolId && this.activeToolId !== toolId) {
+            if (this.activeToolId && this.activeToolId !== instanceId) {
                 const currentView = this.toolViews.get(this.activeToolId);
                 if (currentView && this.mainWindow.getBrowserView() === currentView) {
                     // Don't remove, just hide by setting another view
                 }
             }
 
-            // Show the new tool
+            // Show the new tool instance
             this.mainWindow.setBrowserView(toolView);
             // Enable auto-resize for robust behavior on window changes
             try {
@@ -235,32 +244,33 @@ export class ToolWindowManager {
             } catch (err) {
                 console.log(err);
             }
-            this.activeToolId = toolId;
+            this.activeToolId = instanceId;
 
-            console.log(`[ToolWindowManager] Switched to tool: ${toolId}, requesting bounds...`);
+            console.log(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
 
             // Request bounds update from renderer
             this.scheduleBoundsUpdate();
 
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error switching to tool ${toolId}:`, error);
+            console.error(`[ToolWindowManager] Error switching to tool instance ${instanceId}:`, error);
             return false;
         }
     }
 
     /**
      * Close a tool (destroy its BrowserView)
+     * @param instanceId The instance identifier to close
      */
-    async closeTool(toolId: string): Promise<boolean> {
+    async closeTool(instanceId: string): Promise<boolean> {
         try {
-            const toolView = this.toolViews.get(toolId);
+            const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
                 return false;
             }
 
-            // If this is the active tool, clear it from window
-            if (this.activeToolId === toolId) {
+            // If this is the active tool instance, clear it from window
+            if (this.activeToolId === instanceId) {
                 this.mainWindow.setBrowserView(null);
                 this.activeToolId = null;
             }
@@ -272,12 +282,12 @@ export class ToolWindowManager {
             }
 
             // Remove from map
-            this.toolViews.delete(toolId);
+            this.toolViews.delete(instanceId);
 
-            console.log(`[ToolWindowManager] Tool closed: ${toolId}`);
+            console.log(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error closing tool ${toolId}:`, error);
+            console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
             return false;
         }
     }

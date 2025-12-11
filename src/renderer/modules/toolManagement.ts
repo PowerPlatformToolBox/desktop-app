@@ -695,11 +695,30 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Get the tool's specific connection
+    // Check if tool has multi-connection feature
+    const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
     const toolConnectionId = activeTool.connectionId;
+    const secondaryConnectionId = activeTool.secondaryConnectionId;
     
-    if (toolConnectionId) {
-        // Tool has a specific connection
+    if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
+        // Tool has both primary and secondary connections
+        const connections = await window.toolboxAPI.connections.getAll();
+        const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
+        const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
+        
+        if (primaryConnection && secondaryConnection) {
+            // Format: "Primary: ConnName (Env)  |  Secondary: ConnName (Env)"
+            const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
+            const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+            statusElement.textContent = `${primaryText}  |  ${secondaryText}`;
+            statusElement.className = "connection-status connected multi-connection";
+            
+            // Update tool panel border based on primary environment
+            updateToolPanelBorder(primaryConnection.environment);
+            return;
+        }
+    } else if (toolConnectionId) {
+        // Tool has a single connection
         const connections = await window.toolboxAPI.connections.getAll();
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
         
@@ -727,7 +746,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         }
     }
     
-    // Tool doesn't have a specific connection
+    // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
     // Clear tool panel border
