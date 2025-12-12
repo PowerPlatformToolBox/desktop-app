@@ -24,7 +24,12 @@ export class ToolWindowManager {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
-    private toolViews: Map<string, BrowserView> = new Map(); // Maps instanceId -> BrowserView
+    /**
+     * Maps instanceId (not toolId) to BrowserView.
+     * The key is the unique tool instanceId (format: toolId-timestamp-random).
+     * Consider renaming to instanceViews in future refactoring.
+     */
+    private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
     private activeToolId: string | null = null; // Stores instanceId (not toolId)
     private boundsUpdatePending: boolean = false;
