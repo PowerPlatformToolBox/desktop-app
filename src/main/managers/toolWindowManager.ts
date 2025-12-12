@@ -130,7 +130,7 @@ export class ToolWindowManager {
             console.log(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
             // Extract actual toolId from instanceId (format: toolId-timestamp-random)
-            const toolId = instanceId.split('-').slice(0, -2).join('-');
+            const toolId = instanceId.split("-").slice(0, -2).join("-");
 
             // Check if this specific instance is already open (shouldn't happen, but safety check)
             if (this.toolViews.has(instanceId)) {
@@ -168,9 +168,8 @@ export class ToolWindowManager {
             // Get connection information for this tool instance
             // Connections are passed from frontend (per-instance), not retrieved from settings
             let connectionUrl: string | null = null;
-            let connectionId: string | null = primaryConnectionId;
             let secondaryConnectionUrl: string | null = null;
-            
+
             if (primaryConnectionId) {
                 // Get the actual connection object to retrieve the URL
                 const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
@@ -194,7 +193,7 @@ export class ToolWindowManager {
                 toolName: tool.name,
                 version: tool.version,
                 connectionUrl: connectionUrl,
-                connectionId: connectionId,
+                connectionId: primaryConnectionId,
                 secondaryConnectionUrl: secondaryConnectionUrl,
                 secondaryConnectionId: secondaryConnectionId,
             };
@@ -203,7 +202,7 @@ export class ToolWindowManager {
 
             // Store connection info for this instance so IPC handlers can use it
             this.toolConnectionInfo.set(instanceId, {
-                primaryConnectionId: connectionId,
+                primaryConnectionId: primaryConnectionId,
                 secondaryConnectionId: secondaryConnectionId,
             });
 
@@ -472,7 +471,7 @@ export class ToolWindowManager {
         }
 
         let connectionUrl: string | null = null;
-        
+
         if (connectionId) {
             const connection = this.connectionsManager.getConnectionById(connectionId);
             if (connection) {
@@ -485,7 +484,7 @@ export class ToolWindowManager {
             connectionUrl: connectionUrl,
             connectionId: connectionId,
         });
-        
+
         console.log(`[ToolWindowManager] Updated connection for tool ${toolId}:`, connectionUrl ? "connected" : "disconnected");
     }
 
