@@ -501,7 +501,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, license, downloads, rating, aum } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, aum } = t as any;
                 return {
                     id,
                     name,
@@ -515,6 +515,7 @@ export class ToolRegistryManager extends EventEmitter {
                     sourceUrl,
                     readme,
                     cspExceptions,
+                    features,
                     categories,
                     license,
                     downloads,
