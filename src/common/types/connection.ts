@@ -23,7 +23,6 @@ export interface DataverseConnection {
     password?: string;
     createdAt: string;
     lastUsedAt?: string;
-    isActive?: boolean;
     accessToken?: string;
     refreshToken?: string;
     tokenExpiry?: string;

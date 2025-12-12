@@ -18,12 +18,11 @@ export interface ConnectionsAPI {
     update: (id: string, updates: Partial<DataverseConnection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
     getAll: () => Promise<DataverseConnection[]>;
-    setActive: (id: string) => Promise<void>;
-    getActiveConnection: () => Promise<DataverseConnection | null>;
-    disconnect: () => Promise<void>;
+    getById: (connectionId: string) => Promise<DataverseConnection | null>;
     test: (connection: DataverseConnection) => Promise<{ success: boolean; error?: string }>;
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
+    authenticate: (connectionId: string) => Promise<void>;
 }
 
 /**
@@ -115,7 +114,7 @@ export interface ToolboxAPI {
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
     // Tool Window Management
-    launchToolWindow: (toolId: string, tool: Tool) => Promise<boolean>;
+    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;
@@ -133,6 +132,12 @@ export interface ToolboxAPI {
     getToolConnection: (toolId: string) => Promise<string | null>;
     removeToolConnection: (toolId: string) => Promise<void>;
     getAllToolConnections: () => Promise<Record<string, string>>;
+
+    // Tool-specific secondary connection management (for multi-connection tools)
+    setToolSecondaryConnection: (toolId: string, connectionId: string) => Promise<void>;
+    getToolSecondaryConnection: (toolId: string) => Promise<string | null>;
+    removeToolSecondaryConnection: (toolId: string) => Promise<void>;
+    getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
 
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => Promise<Tool>;

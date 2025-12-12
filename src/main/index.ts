@@ -212,6 +212,10 @@ class ToolBoxApp {
             return this.connectionsManager.getConnections();
         });
 
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (event, connectionId: string) => {
+            return this.connectionsManager.getConnectionById(connectionId);
+        });
+
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
             const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
@@ -236,8 +240,8 @@ class ToolBoxApp {
                         throw new Error("Invalid authentication type");
                 }
 
-                // Set the connection as active with tokens
-                this.connectionsManager.setActiveConnection(id, {
+                // Set the connection with tokens
+                this.connectionsManager.updateConnectionTokens(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -261,16 +265,6 @@ class ToolBoxApp {
                 return { success: false, error: (error as Error).message };
             }
         });
-
-        ipcMain.handle(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION, () => {
-            return this.connectionsManager.getActiveConnection();
-        });
-
-        ipcMain.handle(CONNECTION_CHANNELS.DISCONNECT_CONNECTION, () => {
-            this.connectionsManager.disconnectActiveConnection();
-            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
-        });
-
         // Check if connection token is expired
         ipcMain.handle(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, (_, connectionId) => {
             return this.connectionsManager.isConnectionTokenExpired(connectionId);
@@ -291,7 +285,7 @@ class ToolBoxApp {
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
                 // Update the connection with new tokens
-                this.connectionsManager.setActiveConnection(connectionId, {
+                this.connectionsManager.updateConnectionTokens(connectionId, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -463,6 +457,23 @@ class ToolBoxApp {
             return this.settingsManager.getAllToolConnections();
         });
 
+        // Tool secondary connection management
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, (_, toolId: string, connectionId: string) => {
+            this.settingsManager.setToolSecondaryConnection(toolId, connectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            return this.settingsManager.getToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            this.settingsManager.removeToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS, () => {
+            return this.settingsManager.getAllToolSecondaryConnections();
+        });
+
         // Webview protocol handler
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, (_, toolId) => {
             return this.browserviewProtocolManager.buildToolUrl(toolId);
@@ -597,43 +608,65 @@ class ToolBoxApp {
         });
 
         // Dataverse API handlers
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+        // All handlers automatically get the connectionId from the calling tool's WebContents
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>) => {
             try {
-                return await this.dataverseManager.create(entityLogicalName, record);
+                // Get the connectionId from the tool instance making the call
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.create(connectionId, entityLogicalName, record);
             } catch (error) {
                 throw new Error(`Dataverse create failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (event, entityLogicalName: string, id: string, columns?: string[]) => {
             try {
-                return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.retrieve(connectionId, entityLogicalName, id, columns);
             } catch (error) {
                 throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (event, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
             try {
-                await this.dataverseManager.update(entityLogicalName, id, record);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                await this.dataverseManager.update(connectionId, entityLogicalName, id, record);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse update failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (_, entityLogicalName: string, id: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string) => {
             try {
-                await this.dataverseManager.delete(entityLogicalName, id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                await this.dataverseManager.delete(connectionId, entityLogicalName, id);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string) => {
             try {
-                return await this.dataverseManager.retrieveMultiple(fetchXml);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.retrieveMultiple(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
             }
@@ -642,7 +675,7 @@ class ToolBoxApp {
         ipcMain.handle(
             DATAVERSE_CHANNELS.EXECUTE,
             async (
-                _,
+                event,
                 request: {
                     entityName?: string;
                     entityId?: string;
@@ -652,56 +685,84 @@ class ToolBoxApp {
                 },
             ) => {
                 try {
-                    return await this.dataverseManager.execute(request);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                    }
+                    return await this.dataverseManager.execute(connectionId, request);
                 } catch (error) {
                     throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
                 }
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string) => {
             try {
-                return await this.dataverseManager.fetchXmlQuery(fetchXml);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.fetchXmlQuery(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getEntityMetadata(connectionId, entityLogicalName, searchByLogicalName, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async () => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async (event) => {
             try {
-                return await this.dataverseManager.getAllEntitiesMetadata();
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getAllEntitiesMetadata(connectionId);
             } catch (error) {
                 throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getEntityRelatedMetadata(connectionId, entityLogicalName, relatedPath, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (_, selectColumns: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[]) => {
             try {
-                return await this.dataverseManager.getSolutions(selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getSolutions(connectionId, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (_, odataQuery: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string) => {
             try {
-                return await this.dataverseManager.queryData(odataQuery);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.queryData(connectionId, odataQuery);
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }
@@ -859,51 +920,21 @@ class ToolBoxApp {
 
     /**
      * Check for token expiry and notify user
+     * Note: With no global active connection, this method is deprecated
+     * Token expiry checks are now done per-tool when making API calls
      */
     private checkTokenExpiry(): void {
-        const activeConnection = this.connectionsManager.getActiveConnection();
-
-        if (!activeConnection || !activeConnection.tokenExpiry) {
-            // Clear notification tracking if no active connection
-            this.notifiedExpiredTokens.clear();
-            return;
-        }
-
-        const expiryDate = new Date(activeConnection.tokenExpiry);
-        const now = new Date();
-
-        // Check if token has expired
-        if (expiryDate.getTime() <= now.getTime()) {
-            // Only notify if we haven't already notified about this expired token
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-
-            if (!this.notifiedExpiredTokens.has(notificationKey)) {
-                // Token has expired - notify the user
-                if (this.mainWindow) {
-                    this.mainWindow.webContents.send("token-expired", {
-                        connectionId: activeConnection.id,
-                        connectionName: activeConnection.name,
-                    });
-
-                    // Mark this token as notified
-                    this.notifiedExpiredTokens.add(notificationKey);
-                }
-            }
-        } else {
-            // Token is not expired, clear any previous notifications for this connection
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-            this.notifiedExpiredTokens.delete(notificationKey);
-        }
+        // No-op: Token expiry is now checked per-connection when tools make API calls
+        // Each tool uses its own connection, so we don't need a global check
+        return;
     }
 
     /**
      * Start periodic token expiry checks
      */
     private startTokenExpiryChecks(): void {
-        // Check every minute
-        this.tokenExpiryCheckInterval = setInterval(() => {
-            this.checkTokenExpiry();
-        }, 60 * 1000);
+        // No-op: Token expiry checks are now done per-connection when tools make API calls
+        return;
     }
 
     /**

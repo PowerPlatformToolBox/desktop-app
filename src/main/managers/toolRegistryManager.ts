@@ -63,6 +63,7 @@ interface SupabaseTool {
     size?: string; // stored as text in schema
     published_at?: string;
     csp_exceptions?: unknown;
+    features?: unknown; // JSON column for tool features
     license?: string;
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
@@ -97,6 +98,7 @@ interface LocalRegistryTool {
     homepage?: string;
     license?: string;
     cspExceptions?: CspExceptions;
+    features?: Record<string, unknown>;
 }
 
 /**
@@ -168,6 +170,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "published_at",
                 "license",
                 "csp_exceptions",
+                "features",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
@@ -216,6 +219,7 @@ export class ToolRegistryManager extends EventEmitter {
                     size: tool.size ? Number(tool.size) || undefined : undefined,
                     categories: categories,
                     cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
+                    features: (tool.features as Record<string, unknown> | undefined) || undefined,
                     license: tool.license,
                     downloads,
                     rating,
@@ -265,6 +269,7 @@ export class ToolRegistryManager extends EventEmitter {
                 tags: tool.tags,
                 readme: tool.readme,
                 cspExceptions: tool.cspExceptions,
+                features: tool.features,
                 license: tool.license,
             }));
 
@@ -438,6 +443,7 @@ export class ToolRegistryManager extends EventEmitter {
             sourceUrl: tool.downloadUrl,
             readme: tool.readmeUrl, // Include readme URL from registry
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
+            features: tool.features || packageJson.features, // Include features from registry or package.json
             categories: tool.categories,
             license: tool.license || packageJson.license,
             downloads: tool.downloads,
@@ -495,7 +501,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, license, downloads, rating, aum } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, aum } = t as any;
                 return {
                     id,
                     name,
@@ -509,6 +515,7 @@ export class ToolRegistryManager extends EventEmitter {
                     sourceUrl,
                     readme,
                     cspExceptions,
+                    features,
                     categories,
                     license,
                     downloads,

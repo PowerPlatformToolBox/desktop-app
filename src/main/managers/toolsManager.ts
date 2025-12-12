@@ -82,6 +82,7 @@ export class ToolManager extends EventEmitter {
             authors: manifest.authors,
             iconUrl: manifest.icon,
             cspExceptions: manifest.cspExceptions,
+            features: manifest.features,
             categories: manifest.categories,
             license: manifest.license,
             downloads: manifest.downloads,

@@ -4,12 +4,23 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
-import { openSelectConnectionModal } from "./connectionManagement";
+import type { DataverseConnection } from "../../common/types/connection";
+import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 
-// Tool state
+// Tool state - now keyed by instanceId instead of toolId to support multiple instances
 const openTools = new Map<string, OpenTool>();
-let activeToolId: string | null = null;
+let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
+
+/**
+ * Generate a unique instance ID for a tool
+ */
+function generateInstanceId(toolId: string): string {
+    // Generate a simple unique ID using timestamp and random number
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 9);
+    return `${toolId}-${timestamp}-${randomPart}`;
+}
 
 /**
  * Get all open tools
@@ -125,22 +136,62 @@ export async function launchTool(toolId: string): Promise<void> {
     try {
         console.log("Launching tool:", toolId);
 
-        // If tool is already open, just switch to its tab
-        if (openTools.has(toolId)) {
-            switchToTool(toolId);
+        // Generate a unique instance ID for this tool launch
+        const instanceId = generateInstanceId(toolId);
+        console.log("Generated instance ID:", instanceId);
+
+        // Load the tool first to check if it requires multi-connection
+        const tool = await window.toolboxAPI.getTool(toolId);
+        if (!tool) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Launch Failed",
+                body: `Tool ${toolId} not found`,
+                type: "error",
+            });
             return;
         }
 
-        // Check if there's an active connection before launching the tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        
-        if (!activeConnection) {
-            console.log("No active connection found. Showing connection selection modal...");
+        // Check if tool requires multi-connection
+        const requiresMultiConnection = tool.features && tool.features["multi-connection"] === true;
+
+        let primaryConnectionId: string | null = null;
+        let secondaryConnectionId: string | null = null;
+
+        if (requiresMultiConnection) {
+            // Tool requires two connections - always show modal for new instance
+            console.log("Tool requires multi-connection. Showing multi-connection modal...");
+            
+            try {
+                // Show the select multi-connection modal and wait for user to select both connections
+                const result = await openSelectMultiConnectionModal();
+                primaryConnectionId = result.primaryConnectionId;
+                secondaryConnectionId = result.secondaryConnectionId;
+                console.log("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+            } catch (error) {
+                // User cancelled the multi-connection selection
+                console.log("Multi-connection selection cancelled:", error);
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Launch Cancelled",
+                    body: "This tool requires two connections. Please select both connections to continue.",
+                    type: "info",
+                });
+                return;
+            }
+        } else {
+            // Regular single-connection flow - always show modal for new instance
+            console.log("Showing connection selection modal for new instance...");
             
             try {
                 // Show the select connection modal and wait for user to connect
-                await openSelectConnectionModal();
+                // Show connection selection modal and get selected connectionId
+                const selectedConnectionId = await openSelectConnectionModal();
                 console.log("Connection established. Continuing with tool launch...");
+                
+                if (selectedConnectionId) {
+                    primaryConnectionId = selectedConnectionId;
+                } else {
+                    throw new Error("No connection was selected");
+                }
             } catch (error) {
                 // User cancelled the connection selection
                 console.log("Connection selection cancelled:", error);
@@ -151,17 +202,6 @@ export async function launchTool(toolId: string): Promise<void> {
                 });
                 return;
             }
-        }
-
-        // Load the tool
-        const tool = await window.toolboxAPI.getTool(toolId);
-        if (!tool) {
-            window.toolboxAPI.utils.showNotification({
-                title: "Tool Launch Failed",
-                body: `Tool ${toolId} not found`,
-                type: "error",
-            });
-            return;
         }
 
         // Check if tool requires CSP exceptions
@@ -200,9 +240,9 @@ export async function launchTool(toolId: string): Promise<void> {
             toolPanel.style.display = "flex";
         }
 
-        // Launch the tool using BrowserView via IPC
+        // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
-        const launched = await window.toolboxAPI.launchToolWindow(toolId, tool);
+        const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
 
         if (!launched) {
             window.toolboxAPI.utils.showNotification({
@@ -213,31 +253,27 @@ export async function launchTool(toolId: string): Promise<void> {
             return;
         }
 
-        console.log(`[Tool Launch] Tool window created via BrowserView: ${toolId}`);
+        console.log(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
 
-        // Store the open tool (no webview container needed - managed by backend)
-        const toolConnectionId = await window.toolboxAPI.getToolConnection(toolId);
-        openTools.set(toolId, {
-            id: toolId,
+        // Count how many instances of this tool are already open
+        const existingInstances = Array.from(openTools.values()).filter(t => t.toolId === toolId);
+        const instanceNumber = existingInstances.length + 1;
+
+        // Store the open tool with instance information
+        openTools.set(instanceId, {
+            instanceId: instanceId,
+            toolId: toolId,
             tool: tool,
             isPinned: false,
-            connectionId: toolConnectionId,
+            connectionId: primaryConnectionId,
+            secondaryConnectionId: secondaryConnectionId,
         });
 
-        // Create and add tab
-        createTab(toolId, tool);
-
-        // Update connection badge if tool has a specific connection
-        if (toolConnectionId) {
-            const badge = document.getElementById(`tab-connection-${toolId}`);
-            if (badge) {
-                badge.style.display = "inline";
-                badge.title = "Tool-specific connection";
-            }
-        }
+        // Create and add tab with instance number if multiple instances exist
+        createTab(instanceId, tool, instanceNumber);
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
-        switchToTool(toolId);
+        switchToTool(instanceId);
 
         // Update toolbar buttons
         updateToolbarButtonVisibility();
@@ -245,7 +281,7 @@ export async function launchTool(toolId: string): Promise<void> {
         // Save session after launching
         saveSession();
 
-        console.log("Tool launched successfully:", tool.name);
+        console.log("Tool launched successfully:", tool.name, "Instance:", instanceNumber);
     } catch (error) {
         console.error("Error launching tool:", error);
         window.toolboxAPI.utils.showNotification({
@@ -257,26 +293,28 @@ export async function launchTool(toolId: string): Promise<void> {
 }
 
 /**
- * Create a tab for a tool
+ * Create a tab for a tool instance
  */
-export function createTab(toolId: string, tool: any): void {
+export function createTab(instanceId: string, tool: any, instanceNumber: number = 1): void {
     const toolTabs = document.getElementById("tool-tabs");
     if (!toolTabs) return;
 
     const tab = document.createElement("div");
     tab.className = "tool-tab";
-    tab.id = `tool-tab-${toolId}`;
-    tab.setAttribute("data-tool-id", toolId);
+    tab.id = `tool-tab-${instanceId}`;
+    tab.setAttribute("data-instance-id", instanceId);
     tab.setAttribute("draggable", "true");
 
     const name = document.createElement("span");
     name.className = "tool-tab-name";
-    name.textContent = tool.name;
-    name.title = tool.name;
+    // Show instance number if multiple instances exist
+    const displayName = instanceNumber > 1 ? `${tool.name} (${instanceNumber})` : tool.name;
+    name.textContent = displayName;
+    name.title = displayName;
 
     const connectionBadge = document.createElement("span");
     connectionBadge.className = "tool-tab-connection";
-    connectionBadge.id = `tab-connection-${toolId}`;
+    connectionBadge.id = `tab-connection-${instanceId}`;
     connectionBadge.textContent = "🔗";
     connectionBadge.title = "No connection";
     connectionBadge.style.display = "none";
@@ -294,7 +332,7 @@ export function createTab(toolId: string, tool: any): void {
 
     pinBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        togglePinTab(toolId);
+        togglePinTab(instanceId);
     });
 
     const closeBtn = document.createElement("button");
@@ -304,11 +342,11 @@ export function createTab(toolId: string, tool: any): void {
 
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        closeTool(toolId);
+        closeTool(instanceId);
     });
 
     tab.addEventListener("click", () => {
-        switchToTool(toolId);
+        switchToTool(instanceId);
     });
 
     // Drag and drop events
@@ -327,11 +365,11 @@ export function createTab(toolId: string, tool: any): void {
 /**
  * Switch to a tool tab
  */
-export async function switchToTool(toolId: string): Promise<void> {
-    if (!openTools.has(toolId)) return;
+export async function switchToTool(instanceId: string): Promise<void> {
+    if (!openTools.has(instanceId)) return;
 
     // Normal single view mode
-    activeToolId = toolId;
+    activeToolId = instanceId;
 
     // Update tab active states
     document.querySelectorAll(".tool-tab").forEach((tab) => {
@@ -339,14 +377,14 @@ export async function switchToTool(toolId: string): Promise<void> {
         // Also remove environment classes from all tabs
         tab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
     });
-    const activeTab = document.getElementById(`tool-tab-${toolId}`);
+    const activeTab = document.getElementById(`tool-tab-${instanceId}`);
     if (activeTab) {
         activeTab.classList.add("active");
     }
 
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
-    window.toolboxAPI.switchToolWindow(toolId).catch((error: any) => {
+    window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
         console.error("Failed to switch tool window:", error);
     });
 
@@ -357,8 +395,8 @@ export async function switchToTool(toolId: string): Promise<void> {
 /**
  * Close a tool
  */
-export function closeTool(toolId: string): void {
-    const openTool = openTools.get(toolId);
+export function closeTool(instanceId: string): void {
+    const openTool = openTools.get(instanceId);
     if (!openTool) return;
 
     // Check if tab is pinned
@@ -372,19 +410,19 @@ export function closeTool(toolId: string): void {
     }
 
     // Remove tab
-    const tab = document.getElementById(`tool-tab-${toolId}`);
+    const tab = document.getElementById(`tool-tab-${instanceId}`);
     if (tab) {
         tab.remove();
     }
 
     // Close the tool window via IPC
     // The ToolWindowManager will destroy the BrowserView
-    window.toolboxAPI.closeToolWindow(toolId).catch((error: any) => {
+    window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
         console.error("Failed to close tool window:", error);
     });
 
     // Remove from open tools
-    openTools.delete(toolId);
+    openTools.delete(instanceId);
 
     // Update toolbar buttons
     updateToolbarButtonVisibility();
@@ -393,11 +431,11 @@ export function closeTool(toolId: string): void {
     saveSession();
 
     // If this was the active tool, switch to another tool or close the panel
-    if (activeToolId === toolId) {
+    if (activeToolId === instanceId) {
         if (openTools.size > 0) {
             // Switch to the last tool in the list
-            const lastToolId = Array.from(openTools.keys())[openTools.size - 1];
-            switchToTool(lastToolId);
+            const lastInstanceId = Array.from(openTools.keys())[openTools.size - 1];
+            switchToTool(lastInstanceId);
         } else {
             // No more tools open, hide the tool panel and show home view
             const toolPanel = document.getElementById("tool-panel");
@@ -427,13 +465,13 @@ export function closeAllTools(): void {
 /**
  * Toggle pin state for a tab
  */
-export function togglePinTab(toolId: string): void {
-    const openTool = openTools.get(toolId);
+export function togglePinTab(instanceId: string): void {
+    const openTool = openTools.get(instanceId);
     if (!openTool) return;
 
     openTool.isPinned = !openTool.isPinned;
 
-    const tab = document.getElementById(`tool-tab-${toolId}`);
+    const tab = document.getElementById(`tool-tab-${instanceId}`);
     if (tab) {
         const isDarkTheme = document.body.classList.contains("dark-theme");
         const pinBtn = tab.querySelector(".tool-tab-pin img") as HTMLImageElement;
@@ -511,10 +549,12 @@ function handleDragEnd(e: DragEvent, tab: HTMLElement): void {
  */
 export function saveSession(): void {
     const session: SessionData = {
-        openTools: Array.from(openTools.entries()).map(([id, tool]) => ({
-            id,
+        openTools: Array.from(openTools.entries()).map(([instanceId, tool]) => ({
+            instanceId,
+            toolId: tool.toolId,
             isPinned: tool.isPinned,
             connectionId: tool.connectionId,
+            secondaryConnectionId: tool.secondaryConnectionId,
         })),
         activeToolId,
     };
@@ -531,17 +571,14 @@ export async function restoreSession(): Promise<void> {
     try {
         const session = JSON.parse(sessionData) as SessionData;
         if (session.openTools && Array.isArray(session.openTools)) {
+            // Note: We can't restore exact instanceIds since they're timestamp-based
+            // Instead, we launch the tools fresh, which creates new instances
+            // Session restore for multi-instance is simplified for now
             for (const toolInfo of session.openTools) {
-                await launchTool(toolInfo.id);
-                if (toolInfo.isPinned) {
-                    togglePinTab(toolInfo.id);
-                }
-                // Note: toolInfo.connectionId is now loaded from settings during launchTool
-                // so we don't need to set it here explicitly
+                await launchTool(toolInfo.toolId);
+                // TODO: Future enhancement - restore pinned state and exact connections per instance
             }
-            if (session.activeToolId && openTools.has(session.activeToolId)) {
-                await switchToTool(session.activeToolId);
-            }
+            // Note: activeToolId won't match since we have new instanceIds
         }
     } catch (error) {
         console.error("Failed to restore session:", error);
@@ -551,21 +588,22 @@ export async function restoreSession(): Promise<void> {
 /**
  * Set connection for a tool
  */
-export async function setToolConnection(toolId: string, connectionId: string | null): Promise<void> {
-    const tool = openTools.get(toolId);
+export async function setToolConnection(instanceId: string, connectionId: string | null): Promise<void> {
+    const tool = openTools.get(instanceId);
     if (!tool) return;
 
     tool.connectionId = connectionId;
 
-    // Save to backend
+    // Save to backend using toolId (not instanceId) for settings storage
+    const toolId = tool.toolId;
     if (connectionId) {
         await window.toolboxAPI.setToolConnection(toolId, connectionId);
     } else {
         await window.toolboxAPI.removeToolConnection(toolId);
     }
 
-    // Update connection badge on tab
-    const badge = document.getElementById(`tab-connection-${toolId}`);
+    // Update connection badge on tab using instanceId
+    const badge = document.getElementById(`tab-connection-${instanceId}`);
     if (badge) {
         if (connectionId) {
             badge.style.display = "inline";
@@ -579,11 +617,11 @@ export async function setToolConnection(toolId: string, connectionId: string | n
     saveSession();
 
     // Update sidebar and footer if this is the active tool
-    if (activeToolId === toolId) {
+    if (activeToolId === instanceId) {
         await updateActiveToolConnectionStatus();
     }
 
-    console.log(`Tool ${toolId} connection set to:`, connectionId);
+    console.log(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, connectionId);
 }
 
 /**
@@ -660,11 +698,30 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Get the tool's specific connection
+    // Check if tool has multi-connection feature
+    const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
     const toolConnectionId = activeTool.connectionId;
+    const secondaryConnectionId = activeTool.secondaryConnectionId;
     
-    if (toolConnectionId) {
-        // Tool has a specific connection
+    if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
+        // Tool has both primary and secondary connections
+        const connections = await window.toolboxAPI.connections.getAll();
+        const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
+        const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
+        
+        if (primaryConnection && secondaryConnection) {
+            // Format: "Primary: ConnName (Env)  |  Secondary: ConnName (Env)"
+            const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
+            const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+            statusElement.textContent = `${primaryText}  |  ${secondaryText}`;
+            statusElement.className = "connection-status connected multi-connection";
+            
+            // Update tool panel border based on primary environment
+            updateToolPanelBorder(primaryConnection.environment);
+            return;
+        }
+    } else if (toolConnectionId) {
+        // Tool has a single connection
         const connections = await window.toolboxAPI.connections.getAll();
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
         
@@ -692,7 +749,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         }
     }
     
-    // Tool doesn't have a specific connection
+    // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
     // Clear tool panel border
@@ -844,18 +901,18 @@ export async function openToolConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
         
         // Open the modal and pass the tool's current connection ID to highlight it
-        await openSelectConnectionModal(activeTool.connectionId);
+        const selectedConnectionId = await openSelectConnectionModal(activeTool.connectionId);
         
         // After modal closes with a successful connection, update the tool's connection
-        // The modal handles authentication, we just need to associate it with the tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        
-        if (activeConnection && activeToolId) {
-            await setToolConnection(activeToolId, activeConnection.id);
+        if (selectedConnectionId && activeToolId) {
+            await setToolConnection(activeToolId, selectedConnectionId);
             
+            // Get connection from all connections list
+            const connections = await window.toolboxAPI.connections.getAll();
+            const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Connection Set",
-                body: `${activeTool.tool.name} is now connected to ${activeConnection.name}.`,
+                body: `${activeTool.tool.name} is now connected to ${connection?.name || 'the selected connection'}.`,
                 type: "success",
             });
         }

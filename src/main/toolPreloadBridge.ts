@@ -59,16 +59,54 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Connections API
     connections: {
-        getActiveConnection: () => ipcInvoke(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION),
+        // Get tool's primary connection from context
+        getConnection: async () => {
+            await toolContextReady;
+            if (!toolContext || typeof toolContext.connectionId !== 'string') {
+                return null;
+            }
+            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+        },
+        getConnectionUrl: async () => {
+            await toolContextReady;
+            return toolContext?.connectionUrl || null;
+        },
+        getConnectionId: async () => {
+            await toolContextReady;
+            return toolContext?.connectionId || null;
+        },
+        // Backward compatibility: getActiveConnection is an alias for getConnection
+        // Tools call this expecting their own connection, not a global active connection
+        getActiveConnection: async () => {
+            await toolContextReady;
+            if (!toolContext || typeof toolContext.connectionId !== 'string') {
+                return null;
+            }
+            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+        },
         getAll: () => ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
-        setActive: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
         add: (connection: unknown) => ipcInvoke(CONNECTION_CHANNELS.ADD_CONNECTION, connection),
         update: (id: string, updates: unknown) => ipcInvoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
         delete: (id: string) => ipcInvoke(CONNECTION_CHANNELS.DELETE_CONNECTION, id),
         test: (connection: unknown) => ipcInvoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
-        disconnect: () => ipcInvoke(CONNECTION_CHANNELS.DISCONNECT_CONNECTION),
         isTokenExpired: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
         refreshToken: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
+        // Secondary connection methods for multi-connection tools
+        getSecondaryConnection: async () => {
+            await toolContextReady;
+            if (!toolContext || typeof toolContext.secondaryConnectionId !== 'string') {
+                return null;
+            }
+            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
+        },
+        getSecondaryConnectionUrl: async () => {
+            await toolContextReady;
+            return toolContext?.secondaryConnectionUrl || null;
+        },
+        getSecondaryConnectionId: async () => {
+            await toolContextReady;
+            return toolContext?.secondaryConnectionId || null;
+        },
     },
 
     // Dataverse API
