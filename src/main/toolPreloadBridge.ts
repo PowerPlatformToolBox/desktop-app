@@ -75,6 +75,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             await toolContextReady;
             return toolContext?.connectionId || null;
         },
+        // Backward compatibility: getActiveConnection is an alias for getConnection
+        // Tools call this expecting their own connection, not a global active connection
+        getActiveConnection: async () => {
+            await toolContextReady;
+            if (!toolContext || typeof toolContext.connectionId !== 'string') {
+                return null;
+            }
+            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+        },
         getAll: () => ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
         add: (connection: unknown) => ipcInvoke(CONNECTION_CHANNELS.ADD_CONNECTION, connection),
         update: (id: string, updates: unknown) => ipcInvoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
