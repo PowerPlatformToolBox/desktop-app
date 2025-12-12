@@ -177,7 +177,6 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                     <div class="connection-meta-item">
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                     </div>
-                    \${conn.isActive ? '<div class="connection-meta-item">✓ Currently Active</div>' : ''}
                 </div>
             </div>
         \`;

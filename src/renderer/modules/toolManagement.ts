@@ -588,21 +588,22 @@ export async function restoreSession(): Promise<void> {
 /**
  * Set connection for a tool
  */
-export async function setToolConnection(toolId: string, connectionId: string | null): Promise<void> {
-    const tool = openTools.get(toolId);
+export async function setToolConnection(instanceId: string, connectionId: string | null): Promise<void> {
+    const tool = openTools.get(instanceId);
     if (!tool) return;
 
     tool.connectionId = connectionId;
 
-    // Save to backend
+    // Save to backend using toolId (not instanceId) for settings storage
+    const toolId = tool.toolId;
     if (connectionId) {
         await window.toolboxAPI.setToolConnection(toolId, connectionId);
     } else {
         await window.toolboxAPI.removeToolConnection(toolId);
     }
 
-    // Update connection badge on tab
-    const badge = document.getElementById(`tab-connection-${toolId}`);
+    // Update connection badge on tab using instanceId
+    const badge = document.getElementById(`tab-connection-${instanceId}`);
     if (badge) {
         if (connectionId) {
             badge.style.display = "inline";
@@ -616,11 +617,11 @@ export async function setToolConnection(toolId: string, connectionId: string | n
     saveSession();
 
     // Update sidebar and footer if this is the active tool
-    if (activeToolId === toolId) {
+    if (activeToolId === instanceId) {
         await updateActiveToolConnectionStatus();
     }
 
-    console.log(`Tool ${toolId} connection set to:`, connectionId);
+    console.log(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, connectionId);
 }
 
 /**

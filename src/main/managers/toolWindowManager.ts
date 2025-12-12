@@ -63,7 +63,7 @@ export class ToolWindowManager {
             return this.closeTool(instanceId);
         });
 
-        // Get active tool ID (now returns instanceId)
+        // Get active instance ID (activeToolId variable now stores instanceId values)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_ACTIVE, async () => {
             return this.activeToolId;
         });
