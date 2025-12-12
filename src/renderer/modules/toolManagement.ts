@@ -240,9 +240,9 @@ export async function launchTool(toolId: string): Promise<void> {
             toolPanel.style.display = "flex";
         }
 
-        // Launch the tool using BrowserView via IPC with the instance ID
+        // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
-        const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool);
+        const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
 
         if (!launched) {
             window.toolboxAPI.utils.showNotification({

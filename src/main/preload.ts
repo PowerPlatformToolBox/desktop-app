@@ -46,7 +46,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_CONTEXT, packageName, connectionUrl),
 
     // Tool Window Management (NEW - BrowserView based)
-    launchToolWindow: (toolId: string, tool: unknown) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, toolId, tool),
+    launchToolWindow: (instanceId: string, tool: unknown, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => 
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, instanceId, tool, primaryConnectionId, secondaryConnectionId),
     switchToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, toolId),
     closeToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, toolId),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),

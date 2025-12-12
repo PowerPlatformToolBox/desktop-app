@@ -114,7 +114,7 @@ export interface ToolboxAPI {
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
     // Tool Window Management
-    launchToolWindow: (toolId: string, tool: Tool) => Promise<boolean>;
+    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;

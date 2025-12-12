@@ -43,9 +43,9 @@ export class ToolWindowManager {
      */
     private setupIpcHandlers(): void {
         // Launch tool (create BrowserView and load tool)
-        // Now accepts instanceId instead of toolId
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool) => {
-            return this.launchTool(instanceId, tool);
+        // Now accepts instanceId instead of toolId, plus connection IDs
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
+            return this.launchTool(instanceId, tool, primaryConnectionId, secondaryConnectionId);
         });
 
         // Switch to a different tool
@@ -114,10 +114,13 @@ export class ToolWindowManager {
 
     /**
      * Launch a tool in a new BrowserView
-     * @param instanceId Unique instance identifier (e.g., "toolId-timestamp-random")
-     * @param tool Tool metadata
+     * Now uses instanceId instead of toolId to support multiple instances
+     * @param instanceId Unique instance identifier (format: toolId-timestamp-random)
+     * @param tool Tool configuration
+     * @param primaryConnectionId Primary connection ID for this instance (passed from frontend)
+     * @param secondaryConnectionId Secondary connection ID for multi-connection tools (optional)
      */
-    async launchTool(instanceId: string, tool: Tool): Promise<boolean> {
+    async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null): Promise<boolean> {
         try {
             console.log(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
@@ -158,30 +161,24 @@ export class ToolWindowManager {
             this.toolViews.set(instanceId, toolView);
 
             // Get connection information for this tool instance
-            // Connections are per-instance, managed by frontend during launch
-            const toolConnectionId = this.settingsManager.getToolConnection(toolId);
+            // Connections are passed from frontend (per-instance), not retrieved from settings
             let connectionUrl: string | null = null;
-            let connectionId: string | null = null;
+            let connectionId: string | null = primaryConnectionId;
             let secondaryConnectionUrl: string | null = null;
-            let secondaryConnectionId: string | null = null;
             
-            if (toolConnectionId) {
-                // Tool has a specific connection assigned
-                const connection = this.connectionsManager.getConnectionById(toolConnectionId);
+            if (primaryConnectionId) {
+                // Get the actual connection object to retrieve the URL
+                const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
                 if (connection) {
                     connectionUrl = connection.url;
-                    connectionId = toolConnectionId;
                 }
             }
-            // Note: No fallback to global active connection - tools must have explicit connections
 
             // Check if tool has a secondary connection (for multi-connection tools)
-            const secondaryToolConnectionId = this.settingsManager.getToolSecondaryConnection(toolId);
-            if (secondaryToolConnectionId) {
-                const secondaryConnection = this.connectionsManager.getConnectionById(secondaryToolConnectionId);
+            if (secondaryConnectionId) {
+                const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
                 if (secondaryConnection) {
                     secondaryConnectionUrl = secondaryConnection.url;
-                    secondaryConnectionId = secondaryToolConnectionId;
                 }
             }
 
