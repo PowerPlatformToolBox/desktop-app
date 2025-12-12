@@ -77,11 +77,9 @@ export async function initializeApplication(): Promise<void> {
     await loadSidebarConnections();
 
     // Update footer connection info
-    await updateFooterConnection();
-
     // Update footer connection status
-    const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-    updateFooterConnectionStatus(activeConnection);
+    // Note: Footer shows active tool's connection, not a global connection
+    await updateFooterConnection();
 
     // Restore previous session
     await restoreSession();

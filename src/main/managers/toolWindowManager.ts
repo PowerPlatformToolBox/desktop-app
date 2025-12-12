@@ -158,8 +158,7 @@ export class ToolWindowManager {
             this.toolViews.set(instanceId, toolView);
 
             // Get connection information for this tool instance
-            // Note: Connections are per-instance, but settings store per-toolId
-            // This is a limitation we're accepting for now
+            // Connections are per-instance, managed by frontend during launch
             const toolConnectionId = this.settingsManager.getToolConnection(toolId);
             let connectionUrl: string | null = null;
             let connectionId: string | null = null;
@@ -173,14 +172,8 @@ export class ToolWindowManager {
                     connectionUrl = connection.url;
                     connectionId = toolConnectionId;
                 }
-            } else {
-                // Fall back to global active connection
-                const activeConnection = this.connectionsManager.getActiveConnection();
-                if (activeConnection) {
-                    connectionUrl = activeConnection.url;
-                    connectionId = activeConnection.id;
-                }
             }
+            // Note: No fallback to global active connection - tools must have explicit connections
 
             // Check if tool has a secondary connection (for multi-connection tools)
             const secondaryToolConnectionId = this.settingsManager.getToolSecondaryConnection(toolId);

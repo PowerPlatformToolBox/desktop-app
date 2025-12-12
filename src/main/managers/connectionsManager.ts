@@ -170,4 +170,21 @@ export class ConnectionsManager {
     // Decrypt sensitive fields
     return this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
   }
+
+  /**
+   * Check if a connection's token is expired
+   */
+  isConnectionTokenExpired(connectionId: string): boolean {
+    const connections = this.store.get('connections');
+    const connection = connections.find(c => c.id === connectionId);
+    
+    if (!connection || !connection.tokenExpiry) {
+      return false;
+    }
+
+    const expiryDate = new Date(connection.tokenExpiry);
+    const now = new Date();
+    
+    return expiryDate.getTime() <= now.getTime();
+  }
 }

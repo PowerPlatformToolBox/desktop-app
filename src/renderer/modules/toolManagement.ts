@@ -182,13 +182,12 @@ export async function launchTool(toolId: string): Promise<void> {
             
             try {
                 // Show the select connection modal and wait for user to connect
-                await openSelectConnectionModal();
+                // Show connection selection modal and get selected connectionId
+                const selectedConnectionId = await openSelectConnectionModal();
                 console.log("Connection established. Continuing with tool launch...");
                 
-                // Get the active connection that was just selected
-                const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-                if (activeConnection) {
-                    primaryConnectionId = activeConnection.id;
+                if (selectedConnectionId) {
+                    primaryConnectionId = selectedConnectionId;
                 }
             } catch (error) {
                 // User cancelled the connection selection
@@ -898,18 +897,16 @@ export async function openToolConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
         
         // Open the modal and pass the tool's current connection ID to highlight it
-        await openSelectConnectionModal(activeTool.connectionId);
+        const selectedConnectionId = await openSelectConnectionModal(activeTool.connectionId);
         
         // After modal closes with a successful connection, update the tool's connection
-        // The modal handles authentication, we just need to associate it with the tool
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        
-        if (activeConnection && activeToolId) {
-            await setToolConnection(activeToolId, activeConnection.id);
+        if (selectedConnectionId && activeToolId) {
+            await setToolConnection(activeToolId, selectedConnectionId);
             
+            const connection = await window.toolboxAPI.connections.getById(selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Connection Set",
-                body: `${activeTool.tool.name} is now connected to ${activeConnection.name}.`,
+                body: `${activeTool.tool.name} is now connected to ${connection?.name || 'the selected connection'}.`,
                 type: "success",
             });
         }

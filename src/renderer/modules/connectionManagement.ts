@@ -105,18 +105,15 @@ export async function updateFooterConnection(): Promise<void> {
     if (!footerConnectionName) return;
 
     try {
-        const activeConn = await window.toolboxAPI.connections.getActiveConnection();
-
-        if (activeConn) {
-            // Check if token is expired
-            let isExpired = false;
-            if (activeConn.tokenExpiry) {
-                const expiryDate = new Date(activeConn.tokenExpiry);
-                const now = new Date();
-                isExpired = expiryDate.getTime() <= now.getTime();
-            }
-
-            const warningIcon = isExpired ? `<span style="color: #f59e0b; margin-left: 4px;" title="Token Expired - Re-authentication Required">⚠</span>` : "";
+        // Note: With no global active connection, the footer shows the active tool's connection
+        // This is handled by updateActiveToolConnectionStatus in toolManagement.ts
+        // This function now just ensures the UI element exists
+        footerConnectionName.textContent = "No active tool";
+        footerConnectionName.className = "connection-status";
+    } catch (error) {
+        console.error("Error updating footer connection:", error);
+    }
+}
 
             footerConnectionName.innerHTML = `${activeConn.name} (${activeConn.environment})${warningIcon}`;
             if (footerChangeBtn) {
@@ -256,10 +253,9 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         // Connect to the selected connection - this will await the full authentication process
         await connectToConnection(connectionId);
         
-        // Verify the connection is actually active before closing modal
-        // This ensures interactive auth has completed fully
-        const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-        if (!activeConnection || activeConnection.id !== connectionId) {
+        // Verify the connection exists and is valid
+        const connection = await window.toolboxAPI.connections.getById(connectionId);
+        if (!connection) {
             throw new Error("Connection was not successfully established");
         }
         
@@ -275,9 +271,9 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         // Close the modal
         await closeBrowserWindowModal();
         
-        // Now resolve the promise after handlers are cleared
+        // Now resolve the promise with the connectionId after handlers are cleared
         if (resolveHandler) {
-            resolveHandler();
+            resolveHandler(connectionId);
         }
     } catch (error) {
         console.error("Error connecting to selected connection:", error);
@@ -559,10 +555,16 @@ export function updateFooterConnectionStatus(connection: any | null): void {
 
 /**
  * Connect to a connection by ID
+ * Note: With no global active connection, this just confirms the connection exists and is authenticated
  */
 export async function connectToConnection(id: string): Promise<void> {
     try {
-        await window.toolboxAPI.connections.setActive(id);
+        // Verify the connection exists
+        const connection = await window.toolboxAPI.connections.getById(id);
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+        
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
@@ -626,18 +628,15 @@ export async function handleReauthentication(connectionId: string): Promise<void
     } catch (error) {
         console.error("Token refresh failed, trying full re-authentication:", error);
 
-        // If refresh fails, prompt for full re-authentication
-        try {
-            await window.toolboxAPI.connections.setActive(connectionId);
+        // If refresh fails, notify user to re-authenticate
+        await window.toolboxAPI.utils.showNotification({
+            title: "Re-authentication Needed",
+            body: "Token refresh failed. Please re-authenticate the connection.",
+            type: "error",
+        });
 
-            await window.toolboxAPI.utils.showNotification({
-                title: "Re-authenticated",
-                body: "Successfully re-authenticated with the environment.",
-                type: "success",
-            });
-
-            // Reload connections to update UI
-            await loadSidebarConnections();
+        // Reload connections to update UI
+        await loadSidebarConnections();
             await updateFooterConnection();
         } catch (reauthError) {
             await window.toolboxAPI.utils.showNotification({

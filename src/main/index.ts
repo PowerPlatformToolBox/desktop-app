@@ -240,8 +240,8 @@ class ToolBoxApp {
                         throw new Error("Invalid authentication type");
                 }
 
-                // Set the connection as active with tokens
-                this.connectionsManager.setActiveConnection(id, {
+                // Set the connection with tokens
+                this.connectionsManager.updateConnectionTokens(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -266,13 +266,9 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION, () => {
-            return this.connectionsManager.getActiveConnection();
-        });
-
-        ipcMain.handle(CONNECTION_CHANNELS.DISCONNECT_CONNECTION, () => {
-            this.connectionsManager.disconnectActiveConnection();
-            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
+        // Get connection by ID handler
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (_, connectionId: string) => {
+            return this.connectionsManager.getConnectionById(connectionId);
         });
 
         // Check if connection token is expired
@@ -295,7 +291,7 @@ class ToolBoxApp {
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
                 // Update the connection with new tokens
-                this.connectionsManager.setActiveConnection(connectionId, {
+                this.connectionsManager.updateConnectionTokens(connectionId, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -880,51 +876,21 @@ class ToolBoxApp {
 
     /**
      * Check for token expiry and notify user
+     * Note: With no global active connection, this method is deprecated
+     * Token expiry checks are now done per-tool when making API calls
      */
     private checkTokenExpiry(): void {
-        const activeConnection = this.connectionsManager.getActiveConnection();
-
-        if (!activeConnection || !activeConnection.tokenExpiry) {
-            // Clear notification tracking if no active connection
-            this.notifiedExpiredTokens.clear();
-            return;
-        }
-
-        const expiryDate = new Date(activeConnection.tokenExpiry);
-        const now = new Date();
-
-        // Check if token has expired
-        if (expiryDate.getTime() <= now.getTime()) {
-            // Only notify if we haven't already notified about this expired token
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-
-            if (!this.notifiedExpiredTokens.has(notificationKey)) {
-                // Token has expired - notify the user
-                if (this.mainWindow) {
-                    this.mainWindow.webContents.send("token-expired", {
-                        connectionId: activeConnection.id,
-                        connectionName: activeConnection.name,
-                    });
-
-                    // Mark this token as notified
-                    this.notifiedExpiredTokens.add(notificationKey);
-                }
-            }
-        } else {
-            // Token is not expired, clear any previous notifications for this connection
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-            this.notifiedExpiredTokens.delete(notificationKey);
-        }
+        // No-op: Token expiry is now checked per-connection when tools make API calls
+        // Each tool uses its own connection, so we don't need a global check
+        return;
     }
 
     /**
      * Start periodic token expiry checks
      */
     private startTokenExpiryChecks(): void {
-        // Check every minute
-        this.tokenExpiryCheckInterval = setInterval(() => {
-            this.checkTokenExpiry();
-        }, 60 * 1000);
+        // No-op: Token expiry checks are now done per-connection when tools make API calls
+        return;
     }
 
     /**
