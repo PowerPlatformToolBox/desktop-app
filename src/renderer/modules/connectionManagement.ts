@@ -74,9 +74,9 @@ let addConnectionModalHandlersRegistered = false;
 let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
 
-// Store promise handlers for select connection modal
+// Store promise handlers for select connection modal - now returns connectionId
 const selectConnectionModalPromiseHandlers: {
-    resolve: (() => void) | null;
+    resolve: ((value: string) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -110,23 +110,11 @@ export async function updateFooterConnection(): Promise<void> {
         // This function now just ensures the UI element exists
         footerConnectionName.textContent = "No active tool";
         footerConnectionName.className = "connection-status";
-    } catch (error) {
-        console.error("Error updating footer connection:", error);
-    }
-}
-
-            footerConnectionName.innerHTML = `${activeConn.name} (${activeConn.environment})${warningIcon}`;
-            if (footerChangeBtn) {
-                footerChangeBtn.style.display = "inline";
-            }
-        } else {
-            footerConnectionName.textContent = "Not Connected";
-            if (footerChangeBtn) {
-                footerChangeBtn.style.display = "none";
-            }
+        if (footerChangeBtn) {
+            footerChangeBtn.style.display = "none";
         }
     } catch (error) {
-        console.error("Failed to update footer connection:", error);
+        console.error("Error updating footer connection:", error);
     }
 }
 
@@ -180,10 +168,10 @@ export function initializeSelectConnectionModalBridge(): void {
 
 /**
  * Open the select connection modal
- * Returns a promise that resolves when a connection is selected and connected, or rejects if cancelled
+ * Returns a promise that resolves with the selected connectionId when a connection is selected and connected, or rejects if cancelled
  * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
  */
-export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<void> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<string> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
         
@@ -251,11 +239,10 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 
     try {
         // Connect to the selected connection - this will await the full authentication process
-        await connectToConnection(connectionId);
+        const connectedId = await connectToConnection(connectionId);
         
-        // Verify the connection exists and is valid
-        const connection = await window.toolboxAPI.connections.getById(connectionId);
-        if (!connection) {
+        // Verify the connection was successful
+        if (!connectedId || connectedId !== connectionId) {
             throw new Error("Connection was not successfully established");
         }
         
@@ -298,8 +285,8 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
                     // If highlightConnectionId is set (tool-specific modal), use it to mark as active
-                    // Otherwise, use the global isActive property
-                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : (conn.isActive || false),
+                    // Otherwise, mark none as active since there's no global active connection
+                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
                 })),
             },
         });
@@ -425,7 +412,6 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     url: conn.url,
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
-                    isActive: conn.isActive || false,
                 })),
             },
         });
@@ -556,11 +542,13 @@ export function updateFooterConnectionStatus(connection: any | null): void {
 /**
  * Connect to a connection by ID
  * Note: With no global active connection, this just confirms the connection exists and is authenticated
+ * Returns the connectionId that was connected
  */
-export async function connectToConnection(id: string): Promise<void> {
+export async function connectToConnection(id: string): Promise<string> {
     try {
-        // Verify the connection exists
-        const connection = await window.toolboxAPI.connections.getById(id);
+        // Verify the connection exists by getting all connections and finding it
+        const connections = await window.toolboxAPI.connections.getAll();
+        const connection = connections.find((c: DataverseConnection) => c.id === id);
         if (!connection) {
             throw new Error("Connection not found");
         }
@@ -573,6 +561,8 @@ export async function connectToConnection(id: string): Promise<void> {
         await loadConnections();
         await loadSidebarConnections();
         await updateFooterConnection();
+        
+        return id; // Return the connectionId
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
             title: "Connection Failed",
@@ -626,7 +616,7 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        console.error("Token refresh failed, trying full re-authentication:", error);
+        console.error("Token refresh failed:", error);
 
         // If refresh fails, notify user to re-authenticate
         await window.toolboxAPI.utils.showNotification({
@@ -637,14 +627,7 @@ export async function handleReauthentication(connectionId: string): Promise<void
 
         // Reload connections to update UI
         await loadSidebarConnections();
-            await updateFooterConnection();
-        } catch (reauthError) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Re-authentication Failed",
-                body: (reauthError as Error).message,
-                type: "error",
-            });
-        }
+        await updateFooterConnection();
     }
 }
 

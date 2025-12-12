@@ -614,43 +614,65 @@ class ToolBoxApp {
         });
 
         // Dataverse API handlers
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+        // All handlers automatically get the connectionId from the calling tool's WebContents
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>) => {
             try {
-                return await this.dataverseManager.create(entityLogicalName, record);
+                // Get the connectionId from the tool instance making the call
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.create(connectionId, entityLogicalName, record);
             } catch (error) {
                 throw new Error(`Dataverse create failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (event, entityLogicalName: string, id: string, columns?: string[]) => {
             try {
-                return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.retrieve(connectionId, entityLogicalName, id, columns);
             } catch (error) {
                 throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (event, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
             try {
-                await this.dataverseManager.update(entityLogicalName, id, record);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                await this.dataverseManager.update(connectionId, entityLogicalName, id, record);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse update failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (_, entityLogicalName: string, id: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string) => {
             try {
-                await this.dataverseManager.delete(entityLogicalName, id);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                await this.dataverseManager.delete(connectionId, entityLogicalName, id);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string) => {
             try {
-                return await this.dataverseManager.retrieveMultiple(fetchXml);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.retrieveMultiple(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
             }
@@ -659,7 +681,7 @@ class ToolBoxApp {
         ipcMain.handle(
             DATAVERSE_CHANNELS.EXECUTE,
             async (
-                _,
+                event,
                 request: {
                     entityName?: string;
                     entityId?: string;
@@ -669,56 +691,84 @@ class ToolBoxApp {
                 },
             ) => {
                 try {
-                    return await this.dataverseManager.execute(request);
+                    const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                    }
+                    return await this.dataverseManager.execute(connectionId, request);
                 } catch (error) {
                     throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
                 }
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string) => {
             try {
-                return await this.dataverseManager.fetchXmlQuery(fetchXml);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.fetchXmlQuery(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getEntityMetadata(connectionId, entityLogicalName, searchByLogicalName, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async () => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async (event) => {
             try {
-                return await this.dataverseManager.getAllEntitiesMetadata();
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getAllEntitiesMetadata(connectionId);
             } catch (error) {
                 throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
             try {
-                return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getEntityRelatedMetadata(connectionId, entityLogicalName, relatedPath, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (_, selectColumns: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[]) => {
             try {
-                return await this.dataverseManager.getSolutions(selectColumns);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.getSolutions(connectionId, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (_, odataQuery: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string) => {
             try {
-                return await this.dataverseManager.queryData(odataQuery);
+                const connectionId = this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    throw new Error("No connection found for this tool instance. Please ensure the tool is connected to an environment.");
+                }
+                return await this.dataverseManager.queryData(connectionId, odataQuery);
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }

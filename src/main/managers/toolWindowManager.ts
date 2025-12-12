@@ -281,8 +281,9 @@ export class ToolWindowManager {
                 toolView.webContents.destroy();
             }
 
-            // Remove from map
+            // Remove from maps - also clean up connection info
             this.toolViews.delete(instanceId);
+            this.toolConnectionInfo.delete(instanceId);
 
             console.log(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
@@ -290,6 +291,40 @@ export class ToolWindowManager {
             console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
             return false;
         }
+    }
+
+    /**
+     * Get the primary connectionId for a tool instance by its WebContents
+     * This is used by IPC handlers to determine which connection to use
+     * @param webContentsId The ID of the WebContents making the request
+     * @returns The connectionId or null if not found
+     */
+    getConnectionIdByWebContents(webContentsId: number): string | null {
+        // Find the instance that owns this WebContents
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) {
+                const connectionInfo = this.toolConnectionInfo.get(instanceId);
+                return connectionInfo?.primaryConnectionId || null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get the secondary connectionId for a tool instance by its WebContents
+     * This is used by multi-connection tools
+     * @param webContentsId The ID of the WebContents making the request
+     * @returns The secondary connectionId or null if not found
+     */
+    getSecondaryConnectionIdByWebContents(webContentsId: number): string | null {
+        // Find the instance that owns this WebContents
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) {
+                const connectionInfo = this.toolConnectionInfo.get(instanceId);
+                return connectionInfo?.secondaryConnectionId || null;
+            }
+        }
+        return null;
     }
 
     /**

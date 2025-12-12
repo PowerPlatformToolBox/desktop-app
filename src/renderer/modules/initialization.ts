@@ -13,7 +13,6 @@ import {
     loadSidebarConnections,
     openAddConnectionModal,
     updateFooterConnection,
-    updateFooterConnectionStatus,
 } from "./connectionManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";

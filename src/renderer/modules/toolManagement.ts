@@ -4,6 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
+import type { DataverseConnection } from "../../common/types/connection";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
@@ -188,6 +189,8 @@ export async function launchTool(toolId: string): Promise<void> {
                 
                 if (selectedConnectionId) {
                     primaryConnectionId = selectedConnectionId;
+                } else {
+                    throw new Error("No connection was selected");
                 }
             } catch (error) {
                 // User cancelled the connection selection
@@ -903,7 +906,9 @@ export async function openToolConnectionModal(): Promise<void> {
         if (selectedConnectionId && activeToolId) {
             await setToolConnection(activeToolId, selectedConnectionId);
             
-            const connection = await window.toolboxAPI.connections.getById(selectedConnectionId);
+            // Get connection from all connections list
+            const connections = await window.toolboxAPI.connections.getAll();
+            const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Connection Set",
                 body: `${activeTool.tool.name} is now connected to ${connection?.name || 'the selected connection'}.`,

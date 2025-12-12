@@ -101,8 +101,8 @@ export class DataverseManager {
     /**
      * Create a new record in Dataverse
      */
-    async create(entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async create(connectionId: string, entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
 
@@ -121,8 +121,8 @@ export class DataverseManager {
     /**
      * Retrieve a record from Dataverse
      */
-    async retrieve(entityLogicalName: string, id: string, columns?: string[]): Promise<Record<string, unknown>> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async retrieve(connectionId: string, entityLogicalName: string, id: string, columns?: string[]): Promise<Record<string, unknown>> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
 
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
@@ -137,8 +137,8 @@ export class DataverseManager {
     /**
      * Update a record in Dataverse
      */
-    async update(entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async update(connectionId: string, entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
 
@@ -148,8 +148,8 @@ export class DataverseManager {
     /**
      * Delete a record from Dataverse
      */
-    async delete(entityLogicalName: string, id: string): Promise<void> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async delete(connectionId: string, entityLogicalName: string, id: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
 
@@ -194,8 +194,8 @@ export class DataverseManager {
     /**
      * Execute a FetchXML query
      */
-    async fetchXmlQuery(fetchXml: string): Promise<FetchXmlResult> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async fetchXmlQuery(connectionId: string, fetchXml: string): Promise<FetchXmlResult> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
         // Encode the FetchXML for URL
         const encodedFetchXml = encodeURIComponent(fetchXml);
@@ -220,21 +220,21 @@ export class DataverseManager {
     /**
      * Retrieve multiple records (alias for fetchXmlQuery for backward compatibility)
      */
-    async retrieveMultiple(fetchXml: string): Promise<FetchXmlResult> {
-        return this.fetchXmlQuery(fetchXml);
+    async retrieveMultiple(connectionId: string, fetchXml: string): Promise<FetchXmlResult> {
+        return this.fetchXmlQuery(connectionId, fetchXml);
     }
 
     /**
      * Execute a Dataverse Web API action or function
      */
-    async execute(request: {
+    async execute(connectionId: string, request: {
         entityName?: string;
         entityId?: string;
         operationName: string;
         operationType: "action" | "function";
         parameters?: Record<string, unknown>;
     }): Promise<Record<string, unknown>> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
 
@@ -268,12 +268,12 @@ export class DataverseManager {
     /**
      * Get metadata for a specific entity
      */
-    async getEntityMetadata(entityLogicalNameOrId: string, searchByLogicalName: boolean, selectColumns?: string[]): Promise<EntityMetadata> {
+    async getEntityMetadata(connectionId: string, entityLogicalNameOrId: string, searchByLogicalName: boolean, selectColumns?: string[]): Promise<EntityMetadata> {
         if (!entityLogicalNameOrId || !entityLogicalNameOrId.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
 
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`;
 
@@ -291,8 +291,8 @@ export class DataverseManager {
      * @param selectColumns - Optional array of column names to select (defaults to ["LogicalName", "DisplayName", "MetadataId"])
      * @returns Promise containing array of EntityMetadata objects
      */
-    async getAllEntitiesMetadata(selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+    async getAllEntitiesMetadata(connectionId: string, selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         // Default to lightweight columns if selectColumns is not provided or empty
         const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
@@ -307,7 +307,7 @@ export class DataverseManager {
      * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships')
      * @param selectColumns - Optional array of column names to select
      */
-    async getEntityRelatedMetadata(entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
+    async getEntityRelatedMetadata(connectionId: string, entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
         if (!entityLogicalName || !entityLogicalName.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
@@ -315,7 +315,7 @@ export class DataverseManager {
             throw new Error("relatedPath parameter cannot be empty");
         }
 
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         // Encode individual path segments but preserve forward slashes for URL structure
         // Filter out empty or whitespace-only segments to prevent double slashes
@@ -339,12 +339,12 @@ export class DataverseManager {
      * Get solutions from the environment
      * @param selectColumns - Required array of column names to select
      */
-    async getSolutions(selectColumns: string[]): Promise<{ value: Record<string, unknown>[] }> {
+    async getSolutions(connectionId: string, selectColumns: string[]): Promise<{ value: Record<string, unknown>[] }> {
         if (!selectColumns || selectColumns.length === 0) {
             throw new Error("selectColumns parameter is required and must contain at least one column");
         }
 
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
 
@@ -356,12 +356,12 @@ export class DataverseManager {
      * Query data from Dataverse using OData query parameters
      * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
      */
-    async queryData(odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
+    async queryData(connectionId: string, odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
         if (!odataQuery || !odataQuery.trim()) {
             throw new Error("odataQuery parameter cannot be empty");
         }
 
-        const { connection, accessToken } = await this.getActiveConnectionWithToken();
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
         // Remove leading '?' if present in the query string
         const query = odataQuery.trim();
