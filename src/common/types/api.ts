@@ -18,12 +18,11 @@ export interface ConnectionsAPI {
     update: (id: string, updates: Partial<DataverseConnection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
     getAll: () => Promise<DataverseConnection[]>;
-    setActive: (id: string) => Promise<void>;
-    getActiveConnection: () => Promise<DataverseConnection | null>;
-    disconnect: () => Promise<void>;
+    getById: (connectionId: string) => Promise<DataverseConnection | null>;
     test: (connection: DataverseConnection) => Promise<{ success: boolean; error?: string }>;
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
+    authenticate: (connectionId: string) => Promise<void>;
 }
 
 /**

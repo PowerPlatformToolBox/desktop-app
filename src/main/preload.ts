@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         test: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
         isTokenExpired: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
         refreshToken: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
+        authenticate: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
     },
 
     // Tools - Only for PPTB UI

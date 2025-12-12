@@ -238,7 +238,10 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
     }
 
     try {
-        // Connect to the selected connection - this will await the full authentication process
+        // Authenticate the connection - this will trigger the authentication flow
+        await window.toolboxAPI.connections.authenticate(connectionId);
+        
+        // Connect to the selected connection - this will update UI
         const connectedId = await connectToConnection(connectionId);
         
         // Verify the connection was successful
@@ -489,7 +492,9 @@ export async function loadConnections(): Promise<void> {
                 if (action === "connect" && connectionId) {
                     connectToConnection(connectionId);
                 } else if (action === "disconnect") {
-                    disconnectConnection();
+                    // Disconnect action is no longer needed as there's no global active connection
+                    // Tools have their own per-instance connections
+                    console.log("Disconnect action is deprecated - connections are per-tool-instance");
                 } else if (action === "delete" && connectionId) {
                     deleteConnection(connectionId);
                 }
@@ -576,26 +581,13 @@ export async function connectToConnection(id: string): Promise<string> {
 }
 
 /**
- * Disconnect from active connection
+ * Disconnect from active connection (DEPRECATED)
+ * This function is no longer used as there's no global active connection.
+ * Each tool instance has its own connection.
  */
 export async function disconnectConnection(): Promise<void> {
-    try {
-        await window.toolboxAPI.connections.disconnect();
-        await window.toolboxAPI.utils.showNotification({
-            title: "Disconnected",
-            body: "Disconnected from environment.",
-            type: "info",
-        });
-        await loadConnections();
-        await loadSidebarConnections();
-        await updateFooterConnection();
-    } catch (error) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Disconnect Failed",
-            body: (error as Error).message,
-            type: "error",
-        });
-    }
+    console.warn("disconnectConnection is deprecated - no global active connection exists");
+    // No-op: connections are now per-tool-instance
 }
 
 /**
