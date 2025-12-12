@@ -265,12 +265,6 @@ class ToolBoxApp {
                 return { success: false, error: (error as Error).message };
             }
         });
-
-        // Get connection by ID handler
-        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (_, connectionId: string) => {
-            return this.connectionsManager.getConnectionById(connectionId);
-        });
-
         // Check if connection token is expired
         ipcMain.handle(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, (_, connectionId) => {
             return this.connectionsManager.isConnectionTokenExpired(connectionId);
