@@ -1176,19 +1176,19 @@ body {
 
 /* Environment-specific tab highlights */
 .tool-tab.active.env-dev {
-    border-bottom: 3px solid var(--env-border-dev);
+    border-bottom: 5px solid var(--env-border-dev);
 }
 
 .tool-tab.active.env-test {
-    border-bottom: 3px solid var(--env-border-test);
+    border-bottom: 5px solid var(--env-border-test);
 }
 
 .tool-tab.active.env-uat {
-    border-bottom: 3px solid var(--env-border-uat);
+    border-bottom: 5px solid var(--env-border-uat);
 }
 
 .tool-tab.active.env-production {
-    border-bottom: 3px solid var(--env-border-prod);
+    border-bottom: 5px solid var(--env-border-prod);
 }
 
 .tool-tab.secondary-active {
