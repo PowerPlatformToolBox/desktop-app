@@ -197,8 +197,20 @@
                 <!-- Tool Panel (for launched tools) -->
                 <div id="tool-panel" class="tool-panel" style="display: none">
                     <div class="tool-panel-header">
-                        <div class="tool-tabs" id="tool-tabs">
-                            <!-- Tabs will be dynamically added here -->
+                        <div class="tool-tabs-container">
+                            <button class="tool-tabs-scroll-button tool-tabs-scroll-left" id="scroll-tabs-left" title="Scroll tabs left" aria-label="Scroll tabs left">
+                                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.316L6.715 7.96l3.357-3.357-.618-.62-4.667 4.668v.618l4.667 4.667.618-.62z"/>
+                                </svg>
+                            </button>
+                            <div class="tool-tabs" id="tool-tabs">
+                                <!-- Tabs will be dynamically added here -->
+                            </div>
+                            <button class="tool-tabs-scroll-button tool-tabs-scroll-right" id="scroll-tabs-right" title="Scroll tabs right" aria-label="Scroll tabs right">
+                                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.928 11.316l3.357-3.356-3.357-3.357.618-.62 4.667 4.668v.618l-4.667 4.667-.618-.62z"/>
+                                </svg>
+                            </button>
                         </div>
                         <div class="tool-panel-controls">
                             <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>

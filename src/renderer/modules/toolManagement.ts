@@ -349,6 +349,15 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
         switchToTool(instanceId);
     });
 
+    // Middle-click to close tab
+    tab.addEventListener("mousedown", (e) => {
+        if (e.button === 1) { // Middle mouse button
+            e.preventDefault();
+            e.stopPropagation();
+            closeTool(instanceId);
+        }
+    });
+
     // Drag and drop events
     tab.addEventListener("dragstart", (e) => handleDragStart(e, tab));
     tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
@@ -360,6 +369,9 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
+
+    // Update scroll button visibility after adding tab
+    updateTabScrollButtons();
 }
 
 /**
@@ -426,6 +438,9 @@ export function closeTool(instanceId: string): void {
 
     // Update toolbar buttons
     updateToolbarButtonVisibility();
+
+    // Update scroll buttons visibility
+    updateTabScrollButtons();
 
     // Save session after closing
     saveSession();
@@ -920,4 +935,83 @@ export async function openToolConnectionModal(): Promise<void> {
         // User cancelled or error occurred
         console.log("Connection selection cancelled or failed:", error);
     }
+}
+
+/**
+ * Update tab scroll button visibility based on overflow
+ */
+export function updateTabScrollButtons(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left");
+    const scrollRightBtn = document.getElementById("scroll-tabs-right");
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Check if tabs overflow their container
+    const hasOverflow = toolTabs.scrollWidth > toolTabs.clientWidth;
+
+    if (hasOverflow) {
+        scrollLeftBtn.classList.add("visible");
+        scrollRightBtn.classList.add("visible");
+
+        // Update button disabled states based on scroll position
+        updateScrollButtonStates();
+    } else {
+        scrollLeftBtn.classList.remove("visible");
+        scrollRightBtn.classList.remove("visible");
+    }
+}
+
+/**
+ * Update scroll button disabled states based on current scroll position
+ */
+function updateScrollButtonStates(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left") as HTMLButtonElement;
+    const scrollRightBtn = document.getElementById("scroll-tabs-right") as HTMLButtonElement;
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Check if we're at the start or end of scrolling
+    const isAtStart = toolTabs.scrollLeft <= 0;
+    const isAtEnd = toolTabs.scrollLeft + toolTabs.clientWidth >= toolTabs.scrollWidth - 1; // -1 for rounding
+
+    scrollLeftBtn.disabled = isAtStart;
+    scrollRightBtn.disabled = isAtEnd;
+}
+
+/**
+ * Initialize tab scroll button handlers
+ */
+export function initializeTabScrollButtons(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left");
+    const scrollRightBtn = document.getElementById("scroll-tabs-right");
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Scroll left button
+    scrollLeftBtn.addEventListener("click", () => {
+        const scrollAmount = 200; // Scroll by 200px
+        toolTabs.scrollBy({ left: -scrollAmount, behavior: "smooth" });
+    });
+
+    // Scroll right button
+    scrollRightBtn.addEventListener("click", () => {
+        const scrollAmount = 200; // Scroll by 200px
+        toolTabs.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    });
+
+    // Update button states when scrolling
+    toolTabs.addEventListener("scroll", () => {
+        updateScrollButtonStates();
+    });
+
+    // Update button visibility on window resize
+    window.addEventListener("resize", () => {
+        updateTabScrollButtons();
+    });
+
+    // Initial update
+    updateTabScrollButtons();
 }
