@@ -828,6 +828,7 @@ body {
     border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 16px;
     z-index: 100;
 }
@@ -836,6 +837,13 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.footer-content-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
 }
 
 .connection-status {
@@ -879,6 +887,55 @@ body {
 }
 
 .connection-status::before {
+    content: "○";
+    color: #8a8886;
+}
+
+.secondary-connection-status {
+    font-size: 12px;
+    color: #605e5c;
+    display: none; /* Hidden by default */
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.secondary-connection-status.visible {
+    display: flex;
+}
+
+.secondary-connection-status:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark-theme .secondary-connection-status:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.secondary-connection-status.connected {
+    color: #ff8c00;
+    font-weight: 500;
+}
+
+.secondary-connection-status.connected::before {
+    content: "●";
+    color: #ff8c00;
+}
+
+.secondary-connection-status.expired {
+    color: #d83b01;
+    font-weight: 500;
+}
+
+.secondary-connection-status.expired::before {
+    content: "⚠";
+    color: #f59e0b;
+}
+
+.secondary-connection-status::before {
     content: "○";
     color: #8a8886;
 }

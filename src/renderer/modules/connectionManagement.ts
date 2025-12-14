@@ -66,7 +66,7 @@ const SELECT_MULTI_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
-    width: 600,
+    width: 920,
     height: 700,
 };
 

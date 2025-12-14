@@ -684,7 +684,15 @@ export function setupKeyboardShortcuts(): void {
  */
 export async function updateActiveToolConnectionStatus(): Promise<void> {
     const statusElement = document.getElementById("connection-status");
+    const secondaryStatusElement = document.getElementById("secondary-connection-status");
     if (!statusElement) return;
+
+    // Always hide secondary status initially
+    if (secondaryStatusElement) {
+        secondaryStatusElement.classList.remove("visible");
+        secondaryStatusElement.textContent = "";
+        secondaryStatusElement.className = "secondary-connection-status";
+    }
 
     if (!activeToolId) {
         // No active tool, show "Not Connected"
@@ -710,11 +718,17 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
         
         if (primaryConnection && secondaryConnection) {
-            // Format: "Primary: ConnName (Env)  |  Secondary: ConnName (Env)"
+            // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
-            const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
-            statusElement.textContent = `${primaryText}  |  ${secondaryText}`;
-            statusElement.className = "connection-status connected multi-connection";
+            statusElement.textContent = primaryText;
+            statusElement.className = "connection-status connected";
+            
+            // Display secondary connection on the right
+            if (secondaryStatusElement) {
+                const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                secondaryStatusElement.textContent = secondaryText;
+                secondaryStatusElement.className = "secondary-connection-status connected visible";
+            }
             
             // Update tool panel border based on primary environment
             updateToolPanelBorder(primaryConnection.environment);
