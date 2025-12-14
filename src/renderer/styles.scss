@@ -1178,8 +1178,7 @@ body {
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s;
-    flex-shrink: 0; /* Prevent tabs from shrinking */
-    /* Dynamic width based on content - VS Code style */
+    flex-shrink: 0; /* Prevent tabs from shrinking, allows natural content-based width */
 }
 
 .tool-tab:hover {

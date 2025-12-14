@@ -7,6 +7,9 @@ import type { OpenTool, SessionData } from "../types/index";
 import type { DataverseConnection } from "../../common/types/connection";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 
+// Constants
+const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
+
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
@@ -354,6 +357,18 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
         if (e.button === 1) { // Middle mouse button
             e.preventDefault();
             e.stopPropagation();
+            
+            // Check if tab is pinned before closing
+            const openTool = openTools.get(instanceId);
+            if (openTool?.isPinned) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Cannot Close Pinned Tab",
+                    body: "Unpin the tab before closing it",
+                    type: "warning",
+                });
+                return;
+            }
+            
             closeTool(instanceId);
         }
     });
@@ -992,14 +1007,12 @@ export function initializeTabScrollButtons(): void {
 
     // Scroll left button
     scrollLeftBtn.addEventListener("click", () => {
-        const scrollAmount = 200; // Scroll by 200px
-        toolTabs.scrollBy({ left: -scrollAmount, behavior: "smooth" });
+        toolTabs.scrollBy({ left: -TAB_SCROLL_AMOUNT, behavior: "smooth" });
     });
 
     // Scroll right button
     scrollRightBtn.addEventListener("click", () => {
-        const scrollAmount = 200; // Scroll by 200px
-        toolTabs.scrollBy({ left: scrollAmount, behavior: "smooth" });
+        toolTabs.scrollBy({ left: TAB_SCROLL_AMOUNT, behavior: "smooth" });
     });
 
     // Update button states when scrolling
