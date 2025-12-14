@@ -876,6 +876,12 @@ body {
     background: rgba(255, 255, 255, 0.05);
 }
 
+.connection-status::before,
+.secondary-connection-status::before {
+    content: "○";
+    color: #8a8886;
+}
+
 .connection-status.connected {
     color: #107c10;
     font-weight: 500;
@@ -894,12 +900,6 @@ body {
 .connection-status.expired::before {
     content: "⚠";
     color: #f59e0b;
-}
-
-.connection-status::before,
-.secondary-connection-status::before {
-    content: "○";
-    color: #8a8886;
 }
 
 .secondary-connection-status.connected {

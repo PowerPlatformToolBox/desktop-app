@@ -689,9 +689,8 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
 
     // Always hide secondary status initially
     if (secondaryStatusElement) {
-        secondaryStatusElement.classList.remove("visible");
+        secondaryStatusElement.classList.remove("visible", "connected", "expired");
         secondaryStatusElement.textContent = "";
-        secondaryStatusElement.className = "secondary-connection-status";
     }
 
     if (!activeToolId) {
