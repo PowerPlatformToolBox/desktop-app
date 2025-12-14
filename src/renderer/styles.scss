@@ -828,6 +828,7 @@ body {
     border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 16px;
     z-index: 100;
 }
@@ -838,7 +839,14 @@ body {
     gap: 12px;
 }
 
-.connection-status {
+.footer-content-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.connection-status,
+.secondary-connection-status {
     font-size: 12px;
     color: #605e5c;
     display: flex;
@@ -850,12 +858,28 @@ body {
     border-radius: 4px;
 }
 
-.connection-status:hover {
+.secondary-connection-status {
+    display: none; /* Hidden by default */
+}
+
+.secondary-connection-status.visible {
+    display: flex;
+}
+
+.connection-status:hover,
+.secondary-connection-status:hover {
     background: rgba(0, 0, 0, 0.05);
 }
 
-.dark-theme .connection-status:hover {
+.dark-theme .connection-status:hover,
+.dark-theme .secondary-connection-status:hover {
     background: rgba(255, 255, 255, 0.05);
+}
+
+.connection-status::before,
+.secondary-connection-status::before {
+    content: "○";
+    color: #8a8886;
 }
 
 .connection-status.connected {
@@ -878,9 +902,24 @@ body {
     color: #f59e0b;
 }
 
-.connection-status::before {
-    content: "○";
-    color: #8a8886;
+.secondary-connection-status.connected {
+    color: #ff8c00;
+    font-weight: 500;
+}
+
+.secondary-connection-status.connected::before {
+    content: "●";
+    color: #ff8c00;
+}
+
+.secondary-connection-status.expired {
+    color: #d83b01;
+    font-weight: 500;
+}
+
+.secondary-connection-status.expired::before {
+    content: "⚠";
+    color: #f59e0b;
 }
 
 /* Adjust main content to account for footer */
@@ -1192,19 +1231,19 @@ body {
 
 /* Environment-specific tab highlights */
 .tool-tab.active.env-dev {
-    border-bottom: 3px solid var(--env-border-dev);
+    border-bottom: 5px solid var(--env-border-dev);
 }
 
 .tool-tab.active.env-test {
-    border-bottom: 3px solid var(--env-border-test);
+    border-bottom: 5px solid var(--env-border-test);
 }
 
 .tool-tab.active.env-uat {
-    border-bottom: 3px solid var(--env-border-uat);
+    border-bottom: 5px solid var(--env-border-uat);
 }
 
 .tool-tab.active.env-production {
-    border-bottom: 3px solid var(--env-border-prod);
+    border-bottom: 5px solid var(--env-border-prod);
 }
 
 .tool-tab.secondary-active {
@@ -1326,6 +1365,71 @@ body {
 
 .tool-panel-content-wrapper.env-production {
     border: 5px solid var(--env-border-prod);
+}
+
+/* Multi-connection split border styles */
+/* Dev Primary */
+.tool-panel-content-wrapper.multi-env-dev-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-dev-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-uat) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-dev-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* Test Primary */
+.tool-panel-content-wrapper.multi-env-test-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-test-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-uat) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-test-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* UAT Primary */
+.tool-panel-content-wrapper.multi-env-uat-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-uat-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-uat-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* Production Primary */
+.tool-panel-content-wrapper.multi-env-production-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-production-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-production-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-uat) 50%) 1;
 }
 
 .tool-panel-content-wrapper.split-view .tool-panel-content {

@@ -716,7 +716,14 @@ export function setupKeyboardShortcuts(): void {
  */
 export async function updateActiveToolConnectionStatus(): Promise<void> {
     const statusElement = document.getElementById("connection-status");
+    const secondaryStatusElement = document.getElementById("secondary-connection-status");
     if (!statusElement) return;
+
+    // Always hide secondary status initially
+    if (secondaryStatusElement) {
+        secondaryStatusElement.classList.remove("visible", "connected", "expired");
+        secondaryStatusElement.textContent = "";
+    }
 
     if (!activeToolId) {
         // No active tool, show "Not Connected"
@@ -742,14 +749,20 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
         
         if (primaryConnection && secondaryConnection) {
-            // Format: "Primary: ConnName (Env)  |  Secondary: ConnName (Env)"
+            // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
-            const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
-            statusElement.textContent = `${primaryText}  |  ${secondaryText}`;
-            statusElement.className = "connection-status connected multi-connection";
+            statusElement.textContent = primaryText;
+            statusElement.className = "connection-status connected";
             
-            // Update tool panel border based on primary environment
-            updateToolPanelBorder(primaryConnection.environment);
+            // Display secondary connection on the right
+            if (secondaryStatusElement) {
+                const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                secondaryStatusElement.textContent = secondaryText;
+                secondaryStatusElement.classList.add("connected", "visible");
+            }
+            
+            // Update tool panel border based on both primary and secondary environment
+            updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
             return;
         }
     } else if (toolConnectionId) {
@@ -792,14 +805,30 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null): void {
+function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
-        toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+        const classesToRemove = Array.from(toolPanelWrapper.classList).filter(
+            cls => cls.startsWith('env-') || cls.startsWith('multi-env-')
+        );
+        classesToRemove.forEach(cls => toolPanelWrapper.classList.remove(cls));
 
-        // Add the appropriate class based on environment
-        if (environment) {
+        // Add the appropriate class based on environment(s)
+        if (environment && secondaryEnvironment) {
+            const primaryEnvClass = environment.toLowerCase();
+            const secondaryEnvClass = secondaryEnvironment.toLowerCase();
+            
+            // If both environments are the same, use single environment class for efficiency
+            if (primaryEnvClass === secondaryEnvClass) {
+                toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+            } else {
+                // Multi-connection: use split border with both environments
+                const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+                toolPanelWrapper.classList.add(multiEnvClass);
+            }
+        } else if (environment) {
+            // Single connection: use solid border
             const envClass = `env-${environment.toLowerCase()}`;
             toolPanelWrapper.classList.add(envClass);
         }
@@ -812,7 +841,7 @@ function updateToolPanelBorder(environment: string | null): void {
             // Remove all environment classes from tab
             activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
 
-            // Add the appropriate class based on environment
+            // Add the appropriate class based on environment (use primary for tabs)
             if (environment) {
                 const envClass = `env-${environment.toLowerCase()}`;
                 activeTab.classList.add(envClass);

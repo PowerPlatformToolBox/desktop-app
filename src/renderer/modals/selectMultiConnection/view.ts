@@ -79,8 +79,9 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
 
     .modal-body {
         flex: 1;
-        overflow-y: auto;
-        padding-right: 4px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
 
     .info-message {
@@ -94,8 +95,17 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
         margin-bottom: 16px;
     }
 
+    .connections-container {
+        display: flex;
+        gap: 16px;
+        flex: 1;
+    }
+
     .connection-section {
-        margin-bottom: 24px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
     }
 
     .section-label {
@@ -141,6 +151,9 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
         display: flex;
         flex-direction: column;
         gap: 12px;
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 4px;
     }
 
     .connection-item {
@@ -298,23 +311,25 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
             This tool requires two connections: a primary connection and a secondary connection. Please select both connections to continue.
         </div>
         
-        <div class="connection-section">
-            <span class="section-label">
-                Primary Connection
-                <span class="connection-badge primary">Required</span>
-            </span>
-            <div id="primary-connections-list" class="connection-list">
-                <!-- Primary connections will be populated here -->
+        <div class="connections-container">
+            <div class="connection-section">
+                <span class="section-label">
+                    Primary Connection
+                    <span class="connection-badge primary">Required</span>
+                </span>
+                <div id="primary-connections-list" class="connection-list">
+                    <!-- Primary connections will be populated here -->
+                </div>
             </div>
-        </div>
 
-        <div class="connection-section">
-            <span class="section-label">
-                Secondary Connection
-                <span class="connection-badge secondary">Required</span>
-            </span>
-            <div id="secondary-connections-list" class="connection-list">
-                <!-- Secondary connections will be populated here -->
+            <div class="connection-section">
+                <span class="section-label">
+                    Secondary Connection
+                    <span class="connection-badge secondary">Required</span>
+                </span>
+                <div id="secondary-connections-list" class="connection-list">
+                    <!-- Secondary connections will be populated here -->
+                </div>
             </div>
         </div>
     </div>
