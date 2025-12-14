@@ -9,6 +9,8 @@ import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./con
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
+const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
+const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
 
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
 const openTools = new Map<string, OpenTool>();
@@ -354,7 +356,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
 
     // Middle-click to close tab
     tab.addEventListener("mousedown", (e) => {
-        if (e.button === 1) { // Middle mouse button
+        if (e.button === MIDDLE_MOUSE_BUTTON) {
             e.preventDefault();
             e.stopPropagation();
             
@@ -989,7 +991,7 @@ function updateScrollButtonStates(): void {
 
     // Check if we're at the start or end of scrolling
     const isAtStart = toolTabs.scrollLeft <= 0;
-    const isAtEnd = toolTabs.scrollLeft + toolTabs.clientWidth >= toolTabs.scrollWidth - 1; // -1 for rounding
+    const isAtEnd = toolTabs.scrollLeft + toolTabs.clientWidth >= toolTabs.scrollWidth - SCROLL_TOLERANCE;
 
     scrollLeftBtn.disabled = isAtStart;
     scrollRightBtn.disabled = isAtEnd;
