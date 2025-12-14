@@ -95,6 +95,7 @@ export async function loadSidebarTools(): Promise<void> {
                 // Asset paths
                 const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
                 const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
+                const infoIconPath = "icons/light/info_16_filled.svg";
 
                 const hasUpdate = !!tool.hasUpdate;
                 const latestVersion = tool.latestVersion;
@@ -127,6 +128,15 @@ export async function loadSidebarTools(): Promise<void> {
                             </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
+                        <div class="tool-item-version-pptb">${tool.version}</div>
+                        ${
+                            hasUpdate && latestVersion
+                                ? `<div class="tool-item-updated-version-available-pptb">
+                                    <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
+                                    <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
+                                    </div>`
+                                : ""
+                        }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
                             <div class="tool-item-actions-right">
@@ -137,7 +147,7 @@ export async function loadSidebarTools(): Promise<void> {
                         </div>
                         ${
                             hasUpdate && latestVersion
-                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
+                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
                                 : ""
                         }
                     </div>`;

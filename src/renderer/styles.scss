@@ -1445,6 +1445,22 @@ body {
     overflow: hidden;
 }
 
+.tool-item-updated-version-available-pptb{
+    display: flex;
+    font-size: 12px;
+    font-weight: bold;
+    color: #605e5c;
+    margin-bottom: 8px;
+}
+
+.tool-item-updated-version-available-info-icon{
+    filter: brightness(0) saturate(100%) invert(29%) sepia(62%) saturate(5964%) hue-rotate(192deg) brightness(100%) contrast(100%);
+}
+
+.tool-item-updated-version-available-text{
+    margin-left: 10px;
+}
+
 .tool-item-actions-pptb {
     display: flex;
     gap: 8px;
@@ -1483,10 +1499,10 @@ body {
 }
 
 .tool-item-version-pptb {
-    font-size: 11px;
-    color: #8a8886;
-    margin-bottom: 6px;
-    font-family: monospace;
+    font-size: 12px;
+    font-weight: bold;
+    color: #605e5c;
+    margin-bottom: 8px;
 }
 
 .tool-update-badge {
@@ -1602,9 +1618,9 @@ body {
 }
 
 .marketplace-item-version-pptb {
-    font-size: 11px;
-    color: #605e5c;
-    font-family: monospace;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 8px;
 }
 
 .marketplace-item-actions-pptb {

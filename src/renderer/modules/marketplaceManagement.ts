@@ -138,7 +138,7 @@ export async function loadMarketplace(): Promise<void> {
                 ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
                 ${tool.aum !== undefined ? `<span class="marketplace-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}
             </div>`;
-            const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "";
+            const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
             // Icon handling (retain improved fallback logic)
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
@@ -162,10 +162,11 @@ export async function loadMarketplace(): Promise<void> {
                     <div class="marketplace-item-name-pptb">
                         ${tool.name}
                     </div>
-                    <div class="marketplace-item-author-pptb">by ${authorsDisplay}</div>
+                    <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
                 </div>
             </div>
             <div class="marketplace-item-description-pptb">${tool.description}</div>
+            <div class="marketplace-item-version-pptb">${tool.version}</div>
             <div class="marketplace-item-footer-pptb">
                 ${analyticsHtml}
                 <div class="marketplace-item-actions-right">
