@@ -729,8 +729,8 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 secondaryStatusElement.classList.add("connected", "visible");
             }
             
-            // Update tool panel border based on primary environment
-            updateToolPanelBorder(primaryConnection.environment);
+            // Update tool panel border based on both primary and secondary environment
+            updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
             return;
         }
     } else if (toolConnectionId) {
@@ -773,14 +773,28 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null): void {
+function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
         toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+        // Remove all multi-connection classes
+        toolPanelWrapper.classList.remove(
+            "multi-env-dev-dev", "multi-env-dev-test", "multi-env-dev-uat", "multi-env-dev-production",
+            "multi-env-test-dev", "multi-env-test-test", "multi-env-test-uat", "multi-env-test-production",
+            "multi-env-uat-dev", "multi-env-uat-test", "multi-env-uat-uat", "multi-env-uat-production",
+            "multi-env-production-dev", "multi-env-production-test", "multi-env-production-uat", "multi-env-production-production"
+        );
 
-        // Add the appropriate class based on environment
-        if (environment) {
+        // Add the appropriate class based on environment(s)
+        if (environment && secondaryEnvironment) {
+            // Multi-connection: use split border with both environments
+            const primaryEnvClass = environment.toLowerCase();
+            const secondaryEnvClass = secondaryEnvironment.toLowerCase();
+            const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+            toolPanelWrapper.classList.add(multiEnvClass);
+        } else if (environment) {
+            // Single connection: use solid border
             const envClass = `env-${environment.toLowerCase()}`;
             toolPanelWrapper.classList.add(envClass);
         }
@@ -793,7 +807,7 @@ function updateToolPanelBorder(environment: string | null): void {
             // Remove all environment classes from tab
             activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
 
-            // Add the appropriate class based on environment
+            // Add the appropriate class based on environment (use primary for tabs)
             if (environment) {
                 const envClass = `env-${environment.toLowerCase()}`;
                 activeTab.classList.add(envClass);
