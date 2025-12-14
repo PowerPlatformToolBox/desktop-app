@@ -777,22 +777,24 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
-        toolPanelWrapper.classList.remove("env-dev", "env-test", "env-uat", "env-production");
-        // Remove all multi-connection classes
-        toolPanelWrapper.classList.remove(
-            "multi-env-dev-dev", "multi-env-dev-test", "multi-env-dev-uat", "multi-env-dev-production",
-            "multi-env-test-dev", "multi-env-test-test", "multi-env-test-uat", "multi-env-test-production",
-            "multi-env-uat-dev", "multi-env-uat-test", "multi-env-uat-uat", "multi-env-uat-production",
-            "multi-env-production-dev", "multi-env-production-test", "multi-env-production-uat", "multi-env-production-production"
+        const classesToRemove = Array.from(toolPanelWrapper.classList).filter(
+            cls => cls.startsWith('env-') || cls.startsWith('multi-env-')
         );
+        classesToRemove.forEach(cls => toolPanelWrapper.classList.remove(cls));
 
         // Add the appropriate class based on environment(s)
         if (environment && secondaryEnvironment) {
-            // Multi-connection: use split border with both environments
             const primaryEnvClass = environment.toLowerCase();
             const secondaryEnvClass = secondaryEnvironment.toLowerCase();
-            const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
-            toolPanelWrapper.classList.add(multiEnvClass);
+            
+            // If both environments are the same, use single environment class for efficiency
+            if (primaryEnvClass === secondaryEnvClass) {
+                toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+            } else {
+                // Multi-connection: use split border with both environments
+                const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+                toolPanelWrapper.classList.add(multiEnvClass);
+            }
         } else if (environment) {
             // Single connection: use solid border
             const envClass = `env-${environment.toLowerCase()}`;

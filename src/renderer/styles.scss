@@ -1314,11 +1314,6 @@ body {
 
 /* Multi-connection split border styles */
 /* Dev Primary */
-.tool-panel-content-wrapper.multi-env-dev-dev {
-    border: 5px solid;
-    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-dev) 50%) 1;
-}
-
 .tool-panel-content-wrapper.multi-env-dev-test {
     border: 5px solid;
     border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-test) 50%) 1;
@@ -1338,11 +1333,6 @@ body {
 .tool-panel-content-wrapper.multi-env-test-dev {
     border: 5px solid;
     border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-dev) 50%) 1;
-}
-
-.tool-panel-content-wrapper.multi-env-test-test {
-    border: 5px solid;
-    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-test) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-test-uat {
@@ -1366,11 +1356,6 @@ body {
     border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-test) 50%) 1;
 }
 
-.tool-panel-content-wrapper.multi-env-uat-uat {
-    border: 5px solid;
-    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-uat) 50%) 1;
-}
-
 .tool-panel-content-wrapper.multi-env-uat-production {
     border: 5px solid;
     border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-prod) 50%) 1;
@@ -1390,11 +1375,6 @@ body {
 .tool-panel-content-wrapper.multi-env-production-uat {
     border: 5px solid;
     border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-uat) 50%) 1;
-}
-
-.tool-panel-content-wrapper.multi-env-production-production {
-    border: 5px solid;
-    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-prod) 50%) 1;
 }
 
 .tool-panel-content-wrapper.split-view .tool-panel-content {
