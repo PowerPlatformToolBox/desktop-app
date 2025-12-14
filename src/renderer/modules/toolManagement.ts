@@ -726,7 +726,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             if (secondaryStatusElement) {
                 const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
                 secondaryStatusElement.textContent = secondaryText;
-                secondaryStatusElement.className = "secondary-connection-status connected visible";
+                secondaryStatusElement.classList.add("connected", "visible");
             }
             
             // Update tool panel border based on primary environment
