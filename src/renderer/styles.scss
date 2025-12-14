@@ -1073,6 +1073,7 @@ body {
     border-bottom: 1px solid var(--border-color);
     height: 40px;
     min-height: 40px;
+    position: relative;
 }
 
 .tool-panel-controls {
@@ -1098,12 +1099,67 @@ body {
     outline-offset: 1px;
 }
 
+/* Tab container with scroll buttons */
+.tool-tabs-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.tool-tabs-scroll-button {
+    display: none; /* Hidden by default, shown when overflow */
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 100%;
+    background: var(--sidebar-bg);
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.tool-tabs-scroll-button:hover {
+    opacity: 1;
+    background: var(--bg-color);
+}
+
+.tool-tabs-scroll-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.tool-tabs-scroll-button.visible {
+    display: flex;
+}
+
+.tool-tabs-scroll-button svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.tool-tabs-scroll-left {
+    border-right: 1px solid var(--border-color);
+}
+
+.tool-tabs-scroll-right {
+    border-left: 1px solid var(--border-color);
+}
+
 .tool-tabs {
     display: flex;
     flex: 1;
     overflow-x: auto;
     overflow-y: hidden;
     height: 100%;
+    scroll-behavior: smooth;
 }
 
 .tool-tabs::-webkit-scrollbar {
@@ -1122,8 +1178,7 @@ body {
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s;
-    min-width: 120px;
-    max-width: 200px;
+    flex-shrink: 0; /* Prevent tabs from shrinking, allows natural content-based width */
 }
 
 .tool-tab:hover {

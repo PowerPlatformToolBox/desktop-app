@@ -7,6 +7,11 @@ import type { OpenTool, SessionData } from "../types/index";
 import type { DataverseConnection } from "../../common/types/connection";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 
+// Constants
+const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
+const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
+const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
+
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
@@ -349,6 +354,27 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
         switchToTool(instanceId);
     });
 
+    // Middle-click to close tab
+    tab.addEventListener("mousedown", (e) => {
+        if (e.button === MIDDLE_MOUSE_BUTTON) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Check if tab is pinned before closing
+            const openTool = openTools.get(instanceId);
+            if (openTool?.isPinned) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Cannot Close Pinned Tab",
+                    body: "Unpin the tab before closing it",
+                    type: "warning",
+                });
+                return;
+            }
+            
+            closeTool(instanceId);
+        }
+    });
+
     // Drag and drop events
     tab.addEventListener("dragstart", (e) => handleDragStart(e, tab));
     tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
@@ -360,6 +386,9 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
+
+    // Update scroll button visibility after adding tab
+    updateTabScrollButtons();
 }
 
 /**
@@ -426,6 +455,9 @@ export function closeTool(instanceId: string): void {
 
     // Update toolbar buttons
     updateToolbarButtonVisibility();
+
+    // Update scroll buttons visibility
+    updateTabScrollButtons();
 
     // Save session after closing
     saveSession();
@@ -920,4 +952,81 @@ export async function openToolConnectionModal(): Promise<void> {
         // User cancelled or error occurred
         console.log("Connection selection cancelled or failed:", error);
     }
+}
+
+/**
+ * Update tab scroll button visibility based on overflow
+ */
+export function updateTabScrollButtons(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left");
+    const scrollRightBtn = document.getElementById("scroll-tabs-right");
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Check if tabs overflow their container
+    const hasOverflow = toolTabs.scrollWidth > toolTabs.clientWidth;
+
+    if (hasOverflow) {
+        scrollLeftBtn.classList.add("visible");
+        scrollRightBtn.classList.add("visible");
+
+        // Update button disabled states based on scroll position
+        updateScrollButtonStates();
+    } else {
+        scrollLeftBtn.classList.remove("visible");
+        scrollRightBtn.classList.remove("visible");
+    }
+}
+
+/**
+ * Update scroll button disabled states based on current scroll position
+ */
+function updateScrollButtonStates(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left") as HTMLButtonElement;
+    const scrollRightBtn = document.getElementById("scroll-tabs-right") as HTMLButtonElement;
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Check if we're at the start or end of scrolling
+    const isAtStart = toolTabs.scrollLeft <= 0;
+    const isAtEnd = toolTabs.scrollLeft + toolTabs.clientWidth >= toolTabs.scrollWidth - SCROLL_TOLERANCE;
+
+    scrollLeftBtn.disabled = isAtStart;
+    scrollRightBtn.disabled = isAtEnd;
+}
+
+/**
+ * Initialize tab scroll button handlers
+ */
+export function initializeTabScrollButtons(): void {
+    const toolTabs = document.getElementById("tool-tabs");
+    const scrollLeftBtn = document.getElementById("scroll-tabs-left");
+    const scrollRightBtn = document.getElementById("scroll-tabs-right");
+
+    if (!toolTabs || !scrollLeftBtn || !scrollRightBtn) return;
+
+    // Scroll left button
+    scrollLeftBtn.addEventListener("click", () => {
+        toolTabs.scrollBy({ left: -TAB_SCROLL_AMOUNT, behavior: "smooth" });
+    });
+
+    // Scroll right button
+    scrollRightBtn.addEventListener("click", () => {
+        toolTabs.scrollBy({ left: TAB_SCROLL_AMOUNT, behavior: "smooth" });
+    });
+
+    // Update button states when scrolling
+    toolTabs.addEventListener("scroll", () => {
+        updateScrollButtonStates();
+    });
+
+    // Update button visibility on window resize
+    window.addEventListener("resize", () => {
+        updateTabScrollButtons();
+    });
+
+    // Initial update
+    updateTabScrollButtons();
 }

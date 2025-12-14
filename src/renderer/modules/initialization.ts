@@ -21,7 +21,7 @@ import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -124,6 +124,9 @@ function setupToolbarButtons(): void {
             closeAllTools();
         });
     }
+
+    // Initialize tab scroll buttons
+    initializeTabScrollButtons();
 }
 
 /**
