@@ -129,8 +129,8 @@ export class ToolWindowManager {
         try {
             console.log(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
-            // Extract actual toolId from instanceId (format: toolId-timestamp-random)
-            const toolId = instanceId.split("-").slice(0, -2).join("-");
+            // Extract actual toolId from instanceId
+            const toolId = this.extractToolIdFromInstanceId(instanceId);
 
             // Check if this specific instance is already open (shouldn't happen, but safety check)
             if (this.toolViews.has(instanceId)) {
@@ -461,6 +461,21 @@ export class ToolWindowManager {
     }
 
     /**
+     * Extract the base toolId from an instanceId
+     * Instance IDs have format: toolId-timestamp-random
+     * where timestamp and random are base36 strings (no hyphens)
+     * This safely handles toolIds that contain hyphens
+     * @param instanceId The instance ID to parse
+     * @returns The base toolId
+     */
+    private extractToolIdFromInstanceId(instanceId: string): string {
+        // Split by hyphen and remove the last 2 components (timestamp and random)
+        // This works even if toolId contains hyphens because timestamp and random
+        // are base36 strings which don't contain hyphens
+        return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
      * Update connection context for a specific tool instance
      * Called when a tool's connection is changed
      * @param instanceId The instance ID to update
@@ -505,8 +520,8 @@ export class ToolWindowManager {
             }
         }
 
-        // Extract toolId from instanceId to get tool info
-        const toolId = instanceId.split("-").slice(0, -2).join("-");
+        // Extract toolId from instanceId
+        const toolId = this.extractToolIdFromInstanceId(instanceId);
         
         // Send complete updated context to the tool (same format as initial context)
         const updatedContext = {
@@ -536,7 +551,7 @@ export class ToolWindowManager {
         const instancesToUpdate: string[] = [];
         for (const [instanceId] of this.toolViews.entries()) {
             // Extract toolId from instanceId (format: toolId-timestamp-random)
-            const instanceToolId = instanceId.split("-").slice(0, -2).join("-");
+            const instanceToolId = this.extractToolIdFromInstanceId(instanceId);
             if (instanceToolId === toolId) {
                 instancesToUpdate.push(instanceId);
             }
