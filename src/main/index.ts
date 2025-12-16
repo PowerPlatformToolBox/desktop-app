@@ -441,24 +441,16 @@ class ToolBoxApp {
         });
 
         // Tool-Connection mapping handlers
-        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, async (_, toolId, connectionId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, (_, toolId, connectionId) => {
             this.settingsManager.setToolConnection(toolId, connectionId);
-            // Update all running instances of this tool with the new connection
-            if (this.toolWindowManager) {
-                await this.toolWindowManager.updateToolConnectionsByToolId(toolId, connectionId);
-            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_CONNECTION, (_, toolId) => {
             return this.settingsManager.getToolConnection(toolId);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, async (_, toolId) => {
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, (_, toolId) => {
             this.settingsManager.removeToolConnection(toolId);
-            // Update all running instances of this tool to have no connection
-            if (this.toolWindowManager) {
-                await this.toolWindowManager.updateToolConnectionsByToolId(toolId, null);
-            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS, () => {
@@ -466,28 +458,16 @@ class ToolBoxApp {
         });
 
         // Tool secondary connection management
-        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, async (_, toolId: string, connectionId: string) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, (_, toolId: string, connectionId: string) => {
             this.settingsManager.setToolSecondaryConnection(toolId, connectionId);
-            // Update all running instances of this tool with the new secondary connection
-            // Get the primary connection from settings to send complete context
-            const primaryConnectionId = this.settingsManager.getToolConnection(toolId);
-            if (this.toolWindowManager) {
-                await this.toolWindowManager.updateToolConnectionsByToolId(toolId, primaryConnectionId, connectionId);
-            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
             return this.settingsManager.getToolSecondaryConnection(toolId);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, async (_, toolId: string) => {
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
             this.settingsManager.removeToolSecondaryConnection(toolId);
-            // Update all running instances of this tool to have no secondary connection
-            // Get the primary connection from settings to send complete context
-            const primaryConnectionId = this.settingsManager.getToolConnection(toolId);
-            if (this.toolWindowManager) {
-                await this.toolWindowManager.updateToolConnectionsByToolId(toolId, primaryConnectionId, null);
-            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS, () => {

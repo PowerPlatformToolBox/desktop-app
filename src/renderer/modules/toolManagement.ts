@@ -556,6 +556,9 @@ export async function setToolConnection(instanceId: string, connectionId: string
         await window.toolboxAPI.removeToolConnection(toolId);
     }
 
+    // Update the tool instance's context to reflect the connection change
+    await window.toolboxAPI.updateToolInstanceConnection(instanceId, connectionId);
+
     // Update connection badge on tab using instanceId
     const badge = document.getElementById(`tab-connection-${instanceId}`);
     if (badge) {

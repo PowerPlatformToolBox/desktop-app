@@ -73,6 +73,11 @@ export class ToolWindowManager {
             return Array.from(this.toolViews.keys());
         });
 
+        // Update connection for a specific tool instance
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_INSTANCE_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
+            return this.updateToolInstanceConnection(instanceId, primaryConnectionId, secondaryConnectionId);
+        });
+
         // Restore renderer-provided bounds flow
         ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
@@ -543,32 +548,6 @@ export class ToolWindowManager {
         console.log(`[ToolWindowManager] Updated context for tool instance ${instanceId}:`, 
             connectionUrl ? `primary=${connectionUrl}` : "no primary",
             secondaryConnectionUrl ? `secondary=${secondaryConnectionUrl}` : "");
-    }
-
-    /**
-     * Update connection for ALL instances of a tool by toolId
-     * Called when the tool's default connection is changed in settings
-     * @param toolId The base tool ID
-     * @param primaryConnectionId New primary connection ID
-     * @param secondaryConnectionId New secondary connection ID (optional)
-     */
-    async updateToolConnectionsByToolId(toolId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
-        // Find all instances of this tool
-        const instancesToUpdate: string[] = [];
-        for (const [instanceId] of this.toolViews.entries()) {
-            // Extract toolId from instanceId (format: toolId-timestamp-random)
-            const instanceToolId = this.extractToolIdFromInstanceId(instanceId);
-            if (instanceToolId === toolId) {
-                instancesToUpdate.push(instanceId);
-            }
-        }
-
-        // Update each instance
-        for (const instanceId of instancesToUpdate) {
-            await this.updateToolInstanceConnection(instanceId, primaryConnectionId, secondaryConnectionId);
-        }
-
-        console.log(`[ToolWindowManager] Updated ${instancesToUpdate.length} instance(s) of tool ${toolId}`);
     }
 
     /**

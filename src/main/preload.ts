@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
+    updateToolInstanceConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_INSTANCE_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
