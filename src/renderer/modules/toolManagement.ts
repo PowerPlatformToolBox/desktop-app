@@ -3,9 +3,10 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import type { OpenTool, SessionData } from "../types/index";
 import type { DataverseConnection } from "../../common/types/connection";
+import type { OpenTool, SessionData } from "../types/index";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
+import { openCspExceptionModal } from "./cspExceptionModal";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -50,91 +51,6 @@ export function updateToolbarButtonVisibility(): void {
 }
 
 /**
- * Show CSP consent dialog for a tool
- * Returns true if user grants consent, false otherwise
- */
-async function showCspConsentDialog(tool: any): Promise<boolean> {
-    return new Promise((resolve) => {
-        const modal = document.createElement("div");
-        modal.className = "modal";
-        modal.id = "csp-consent-modal";
-
-        const cspExceptions = tool.cspExceptions || {};
-
-        // Build list of CSP exceptions
-        let exceptionsHtml = "";
-        for (const [directive, sources] of Object.entries(cspExceptions)) {
-            if (Array.isArray(sources) && sources.length > 0) {
-                const directiveName = directive.replace("-src", "").replace("-", " ");
-                exceptionsHtml += `
-                    <div class="csp-exception">
-                        <strong>${directiveName}:</strong>
-                        <ul>
-                            ${sources.map((source: string) => `<li><code>${source}</code></li>`).join("")}
-                        </ul>
-                    </div>
-                `;
-            }
-        }
-
-        modal.innerHTML = `
-            <div class="modal-content csp-consent-dialog">
-                <div class="modal-header">
-                    <h2>⚠️ Security Permissions Required</h2>
-                </div>
-                <div class="modal-body">
-                    <p>
-                        <strong>${tool.name}</strong> by <em>${tool.authors && tool.authors.length ? tool.authors.join(", ") : "Unknown"}</em> 
-                        is requesting permission to access external resources.
-                    </p>
-                    <p>
-                        This tool needs the following Content Security Policy (CSP) exceptions to function properly:
-                    </p>
-                    <div class="csp-exceptions-list">
-                        ${exceptionsHtml}
-                    </div>
-                    <div class="csp-warning">
-                        <p>
-                            ⚠️ <strong>Important:</strong> Only grant these permissions if you trust this tool and its author. 
-                            These permissions will allow the tool to:
-                        </p>
-                        <ul>
-                            <li>Make network requests to the specified domains</li>
-                            <li>Load scripts and styles from external sources</li>
-                            <li>Access external resources as specified above</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" id="csp-decline-btn">Decline</button>
-                    <button class="btn btn-primary" id="csp-accept-btn">Accept &amp; Continue</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-
-        // Show modal
-        setTimeout(() => modal.classList.add("active"), 10);
-
-        // Handle buttons
-        const acceptBtn = modal.querySelector("#csp-accept-btn");
-        const declineBtn = modal.querySelector("#csp-decline-btn");
-
-        const closeModal = (granted: boolean) => {
-            modal.classList.remove("active");
-            setTimeout(() => {
-                modal.remove();
-                resolve(granted);
-            }, 300);
-        };
-
-        acceptBtn?.addEventListener("click", () => closeModal(true));
-        declineBtn?.addEventListener("click", () => closeModal(false));
-    });
-}
-
-/**
  * Launch a tool by ID
  */
 export async function launchTool(toolId: string): Promise<void> {
@@ -165,7 +81,7 @@ export async function launchTool(toolId: string): Promise<void> {
         if (requiresMultiConnection) {
             // Tool requires two connections - always show modal for new instance
             console.log("Tool requires multi-connection. Showing multi-connection modal...");
-            
+
             try {
                 // Show the select multi-connection modal and wait for user to select both connections
                 const result = await openSelectMultiConnectionModal();
@@ -185,13 +101,13 @@ export async function launchTool(toolId: string): Promise<void> {
         } else {
             // Regular single-connection flow - always show modal for new instance
             console.log("Showing connection selection modal for new instance...");
-            
+
             try {
                 // Show the select connection modal and wait for user to connect
                 // Show connection selection modal and get selected connectionId
                 const selectedConnectionId = await openSelectConnectionModal();
                 console.log("Connection established. Continuing with tool launch...");
-                
+
                 if (selectedConnectionId) {
                     primaryConnectionId = selectedConnectionId;
                 } else {
@@ -215,11 +131,17 @@ export async function launchTool(toolId: string): Promise<void> {
             const hasConsent = await window.toolboxAPI.hasCspConsent(tool.id);
 
             if (!hasConsent) {
-                // Show consent dialog
-                const consentGranted = await showCspConsentDialog(tool);
+                // Show consent dialog using BrowserWindow modal framework
+                let consentGranted = false;
+                try {
+                    consentGranted = await openCspExceptionModal(tool);
+                } catch (error) {
+                    console.log("CSP consent modal closed without selection:", error);
+                    consentGranted = false;
+                }
 
                 if (!consentGranted) {
-                    // User declined, don't load the tool
+                    // User declined or closed, don't load the tool
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
                         body: `You declined the security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
@@ -261,7 +183,7 @@ export async function launchTool(toolId: string): Promise<void> {
         console.log(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
 
         // Count how many instances of this tool are already open
-        const existingInstances = Array.from(openTools.values()).filter(t => t.toolId === toolId);
+        const existingInstances = Array.from(openTools.values()).filter((t) => t.toolId === toolId);
         const instanceNumber = existingInstances.length + 1;
 
         // Store the open tool with instance information
@@ -359,7 +281,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
         if (e.button === MIDDLE_MOUSE_BUTTON) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Check if tab is pinned before closing
             const openTool = openTools.get(instanceId);
             if (openTool?.isPinned) {
@@ -370,7 +292,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
                 });
                 return;
             }
-            
+
             closeTool(instanceId);
         }
     });
@@ -741,26 +663,26 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
-    
+
     if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
         // Tool has both primary and secondary connections
         const connections = await window.toolboxAPI.connections.getAll();
         const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
         const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
-        
+
         if (primaryConnection && secondaryConnection) {
             // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
             statusElement.className = "connection-status connected";
-            
+
             // Display secondary connection on the right
             if (secondaryStatusElement) {
                 const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
                 secondaryStatusElement.textContent = secondaryText;
                 secondaryStatusElement.classList.add("connected", "visible");
             }
-            
+
             // Update tool panel border based on both primary and secondary environment
             updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
             return;
@@ -769,7 +691,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         // Tool has a single connection
         const connections = await window.toolboxAPI.connections.getAll();
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
-        
+
         if (toolConnection) {
             // Check if token is expired
             let isExpired = false;
@@ -778,7 +700,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 const now = new Date();
                 isExpired = expiryDate.getTime() <= now.getTime();
             }
-            
+
             // Format: "ToolName is connected to: ConnectionName"
             if (isExpired) {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
@@ -787,13 +709,13 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
                 statusElement.className = "connection-status connected";
             }
-            
+
             // Update tool panel border based on environment
             updateToolPanelBorder(toolConnection.environment);
             return;
         }
     }
-    
+
     // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
@@ -809,16 +731,14 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
-        const classesToRemove = Array.from(toolPanelWrapper.classList).filter(
-            cls => cls.startsWith('env-') || cls.startsWith('multi-env-')
-        );
-        classesToRemove.forEach(cls => toolPanelWrapper.classList.remove(cls));
+        const classesToRemove = Array.from(toolPanelWrapper.classList).filter((cls) => cls.startsWith("env-") || cls.startsWith("multi-env-"));
+        classesToRemove.forEach((cls) => toolPanelWrapper.classList.remove(cls));
 
         // Add the appropriate class based on environment(s)
         if (environment && secondaryEnvironment) {
             const primaryEnvClass = environment.toLowerCase();
             const secondaryEnvClass = secondaryEnvironment.toLowerCase();
-            
+
             // If both environments are the same, use single environment class for efficiency
             if (primaryEnvClass === secondaryEnvClass) {
                 toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
@@ -875,7 +795,7 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //     const currentConnectionId = currentTool?.connectionId;
 
 //     let menuHtml = `<div class="context-menu-header">Connection for ${currentTool?.tool.name || "Tool"}</div>`;
-    
+
 //     // Add "Use Global Connection" option
 //     menuHtml += `
 //         <div class="context-menu-item ${!currentConnectionId ? "active" : ""}" data-action="use-global">
@@ -911,7 +831,7 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //         item.addEventListener("click", async (e) => {
 //             const target = e.currentTarget as HTMLElement;
 //             const action = target.getAttribute("data-action");
-            
+
 //             if (action === "use-global") {
 //                 await setToolConnection(toolId, null);
 //             } else if (action === "set-connection") {
@@ -920,7 +840,7 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //                     await setToolConnection(toolId, connectionId);
 //                 }
 //             }
-            
+
 //             menu.remove();
 //         });
 //     });
@@ -932,7 +852,7 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //             document.removeEventListener("click", closeMenu);
 //         }
 //     };
-    
+
 //     // Add click listener after a small delay to prevent immediate closing
 //     setTimeout(() => {
 //         document.addEventListener("click", closeMenu);
@@ -960,20 +880,20 @@ export async function openToolConnectionModal(): Promise<void> {
         // Use the existing selectConnection modal but with tool-specific behavior
         // Import connectionManagement functions dynamically
         const { openSelectConnectionModal } = await import("./connectionManagement");
-        
+
         // Open the modal and pass the tool's current connection ID to highlight it
         const selectedConnectionId = await openSelectConnectionModal(activeTool.connectionId);
-        
+
         // After modal closes with a successful connection, update the tool's connection
         if (selectedConnectionId && activeToolId) {
             await setToolConnection(activeToolId, selectedConnectionId);
-            
+
             // Get connection from all connections list
             const connections = await window.toolboxAPI.connections.getAll();
             const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Connection Set",
-                body: `${activeTool.tool.name} is now connected to ${connection?.name || 'the selected connection'}.`,
+                body: `${activeTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
                 type: "success",
             });
         }
