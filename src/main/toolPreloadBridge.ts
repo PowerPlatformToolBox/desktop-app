@@ -26,14 +26,24 @@ const toolContextReady = new Promise<void>((resolve) => {
     resolveToolContext = resolve;
 });
 
+// Track if initial context has been received
+let initialContextReceived = false;
+
 // Listen for context from main process
 ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge the new context with existing context to preserve fields like toolName and version
     // Works correctly whether toolContext is null or already has a value
     toolContext = { ...toolContext, ...context };
     console.log("[ToolPreloadBridge] Received tool context:", context);
-    // Resolve the promise so any pending API calls can proceed
-    resolveToolContext();
+    
+    // Resolve the promise so any pending API calls can proceed (only once for initial context)
+    if (!initialContextReceived) {
+        initialContextReceived = true;
+        resolveToolContext();
+    }
+    
+    // Send acknowledgment back to main process that context was received
+    event.sender.send("toolbox:context-received", context);
 });
 
 // Helper to ensure toolContext is ready before proceeding

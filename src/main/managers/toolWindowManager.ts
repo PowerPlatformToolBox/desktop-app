@@ -543,11 +543,34 @@ export class ToolWindowManager {
             secondaryConnectionId: secondaryConnectionId || null,
         };
         
-        toolView.webContents.send("toolbox:context", updatedContext);
-
-        console.log(`[ToolWindowManager] Updated context for tool instance ${instanceId}:`, 
-            connectionUrl ? `primary=${connectionUrl}` : "no primary",
-            secondaryConnectionUrl ? `secondary=${secondaryConnectionUrl}` : "");
+        // Wait for tool to acknowledge receipt of context update
+        return new Promise<void>((resolve) => {
+            // Set up one-time listener for acknowledgment
+            const ackHandler = () => {
+                console.log(`[ToolWindowManager] Context acknowledged for ${instanceId}`);
+                resolve();
+            };
+            
+            // Listen for acknowledgment (one-time)
+            toolView.webContents.once("ipc-message", (event, channel) => {
+                if (channel === "toolbox:context-received") {
+                    ackHandler();
+                }
+            });
+            
+            // Send the context update
+            toolView.webContents.send("toolbox:context", updatedContext);
+            
+            console.log(`[ToolWindowManager] Updated context for tool instance ${instanceId}:`, 
+                connectionUrl ? `primary=${connectionUrl}` : "no primary",
+                secondaryConnectionUrl ? `secondary=${secondaryConnectionUrl}` : "");
+            
+            // Timeout in case acknowledgment never arrives (fallback)
+            setTimeout(() => {
+                console.warn(`[ToolWindowManager] Context update timeout for ${instanceId}, proceeding anyway`);
+                resolve();
+            }, 1000);
+        });
     }
 
     /**

@@ -540,8 +540,6 @@ export async function setToolConnection(instanceId: string, connectionId: string
     const tool = openTools.get(instanceId);
     if (!tool) return;
 
-    tool.connectionId = connectionId;
-
     // Save to backend using toolId (not instanceId) for settings storage
     const toolId = tool.toolId;
     if (connectionId) {
@@ -552,7 +550,11 @@ export async function setToolConnection(instanceId: string, connectionId: string
 
     // Update the tool instance's context to reflect the connection change
     // Pass both primary and secondary connections to preserve the secondary when changing primary
+    // IMPORTANT: Do this BEFORE updating local state to avoid race conditions
     await window.toolboxAPI.updateToolInstanceConnection(instanceId, connectionId, tool.secondaryConnectionId);
+
+    // Update local state AFTER context update to avoid race conditions
+    tool.connectionId = connectionId;
 
     // Update connection badge on tab using instanceId - REMOVED per user request
     // const badge = document.getElementById(`tab-connection-${instanceId}`);
