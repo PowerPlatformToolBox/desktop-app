@@ -469,10 +469,16 @@ export class ToolWindowManager {
      * @returns The base toolId
      */
     private extractToolIdFromInstanceId(instanceId: string): string {
+        // Validate the instanceId format (must have at least 3 parts)
+        const parts = instanceId.split("-");
+        if (parts.length < 3) {
+            console.warn(`[ToolWindowManager] Invalid instanceId format: ${instanceId}`);
+            return instanceId; // Return as-is if format is unexpected
+        }
         // Split by hyphen and remove the last 2 components (timestamp and random)
         // This works even if toolId contains hyphens because timestamp and random
         // are base36 strings which don't contain hyphens
-        return instanceId.split("-").slice(0, -2).join("-");
+        return parts.slice(0, -2).join("-");
     }
 
     /**
@@ -522,7 +528,7 @@ export class ToolWindowManager {
 
         // Extract toolId from instanceId
         const toolId = this.extractToolIdFromInstanceId(instanceId);
-        
+
         // Send complete updated context to the tool (same format as initial context)
         const updatedContext = {
             toolId: toolId,
