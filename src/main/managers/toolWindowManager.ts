@@ -461,31 +461,93 @@ export class ToolWindowManager {
     }
 
     /**
-     * Update connection context for a specific tool
+     * Update connection context for a specific tool instance
      * Called when a tool's connection is changed
+     * @param instanceId The instance ID to update
+     * @param primaryConnectionId New primary connection ID
+     * @param secondaryConnectionId New secondary connection ID (optional)
      */
-    async updateToolConnection(toolId: string, connectionId: string | null): Promise<void> {
-        const toolView = this.toolViews.get(toolId);
+    async updateToolInstanceConnection(instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
+        const toolView = this.toolViews.get(instanceId);
         if (!toolView || toolView.webContents.isDestroyed()) {
             return;
         }
 
-        let connectionUrl: string | null = null;
+        // Update the stored connection info for this instance
+        const currentInfo = this.toolConnectionInfo.get(instanceId);
+        if (currentInfo) {
+            currentInfo.primaryConnectionId = primaryConnectionId;
+            if (secondaryConnectionId !== undefined) {
+                currentInfo.secondaryConnectionId = secondaryConnectionId;
+            }
+        } else {
+            this.toolConnectionInfo.set(instanceId, {
+                primaryConnectionId,
+                secondaryConnectionId: secondaryConnectionId || null,
+            });
+        }
 
-        if (connectionId) {
-            const connection = this.connectionsManager.getConnectionById(connectionId);
+        // Get connection URLs
+        let connectionUrl: string | null = null;
+        let secondaryConnectionUrl: string | null = null;
+
+        if (primaryConnectionId) {
+            const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
             if (connection) {
                 connectionUrl = connection.url;
             }
         }
 
-        // Send updated connection context to the tool
-        toolView.webContents.send("toolbox:connection-changed", {
-            connectionUrl: connectionUrl,
-            connectionId: connectionId,
-        });
+        if (secondaryConnectionId) {
+            const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
+            if (secondaryConnection) {
+                secondaryConnectionUrl = secondaryConnection.url;
+            }
+        }
 
-        console.log(`[ToolWindowManager] Updated connection for tool ${toolId}:`, connectionUrl ? "connected" : "disconnected");
+        // Extract toolId from instanceId to get tool info
+        const toolId = instanceId.split("-").slice(0, -2).join("-");
+        
+        // Send complete updated context to the tool (same format as initial context)
+        const updatedContext = {
+            toolId: toolId,
+            connectionUrl: connectionUrl,
+            connectionId: primaryConnectionId,
+            secondaryConnectionUrl: secondaryConnectionUrl,
+            secondaryConnectionId: secondaryConnectionId || null,
+        };
+        
+        toolView.webContents.send("toolbox:context", updatedContext);
+
+        console.log(`[ToolWindowManager] Updated context for tool instance ${instanceId}:`, 
+            connectionUrl ? `primary=${connectionUrl}` : "no primary",
+            secondaryConnectionUrl ? `secondary=${secondaryConnectionUrl}` : "");
+    }
+
+    /**
+     * Update connection for ALL instances of a tool by toolId
+     * Called when the tool's default connection is changed in settings
+     * @param toolId The base tool ID
+     * @param primaryConnectionId New primary connection ID
+     * @param secondaryConnectionId New secondary connection ID (optional)
+     */
+    async updateToolConnectionsByToolId(toolId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
+        // Find all instances of this tool
+        const instancesToUpdate: string[] = [];
+        for (const [instanceId] of this.toolViews.entries()) {
+            // Extract toolId from instanceId (format: toolId-timestamp-random)
+            const instanceToolId = instanceId.split("-").slice(0, -2).join("-");
+            if (instanceToolId === toolId) {
+                instancesToUpdate.push(instanceId);
+            }
+        }
+
+        // Update each instance
+        for (const instanceId of instancesToUpdate) {
+            await this.updateToolInstanceConnection(instanceId, primaryConnectionId, secondaryConnectionId);
+        }
+
+        console.log(`[ToolWindowManager] Updated ${instancesToUpdate.length} instance(s) of tool ${toolId}`);
     }
 
     /**
