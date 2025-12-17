@@ -475,7 +475,8 @@ export class ToolWindowManager {
             }
         }
 
-        // Send updated context to the tool (merge with existing context)
+        // Send updated context to the tool FIRST before any events
+        // This ensures the context is updated before any event handlers run
         const updatedContext = {
             connectionUrl,
             connectionId: primaryConnectionId,
