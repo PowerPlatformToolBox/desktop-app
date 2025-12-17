@@ -865,13 +865,13 @@ class ToolBoxApp {
                     {
                         label: "Learn More",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal("https://www.powerplatformtoolbox.com/");
                         },
                     },
                     {
                         label: "Documentation",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app#readme");
+                            await shell.openExternal("https://docs.powerplatformtoolbox.com/");
                         },
                     },
                     { type: "separator" },
