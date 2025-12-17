@@ -73,9 +73,9 @@ export class ToolWindowManager {
             return Array.from(this.toolViews.keys());
         });
 
-        // Update connection for a specific tool instance
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_INSTANCE_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
-            return this.updateToolInstanceConnection(instanceId, primaryConnectionId, secondaryConnectionId);
+        // Update tool connection
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
+            return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
         });
 
         // Restore renderer-provided bounds flow
@@ -134,8 +134,8 @@ export class ToolWindowManager {
         try {
             console.log(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
-            // Extract actual toolId from instanceId
-            const toolId = this.extractToolIdFromInstanceId(instanceId);
+            // Extract actual toolId from instanceId (format: toolId-timestamp-random)
+            const toolId = instanceId.split("-").slice(0, -2).join("-");
 
             // Check if this specific instance is already open (shouldn't happen, but safety check)
             if (this.toolViews.has(instanceId)) {
@@ -433,6 +433,61 @@ export class ToolWindowManager {
     }
 
     /**
+     * Update tool connection context
+     * Sends updated connection information to a specific tool instance
+     */
+    async updateToolConnection(instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
+        const toolView = this.toolViews.get(instanceId);
+        if (!toolView || toolView.webContents.isDestroyed()) {
+            console.warn(`[ToolWindowManager] Tool instance ${instanceId} not found or destroyed`);
+            return;
+        }
+
+        // Update stored connection info
+        const connectionInfo = this.toolConnectionInfo.get(instanceId);
+        if (connectionInfo) {
+            connectionInfo.primaryConnectionId = primaryConnectionId;
+            if (secondaryConnectionId !== undefined) {
+                connectionInfo.secondaryConnectionId = secondaryConnectionId;
+            }
+        } else {
+            this.toolConnectionInfo.set(instanceId, {
+                primaryConnectionId,
+                secondaryConnectionId: secondaryConnectionId || null,
+            });
+        }
+
+        // Get connection URLs
+        let connectionUrl: string | null = null;
+        let secondaryConnectionUrl: string | null = null;
+
+        if (primaryConnectionId) {
+            const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
+            if (connection) {
+                connectionUrl = connection.url;
+            }
+        }
+
+        if (secondaryConnectionId) {
+            const connection = this.connectionsManager.getConnectionById(secondaryConnectionId);
+            if (connection) {
+                secondaryConnectionUrl = connection.url;
+            }
+        }
+
+        // Send updated context to the tool (merge with existing context)
+        const updatedContext = {
+            connectionUrl,
+            connectionId: primaryConnectionId,
+            secondaryConnectionUrl,
+            secondaryConnectionId,
+        };
+
+        toolView.webContents.send("toolbox:context", updatedContext);
+        console.log(`[ToolWindowManager] Updated connection for tool instance ${instanceId}:`, { primaryConnectionId, secondaryConnectionId });
+    }
+
+    /**
      * Cleanup all tool views
      */
     destroy(): void {
@@ -463,114 +518,6 @@ export class ToolWindowManager {
                 console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
             }
         }
-    }
-
-    /**
-     * Extract the base toolId from an instanceId
-     * Instance IDs have format: toolId-timestamp-random
-     * where timestamp and random are base36 strings (no hyphens)
-     * This safely handles toolIds that contain hyphens
-     * @param instanceId The instance ID to parse
-     * @returns The base toolId
-     */
-    private extractToolIdFromInstanceId(instanceId: string): string {
-        // Validate the instanceId format (must have at least 3 parts)
-        const parts = instanceId.split("-");
-        if (parts.length < 3) {
-            console.warn(`[ToolWindowManager] Invalid instanceId format: ${instanceId}`);
-            return instanceId; // Return as-is if format is unexpected
-        }
-        // Split by hyphen and remove the last 2 components (timestamp and random)
-        // This works even if toolId contains hyphens because timestamp and random
-        // are base36 strings which don't contain hyphens
-        return parts.slice(0, -2).join("-");
-    }
-
-    /**
-     * Update connection context for a specific tool instance
-     * Called when a tool's connection is changed
-     * @param instanceId The instance ID to update
-     * @param primaryConnectionId New primary connection ID
-     * @param secondaryConnectionId New secondary connection ID (optional)
-     */
-    async updateToolInstanceConnection(instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
-        const toolView = this.toolViews.get(instanceId);
-        if (!toolView || toolView.webContents.isDestroyed()) {
-            return;
-        }
-
-        // Update the stored connection info for this instance
-        const currentInfo = this.toolConnectionInfo.get(instanceId);
-        if (currentInfo) {
-            currentInfo.primaryConnectionId = primaryConnectionId;
-            if (secondaryConnectionId !== undefined) {
-                currentInfo.secondaryConnectionId = secondaryConnectionId;
-            }
-        } else {
-            this.toolConnectionInfo.set(instanceId, {
-                primaryConnectionId,
-                secondaryConnectionId: secondaryConnectionId || null,
-            });
-        }
-
-        // Get connection URLs
-        let connectionUrl: string | null = null;
-        let secondaryConnectionUrl: string | null = null;
-
-        if (primaryConnectionId) {
-            const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
-            if (connection) {
-                connectionUrl = connection.url;
-            }
-        }
-
-        if (secondaryConnectionId) {
-            const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
-            if (secondaryConnection) {
-                secondaryConnectionUrl = secondaryConnection.url;
-            }
-        }
-
-        // Extract toolId from instanceId
-        const toolId = this.extractToolIdFromInstanceId(instanceId);
-
-        // Send complete updated context to the tool (same format as initial context)
-        const updatedContext = {
-            toolId: toolId,
-            connectionUrl: connectionUrl,
-            connectionId: primaryConnectionId,
-            secondaryConnectionUrl: secondaryConnectionUrl,
-            secondaryConnectionId: secondaryConnectionId || null,
-        };
-        
-        // Wait for tool to acknowledge receipt of context update
-        return new Promise<void>((resolve) => {
-            // Set up one-time listener for acknowledgment
-            const ackHandler = () => {
-                console.log(`[ToolWindowManager] Context acknowledged for ${instanceId}`);
-                resolve();
-            };
-            
-            // Listen for acknowledgment (one-time)
-            toolView.webContents.once("ipc-message", (event, channel) => {
-                if (channel === "toolbox:context-received") {
-                    ackHandler();
-                }
-            });
-            
-            // Send the context update
-            toolView.webContents.send("toolbox:context", updatedContext);
-            
-            console.log(`[ToolWindowManager] Updated context for tool instance ${instanceId}:`, 
-                connectionUrl ? `primary=${connectionUrl}` : "no primary",
-                secondaryConnectionUrl ? `secondary=${secondaryConnectionUrl}` : "");
-            
-            // Timeout in case acknowledgment never arrives (fallback)
-            setTimeout(() => {
-                console.warn(`[ToolWindowManager] Context update timeout for ${instanceId}, proceeding anyway`);
-                resolve();
-            }, 1000);
-        });
     }
 
     /**

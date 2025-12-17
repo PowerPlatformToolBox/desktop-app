@@ -119,7 +119,7 @@ export interface ToolboxAPI {
     closeToolWindow: (toolId: string) => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
-    updateToolInstanceConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;

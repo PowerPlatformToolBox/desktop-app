@@ -76,7 +76,7 @@ export const TOOL_WINDOW_CHANNELS = {
     CLOSE: "tool-window:close",
     GET_ACTIVE: "tool-window:get-active",
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
-    UPDATE_INSTANCE_CONNECTION: "tool-window:update-instance-connection",
+    UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
 } as const;
 
 // Terminal-related IPC channels

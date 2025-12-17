@@ -239,7 +239,12 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     name.textContent = displayName;
     name.title = displayName;
 
-    // Connection badge removed per user request
+    const connectionBadge = document.createElement("span");
+    connectionBadge.className = "tool-tab-connection";
+    connectionBadge.id = `tab-connection-${instanceId}`;
+    connectionBadge.textContent = "🔗";
+    connectionBadge.title = "No connection";
+    connectionBadge.style.display = "none";
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -299,6 +304,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
     tab.appendChild(name);
+    tab.appendChild(connectionBadge);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
@@ -548,25 +554,24 @@ export async function setToolConnection(instanceId: string, connectionId: string
         await window.toolboxAPI.removeToolConnection(toolId);
     }
 
-    // Update the tool instance's context to reflect the connection change
-    // Pass both primary and secondary connections to preserve the secondary when changing primary
-    // IMPORTANT: Do this BEFORE updating local state to avoid race conditions
-    await window.toolboxAPI.updateToolInstanceConnection(instanceId, connectionId, tool.secondaryConnectionId);
+    // Update the tool instance's connection context
+    // Pass both primary and secondary to preserve secondary when updating primary
+    await window.toolboxAPI.updateToolConnection(instanceId, connectionId, tool.secondaryConnectionId);
 
-    // Update local state AFTER context update to avoid race conditions
+    // Update local state
     tool.connectionId = connectionId;
 
-    // Update connection badge on tab using instanceId - REMOVED per user request
-    // const badge = document.getElementById(`tab-connection-${instanceId}`);
-    // if (badge) {
-    //     if (connectionId) {
-    //         badge.style.display = "inline";
-    //         badge.title = "Connected";
-    //     } else {
-    //         badge.style.display = "none";
-    //         badge.title = "No connection";
-    //     }
-    // }
+    // Update connection badge on tab using instanceId
+    const badge = document.getElementById(`tab-connection-${instanceId}`);
+    if (badge) {
+        if (connectionId) {
+            badge.style.display = "inline";
+            badge.title = "Connected";
+        } else {
+            badge.style.display = "none";
+            badge.title = "No connection";
+        }
+    }
 
     saveSession();
 
