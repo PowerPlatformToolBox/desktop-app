@@ -949,7 +949,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId);
 
         // After modal closes with a successful connection, update the tool's secondary connection
-        if (selectedConnectionId) {
+        if (selectedConnectionId && activeToolId) {
             await setToolSecondaryConnection(activeToolId, selectedConnectionId);
 
             // Get connection from all connections list
