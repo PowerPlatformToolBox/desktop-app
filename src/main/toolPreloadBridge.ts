@@ -28,10 +28,14 @@ const toolContextReady = new Promise<void>((resolve) => {
 
 // Listen for context from main process
 ipcRenderer.on("toolbox:context", (event, context) => {
-    toolContext = context;
-    console.log("[ToolPreloadBridge] Received tool context:", context);
-    // Resolve the promise so any pending API calls can proceed
-    resolveToolContext();
+    // Merge new context with existing to preserve all fields
+    toolContext = { ...toolContext, ...context };
+    console.log("[ToolPreloadBridge] Received tool context update:", context);
+    // Resolve the promise so any pending API calls can proceed (only once)
+    if (resolveToolContext) {
+        resolveToolContext();
+        resolveToolContext = null as any; // Only resolve once
+    }
 });
 
 // Helper to ensure toolContext is ready before proceeding
