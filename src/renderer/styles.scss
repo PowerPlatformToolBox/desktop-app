@@ -989,6 +989,10 @@ body {
     color: #8a8886;
 }
 
+.tool-item-authors-pptb {
+    margin-bottom: 6px;
+}
+
 .tool-library-item .btn {
     padding: 6px 16px;
     font-size: 13px;
@@ -1445,20 +1449,20 @@ body {
     overflow: hidden;
 }
 
-.tool-item-updated-version-available-pptb{
+.tool-item-updated-version-available-pptb {
     display: flex;
-    font-size: 12px;
-    font-weight: bold;
-    color: #605e5c;
-    margin-bottom: 8px;
+    gap: 8px;
+    align-items: center;
 }
 
-.tool-item-updated-version-available-info-icon{
+.tool-item-updated-version-available-info-icon {
     filter: brightness(0) saturate(100%) invert(29%) sepia(62%) saturate(5964%) hue-rotate(192deg) brightness(100%) contrast(100%);
 }
 
-.tool-item-updated-version-available-text{
-    margin-left: 10px;
+.tool-item-updated-version-available-text {
+    font-size: 11px;
+    color: #8a8886;
+    font-family: monospace;
 }
 
 .tool-item-actions-pptb {
@@ -1499,10 +1503,10 @@ body {
 }
 
 .tool-item-version-pptb {
-    font-size: 12px;
-    font-weight: bold;
-    color: #605e5c;
-    margin-bottom: 8px;
+    font-size: 11px;
+    color: #8a8886;
+    margin-top: 4px;
+    font-family: monospace;
 }
 
 .tool-update-badge {
@@ -1618,9 +1622,9 @@ body {
 }
 
 .marketplace-item-version-pptb {
-    font-size: 12px;
-    font-weight: bold;
-    margin-bottom: 8px;
+    font-size: 11px;
+    color: #605e5c;
+    font-family: monospace;
 }
 
 .marketplace-item-actions-pptb {

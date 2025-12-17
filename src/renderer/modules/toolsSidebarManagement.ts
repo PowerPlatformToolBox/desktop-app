@@ -118,7 +118,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <div class="tool-item-name-pptb">
                                         ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
-                                    <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                                    <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
                             </div>
                             <div class="tool-item-header-right-pptb">
@@ -128,12 +128,12 @@ export async function loadSidebarTools(): Promise<void> {
                             </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
-                        <div class="tool-item-version-pptb">${tool.version}</div>
+                        <div class="tool-item-authors-pptb">${authorsDisplay}</div>
                         ${
                             hasUpdate && latestVersion
                                 ? `<div class="tool-item-updated-version-available-pptb">
-                                    <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
-                                    <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
+                                        <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
+                                        <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
                                     </div>`
                                 : ""
                         }
