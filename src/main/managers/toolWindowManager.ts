@@ -2,6 +2,7 @@ import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { Tool } from "../../common/types";
+import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
@@ -485,6 +486,16 @@ export class ToolWindowManager {
         };
 
         toolView.webContents.send("toolbox:context", updatedContext);
+        
+        // Emit connection:updated event to the tool AFTER context is updated
+        // This allows the tool's event handler to call getActiveConnection() and get the updated connection
+        const eventPayload = {
+            event: ToolBoxEvent.CONNECTION_UPDATED,
+            data: { id: primaryConnectionId },
+            timestamp: new Date().toISOString(),
+        };
+        toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
+        
         console.log(`[ToolWindowManager] Updated connection for tool instance ${instanceId}:`, { primaryConnectionId, secondaryConnectionId });
     }
 
