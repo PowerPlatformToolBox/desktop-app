@@ -239,13 +239,6 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     name.textContent = displayName;
     name.title = displayName;
 
-    const connectionBadge = document.createElement("span");
-    connectionBadge.className = "tool-tab-connection";
-    connectionBadge.id = `tab-connection-${instanceId}`;
-    connectionBadge.textContent = "🔗";
-    connectionBadge.title = "No connection";
-    connectionBadge.style.display = "none";
-
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
     pinBtn.title = "Pin tab";
@@ -304,7 +297,6 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
     tab.appendChild(name);
-    tab.appendChild(connectionBadge);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
@@ -560,18 +552,6 @@ export async function setToolConnection(instanceId: string, connectionId: string
 
     // Update local state
     tool.connectionId = connectionId;
-
-    // Update connection badge on tab using instanceId
-    const badge = document.getElementById(`tab-connection-${instanceId}`);
-    if (badge) {
-        if (connectionId) {
-            badge.style.display = "inline";
-            badge.title = "Connected";
-        } else {
-            badge.style.display = "none";
-            badge.title = "No connection";
-        }
-    }
 
     saveSession();
 
