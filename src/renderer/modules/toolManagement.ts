@@ -889,6 +889,85 @@ export async function openToolConnectionModal(): Promise<void> {
 }
 
 /**
+ * Set secondary connection for a tool
+ */
+export async function setToolSecondaryConnection(instanceId: string, connectionId: string | null): Promise<void> {
+    const tool = openTools.get(instanceId);
+    if (!tool) return;
+
+    // Update the tool instance's connection context
+    // Pass both primary and secondary connections
+    await window.toolboxAPI.updateToolConnection(instanceId, tool.connectionId, connectionId);
+
+    // Update local state
+    tool.secondaryConnectionId = connectionId;
+
+    saveSession();
+
+    // Update sidebar and footer if this is the active tool
+    if (activeToolId === instanceId) {
+        await updateActiveToolConnectionStatus();
+    }
+
+    console.log(`Tool instance ${instanceId} secondary connection set to:`, connectionId);
+}
+
+/**
+ * Open connection selection modal for changing the secondary connection of the active tool
+ * This modal allows selecting a secondary connection to associate with the active tool
+ */
+export async function openToolSecondaryConnectionModal(): Promise<void> {
+    if (!activeToolId) {
+        window.toolboxAPI.utils.showNotification({
+            title: "No Active Tool",
+            body: "Please select a tool first before changing its secondary connection.",
+            type: "warning",
+        });
+        return;
+    }
+
+    const activeTool = openTools.get(activeToolId);
+    if (!activeTool) return;
+
+    // Check if tool supports multi-connection
+    const hasMultiConnection = activeTool.tool.features?.["multi-connection"] === true;
+    if (!hasMultiConnection) {
+        window.toolboxAPI.utils.showNotification({
+            title: "Not Supported",
+            body: "This tool does not support multiple connections.",
+            type: "warning",
+        });
+        return;
+    }
+
+    try {
+        // Use the existing selectConnection modal but with tool-specific behavior
+        // Import connectionManagement functions dynamically
+        const { openSelectConnectionModal } = await import("./connectionManagement");
+
+        // Open the modal and pass the tool's current secondary connection ID to highlight it
+        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId);
+
+        // After modal closes with a successful connection, update the tool's secondary connection
+        if (selectedConnectionId && activeToolId) {
+            await setToolSecondaryConnection(activeToolId, selectedConnectionId);
+
+            // Get connection from all connections list
+            const connections = await window.toolboxAPI.connections.getAll();
+            const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
+            window.toolboxAPI.utils.showNotification({
+                title: "Secondary Connection Set",
+                body: `${activeTool.tool.name} secondary connection is now connected to ${connection?.name || "the selected connection"}.`,
+                type: "success",
+            });
+        }
+    } catch (error) {
+        // User cancelled or error occurred
+        console.log("Secondary connection selection cancelled or failed:", error);
+    }
+}
+
+/**
  * Update tab scroll button visibility based on overflow
  */
 export function updateTabScrollButtons(): void {

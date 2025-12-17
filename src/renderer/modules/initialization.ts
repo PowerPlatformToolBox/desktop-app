@@ -159,6 +159,16 @@ function setupSidebarButtons(): void {
         });
     }
 
+    // Secondary footer connection status - click to open connection selector for secondary connection
+    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
+    if (secondaryConnectionStatus) {
+        secondaryConnectionStatus.addEventListener("click", async () => {
+            // Import the function dynamically to avoid circular dependencies
+            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
+            await openToolSecondaryConnectionModal();
+        });
+    }
+
     // Sidebar save settings button
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {
