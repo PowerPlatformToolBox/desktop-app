@@ -115,20 +115,30 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record),
-        delete: (entityLogicalName: string, id: string) => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id),
-        retrieveMultiple: (fetchXml: string) => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml),
-        execute: (request: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request),
-        fetchXmlQuery: (fetchXml: string) => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml),
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
-            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns),
-        getAllEntitiesMetadata: () => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
-            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns),
-        getSolutions: (selectColumns: string[]) => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns),
-        queryData: (odataQuery: string) => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery),
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => 
+            ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
     },
 
     // Utils API
@@ -199,20 +209,30 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
 // Also expose dataverseAPI as a direct alias (for tools that use it directly)
 contextBridge.exposeInMainWorld("dataverseAPI", {
-    create: (entityLogicalName: string, record: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record),
-    retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns),
-    update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record),
-    delete: (entityLogicalName: string, id: string) => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id),
-    retrieveMultiple: (fetchXml: string) => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml),
-    execute: (request: Record<string, unknown>) => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request),
-    fetchXmlQuery: (fetchXml: string) => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml),
-    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
-        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns),
-    getAllEntitiesMetadata: () => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA),
-    getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
-        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns),
-    getSolutions: (selectColumns: string[]) => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns),
-    queryData: (odataQuery: string) => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery),
+    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
+    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
+    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+    execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+    getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
+    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+    getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+    getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => 
+        ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
 });
 
 console.log("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
