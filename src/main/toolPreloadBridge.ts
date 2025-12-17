@@ -31,7 +31,7 @@ ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge new context with existing to preserve all fields
     toolContext = { ...toolContext, ...context };
     console.log("[ToolPreloadBridge] Received tool context update:", context);
-    // Resolve the promise so any pending API calls can proceed
+    // Resolve the promise so any pending API calls can proceed (only once)
     if (resolveToolContext) {
         resolveToolContext();
         resolveToolContext = null as any; // Only resolve once
