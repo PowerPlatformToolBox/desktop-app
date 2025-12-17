@@ -930,7 +930,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
     if (!activeTool) return;
 
     // Check if tool supports multi-connection
-    const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
+    const hasMultiConnection = activeTool.tool.features?.["multi-connection"] === true;
     if (!hasMultiConnection) {
         window.toolboxAPI.utils.showNotification({
             title: "Not Supported",
@@ -949,7 +949,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId);
 
         // After modal closes with a successful connection, update the tool's secondary connection
-        if (selectedConnectionId && activeToolId) {
+        if (selectedConnectionId) {
             await setToolSecondaryConnection(activeToolId, selectedConnectionId);
 
             // Get connection from all connections list
