@@ -139,18 +139,22 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             button.textContent = 'Connecting...';
 
             // Send message to main process to authenticate this connection
+            // The main process will:
+            // 1. Call window.toolboxAPI.connections.authenticate(connectionId)
+            // 2. Send back a connectReady message with success/failure status
+            // 3. On success, we'll update UI to show connected badge
+            // 4. On failure, we'll restore the button and show error
             modalBridge.send(CHANNELS.selectConnections, { 
                 connectionId: connectionId,
                 listType: listType,
                 action: 'authenticate'
             });
 
-            // Wait for authentication to complete
-            // The main process will send back a message when done
+            // The connectReady message handler will update the UI based on success/failure
         } catch (error) {
             console.error('Error connecting:', error);
             button.disabled = false;
-            button.textContent = 'Connect';
+            button.textContent = originalText;
         }
     };
 
@@ -193,6 +197,15 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                     }
                     // Re-render to show authenticated state
                     renderConnections(connections);
+                } else if (payload.data?.success === false) {
+                    // Authentication failed - restore the connect button
+                    const button = document.querySelector(\`.connect-button[data-connection-id="\${payload.data.connectionId}"][data-list="\${payload.data.listType}"]\`);
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = 'Connect';
+                    }
+                    // Optionally show an error message
+                    console.error('Authentication failed:', payload.data.error);
                 }
             }
             

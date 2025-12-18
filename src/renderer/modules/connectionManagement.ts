@@ -35,6 +35,26 @@ interface ConnectionFormPayload {
     optionalClientId?: string;
 }
 
+interface AuthenticateConnectionAction {
+    action: 'authenticate';
+    connectionId: string;
+    listType: 'primary' | 'secondary';
+}
+
+interface ConfirmConnectionsAction {
+    action: 'confirm';
+    primaryConnectionId: string;
+    secondaryConnectionId: string;
+}
+
+interface LegacyConnectionSelection {
+    primaryConnectionId?: string;
+    secondaryConnectionId?: string;
+    action?: never;
+}
+
+type SelectMultiConnectionPayload = AuthenticateConnectionAction | ConfirmConnectionsAction | LegacyConnectionSelection;
+
 const ADD_CONNECTION_MODAL_CHANNELS = {
     submit: "add-connection:submit",
     submitReady: "add-connection:submit:ready",
@@ -373,9 +393,9 @@ function buildSelectMultiConnectionModalHtml(): string {
     return `${styles}\n${body}\n${script}`.trim();
 }
 
-async function handleSelectMultiConnectionsRequest(data?: { primaryConnectionId?: string; secondaryConnectionId?: string; connectionId?: string; listType?: string; action?: string }): Promise<void> {
+async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionPayload): Promise<void> {
     // Handle authentication requests from individual connect buttons
-    if (data?.action === 'authenticate' && data?.connectionId && data?.listType) {
+    if (data && 'action' in data && data.action === 'authenticate') {
         try {
             // Authenticate the connection
             await window.toolboxAPI.connections.authenticate(data.connectionId);
@@ -406,7 +426,7 @@ async function handleSelectMultiConnectionsRequest(data?: { primaryConnectionId?
     }
     
     // Handle confirm button - connections are already authenticated
-    if (data?.action === 'confirm' && data?.primaryConnectionId && data?.secondaryConnectionId) {
+    if (data && 'action' in data && data.action === 'confirm') {
         try {
             // Resolve the promise BEFORE closing the modal
             const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
