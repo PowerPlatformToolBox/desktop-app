@@ -654,16 +654,6 @@ export async function connectToConnection(id: string): Promise<string> {
 }
 
 /**
- * Disconnect from active connection (DEPRECATED)
- * This function is no longer used as there's no global active connection.
- * Each tool instance has its own connection.
- */
-export async function disconnectConnection(): Promise<void> {
-    console.warn("disconnectConnection is deprecated - no global active connection exists");
-    // No-op: connections are now per-tool-instance
-}
-
-/**
  * Handle re-authentication for expired tokens
  */
 export async function handleReauthentication(connectionId: string): Promise<void> {
