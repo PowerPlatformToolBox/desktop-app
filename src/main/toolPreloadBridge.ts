@@ -44,17 +44,23 @@ const TOOL_CONTEXT_TIMEOUT_ERROR = "Tool context initialization timed out after 
 
 // Helper to wrap a promise with a timeout
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
-    let timeoutHandle: NodeJS.Timeout;
+    let timeoutHandle: NodeJS.Timeout | undefined;
     
     const timeoutPromise = new Promise<T>((_, reject) => {
         timeoutHandle = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
     });
     
     return Promise.race([
-        promise.then((result) => {
-            clearTimeout(timeoutHandle);
-            return result;
-        }),
+        promise.then(
+            (result) => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                return result;
+            },
+            (error) => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                throw error;
+            }
+        ),
         timeoutPromise
     ]);
 }
