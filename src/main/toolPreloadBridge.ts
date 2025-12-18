@@ -47,7 +47,10 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: st
     let timeoutHandle: NodeJS.Timeout | undefined;
     
     const timeoutPromise = new Promise<T>((_, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+        timeoutHandle = setTimeout(() => {
+            timeoutHandle = undefined;
+            reject(new Error(errorMessage));
+        }, timeoutMs);
     });
     
     return Promise.race([
