@@ -373,7 +373,60 @@ function buildSelectMultiConnectionModalHtml(): string {
     return `${styles}\n${body}\n${script}`.trim();
 }
 
-async function handleSelectMultiConnectionsRequest(data?: { primaryConnectionId?: string; secondaryConnectionId?: string }): Promise<void> {
+async function handleSelectMultiConnectionsRequest(data?: { primaryConnectionId?: string; secondaryConnectionId?: string; connectionId?: string; listType?: string; action?: string }): Promise<void> {
+    // Handle authentication requests from individual connect buttons
+    if (data?.action === 'authenticate' && data?.connectionId && data?.listType) {
+        try {
+            // Authenticate the connection
+            await window.toolboxAPI.connections.authenticate(data.connectionId);
+            
+            // Send success message back to modal
+            await sendBrowserWindowModalMessage({
+                channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
+                data: {
+                    success: true,
+                    connectionId: data.connectionId,
+                    listType: data.listType,
+                },
+            });
+        } catch (error) {
+            console.error("Error authenticating connection:", error);
+            // Send failure message back to modal
+            await sendBrowserWindowModalMessage({
+                channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
+                data: {
+                    success: false,
+                    connectionId: data.connectionId,
+                    listType: data.listType,
+                    error: (error as Error).message,
+                },
+            });
+        }
+        return;
+    }
+    
+    // Handle confirm button - connections are already authenticated
+    if (data?.action === 'confirm' && data?.primaryConnectionId && data?.secondaryConnectionId) {
+        try {
+            // Resolve the promise BEFORE closing the modal
+            const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
+            selectMultiConnectionModalPromiseHandlers.resolve = null;
+            selectMultiConnectionModalPromiseHandlers.reject = null;
+            
+            // Close the modal
+            await closeBrowserWindowModal();
+            
+            // Now resolve the promise with both connection IDs
+            if (resolveHandler) {
+                resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
+            }
+        } catch (error) {
+            console.error("Error confirming multi-connections:", error);
+        }
+        return;
+    }
+
+    // Legacy path - should not be hit anymore but keeping for backwards compatibility
     const primaryConnectionId = data?.primaryConnectionId;
     const secondaryConnectionId = data?.secondaryConnectionId;
     

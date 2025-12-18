@@ -161,23 +161,18 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
         border-radius: 12px;
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        cursor: pointer;
         transition: all 0.2s ease;
+        position: relative;
     }
 
-    .connection-item:hover {
+    .connection-item:not(.authenticated):hover {
         background: rgba(255, 255, 255, 0.06);
         border-color: rgba(255, 255, 255, 0.16);
     }
 
-    .connection-item.active {
+    .connection-item.authenticated {
         background: rgba(14, 99, 156, 0.15);
         border-color: #0e639c;
-    }
-
-    .connection-item.selected {
-        background: rgba(14, 99, 156, 0.25);
-        border-color: #1177bb;
     }
 
     .connection-item.disabled {
@@ -189,14 +184,69 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
     .connection-header {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         margin-bottom: 8px;
+        gap: 8px;
+    }
+
+    .connection-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
     }
 
     .connection-name {
         font-size: 15px;
         font-weight: 600;
         color: #fff;
+    }
+
+    .connection-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .connect-button {
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 6px 14px;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+        background: #0e639c;
+        color: #fff;
+        white-space: nowrap;
+    }
+
+    .connect-button:hover:not(:disabled) {
+        background: #1177bb;
+    }
+
+    .connect-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .connected-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(16, 124, 16, 0.2);
+        color: #4ade80;
+        white-space: nowrap;
+    }
+
+    .connected-badge svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
     }
 
     .connection-env-badge {
@@ -335,7 +385,7 @@ export function getSelectMultiConnectionModalView(): ModalViewTemplate {
     </div>
     <div class="modal-footer">
         <button id="cancel-select-multi-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
-        <button id="connect-multi-connection-btn" class="fluent-button fluent-button-primary" disabled>Connect</button>
+        <button id="confirm-multi-connection-btn" class="fluent-button fluent-button-primary" disabled>Confirm</button>
     </div>
 </div>`;
 
