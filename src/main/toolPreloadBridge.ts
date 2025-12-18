@@ -38,9 +38,23 @@ ipcRenderer.on("toolbox:context", (event, context) => {
     }
 });
 
+// Helper to wrap a promise with a timeout
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => 
+            setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+        )
+    ]);
+}
+
 // Helper to ensure toolContext is ready before proceeding
 async function ensureToolContext(): Promise<string> {
-    await toolContextReady;
+    await withTimeout(
+        toolContextReady,
+        10000,
+        "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+    );
     // After promise resolves, toolContext must be set and have a toolId
     if (!toolContext || typeof toolContext.toolId !== 'string') {
         throw new Error("Tool context not initialized properly");
@@ -57,7 +71,11 @@ function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
 contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Info
     getToolContext: async () => {
-        await toolContextReady;
+        await withTimeout(
+            toolContextReady,
+            10000,
+            "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+        );
         return toolContext;
     },
 
@@ -65,24 +83,40 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     connections: {
         // Get tool's primary connection from context
         getConnection: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             if (!toolContext || typeof toolContext.connectionId !== 'string') {
                 return null;
             }
             return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
         },
         getConnectionUrl: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             return toolContext?.connectionUrl || null;
         },
         getConnectionId: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             return toolContext?.connectionId || null;
         },
         // Backward compatibility: getActiveConnection is an alias for getConnection
         // Tools call this expecting their own connection, not a global active connection
         getActiveConnection: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             if (!toolContext || typeof toolContext.connectionId !== 'string') {
                 return null;
             }
@@ -97,18 +131,30 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         refreshToken: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
         // Secondary connection methods for multi-connection tools
         getSecondaryConnection: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             if (!toolContext || typeof toolContext.secondaryConnectionId !== 'string') {
                 return null;
             }
             return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
         },
         getSecondaryConnectionUrl: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             return toolContext?.secondaryConnectionUrl || null;
         },
         getSecondaryConnectionId: async () => {
-            await toolContextReady;
+            await withTimeout(
+                toolContextReady,
+                10000,
+                "Tool context initialization timed out after 10 seconds. The tool may not have been initialized properly."
+            );
             return toolContext?.secondaryConnectionId || null;
         },
     },
