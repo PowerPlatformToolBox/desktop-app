@@ -32,12 +32,12 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
 
     const primaryConnectionsListContainer = document.getElementById("primary-connections-list");
     const secondaryConnectionsListContainer = document.getElementById("secondary-connections-list");
-    const connectButton = document.getElementById("connect-multi-connection-btn");
+    const confirmButton = document.getElementById("confirm-multi-connection-btn");
     const cancelButton = document.getElementById("cancel-select-multi-connection-btn");
     const closeButton = document.getElementById("close-select-multi-connection-modal");
     
-    let selectedPrimaryConnectionId = null;
-    let selectedSecondaryConnectionId = null;
+    let authenticatedPrimaryConnectionId = null;
+    let authenticatedSecondaryConnectionId = null;
     let connections = [];
 
     const formatAuthType = (authType) => {
@@ -68,109 +68,27 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             return;
         }
 
-        const connectionHtml = (conn, idPrefix, isDisabled = false) => \`
-            <div class="connection-item \${conn.isActive ? 'active' : ''} \${isDisabled ? 'disabled' : ''}" 
+        const connectionHtml = (conn, idPrefix, isDisabled = false) => {
+            const isAuthenticated = (idPrefix === 'primary' && conn.id === authenticatedPrimaryConnectionId) ||
+                                   (idPrefix === 'secondary' && conn.id === authenticatedSecondaryConnectionId);
+            
+            return \`
+            <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
                  data-connection-id="\${conn.id}" 
                  data-list="\${idPrefix}">
                 <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
-                    <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
-                </div>
-                <div class="connection-url">\${conn.url}</div>
-                <div class="connection-meta">
-                    <div class="connection-meta-item">
-                        <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                    <div style="flex: 1;">
+                        <div class="connection-title-row">
+                            <div class="connection-name">\${conn.name}</div>
+                            <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                        </div>
                     </div>
-                    \${conn.isActive ? '<div class="connection-meta-item">✓ Currently Active</div>' : ''}
-                </div>
-            </div>
-        \`;
-
-        // Render primary connections
-        if (primaryConnectionsListContainer) {
-            primaryConnectionsListContainer.innerHTML = connections
-                .map(conn => connectionHtml(conn, 'primary', conn.id === selectedSecondaryConnectionId))
-                .join('');
-        }
-
-        // Render secondary connections
-        if (secondaryConnectionsListContainer) {
-            secondaryConnectionsListContainer.innerHTML = connections
-                .map(conn => connectionHtml(conn, 'secondary', conn.id === selectedPrimaryConnectionId))
-                .join('');
-        }
-
-        // Add click handlers to all connection items
-        document.querySelectorAll('.connection-item:not(.disabled)').forEach(item => {
-            item.addEventListener('click', () => {
-                const connectionId = item.getAttribute('data-connection-id');
-                const listType = item.getAttribute('data-list');
-                if (listType === 'primary') {
-                    selectPrimaryConnection(connectionId);
-                } else {
-                    selectSecondaryConnection(connectionId);
-                }
-            });
-        });
-
-        // Auto-select active connection as primary if no selection
-        if (!selectedPrimaryConnectionId) {
-            const activeConnection = connections.find(conn => conn.isActive);
-            if (activeConnection) {
-                selectPrimaryConnection(activeConnection.id);
-            }
-        }
-    };
-
-    const selectPrimaryConnection = (connectionId) => {
-        selectedPrimaryConnectionId = connectionId;
-        
-        // Update UI to show selected state
-        primaryConnectionsListContainer?.querySelectorAll('.connection-item').forEach(item => {
-            if (item.getAttribute('data-connection-id') === connectionId) {
-                item.classList.add('selected');
-            } else {
-                item.classList.remove('selected');
-            }
-        });
-
-        // Re-render to disable this connection in secondary list
-        renderConnectionsWithDisabled();
-
-        // Enable connect button if both connections selected
-        updateConnectButtonState();
-    };
-
-    const selectSecondaryConnection = (connectionId) => {
-        selectedSecondaryConnectionId = connectionId;
-        
-        // Update UI to show selected state
-        secondaryConnectionsListContainer?.querySelectorAll('.connection-item').forEach(item => {
-            if (item.getAttribute('data-connection-id') === connectionId) {
-                item.classList.add('selected');
-            } else {
-                item.classList.remove('selected');
-            }
-        });
-
-        // Re-render to disable this connection in primary list
-        renderConnectionsWithDisabled();
-
-        // Enable connect button if both connections selected
-        updateConnectButtonState();
-    };
-
-    const renderConnectionsWithDisabled = () => {
-        const connectionHtml = (conn, idPrefix, isDisabled = false) => \`
-            <div class="connection-item \${conn.isActive ? 'active' : ''} \${isDisabled ? 'disabled' : ''} \${
-                (idPrefix === 'primary' && conn.id === selectedPrimaryConnectionId) ||
-                (idPrefix === 'secondary' && conn.id === selectedSecondaryConnectionId) ? 'selected' : ''
-            }" 
-                 data-connection-id="\${conn.id}" 
-                 data-list="\${idPrefix}">
-                <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
-                    <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                    <div class="connection-actions">
+                        \${isAuthenticated 
+                            ? '<div class="connected-badge"><svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>Connected</div>' 
+                            : '<button class="connect-button" data-connection-id="' + conn.id + '" data-list="' + idPrefix + '">Connect</button>'
+                        }
+                    </div>
                 </div>
                 <div class="connection-url">\${conn.url}</div>
                 <div class="connection-meta">
@@ -180,61 +98,81 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                 </div>
             </div>
         \`;
+        };
 
-        // Render primary connections (disable secondary selection)
+        // Render primary connections (disable if selected as secondary)
         if (primaryConnectionsListContainer) {
             primaryConnectionsListContainer.innerHTML = connections
-                .map(conn => connectionHtml(conn, 'primary', conn.id === selectedSecondaryConnectionId))
+                .map(conn => connectionHtml(conn, 'primary', conn.id === authenticatedSecondaryConnectionId))
                 .join('');
         }
 
-        // Render secondary connections (disable primary selection)
+        // Render secondary connections (disable if selected as primary)
         if (secondaryConnectionsListContainer) {
             secondaryConnectionsListContainer.innerHTML = connections
-                .map(conn => connectionHtml(conn, 'secondary', conn.id === selectedPrimaryConnectionId))
+                .map(conn => connectionHtml(conn, 'secondary', conn.id === authenticatedPrimaryConnectionId))
                 .join('');
         }
 
-        // Re-add click handlers
-        document.querySelectorAll('.connection-item:not(.disabled)').forEach(item => {
-            item.addEventListener('click', () => {
-                const connectionId = item.getAttribute('data-connection-id');
-                const listType = item.getAttribute('data-list');
-                if (listType === 'primary') {
-                    selectPrimaryConnection(connectionId);
-                } else {
-                    selectSecondaryConnection(connectionId);
-                }
+        // Add click handlers to all connect buttons
+        document.querySelectorAll('.connect-button').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const connectionId = button.getAttribute('data-connection-id');
+                const listType = button.getAttribute('data-list');
+                await handleConnectClick(connectionId, listType);
             });
         });
+
+        // Update confirm button state
+        updateConfirmButtonState();
     };
 
-    const updateConnectButtonState = () => {
-        if (connectButton) {
-            connectButton.disabled = !(selectedPrimaryConnectionId && selectedSecondaryConnectionId);
-        }
-    };
+    const handleConnectClick = async (connectionId, listType) => {
+        const button = document.querySelector(\`.connect-button[data-connection-id="\${connectionId}"][data-list="\${listType}"]\`);
+        if (!button) return;
 
-    const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {
-        if (!(button instanceof HTMLButtonElement)) return;
-        if (isLoading) {
-            button.dataset.defaultLabel = defaultLabel;
+        try {
+            // Disable button and show loading state
+            const originalText = button.textContent;
             button.disabled = true;
-            button.textContent = loadingLabel;
-        } else {
-            button.disabled = !(selectedPrimaryConnectionId && selectedSecondaryConnectionId);
-            button.textContent = button.dataset.defaultLabel || defaultLabel;
+            button.textContent = 'Connecting...';
+
+            // Send message to main process to authenticate this connection
+            // The main process will:
+            // 1. Call window.toolboxAPI.connections.authenticate(connectionId)
+            // 2. Send back a connectReady message with success/failure status
+            // 3. On success, we'll update UI to show connected badge
+            // 4. On failure, we'll restore the button and show error
+            modalBridge.send(CHANNELS.selectConnections, { 
+                connectionId: connectionId,
+                listType: listType,
+                action: 'authenticate'
+            });
+
+            // The connectReady message handler will update the UI based on success/failure
+        } catch (error) {
+            console.error('Error connecting:', error);
+            button.disabled = false;
+            button.textContent = originalText;
         }
     };
 
-    // Connect button handler
-    connectButton?.addEventListener('click', () => {
-        if (!selectedPrimaryConnectionId || !selectedSecondaryConnectionId) return;
+    const updateConfirmButtonState = () => {
+        if (confirmButton) {
+            confirmButton.disabled = !(authenticatedPrimaryConnectionId && authenticatedSecondaryConnectionId);
+        }
+    };
+
+    // Confirm button handler - just close modal as authentication is already done
+    confirmButton?.addEventListener('click', () => {
+        if (!authenticatedPrimaryConnectionId || !authenticatedSecondaryConnectionId) return;
         
-        setButtonState(connectButton, true, "Connecting...", "Connect");
+        // Send the authenticated connection IDs to main process
         modalBridge.send(CHANNELS.selectConnections, { 
-            primaryConnectionId: selectedPrimaryConnectionId,
-            secondaryConnectionId: selectedSecondaryConnectionId
+            primaryConnectionId: authenticatedPrimaryConnectionId,
+            secondaryConnectionId: authenticatedSecondaryConnectionId,
+            action: 'confirm'
         });
     });
 
@@ -249,7 +187,26 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             if (!payload || typeof payload !== 'object') return;
             
             if (payload.channel === CHANNELS.connectReady) {
-                setButtonState(connectButton, false, "", "Connect");
+                // Connection authentication completed
+                if (payload.data?.success && payload.data?.connectionId && payload.data?.listType) {
+                    // Mark this connection as authenticated
+                    if (payload.data.listType === 'primary') {
+                        authenticatedPrimaryConnectionId = payload.data.connectionId;
+                    } else if (payload.data.listType === 'secondary') {
+                        authenticatedSecondaryConnectionId = payload.data.connectionId;
+                    }
+                    // Re-render to show authenticated state
+                    renderConnections(connections);
+                } else if (payload.data?.success === false) {
+                    // Authentication failed - restore the connect button
+                    const button = document.querySelector(\`.connect-button[data-connection-id="\${payload.data.connectionId}"][data-list="\${payload.data.listType}"]\`);
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = 'Connect';
+                    }
+                    // Optionally show an error message
+                    console.error('Authentication failed:', payload.data.error);
+                }
             }
             
             if (payload.channel === CHANNELS.populateConnections) {
