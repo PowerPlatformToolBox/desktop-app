@@ -40,7 +40,9 @@ export class ToolWindowManager {
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
-    private activeToolId: string | null = null; // Stores instanceId (not toolId)
+    // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
+    // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
+    private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
