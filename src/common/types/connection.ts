@@ -13,9 +13,6 @@ export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassw
  * Note: This interface represents the persisted connection data.
  * UI-level properties like 'isActive' are NOT part of this type and should be
  * added transiently when needed for rendering (e.g., in modals or lists).
- * 
- * Legacy data migration: The ConnectionsManager automatically removes any
- * 'isActive' fields from persisted connections during startup.
  */
 export interface DataverseConnection {
     id: string;
