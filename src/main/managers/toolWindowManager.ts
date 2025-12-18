@@ -26,9 +26,17 @@ export class ToolWindowManager {
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
     /**
-     * Maps instanceId (not toolId) to BrowserView.
-     * The key is the unique tool instanceId (format: toolId-timestamp-random).
-     * Consider renaming to instanceViews in future refactoring.
+     * Maps tool instanceId (NOT toolId) to BrowserView.
+     *
+     * Key semantics:
+     * - The key is the unique tool instanceId (format: toolId-timestamp-random).
+     * - This allows multiple instances of the same toolId to have separate BrowserViews.
+     *
+     * Naming note:
+     * - The property name is `toolViews` for historical reasons, but it is actually
+     *   keyed by instanceId, not toolId.
+     * - A future refactor may rename this to `instanceViews`; such a change would be
+     *   cosmetic only and must be done consistently across all usages.
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
