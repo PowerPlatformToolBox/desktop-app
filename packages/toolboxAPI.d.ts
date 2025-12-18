@@ -65,6 +65,11 @@ declare namespace ToolBoxAPI {
         tenantId?: string;
         createdAt: string;
         lastUsedAt?: string;
+        /**
+         * @deprecated isActive is a legacy field that is no longer persisted.
+         * It may be present in older tool code but should not be relied upon.
+         * Use the connection context provided by the ToolBox API instead.
+         */
         isActive?: boolean;
     }
 

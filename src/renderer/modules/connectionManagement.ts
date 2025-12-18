@@ -3,7 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
+import type { DataverseConnection, UIConnectionData, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
@@ -301,7 +301,8 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
-                connections: connections.map((conn: DataverseConnection) => ({
+                // Map persisted connections to UI-level data with isActive property
+                connections: connections.map((conn: DataverseConnection): UIConnectionData => ({
                     id: conn.id,
                     name: conn.name,
                     url: conn.url,
@@ -823,16 +824,16 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     return null;
 }
 
-function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "test"): any {
+function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
-    const connection: any = {
+    const connection: DataverseConnection = {
         id: mode === "add" ? Date.now().toString() : "test",
         name: mode === "add" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" ? normalizeEnvironment(formPayload.environment) : "Test",
         authenticationType,
         createdAt: new Date().toISOString(),
-        isActive: false,
+        // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
     };
 
     if (authenticationType === "clientSecret") {
