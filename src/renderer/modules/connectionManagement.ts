@@ -128,7 +128,7 @@ export async function updateFooterConnection(): Promise<void> {
         // Note: With no global active connection, the footer shows the active tool's connection
         // This is handled by updateActiveToolConnectionStatus in toolManagement.ts
         // This function now just ensures the UI element exists
-        footerConnectionName.textContent = "No active tool";
+        footerConnectionName.textContent = "No tool selected";
         footerConnectionName.className = "connection-status";
         if (footerChangeBtn) {
             footerChangeBtn.style.display = "none";
