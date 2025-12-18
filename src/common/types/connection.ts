@@ -9,6 +9,13 @@ export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassw
 
 /**
  * Dataverse connection configuration
+ * 
+ * Note: This interface represents the persisted connection data.
+ * UI-level properties like 'isActive' are NOT part of this type and should be
+ * added transiently when needed for rendering (e.g., in modals or lists).
+ * 
+ * Legacy data migration: The ConnectionsManager automatically removes any
+ * 'isActive' fields from persisted connections during startup.
  */
 export interface DataverseConnection {
     id: string;
@@ -41,4 +48,17 @@ export function isDataverseConnection(obj: unknown): obj is DataverseConnection 
         (conn.environment === "Dev" || conn.environment === "Test" || conn.environment === "UAT" || conn.environment === "Production") &&
         (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword")
     );
+}
+
+/**
+ * UI-level connection data that extends DataverseConnection with display properties
+ * Use this type when rendering connections in lists, modals, or other UI components
+ */
+export interface UIConnectionData {
+    id: string;
+    name: string;
+    url: string;
+    environment: string;
+    authenticationType: string;
+    isActive: boolean;
 }

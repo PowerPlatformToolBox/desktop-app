@@ -37,10 +37,20 @@ export class ConnectionsManager {
   /**
    * Migrate existing plain-text connections to encrypted storage
    * This is safe to call multiple times - it will only encrypt unencrypted data
+   * Also removes legacy 'isActive' field if present
    */
   private migrateConnectionsToEncrypted(): void {
     const connections = this.store.get('connections');
     let needsMigration = false;
+    let needsLegacyFieldCleanup = false;
+
+    // Check if any connection has legacy 'isActive' field that should be removed
+    for (const conn of connections) {
+      if ('isActive' in conn) {
+        needsLegacyFieldCleanup = true;
+        break;
+      }
+    }
 
     // Check if any connection has unencrypted sensitive data
     // We can detect this by checking if encryption is available and the data looks like plain text
@@ -58,12 +68,20 @@ export class ConnectionsManager {
       }
     }
 
-    if (needsMigration) {
-      console.log('Migrating connections to encrypted storage...');
-      const encryptedConnections = connections.map(conn => 
-        this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS)
-      );
-      this.store.set('connections', encryptedConnections);
+    if (needsMigration || needsLegacyFieldCleanup) {
+      console.log('Migrating connections...');
+      const migratedConnections = connections.map(conn => {
+        // Remove legacy isActive field if present
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { isActive: _isActive, ...cleanConn } = conn as DataverseConnection & { isActive?: boolean };
+        
+        // Encrypt sensitive fields if needed
+        if (needsMigration) {
+          return this.encryptionManager.encryptFields(cleanConn, SENSITIVE_CONNECTION_FIELDS);
+        }
+        return cleanConn;
+      });
+      this.store.set('connections', migratedConnections);
       console.log('Connection migration complete');
     }
   }
