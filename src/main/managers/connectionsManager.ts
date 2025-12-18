@@ -72,6 +72,7 @@ export class ConnectionsManager {
       console.log('Migrating connections...');
       const migratedConnections = connections.map(conn => {
         // Remove legacy isActive field if present
+        // Note: The variable is intentionally unused as we're just removing it from the object
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { isActive: _isActive, ...cleanConn } = conn as DataverseConnection & { isActive?: boolean };
         
