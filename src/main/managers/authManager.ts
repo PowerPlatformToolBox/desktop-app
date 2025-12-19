@@ -132,7 +132,7 @@ export class AuthManager {
             const url = new URL(redirectUri);
             const port = parseInt(url.port) || 8080;
 
-            const cleanupAndResolve = (code: string) => {
+            const performCleanup = (logMessage: string): void => {
                 if (this.activeServerTimeout) {
                     clearTimeout(this.activeServerTimeout);
                     this.activeServerTimeout = null;
@@ -141,26 +141,19 @@ export class AuthManager {
                     const server = this.activeServer;
                     this.activeServer = null;
                     server.close(() => {
-                        console.log("Authentication server closed after successful auth");
+                        console.log(logMessage);
                     });
                     server.closeAllConnections();
                 }
+            };
+
+            const cleanupAndResolve = (code: string) => {
+                performCleanup("Authentication server closed after successful auth");
                 resolve(code);
             };
 
             const cleanupAndReject = (error: Error) => {
-                if (this.activeServerTimeout) {
-                    clearTimeout(this.activeServerTimeout);
-                    this.activeServerTimeout = null;
-                }
-                if (this.activeServer) {
-                    const server = this.activeServer;
-                    this.activeServer = null;
-                    server.close(() => {
-                        console.log("Authentication server closed after error");
-                    });
-                    server.closeAllConnections();
-                }
+                performCleanup("Authentication server closed after error");
                 reject(error);
             };
 
