@@ -95,7 +95,29 @@ export class AuthManager {
     }
 
     /**
-     * Close any active authentication server
+     * Perform cleanup of active server without waiting for port release
+     * Used when completing authentication and we don't need to reuse the port immediately
+     */
+    private performImmediateCleanup(logMessage?: string): void {
+        if (this.activeServerTimeout) {
+            clearTimeout(this.activeServerTimeout);
+            this.activeServerTimeout = null;
+        }
+        if (this.activeServer) {
+            const server = this.activeServer;
+            this.activeServer = null;
+            server.close(() => {
+                if (logMessage) {
+                    console.log(logMessage);
+                }
+            });
+            server.closeAllConnections();
+        }
+    }
+
+    /**
+     * Close any active authentication server and wait for port release
+     * Used before starting new authentication to ensure port is available
      */
     private closeActiveServer(): Promise<void> {
         return new Promise((resolve) => {
@@ -132,28 +154,13 @@ export class AuthManager {
             const url = new URL(redirectUri);
             const port = parseInt(url.port) || 8080;
 
-            const performCleanup = (logMessage: string): void => {
-                if (this.activeServerTimeout) {
-                    clearTimeout(this.activeServerTimeout);
-                    this.activeServerTimeout = null;
-                }
-                if (this.activeServer) {
-                    const server = this.activeServer;
-                    this.activeServer = null;
-                    server.close(() => {
-                        console.log(logMessage);
-                    });
-                    server.closeAllConnections();
-                }
-            };
-
             const cleanupAndResolve = (code: string) => {
-                performCleanup("Authentication server closed after successful auth");
+                this.performImmediateCleanup("Authentication server closed after successful auth");
                 resolve(code);
             };
 
             const cleanupAndReject = (error: Error) => {
-                performCleanup("Authentication server closed after error");
+                this.performImmediateCleanup("Authentication server closed after error");
                 reject(error);
             };
 
