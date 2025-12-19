@@ -13,6 +13,7 @@ export class AuthManager {
     private msalApp: PublicClientApplication | null = null;
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
+    private activePort: number | null = null;
     
     // Authentication timeout duration (5 minutes)
     private static readonly AUTH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -60,10 +61,13 @@ export class AuthManager {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         this.msalApp = this.initializeMsal(clientId);
 
-        const scopes = [`${connection.url}/.default`];
-        const redirectUri = "http://localhost:8080";
-
         try {
+            // Find an available port for the OAuth redirect server
+            const port = await this.findAvailablePort();
+            const redirectUri = `http://localhost:${port}`;
+
+            const scopes = [`${connection.url}/.default`];
+
             // Create authorization URL
             const authCodeUrlParameters = {
                 scopes: scopes,
@@ -73,7 +77,7 @@ export class AuthManager {
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for it to be ready, then open browser
-            const authCode = await this.listenForAuthCode(redirectUri, authCodeUrl);
+            const authCode = await this.listenForAuthCode(port, authCodeUrl);
 
             // Exchange authorization code for tokens
             const tokenRequest = {
@@ -99,6 +103,30 @@ export class AuthManager {
     }
 
     /**
+     * Find an available port for the OAuth redirect server
+     */
+    private findAvailablePort(): Promise<number> {
+        return new Promise((resolve, reject) => {
+            const server = http.createServer();
+            server.listen(0, "localhost", () => {
+                const address = server.address();
+                if (address && typeof address !== "string") {
+                    const port = address.port;
+                    server.close(() => {
+                        resolve(port);
+                    });
+                } else {
+                    server.close();
+                    reject(new Error("Failed to get server address"));
+                }
+            });
+            server.on("error", (err) => {
+                reject(err);
+            });
+        });
+    }
+
+    /**
      * Perform cleanup of active server without waiting for port release
      * Used when completing authentication and we don't need to reuse the port immediately
      */
@@ -110,6 +138,7 @@ export class AuthManager {
         if (this.activeServer) {
             const server = this.activeServer;
             this.activeServer = null;
+            this.activePort = null;
             server.close(() => {
                 // Force close any remaining connections after graceful shutdown attempt
                 server.closeAllConnections();
@@ -134,6 +163,7 @@ export class AuthManager {
             if (this.activeServer) {
                 const server = this.activeServer;
                 this.activeServer = null;
+                this.activePort = null;
                 
                 // Close the server and wait for it to fully release the port
                 server.close(() => {
@@ -151,12 +181,11 @@ export class AuthManager {
     /**
      * Start a local HTTP server to listen for OAuth redirect and extract authorization code
      */
-    private async listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
+    private async listenForAuthCode(port: number, authCodeUrl: string): Promise<string> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
         return new Promise((resolve, reject) => {
-            const url = new URL(redirectUri);
-            const port = parseInt(url.port) || 8080;
+            const redirectUri = `http://localhost:${port}`;
 
             const cleanupAndResolve = (code: string) => {
                 this.performImmediateCleanup("Authentication server closed after successful auth");
@@ -217,9 +246,13 @@ export class AuthManager {
         `);
             });
 
+            // Allow Node.js to exit even if the server is still running
+            server.unref();
+
             // Track the server instance and timeout BEFORE starting the server
             // to ensure cleanup handlers have access to them in case of early events
             this.activeServer = server;
+            this.activePort = port;
             this.activeServerTimeout = setTimeout(() => {
                 cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
             }, AuthManager.AUTH_TIMEOUT_MS);
