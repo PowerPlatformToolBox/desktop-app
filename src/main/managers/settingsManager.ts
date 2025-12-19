@@ -23,6 +23,8 @@ export class SettingsManager {
         installedTools: [],
         favoriteTools: [],
         cspConsents: {}, // Track CSP consent for each tool
+        toolConnections: {}, // Map of toolId to connectionId
+        toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
       },
     });
 
@@ -189,5 +191,71 @@ export class SettingsManager {
    */
   getCspConsents(): { [toolId: string]: boolean } {
     return this.store.get('cspConsents') || {};
+  }
+
+  /**
+   * Set connection for a specific tool
+   */
+  setToolConnection(toolId: string, connectionId: string): void {
+    const toolConnections = this.store.get('toolConnections') || {};
+    toolConnections[toolId] = connectionId;
+    this.store.set('toolConnections', toolConnections);
+  }
+
+  /**
+   * Get connection for a specific tool
+   */
+  getToolConnection(toolId: string): string | null {
+    const toolConnections = this.store.get('toolConnections') || {};
+    return toolConnections[toolId] || null;
+  }
+
+  /**
+   * Remove connection association for a specific tool
+   */
+  removeToolConnection(toolId: string): void {
+    const toolConnections = this.store.get('toolConnections') || {};
+    delete toolConnections[toolId];
+    this.store.set('toolConnections', toolConnections);
+  }
+
+  /**
+   * Get all tool-connection mappings
+   */
+  getAllToolConnections(): { [toolId: string]: string } {
+    return this.store.get('toolConnections') || {};
+  }
+
+  /**
+   * Set a tool's secondary connection (for multi-connection tools)
+   */
+  setToolSecondaryConnection(toolId: string, connectionId: string): void {
+    const secondaryConnections = this.store.get('toolSecondaryConnections') || {};
+    secondaryConnections[toolId] = connectionId;
+    this.store.set('toolSecondaryConnections', secondaryConnections);
+  }
+
+  /**
+   * Get a tool's secondary connection ID (for multi-connection tools)
+   */
+  getToolSecondaryConnection(toolId: string): string | null {
+    const secondaryConnections = this.store.get('toolSecondaryConnections') || {};
+    return secondaryConnections[toolId] || null;
+  }
+
+  /**
+   * Remove a tool's secondary connection (for multi-connection tools)
+   */
+  removeToolSecondaryConnection(toolId: string): void {
+    const secondaryConnections = this.store.get('toolSecondaryConnections') || {};
+    delete secondaryConnections[toolId];
+    this.store.set('toolSecondaryConnections', secondaryConnections);
+  }
+
+  /**
+   * Get all tool secondary connections
+   */
+  getAllToolSecondaryConnections(): { [toolId: string]: string } {
+    return this.store.get('toolSecondaryConnections') || {};
   }
 }

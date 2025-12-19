@@ -1,6 +1,6 @@
 {
   "name": "@pptb/types",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "TypeScript type definitions for Power Platform Tool Box API",
   "main": "index.d.ts",
   "types": "index.d.ts",

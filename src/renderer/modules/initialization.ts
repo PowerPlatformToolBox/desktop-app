@@ -13,7 +13,6 @@ import {
     loadSidebarConnections,
     openAddConnectionModal,
     updateFooterConnection,
-    updateFooterConnectionStatus,
 } from "./connectionManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
@@ -22,7 +21,7 @@ import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -77,11 +76,9 @@ export async function initializeApplication(): Promise<void> {
     await loadSidebarConnections();
 
     // Update footer connection info
-    await updateFooterConnection();
-
     // Update footer connection status
-    const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
-    updateFooterConnectionStatus(activeConnection);
+    // Note: Footer shows active tool's connection, not a global connection
+    await updateFooterConnection();
 
     // Restore previous session
     await restoreSession();
@@ -127,6 +124,9 @@ function setupToolbarButtons(): void {
             closeAllTools();
         });
     }
+
+    // Initialize tab scroll buttons
+    initializeTabScrollButtons();
 }
 
 /**
@@ -146,6 +146,26 @@ function setupSidebarButtons(): void {
     if (footerChangeConnectionBtn) {
         footerChangeConnectionBtn.addEventListener("click", () => {
             openModal("connection-select-modal");
+        });
+    }
+
+    // Main footer connection status - click to open connection selector for active tool
+    const connectionStatus = document.getElementById("connection-status");
+    if (connectionStatus) {
+        connectionStatus.addEventListener("click", async () => {
+            // Import the function dynamically to avoid circular dependencies
+            const { openToolConnectionModal } = await import("./toolManagement");
+            await openToolConnectionModal();
+        });
+    }
+
+    // Secondary footer connection status - click to open connection selector for secondary connection
+    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
+    if (secondaryConnectionStatus) {
+        secondaryConnectionStatus.addEventListener("click", async () => {
+            // Import the function dynamically to avoid circular dependencies
+            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
+            await openToolSecondaryConnectionModal();
         });
     }
 

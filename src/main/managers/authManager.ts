@@ -11,6 +11,13 @@ import { DATAVERSE_API_VERSION } from "../constants";
  */
 export class AuthManager {
     private msalApp: PublicClientApplication | null = null;
+    private activeServer: http.Server | null = null;
+    private activeServerTimeout: NodeJS.Timeout | null = null;
+    private activePort: number | null = null;
+    
+    // Authentication timeout duration (5 minutes)
+    private static readonly AUTH_TIMEOUT_MS = 5 * 60 * 1000;
+    
     private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
         "&": "&amp;",
         "<": "&lt;",
@@ -54,10 +61,13 @@ export class AuthManager {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         this.msalApp = this.initializeMsal(clientId);
 
-        const scopes = [`${connection.url}/.default`];
-        const redirectUri = "http://localhost:8080";
-
         try {
+            // Find an available port for the OAuth redirect server
+            const port = await this.findAvailablePort();
+            const redirectUri = `http://localhost:${port}`;
+
+            const scopes = [`${connection.url}/.default`];
+
             // Create authorization URL
             const authCodeUrlParameters = {
                 scopes: scopes,
@@ -67,7 +77,7 @@ export class AuthManager {
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for it to be ready, then open browser
-            const authCode = await this.listenForAuthCode(redirectUri, authCodeUrl);
+            const authCode = await this.listenForAuthCode(port, authCodeUrl);
 
             // Exchange authorization code for tokens
             const tokenRequest = {
@@ -93,12 +103,105 @@ export class AuthManager {
     }
 
     /**
+     * Find an available port for the OAuth redirect server
+     */
+    private findAvailablePort(): Promise<number> {
+        return new Promise((resolve, reject) => {
+            const server = http.createServer();
+            
+            const cleanup = (callback: () => void) => {
+                server.removeAllListeners();
+                server.close(() => {
+                    callback();
+                });
+            };
+
+            server.listen(0, "localhost", () => {
+                const address = server.address();
+                if (address && typeof address !== "string") {
+                    const port = address.port;
+                    cleanup(() => resolve(port));
+                } else {
+                    cleanup(() => reject(new Error("Failed to get server address")));
+                }
+            });
+
+            server.on("error", (err) => {
+                cleanup(() => reject(err));
+            });
+        });
+    }
+
+    /**
+     * Perform cleanup of active server without waiting for port release
+     * Used when completing authentication and we don't need to reuse the port immediately
+     */
+    private performImmediateCleanup(logMessage?: string): void {
+        if (this.activeServerTimeout) {
+            clearTimeout(this.activeServerTimeout);
+            this.activeServerTimeout = null;
+        }
+        if (this.activeServer) {
+            const server = this.activeServer;
+            this.activeServer = null;
+            this.activePort = null;
+            server.close(() => {
+                // Force close any remaining connections after graceful shutdown attempt
+                server.closeAllConnections();
+                if (logMessage) {
+                    console.log(logMessage);
+                }
+            });
+        }
+    }
+
+    /**
+     * Close any active authentication server and wait for port release
+     * Used before starting new authentication to ensure port is available
+     */
+    private closeActiveServer(): Promise<void> {
+        return new Promise((resolve) => {
+            if (this.activeServerTimeout) {
+                clearTimeout(this.activeServerTimeout);
+                this.activeServerTimeout = null;
+            }
+
+            if (this.activeServer) {
+                const server = this.activeServer;
+                this.activeServer = null;
+                this.activePort = null;
+                
+                // Close the server and wait for it to fully release the port
+                server.close(() => {
+                    // Force close any remaining connections after graceful shutdown attempt
+                    server.closeAllConnections();
+                    console.log("Authentication server closed and port released");
+                    resolve();
+                });
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    /**
      * Start a local HTTP server to listen for OAuth redirect and extract authorization code
      */
-    private listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
+    private async listenForAuthCode(port: number, authCodeUrl: string): Promise<string> {
+        // Close any existing server before starting a new one
+        await this.closeActiveServer();
         return new Promise((resolve, reject) => {
-            const url = new URL(redirectUri);
-            const port = parseInt(url.port) || 8080;
+            const redirectUri = `http://localhost:${port}`;
+
+            const cleanupAndResolve = (code: string) => {
+                this.performImmediateCleanup("Authentication server closed after successful auth");
+                resolve(code);
+            };
+
+            const cleanupAndReject = (error: Error) => {
+                this.performImmediateCleanup("Authentication server closed after error");
+                reject(error);
+            };
 
             const server = http.createServer((req, res) => {
                 const reqUrl = new URL(req.url || "", `http://localhost:${port}`);
@@ -119,8 +222,7 @@ export class AuthManager {
               </body>
             </html>
           `);
-                    server.close();
-                    reject(new Error(errorDescription || error));
+                    cleanupAndReject(new Error(errorDescription || error));
                     return;
                 }
 
@@ -135,8 +237,7 @@ export class AuthManager {
               </body>
             </html>
           `);
-                    server.close();
-                    resolve(code);
+                    cleanupAndResolve(code);
                     return;
                 }
 
@@ -151,24 +252,28 @@ export class AuthManager {
         `);
             });
 
+            // Allow Node.js to exit even if the server is still running
+            server.unref();
+
+            // Track the server instance and timeout BEFORE starting the server
+            // to ensure cleanup handlers have access to them in case of early events
+            this.activeServer = server;
+            this.activePort = port;
+            this.activeServerTimeout = setTimeout(() => {
+                cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
+            }, AuthManager.AUTH_TIMEOUT_MS);
+
             server.listen(port, "localhost", () => {
                 console.log(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser
                 shell.openExternal(authCodeUrl).catch((err) => {
-                    server.close();
-                    reject(new Error(`Failed to open browser: ${err.message}`));
+                    cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
                 });
             });
 
             server.on("error", (err) => {
-                reject(new Error(`Failed to start local server: ${err.message}`));
+                cleanupAndReject(new Error(`Failed to start local server: ${err.message}`));
             });
-
-            // Set a timeout of 5 minutes for authentication
-            setTimeout(() => {
-                server.close();
-                reject(new Error("Authentication timeout - no response received within 5 minutes"));
-            }, 5 * 60 * 1000);
         });
     }
 

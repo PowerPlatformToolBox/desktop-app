@@ -197,8 +197,20 @@
                 <!-- Tool Panel (for launched tools) -->
                 <div id="tool-panel" class="tool-panel" style="display: none">
                     <div class="tool-panel-header">
-                        <div class="tool-tabs" id="tool-tabs">
-                            <!-- Tabs will be dynamically added here -->
+                        <div class="tool-tabs-container">
+                            <button class="tool-tabs-scroll-button tool-tabs-scroll-left" id="scroll-tabs-left" title="Scroll tabs left" aria-label="Scroll tabs left">
+                                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.316L6.715 7.96l3.357-3.357-.618-.62-4.667 4.668v.618l4.667 4.667.618-.62z"/>
+                                </svg>
+                            </button>
+                            <div class="tool-tabs" id="tool-tabs">
+                                <!-- Tabs will be dynamically added here -->
+                            </div>
+                            <button class="tool-tabs-scroll-button tool-tabs-scroll-right" id="scroll-tabs-right" title="Scroll tabs right" aria-label="Scroll tabs right">
+                                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.928 11.316l3.357-3.356-3.357-3.357.618-.62 4.667 4.668v.618l-4.667 4.667-.618-.62z"/>
+                                </svg>
+                            </button>
                         </div>
                         <div class="tool-panel-controls">
                             <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
@@ -228,20 +240,6 @@
                         </div>
                     </div>
                     <div class="terminal-resize-handle" id="terminal-resize-handle" style="display: none"></div>
-                    <!-- <div class="tool-panel-footer" id="tool-panel-footer">
-                        <div class="footer-connection-info" id="footer-connection-info">
-                            <span class="footer-label">Connection:</span>
-                            <span class="footer-value" id="footer-connection-name">Not Connected</span>
-                            <button class="footer-link-btn" id="footer-change-connection-btn" style="display: none">Change</button>
-                        </div>
-                        <button class="footer-link-btn" id="footer-toggle-terminal-btn" title="Toggle terminal">
-                            <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                <path d="M1.5 2.5h13v11h-13v-11zm1 1v9h11v-9h-11z" />
-                                <path d="M3 5h1v1H3V5zm2 0h1v1H5V5zm-2 2h1v1H3V7zm2 0h1v1H5V7z" />
-                            </svg>
-                            Terminal
-                        </button>
-                    </div> -->
                 </div>
 
                 <!-- Home/Welcome View -->
@@ -398,6 +396,9 @@
         <footer class="app-footer">
             <div class="footer-content">
                 <span id="connection-status" class="connection-status">No active connection</span>
+            </div>
+            <div class="footer-content-right">
+                <span id="secondary-connection-status" class="secondary-connection-status"></span>
             </div>
         </footer>
 

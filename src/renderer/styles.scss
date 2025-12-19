@@ -27,6 +27,11 @@
     --elevation-high: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
     --elevation-medium: 0 12px 28px -8px rgba(0, 0, 0, 0.3);
     --backdrop-blur: blur(28px);
+    /* Environment border colors - Light theme */
+    --env-border-dev: #{$env-border-dev-light};
+    --env-border-test: #{$env-border-test-light};
+    --env-border-uat: #{$env-border-uat-light};
+    --env-border-prod: #{$env-border-prod-light};
 }
 
 /* Dark theme */
@@ -38,6 +43,11 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
+    /* Environment border colors - Dark theme */
+    --env-border-dev: #{$env-border-dev-dark};
+    --env-border-test: #{$env-border-test-dark};
+    --env-border-uat: #{$env-border-uat-dark};
+    --env-border-prod: #{$env-border-prod-dark};
 }
 
 * {
@@ -818,6 +828,7 @@ body {
     border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 16px;
     z-index: 100;
 }
@@ -828,12 +839,47 @@ body {
     gap: 12px;
 }
 
-.connection-status {
+.footer-content-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.connection-status,
+.secondary-connection-status {
     font-size: 12px;
     color: #605e5c;
     display: flex;
     align-items: center;
     gap: 6px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.secondary-connection-status {
+    display: none; /* Hidden by default */
+}
+
+.secondary-connection-status.visible {
+    display: flex;
+}
+
+.connection-status:hover,
+.secondary-connection-status:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark-theme .connection-status:hover,
+.dark-theme .secondary-connection-status:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.connection-status::before,
+.secondary-connection-status::before {
+    content: "○";
+    color: #8a8886;
 }
 
 .connection-status.connected {
@@ -856,9 +902,24 @@ body {
     color: #f59e0b;
 }
 
-.connection-status::before {
-    content: "○";
-    color: #8a8886;
+.secondary-connection-status.connected {
+    color: #ff8c00;
+    font-weight: 500;
+}
+
+.secondary-connection-status.connected::before {
+    content: "●";
+    color: #ff8c00;
+}
+
+.secondary-connection-status.expired {
+    color: #d83b01;
+    font-weight: 500;
+}
+
+.secondary-connection-status.expired::before {
+    content: "⚠";
+    color: #f59e0b;
 }
 
 /* Adjust main content to account for footer */
@@ -1051,6 +1112,7 @@ body {
     border-bottom: 1px solid var(--border-color);
     height: 40px;
     min-height: 40px;
+    position: relative;
 }
 
 .tool-panel-controls {
@@ -1076,12 +1138,67 @@ body {
     outline-offset: 1px;
 }
 
+/* Tab container with scroll buttons */
+.tool-tabs-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.tool-tabs-scroll-button {
+    display: none; /* Hidden by default, shown when overflow */
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 100%;
+    background: var(--sidebar-bg);
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.tool-tabs-scroll-button:hover {
+    opacity: 1;
+    background: var(--bg-color);
+}
+
+.tool-tabs-scroll-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.tool-tabs-scroll-button.visible {
+    display: flex;
+}
+
+.tool-tabs-scroll-button svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.tool-tabs-scroll-left {
+    border-right: 1px solid var(--border-color);
+}
+
+.tool-tabs-scroll-right {
+    border-left: 1px solid var(--border-color);
+}
+
 .tool-tabs {
     display: flex;
     flex: 1;
     overflow-x: auto;
     overflow-y: hidden;
     height: 100%;
+    scroll-behavior: smooth;
 }
 
 .tool-tabs::-webkit-scrollbar {
@@ -1100,8 +1217,7 @@ body {
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s;
-    min-width: 120px;
-    max-width: 200px;
+    flex-shrink: 0; /* Prevent tabs from shrinking, allows natural content-based width */
 }
 
 .tool-tab:hover {
@@ -1111,6 +1227,23 @@ body {
 .tool-tab.active {
     background: var(--bg-color);
     border-bottom: 2px solid var(--primary-color);
+}
+
+/* Environment-specific tab highlights */
+.tool-tab.active.env-dev {
+    border-bottom: 5px solid var(--env-border-dev);
+}
+
+.tool-tab.active.env-test {
+    border-bottom: 5px solid var(--env-border-test);
+}
+
+.tool-tab.active.env-uat {
+    border-bottom: 5px solid var(--env-border-uat);
+}
+
+.tool-tab.active.env-production {
+    border-bottom: 5px solid var(--env-border-prod);
 }
 
 .tool-tab.secondary-active {
@@ -1214,6 +1347,89 @@ body {
     display: flex;
     position: relative;
     overflow: hidden;
+    transition: border-color 0.3s ease;
+}
+
+/* Environment-specific border styles */
+.tool-panel-content-wrapper.env-dev {
+    border: 5px solid var(--env-border-dev);
+}
+
+.tool-panel-content-wrapper.env-test {
+    border: 5px solid var(--env-border-test);
+}
+
+.tool-panel-content-wrapper.env-uat {
+    border: 5px solid var(--env-border-uat);
+}
+
+.tool-panel-content-wrapper.env-production {
+    border: 5px solid var(--env-border-prod);
+}
+
+/* Multi-connection split border styles */
+/* Dev Primary */
+.tool-panel-content-wrapper.multi-env-dev-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-dev-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-uat) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-dev-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* Test Primary */
+.tool-panel-content-wrapper.multi-env-test-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-test-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-uat) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-test-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* UAT Primary */
+.tool-panel-content-wrapper.multi-env-uat-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-uat-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-uat-production {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-prod) 50%) 1;
+}
+
+/* Production Primary */
+.tool-panel-content-wrapper.multi-env-production-dev {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-dev) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-production-test {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-test) 50%) 1;
+}
+
+.tool-panel-content-wrapper.multi-env-production-uat {
+    border: 5px solid;
+    border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-uat) 50%) 1;
 }
 
 .tool-panel-content-wrapper.split-view .tool-panel-content {
@@ -3287,4 +3503,59 @@ body.dark-theme .csp-warning ul {
         opacity: 1;
         transform: translateX(0);
     }
+}
+
+/* Context Menu for Tool Tabs */
+.context-menu {
+    background: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.context-menu-header {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+    color: var(--text-primary);
+}
+
+.context-menu-item:hover:not(.disabled) {
+    background: var(--background-hover);
+}
+
+.context-menu-item.active {
+    background: var(--primary-color-alpha);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 0;
+}
+
+.context-menu-item span {
+    flex: 1;
 }
