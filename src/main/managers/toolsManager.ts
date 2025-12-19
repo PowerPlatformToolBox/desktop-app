@@ -17,6 +17,10 @@ interface ToolPackageJson {
     author?: string;
     icon?: string;
     cspExceptions?: CspExceptions;
+    features?: {
+        "multi-connection"?: boolean;
+        [key: string]: any;
+    };
 }
 
 /**
@@ -386,6 +390,7 @@ export class ToolManager extends EventEmitter {
             iconUrl: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+            features: packageJson.features, // Load features from package.json (e.g., multi-connection)
         };
 
         this.tools.set(toolId, tool);
@@ -570,6 +575,7 @@ export class ToolManager extends EventEmitter {
             iconUrl: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+            features: packageJson.features, // Load features from package.json (e.g., multi-connection)
         };
 
         this.tools.set(toolId, tool);
