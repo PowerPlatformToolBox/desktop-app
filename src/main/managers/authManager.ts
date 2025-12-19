@@ -13,6 +13,10 @@ export class AuthManager {
     private msalApp: PublicClientApplication | null = null;
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
+    
+    // Authentication timeout duration (5 minutes)
+    private static readonly AUTH_TIMEOUT_MS = 5 * 60 * 1000;
+    
     private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
         "&": "&amp;",
         "<": "&lt;",
@@ -218,7 +222,7 @@ export class AuthManager {
             this.activeServer = server;
             this.activeServerTimeout = setTimeout(() => {
                 cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
-            }, 5 * 60 * 1000);
+            }, AuthManager.AUTH_TIMEOUT_MS);
 
             server.listen(port, "localhost", () => {
                 console.log(`Listening for OAuth redirect on ${redirectUri}`);
