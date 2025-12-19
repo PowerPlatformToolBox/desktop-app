@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CspExceptions, Tool, ToolManifest } from "../../common/types";
+import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -17,10 +17,7 @@ interface ToolPackageJson {
     author?: string;
     icon?: string;
     cspExceptions?: CspExceptions;
-    features?: {
-        "multi-connection"?: boolean;
-        [key: string]: any;
-    };
+    features?: ToolFeatures;
 }
 
 /**
