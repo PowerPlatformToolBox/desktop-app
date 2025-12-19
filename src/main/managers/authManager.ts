@@ -11,6 +11,8 @@ import { DATAVERSE_API_VERSION } from "../constants";
  */
 export class AuthManager {
     private msalApp: PublicClientApplication | null = null;
+    private activeServer: http.Server | null = null;
+    private activeServerTimeout: NodeJS.Timeout | null = null;
     private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
         "&": "&amp;",
         "<": "&lt;",
@@ -93,12 +95,74 @@ export class AuthManager {
     }
 
     /**
+     * Close any active authentication server
+     */
+    private closeActiveServer(): Promise<void> {
+        return new Promise((resolve) => {
+            if (this.activeServerTimeout) {
+                clearTimeout(this.activeServerTimeout);
+                this.activeServerTimeout = null;
+            }
+
+            if (this.activeServer) {
+                const server = this.activeServer;
+                this.activeServer = null;
+                
+                // Close the server and wait for it to fully release the port
+                server.close(() => {
+                    console.log("Authentication server closed and port released");
+                    resolve();
+                });
+                
+                // Force close any remaining connections
+                server.closeAllConnections();
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    /**
      * Start a local HTTP server to listen for OAuth redirect and extract authorization code
      */
-    private listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
+    private async listenForAuthCode(redirectUri: string, authCodeUrl: string): Promise<string> {
+        // Close any existing server before starting a new one
+        await this.closeActiveServer();
         return new Promise((resolve, reject) => {
             const url = new URL(redirectUri);
             const port = parseInt(url.port) || 8080;
+
+            const cleanupAndResolve = (code: string) => {
+                if (this.activeServerTimeout) {
+                    clearTimeout(this.activeServerTimeout);
+                    this.activeServerTimeout = null;
+                }
+                if (this.activeServer) {
+                    const server = this.activeServer;
+                    this.activeServer = null;
+                    server.close(() => {
+                        console.log("Authentication server closed after successful auth");
+                    });
+                    server.closeAllConnections();
+                }
+                resolve(code);
+            };
+
+            const cleanupAndReject = (error: Error) => {
+                if (this.activeServerTimeout) {
+                    clearTimeout(this.activeServerTimeout);
+                    this.activeServerTimeout = null;
+                }
+                if (this.activeServer) {
+                    const server = this.activeServer;
+                    this.activeServer = null;
+                    server.close(() => {
+                        console.log("Authentication server closed after error");
+                    });
+                    server.closeAllConnections();
+                }
+                reject(error);
+            };
 
             const server = http.createServer((req, res) => {
                 const reqUrl = new URL(req.url || "", `http://localhost:${port}`);
@@ -119,8 +183,7 @@ export class AuthManager {
               </body>
             </html>
           `);
-                    server.close();
-                    reject(new Error(errorDescription || error));
+                    cleanupAndReject(new Error(errorDescription || error));
                     return;
                 }
 
@@ -135,8 +198,7 @@ export class AuthManager {
               </body>
             </html>
           `);
-                    server.close();
-                    resolve(code);
+                    cleanupAndResolve(code);
                     return;
                 }
 
@@ -155,19 +217,20 @@ export class AuthManager {
                 console.log(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser
                 shell.openExternal(authCodeUrl).catch((err) => {
-                    server.close();
-                    reject(new Error(`Failed to open browser: ${err.message}`));
+                    cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
                 });
             });
 
             server.on("error", (err) => {
-                reject(new Error(`Failed to start local server: ${err.message}`));
+                cleanupAndReject(new Error(`Failed to start local server: ${err.message}`));
             });
 
+            // Track the server instance
+            this.activeServer = server;
+
             // Set a timeout of 5 minutes for authentication
-            setTimeout(() => {
-                server.close();
-                reject(new Error("Authentication timeout - no response received within 5 minutes"));
+            this.activeServerTimeout = setTimeout(() => {
+                cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
             }, 5 * 60 * 1000);
         });
     }
