@@ -108,20 +108,26 @@ export class AuthManager {
     private findAvailablePort(): Promise<number> {
         return new Promise((resolve, reject) => {
             const server = http.createServer();
+            
+            const cleanup = (callback: () => void) => {
+                server.removeAllListeners();
+                server.close(() => {
+                    callback();
+                });
+            };
+
             server.listen(0, "localhost", () => {
                 const address = server.address();
                 if (address && typeof address !== "string") {
                     const port = address.port;
-                    server.close(() => {
-                        resolve(port);
-                    });
+                    cleanup(() => resolve(port));
                 } else {
-                    server.close();
-                    reject(new Error("Failed to get server address"));
+                    cleanup(() => reject(new Error("Failed to get server address")));
                 }
             });
+
             server.on("error", (err) => {
-                reject(err);
+                cleanup(() => reject(err));
             });
         });
     }
