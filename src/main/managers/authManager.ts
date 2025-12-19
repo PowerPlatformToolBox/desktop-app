@@ -107,11 +107,12 @@ export class AuthManager {
             const server = this.activeServer;
             this.activeServer = null;
             server.close(() => {
+                // Force close any remaining connections after graceful shutdown attempt
+                server.closeAllConnections();
                 if (logMessage) {
                     console.log(logMessage);
                 }
             });
-            server.closeAllConnections();
         }
     }
 
@@ -132,12 +133,11 @@ export class AuthManager {
                 
                 // Close the server and wait for it to fully release the port
                 server.close(() => {
+                    // Force close any remaining connections after graceful shutdown attempt
+                    server.closeAllConnections();
                     console.log("Authentication server closed and port released");
                     resolve();
                 });
-                
-                // Force close any remaining connections
-                server.closeAllConnections();
             } else {
                 resolve();
             }
@@ -213,6 +213,13 @@ export class AuthManager {
         `);
             });
 
+            // Track the server instance and timeout BEFORE starting the server
+            // to ensure cleanup handlers have access to them in case of early events
+            this.activeServer = server;
+            this.activeServerTimeout = setTimeout(() => {
+                cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
+            }, 5 * 60 * 1000);
+
             server.listen(port, "localhost", () => {
                 console.log(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser
@@ -224,14 +231,6 @@ export class AuthManager {
             server.on("error", (err) => {
                 cleanupAndReject(new Error(`Failed to start local server: ${err.message}`));
             });
-
-            // Track the server instance
-            this.activeServer = server;
-
-            // Set a timeout of 5 minutes for authentication
-            this.activeServerTimeout = setTimeout(() => {
-                cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
-            }, 5 * 60 * 1000);
         });
     }
 
