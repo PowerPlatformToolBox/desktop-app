@@ -1515,6 +1515,14 @@ body {
     transition: background-color 0.2s;
 }
 
+.tool-item-pptb-local {
+    border-left: 4px solid var(--accent-color);
+}
+
+.tool-item-pptb-npm {
+    border-left: 4px solid var(--accent-color-alt);
+}
+
 .tool-item-pptb:hover {
     background: rgba(0, 120, 212, 0.1);
 }
@@ -2714,6 +2722,25 @@ body.dark-theme .tool-tag {
 .tool-metric {
     font-size: 12px;
     color: #8a8886;
+}
+
+.tool-source-icon {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    // width: 16px;
+    height: 16px;
+    color: #605e5c;
+    opacity: 0.8;
+}
+
+.tool-source-icon:hover {
+    opacity: 1;
+}
+
+body.dark-theme .tool-source-icon {
+    color: #c8c6c4;
 }
 
 /* Fluent Design System Styling for Native HTML Elements */

@@ -4,6 +4,7 @@
  */
 
 import { ToolDetail } from "../types/index";
+import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace } from "./marketplaceManagement";
 import { launchTool } from "./toolManagement";
 
@@ -102,13 +103,27 @@ export async function loadSidebarTools(): Promise<void> {
                 const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
                 const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
-                const analyticsHtml = `<div class="tool-analytics-left">${tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}${
-                    tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""
-                }${tool.aum !== undefined ? `<span class="tool-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}</div>`;
+
+                // Get tool source icon
+                const sourceIconHtml = getToolSourceIconHtml(tool.id);
+
+                // Determine tool source
+                let toolSourceClass = "";
+                if (tool.id.startsWith("local-")) {
+                    toolSourceClass = "tool-item-pptb-local";
+                } else if (tool.id.startsWith("npm-")) {
+                    toolSourceClass = "tool-item-pptb-npm";
+                }
+
+                const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${
+                    tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""
+                }${tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}${
+                    tool.aum !== undefined ? `<span class="tool-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""
+                }</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
                 return `
-                    <div class="tool-item-pptb" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb ${toolSourceClass}" data-tool-id="${tool.id}">
                         <div class="tool-item-top-tags">${categoriesHtml}</div>
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
