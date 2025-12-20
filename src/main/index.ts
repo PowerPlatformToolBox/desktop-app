@@ -18,6 +18,7 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
+import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -29,6 +30,7 @@ import { ToolWindowManager } from "./managers/toolWindowManager";
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private machineIdManager: MachineIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
@@ -46,10 +48,11 @@ class ToolBoxApp {
 
     constructor() {
         this.settingsManager = new SettingsManager();
+        this.machineIdManager = new MachineIdManager(this.settingsManager);
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxUtilityManager();
         // Pass Supabase credentials from environment variables or use defaults from constants
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
         this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
@@ -1022,7 +1025,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
