@@ -7,7 +7,6 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
-import { getToolDetailSourceIconHtml } from "../utils/toolSourceIcon";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -374,9 +373,6 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
     if (tool.rating !== undefined) metaBadges.push(`${tool.rating.toFixed(1)} rating`);
     const categories = tool.categories && tool.categories.length ? tool.categories.map((category) => escapeHtml(category)) : [];
 
-    // Get tool source icon for modal
-    const sourceIconHtml = getToolDetailSourceIconHtml(tool.id);
-
     const { styles, body } = getToolDetailModalView({
         toolId: escapeHtml(tool.id),
         name: escapeHtml(tool.name),
@@ -387,7 +383,6 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         categories: categories,
         isInstalled,
         readmeUrl: tool.readmeUrl,
-        sourceIcon: sourceIconHtml,
     });
 
     const script = getToolDetailModalControllerScript({

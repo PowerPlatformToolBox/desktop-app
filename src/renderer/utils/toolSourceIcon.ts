@@ -27,21 +27,24 @@ const SOURCE_ICONS = {
  * @returns HTML string with source icon and tooltip
  */
 function generateSourceIconHtml(toolId: string, className: string): string {
-    let iconData;
-    
+    let iconData, toolSource;
+
     if (toolId.startsWith("local-")) {
         iconData = SOURCE_ICONS.local;
+        toolSource = "Locally Developed Tool";
     } else if (toolId.startsWith("npm-")) {
         iconData = SOURCE_ICONS.npm;
+        toolSource = "NPM Package Tool";
     } else {
-        iconData = SOURCE_ICONS.registry;
+        return ""; // No icon for registry tools
     }
-    
+
     return `<span class="${className}" title="${iconData.tooltip}">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="${iconData.path}"/>
-            </svg>
-        </span>`;
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="${iconData.path}"/>
+                </svg>
+                <span>${toolSource}</span>
+            </span>`;
 }
 
 /**

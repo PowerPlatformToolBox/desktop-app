@@ -1515,6 +1515,14 @@ body {
     transition: background-color 0.2s;
 }
 
+.tool-item-pptb-local {
+    border-left: 4px solid var(--accent-color);
+}
+
+.tool-item-pptb-npm {
+    border-left: 4px solid var(--accent-color-alt);
+}
+
 .tool-item-pptb:hover {
     background: rgba(0, 120, 212, 0.1);
 }
@@ -2718,12 +2726,12 @@ body.dark-theme .tool-tag {
 
 .tool-source-icon {
     display: inline-flex;
+    gap: 6px;
     align-items: center;
     justify-content: center;
-    width: 16px;
+    // width: 16px;
     height: 16px;
     color: #605e5c;
-    cursor: help;
     opacity: 0.8;
 }
 
