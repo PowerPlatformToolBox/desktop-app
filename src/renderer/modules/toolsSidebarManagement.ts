@@ -4,6 +4,7 @@
  */
 
 import { ToolDetail } from "../types/index";
+import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace } from "./marketplaceManagement";
 import { launchTool } from "./toolManagement";
 
@@ -103,30 +104,8 @@ export async function loadSidebarTools(): Promise<void> {
                 const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
                 
-                // Determine tool source and create source icon with tooltip
-                let sourceIconHtml = "";
-                if (tool.id.startsWith("local-")) {
-                    // Local development tool
-                    sourceIconHtml = `<span class="tool-source-icon" title="Local Development Tool">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M14 4.5V14a1 1 0 01-1 1H3a1 1 0 01-1-1V2a1 1 0 011-1h8.5L14 4.5zm-3 0A1.5 1.5 0 019.5 3H3v11h10V6h-2.5A.5.5 0 0110 5.5V4.5z"/>
-                        </svg>
-                    </span>`;
-                } else if (tool.id.startsWith("npm-")) {
-                    // NPM installed tool
-                    sourceIconHtml = `<span class="tool-source-icon" title="NPM Package Tool">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2 2h12v12H2V2zm1 1v10h10V3H3zm1 1h8v8H4V4zm1 1v6h2V6h2v5h2V5H5z"/>
-                        </svg>
-                    </span>`;
-                } else {
-                    // Registry tool (official)
-                    sourceIconHtml = `<span class="tool-source-icon" title="Official Registry Tool">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 1a7 7 0 11-7 7 7 7 0 017-7zm0 2a5 5 0 100 10 5 5 0 000-10zm0 1a4 4 0 11-4 4 4 4 0 014-4z"/>
-                        </svg>
-                    </span>`;
-                }
+                // Get tool source icon
+                const sourceIconHtml = getToolSourceIconHtml(tool.id);
                 
                 const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}${
                     tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""
