@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CspExceptions, Tool, ToolManifest } from "../../common/types";
+import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -17,6 +17,7 @@ interface ToolPackageJson {
     author?: string;
     icon?: string;
     cspExceptions?: CspExceptions;
+    features?: ToolFeatures;
 }
 
 /**
@@ -386,6 +387,7 @@ export class ToolManager extends EventEmitter {
             iconUrl: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+            features: packageJson.features, // Load features from package.json (e.g., multi-connection)
         };
 
         this.tools.set(toolId, tool);
@@ -570,6 +572,7 @@ export class ToolManager extends EventEmitter {
             iconUrl: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
+            features: packageJson.features, // Load features from package.json (e.g., multi-connection)
         };
 
         this.tools.set(toolId, tool);
