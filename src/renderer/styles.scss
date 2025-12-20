@@ -2716,6 +2716,25 @@ body.dark-theme .tool-tag {
     color: #8a8886;
 }
 
+.tool-source-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: #605e5c;
+    cursor: help;
+    opacity: 0.8;
+}
+
+.tool-source-icon:hover {
+    opacity: 1;
+}
+
+body.dark-theme .tool-source-icon {
+    color: #c8c6c4;
+}
+
 /* Fluent Design System Styling for Native HTML Elements */
 
 /* Fluent Button Styles */

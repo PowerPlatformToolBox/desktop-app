@@ -13,6 +13,7 @@ export interface ToolDetailModalViewModel {
     categories: string[];
     isInstalled: boolean;
     readmeUrl?: string;
+    sourceIcon?: string; // Optional source icon HTML
 }
 
 export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalViewTemplate {
@@ -115,6 +116,22 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         content: "•";
         margin: 0 6px;
         color: rgba(255, 255, 255, 0.45);
+    }
+
+    .tool-detail-source-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: help;
+        opacity: 0.8;
+        margin-left: 8px;
+    }
+
+    .tool-detail-source-icon:hover {
+        opacity: 1;
     }
 
     .tool-detail-tags span {
@@ -278,7 +295,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
             </div>
             <div class="tool-detail-modal-meta">
                 ${tagsMarkup ? `<div class="tool-detail-tags">${tagsMarkup}</div>` : ""}
-                <h2 class="tool-detail-name">${model.name}</h2>
+                <h2 class="tool-detail-name">${model.name}${model.sourceIcon ? model.sourceIcon : ""}</h2>
                 <p class="tool-detail-description">${model.description}</p>
                 <p class="tool-detail-authors">By ${model.authors}</p>
                 ${badgeMarkup ? `<div class="tool-detail-meta-list">${badgeMarkup}</div>` : ""}
