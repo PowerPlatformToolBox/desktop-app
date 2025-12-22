@@ -168,6 +168,7 @@ export class DataverseManager {
             currency: "currencies",
             businessunit: "businessunits",
             systemuser: "systemusers",
+            usersettingscollection: "usersettingscollection",
         };
 
         const lowerName = entityLogicalName.toLowerCase();
@@ -227,13 +228,16 @@ export class DataverseManager {
     /**
      * Execute a Dataverse Web API action or function
      */
-    async execute(connectionId: string, request: {
-        entityName?: string;
-        entityId?: string;
-        operationName: string;
-        operationType: "action" | "function";
-        parameters?: Record<string, unknown>;
-    }): Promise<Record<string, unknown>> {
+    async execute(
+        connectionId: string,
+        request: {
+            entityName?: string;
+            entityId?: string;
+            operationName: string;
+            operationType: "action" | "function";
+            parameters?: Record<string, unknown>;
+        },
+    ): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
         let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
