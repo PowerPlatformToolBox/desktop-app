@@ -96,6 +96,7 @@
   - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
 - [Discussions](#discussions)
 - [License](#license)
+- [Team](#team)
 - [Contributing](#contributing)
 
 ## Known Issues
@@ -234,13 +235,30 @@ If you want to have any discussions on any feature, please use the [Discussion B
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
+## Team
+
+Created & maintained by **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)**
+
+Supporting Team:
+
+-   **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
+    Turns ideas into features and chaos into clarity.
+-   **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
+    First to test, first to build, first to break things so others don’t.
+-   **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
+    Always thinking beyond boundaries and making bold ideas actually work.
+-   **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
+    Tester, implementor, and tool author — a one-person strike team.
+-   **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
+    Focused on refining the toolbox UI and elevating the overall experience.
+-   **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
+     Generates ideas and relentlessly pushes the team forward.
+
+> If you wish to offical be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
-
-> If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
-
-**Offical Team** ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->

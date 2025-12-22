@@ -35,6 +35,9 @@
             "profile": "https://github.com/MattBerg11",
             "contributions": [
                 "content",
+                "design",
+                "ideas",
+                "maintenance",
                 "doc",
                 "example"
             ]
@@ -52,23 +55,16 @@
             ]
         },
         {
-            "login": "ramblingreece",
-            "name": "Reece",
-            "avatar_url": "https://avatars.githubusercontent.com/u/51825794?v=4",
-            "profile": "https://ramblingreece.co.uk/",
-            "contributions": [
-                "ideas",
-                "projectManagement"
-            ]
-        },
-        {
             "login": "LinkeD365",
             "name": "LinkeD365",
             "avatar_url": "https://avatars.githubusercontent.com/u/43988771?v=4",
             "profile": "https://github.com/LinkeD365",
             "contributions": [
                 "bug",
+                "code",
+                "design",
                 "ideas",
+                "maintenance",
                 "test",
                 "userTesting"
             ]
@@ -78,18 +74,6 @@
             "name": "mohsinonxrm",
             "avatar_url": "https://avatars.githubusercontent.com/u/21046804?v=4",
             "profile": "https://github.com/mohsinonxrm",
-            "contributions": [
-                "code",
-                "design",
-                "ideas",
-                "maintenance"
-            ]
-        },
-        {
-            "login": "uofirob",
-            "name": "Rob Montague",
-            "avatar_url": "https://avatars.githubusercontent.com/u/1754842?v=4",
-            "profile": "https://github.com/uofirob",
             "contributions": [
                 "code",
                 "design",
@@ -110,27 +94,14 @@
             ]
         },
         {
-            "login": "daryllabar",
-            "name": "Daryl LaBar",
-            "avatar_url": "https://avatars.githubusercontent.com/u/9728423?v=4",
-            "profile": "http://www.dotnetdust.blogspot.com/",
-            "contributions": [
-                "code",
-                "design",
-                "ideas",
-                "maintenance"
-            ]
-        },
-        {
             "login": "mikefactorial",
             "name": "Mike!",
             "avatar_url": "https://avatars.githubusercontent.com/u/42348035?v=4",
             "profile": "https://github.com/mikefactorial",
             "contributions": [
-                "code",
-                "design",
                 "ideas",
-                "maintenance"
+                "test",
+                "userTesting"
             ]
         }
     ],
