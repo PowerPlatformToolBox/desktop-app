@@ -97,7 +97,7 @@
 - [Discussions](#discussions)
 - [License](#license)
 - [Team](#team)
-- [Contributing](#contributing)
+- [Contributors](#contributors)
 
 ## Known Issues
 
@@ -256,7 +256,7 @@ Supporting Team:
 
 > If you wish to offical be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
-## Contributing
+## Contributors
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
 
