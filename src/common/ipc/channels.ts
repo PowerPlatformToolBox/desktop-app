@@ -127,6 +127,7 @@ export const DATAVERSE_CHANNELS = {
     GET_ENTITY_RELATED_METADATA: "dataverse.getEntityRelatedMetadata",
     GET_SOLUTIONS: "dataverse.getSolutions",
     QUERY_DATA: "dataverse.queryData",
+    GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

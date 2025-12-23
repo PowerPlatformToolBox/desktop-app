@@ -77,6 +77,7 @@ export interface DataverseAPI {
     getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<unknown>;
     getAllEntitiesMetadata: () => Promise<unknown>;
     queryData: (odataQuery: string) => Promise<unknown>;
+    getEntitySetName: (entityLogicalName: string) => Promise<string>;
 }
 
 /**

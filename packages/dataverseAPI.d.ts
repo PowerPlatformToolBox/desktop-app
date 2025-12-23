@@ -380,6 +380,28 @@ declare namespace DataverseAPI {
          * const result = await dataverseAPI.queryData('$filter=statecode eq 0', 'secondary');
          */
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
+
+        /**
+         * Gets the Dataverse entity set (collection) name for the specified table.
+         *
+         * This is typically used when building OData queries where the collection name
+         * (entity set name) is required instead of the logical table name.
+         *
+         * Note: This is a utility method that applies pluralization rules and does not
+         * require an active connection to Dataverse.
+         *
+         * @param entityLogicalName - The logical name of the Dataverse table (for example, "account").
+         * @returns The corresponding entity set name (for example, "accounts").
+         *
+         * @example
+         * const entitySetName = await dataverseAPI.getEntitySetName('account');
+         * console.log(entitySetName); // Output: "accounts"
+         *
+         * @example
+         * const entitySetName = await dataverseAPI.getEntitySetName('opportunity');
+         * console.log(entitySetName); // Output: "opportunities"
+         */
+        getEntitySetName: (entityLogicalName: string) => Promise<string>;
     }
 }
 

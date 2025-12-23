@@ -160,7 +160,7 @@ export class DataverseManager {
      * Convert entity logical name to entity set name (pluralization)
      * Handles common Dataverse entity pluralization rules
      */
-    private getEntitySetName(entityLogicalName: string): string {
+    getEntitySetName(entityLogicalName: string): string {
         // Common irregular plurals in Dataverse
         const irregularPlurals: Record<string, string> = {
             opportunity: "opportunities",
