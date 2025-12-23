@@ -7,13 +7,7 @@ import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
-import {
-    handleReauthentication,
-    initializeAddConnectionModalBridge,
-    loadSidebarConnections,
-    openAddConnectionModal,
-    updateFooterConnection,
-} from "./connectionManagement";
+import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
@@ -21,7 +15,7 @@ import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -124,6 +118,9 @@ function setupToolbarButtons(): void {
             closeAllTools();
         });
     }
+
+    // Initialize tab scroll buttons
+    initializeTabScrollButtons();
 }
 
 /**
@@ -153,6 +150,16 @@ function setupSidebarButtons(): void {
             // Import the function dynamically to avoid circular dependencies
             const { openToolConnectionModal } = await import("./toolManagement");
             await openToolConnectionModal();
+        });
+    }
+
+    // Secondary footer connection status - click to open connection selector for secondary connection
+    const secondaryConnectionStatus = document.getElementById("secondary-connection-status");
+    if (secondaryConnectionStatus) {
+        secondaryConnectionStatus.addEventListener("click", async () => {
+            // Import the function dynamically to avoid circular dependencies
+            const { openToolSecondaryConnectionModal } = await import("./toolManagement");
+            await openToolSecondaryConnectionModal();
         });
     }
 

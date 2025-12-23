@@ -1,3 +1,5 @@
+import { UIConnectionData } from "../../../common/types/connection";
+
 export interface SelectConnectionModalChannelIds {
     selectConnection: string;
     connectReady: string;
@@ -5,14 +7,7 @@ export interface SelectConnectionModalChannelIds {
 }
 
 export interface ConnectionListData {
-    connections: Array<{
-        id: string;
-        name: string;
-        url: string;
-        environment: string;
-        authenticationType: string;
-        isActive: boolean;
-    }>;
+    connections: UIConnectionData[];
 }
 
 /**

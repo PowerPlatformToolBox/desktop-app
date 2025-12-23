@@ -2,6 +2,7 @@ import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { Tool } from "../../common/types";
+import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
@@ -25,13 +26,23 @@ export class ToolWindowManager {
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
     /**
-     * Maps instanceId (not toolId) to BrowserView.
-     * The key is the unique tool instanceId (format: toolId-timestamp-random).
-     * Consider renaming to instanceViews in future refactoring.
+     * Maps tool instanceId (NOT toolId) to BrowserView.
+     *
+     * Key semantics:
+     * - The key is the unique tool instanceId (format: toolId-timestamp-random).
+     * - This allows multiple instances of the same toolId to have separate BrowserViews.
+     *
+     * Naming note:
+     * - The property name is `toolViews` for historical reasons, but it is actually
+     *   keyed by instanceId, not toolId.
+     * - A future refactor may rename this to `instanceViews`; such a change would be
+     *   cosmetic only and must be done consistently across all usages.
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
-    private activeToolId: string | null = null; // Stores instanceId (not toolId)
+    // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
+    // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
+    private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
@@ -71,6 +82,11 @@ export class ToolWindowManager {
         // Get all open tool IDs (now returns instanceIds)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS, async () => {
             return Array.from(this.toolViews.keys());
+        });
+
+        // Update tool connection
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
+            return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
         });
 
         // Restore renderer-provided bounds flow
@@ -428,6 +444,72 @@ export class ToolWindowManager {
     }
 
     /**
+     * Update tool connection context
+     * Sends updated connection information to a specific tool instance
+     */
+    async updateToolConnection(instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null): Promise<void> {
+        const toolView = this.toolViews.get(instanceId);
+        if (!toolView || toolView.webContents.isDestroyed()) {
+            console.warn(`[ToolWindowManager] Tool instance ${instanceId} not found or destroyed`);
+            return;
+        }
+
+        // Update stored connection info
+        const connectionInfo = this.toolConnectionInfo.get(instanceId);
+        if (connectionInfo) {
+            connectionInfo.primaryConnectionId = primaryConnectionId;
+            if (secondaryConnectionId !== undefined) {
+                connectionInfo.secondaryConnectionId = secondaryConnectionId;
+            }
+        } else {
+            this.toolConnectionInfo.set(instanceId, {
+                primaryConnectionId,
+                secondaryConnectionId: secondaryConnectionId || null,
+            });
+        }
+
+        // Get connection URLs
+        let connectionUrl: string | null = null;
+        let secondaryConnectionUrl: string | null = null;
+
+        if (primaryConnectionId) {
+            const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
+            if (connection) {
+                connectionUrl = connection.url;
+            }
+        }
+
+        if (secondaryConnectionId) {
+            const connection = this.connectionsManager.getConnectionById(secondaryConnectionId);
+            if (connection) {
+                secondaryConnectionUrl = connection.url;
+            }
+        }
+
+        // Send updated context to the tool FIRST before any events
+        // This ensures the context is updated before any event handlers run
+        const updatedContext = {
+            connectionUrl,
+            connectionId: primaryConnectionId,
+            secondaryConnectionUrl,
+            secondaryConnectionId,
+        };
+
+        toolView.webContents.send("toolbox:context", updatedContext);
+
+        // Emit connection:updated event to the tool AFTER context is updated
+        // This allows the tool's event handler to call getActiveConnection() and get the updated connection
+        const eventPayload = {
+            event: ToolBoxEvent.CONNECTION_UPDATED,
+            data: { id: primaryConnectionId },
+            timestamp: new Date().toISOString(),
+        };
+        toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
+
+        console.log(`[ToolWindowManager] Updated connection for tool instance ${instanceId}:`, { primaryConnectionId, secondaryConnectionId });
+    }
+
+    /**
      * Cleanup all tool views
      */
     destroy(): void {
@@ -458,34 +540,6 @@ export class ToolWindowManager {
                 console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
             }
         }
-    }
-
-    /**
-     * Update connection context for a specific tool
-     * Called when a tool's connection is changed
-     */
-    async updateToolConnection(toolId: string, connectionId: string | null): Promise<void> {
-        const toolView = this.toolViews.get(toolId);
-        if (!toolView || toolView.webContents.isDestroyed()) {
-            return;
-        }
-
-        let connectionUrl: string | null = null;
-
-        if (connectionId) {
-            const connection = this.connectionsManager.getConnectionById(connectionId);
-            if (connection) {
-                connectionUrl = connection.url;
-            }
-        }
-
-        // Send updated connection context to the tool
-        toolView.webContents.send("toolbox:connection-changed", {
-            connectionUrl: connectionUrl,
-            connectionId: connectionId,
-        });
-
-        console.log(`[ToolWindowManager] Updated connection for tool ${toolId}:`, connectionUrl ? "connected" : "disconnected");
     }
 
     /**

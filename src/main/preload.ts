@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
+    updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
@@ -186,21 +188,30 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record),
-        delete: (entityLogicalName: string, id: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id),
-        retrieveMultiple: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml),
-        execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.EXECUTE, request),
-        fetchXmlQuery: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml),
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns),
-        getAllEntitiesMetadata: () => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns),
-        getSolutions: (selectColumns: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns),
-        queryData: (odataQuery: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery),
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+        execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => 
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
     },
 });
 

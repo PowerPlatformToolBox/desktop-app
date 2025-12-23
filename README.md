@@ -96,7 +96,8 @@
   - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
 - [Discussions](#discussions)
 - [License](#license)
-- [Contributing](#contributing)
+- [Team](#team)
+- [Contributors](#contributors)
 
 ## Known Issues
 
@@ -234,13 +235,30 @@ If you want to have any discussions on any feature, please use the [Discussion B
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-## Contributing
+## Team
+
+Created & maintained by **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)**
+
+Supporting Team:
+
+-   **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
+    Turns ideas into features and chaos into clarity.
+-   **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
+    First to test, first to build, first to break things so others don’t.
+-   **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
+    Always thinking beyond boundaries and making bold ideas actually work.
+-   **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
+    Tester, implementor, and tool author — a one-person strike team.
+-   **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
+    Focused on refining the toolbox UI and elevating the overall experience.
+-   **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
+     Generates ideas and relentlessly pushes the team forward.
+
+> If you wish to offical be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
+
+## Contributors
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to the project.
-
-> If you wish to offical be part of the team, please reach out to one of the listed contributor below for onboarding.
-
-**Offical Team** ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -249,17 +267,15 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://powermaverick.dev/"><img src="https://avatars.githubusercontent.com/u/36135520?v=4?s=100" width="100px;" alt="Danish Naglekar"/><br /><sub><b>Danish Naglekar</b></sub></a><br /><a href="#question-Power-Maverick" title="Answering Questions">💬</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Code">💻</a> <a href="#content-Power-Maverick" title="Content">🖋</a> <a href="#design-Power-Maverick" title="Design">🎨</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Documentation">📖</a> <a href="#infra-Power-Maverick" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#security-Power-Maverick" title="Security">🛡️</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=Power-Maverick" title="Tests">⚠️</a> <a href="#tool-Power-Maverick" title="Tools">🔧</a> <a href="#tutorial-Power-Maverick" title="Tutorials">✅</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MattBerg11"><img src="https://avatars.githubusercontent.com/u/25282996?v=4?s=100" width="100px;" alt="Matt Berg"/><br /><sub><b>Matt Berg</b></sub></a><br /><a href="#content-MattBerg11" title="Content">🖋</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MattBerg11" title="Documentation">📖</a> <a href="#example-MattBerg11" title="Examples">💡</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MattBerg11"><img src="https://avatars.githubusercontent.com/u/25282996?v=4?s=100" width="100px;" alt="Matt Berg"/><br /><sub><b>Matt Berg</b></sub></a><br /><a href="#content-MattBerg11" title="Content">🖋</a> <a href="#design-MattBerg11" title="Design">🎨</a> <a href="#ideas-MattBerg11" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-MattBerg11" title="Maintenance">🚧</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=MattBerg11" title="Documentation">📖</a> <a href="#example-MattBerg11" title="Examples">💡</a> <a href="#projectManagement-MattBerg11" title="Project Management">📆</a> <a href="#tutorial-MattBerg11" title="Tutorials">✅</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.dancingwithcrm.com/"><img src="https://avatars.githubusercontent.com/u/17760686?v=4?s=100" width="100px;" alt="Oleksandr Olashyn (dancingwithcrm)"/><br /><sub><b>Oleksandr Olashyn (dancingwithcrm)</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OOlashyn" title="Code">💻</a> <a href="#design-OOlashyn" title="Design">🎨</a> <a href="#ideas-OOlashyn" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OOlashyn" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://ramblingreece.co.uk/"><img src="https://avatars.githubusercontent.com/u/51825794?v=4?s=100" width="100px;" alt="Reece"/><br /><sub><b>Reece</b></sub></a><br /><a href="#ideas-ramblingreece" title="Ideas, Planning, & Feedback">🤔</a> <a href="#projectManagement-ramblingreece" title="Project Management">📆</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LinkeD365"><img src="https://avatars.githubusercontent.com/u/43988771?v=4?s=100" width="100px;" alt="LinkeD365"/><br /><sub><b>LinkeD365</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/issues?q=author%3ALinkeD365" title="Bug reports">🐛</a> <a href="#ideas-LinkeD365" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=LinkeD365" title="Tests">⚠️</a> <a href="#userTesting-LinkeD365" title="User Testing">📓</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LinkeD365"><img src="https://avatars.githubusercontent.com/u/43988771?v=4?s=100" width="100px;" alt="LinkeD365"/><br /><sub><b>LinkeD365</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/issues?q=author%3ALinkeD365" title="Bug reports">🐛</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=LinkeD365" title="Code">💻</a> <a href="#design-LinkeD365" title="Design">🎨</a> <a href="#ideas-LinkeD365" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-LinkeD365" title="Maintenance">🚧</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=LinkeD365" title="Tests">⚠️</a> <a href="#userTesting-LinkeD365" title="User Testing">📓</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mohsinonxrm"><img src="https://avatars.githubusercontent.com/u/21046804?v=4?s=100" width="100px;" alt="mohsinonxrm"/><br /><sub><b>mohsinonxrm</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mohsinonxrm" title="Code">💻</a> <a href="#design-mohsinonxrm" title="Design">🎨</a> <a href="#ideas-mohsinonxrm" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-mohsinonxrm" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/uofirob"><img src="https://avatars.githubusercontent.com/u/1754842?v=4?s=100" width="100px;" alt="Rob Montague"/><br /><sub><b>Rob Montague</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=uofirob" title="Code">💻</a> <a href="#design-uofirob" title="Design">🎨</a> <a href="#ideas-uofirob" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-uofirob" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.oliverflint.co.uk/"><img src="https://avatars.githubusercontent.com/u/8300688?v=4?s=100" width="100px;" alt="Oliver Flint"/><br /><sub><b>Oliver Flint</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OliverFlint" title="Code">💻</a> <a href="#design-OliverFlint" title="Design">🎨</a> <a href="#ideas-OliverFlint" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OliverFlint" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mikefactorial"><img src="https://avatars.githubusercontent.com/u/42348035?v=4?s=100" width="100px;" alt="Mike!"/><br /><sub><b>Mike!</b></sub></a><br /><a href="#ideas-mikefactorial" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mikefactorial" title="Tests">⚠️</a> <a href="#userTesting-mikefactorial" title="User Testing">📓</a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://www.oliverflint.co.uk/"><img src="https://avatars.githubusercontent.com/u/8300688?v=4?s=100" width="100px;" alt="Oliver Flint"/><br /><sub><b>Oliver Flint</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=OliverFlint" title="Code">💻</a> <a href="#design-OliverFlint" title="Design">🎨</a> <a href="#ideas-OliverFlint" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-OliverFlint" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://www.dotnetdust.blogspot.com/"><img src="https://avatars.githubusercontent.com/u/9728423?v=4?s=100" width="100px;" alt="Daryl LaBar"/><br /><sub><b>Daryl LaBar</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=daryllabar" title="Code">💻</a> <a href="#design-daryllabar" title="Design">🎨</a> <a href="#ideas-daryllabar" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-daryllabar" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mikefactorial"><img src="https://avatars.githubusercontent.com/u/42348035?v=4?s=100" width="100px;" alt="Mike!"/><br /><sub><b>Mike!</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=mikefactorial" title="Code">💻</a> <a href="#design-mikefactorial" title="Design">🎨</a> <a href="#ideas-mikefactorial" title="Ideas, Planning, & Feedback">🤔</a> <a href="#maintenance-mikefactorial" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.larshildebrandt.de/"><img src="https://avatars.githubusercontent.com/u/1198698?v=4?s=100" width="100px;" alt="Lars Hildebrandt"/><br /><sub><b>Lars Hildebrandt</b></sub></a><br /><a href="https://github.com/Power-Maverick/PowerPlatformToolBox/commits?author=cyco77" title="Code">💻</a> <a href="#design-cyco77" title="Design">🎨</a> <a href="#ideas-cyco77" title="Ideas, Planning, & Feedback">🤔</a> <a href="#plugin-cyco77" title="Plugin/utility libraries">🔌</a></td>
     </tr>
   </tbody>
 </table>

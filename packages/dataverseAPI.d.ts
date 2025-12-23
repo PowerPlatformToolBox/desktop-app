@@ -81,6 +81,7 @@ declare namespace DataverseAPI {
          *
          * @param entityLogicalName - Logical name of the entity (e.g., 'account', 'contact')
          * @param record - Record data to create
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the created record ID and any returned fields
          *
          * @example
@@ -90,8 +91,14 @@ declare namespace DataverseAPI {
          *     telephone1: '555-0100'
          * });
          * console.log('Created account ID:', result.id);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.create('account', {
+         *     name: 'Contoso Ltd'
+         * }, 'secondary');
          */
-        create: (entityLogicalName: string, record: Record<string, unknown>) => Promise<CreateResult>;
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<CreateResult>;
 
         /**
          * Retrieve a single record by ID
@@ -99,6 +106,7 @@ declare namespace DataverseAPI {
          * @param entityLogicalName - Logical name of the entity
          * @param id - GUID of the record
          * @param columns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the requested record
          *
          * @example
@@ -108,8 +116,12 @@ declare namespace DataverseAPI {
          *     ['name', 'emailaddress1', 'telephone1']
          * );
          * console.log('Account name:', account.name);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const account = await dataverseAPI.retrieve('account', 'guid-here', ['name'], 'secondary');
          */
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => Promise<Record<string, unknown>>;
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
 
         /**
          * Update an existing record
@@ -117,30 +129,41 @@ declare namespace DataverseAPI {
          * @param entityLogicalName - Logical name of the entity
          * @param id - GUID of the record
          * @param record - Fields to update
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          *
          * @example
          * await dataverseAPI.update('account', 'guid-here', {
          *     name: 'Updated Account Name',
          *     description: 'Updated description'
          * });
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.update('account', 'guid-here', { name: 'Updated' }, 'secondary');
          */
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => Promise<void>;
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<void>;
 
         /**
          * Delete a record
          *
          * @param entityLogicalName - Logical name of the entity
          * @param id - GUID of the record
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          *
          * @example
          * await dataverseAPI.delete('account', 'guid-here');
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.delete('account', 'guid-here', 'secondary');
          */
-        delete: (entityLogicalName: string, id: string) => Promise<void>;
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
 
         /**
          * Execute a FetchXML query
          *
          * @param fetchXml - FetchXML query string
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing matching records
          *
          * @example
@@ -162,21 +185,27 @@ declare namespace DataverseAPI {
          * result.value.forEach(record => {
          *     console.log(record.name);
          * });
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.fetchXmlQuery(fetchXml, 'secondary');
          */
-        fetchXmlQuery: (fetchXml: string) => Promise<FetchXmlResult>;
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<FetchXmlResult>;
 
         /**
          * Retrieve multiple records (alias for fetchXmlQuery for backward compatibility)
          *
          * @param fetchXml - FetchXML query string
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing matching records
          */
-        retrieveMultiple: (fetchXml: string) => Promise<FetchXmlResult>;
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => Promise<FetchXmlResult>;
 
         /**
          * Execute a Dataverse Web API action or function
          *
          * @param request - Execute request configuration
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the operation result
          *
          * @example
@@ -198,8 +227,15 @@ declare namespace DataverseAPI {
          *         FieldName: 'total_revenue'
          *     }
          * });
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.execute({
+         *     operationName: 'WhoAmI',
+         *     operationType: 'function'
+         * }, 'secondary');
          */
-        execute: (request: ExecuteRequest) => Promise<Record<string, unknown>>;
+        execute: (request: ExecuteRequest, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
 
         /**
          * Get metadata for a specific entity
@@ -207,10 +243,11 @@ declare namespace DataverseAPI {
          * @param entityLogicalName - Logical name of the entity
          * @param searchByLogicalName - Whether to search by logical name (true) or metadata ID (false)
          * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing entity metadata
          *
          * @example
-         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName', 'DisplayName']);
+         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName', 'DisplayName', 'EntitySetName']);
          * console.log('Logical Name:', metadata.LogicalName);
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
          *
@@ -220,22 +257,31 @@ declare namespace DataverseAPI {
          * console.log('Entity Metadata ID:', metadata.MetadataId);
          * console.log('Logical Name:', metadata.LogicalName);
          * console.log('Display Name:', metadata.DisplayName?.LocalizedLabels[0]?.Label);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName'], 'secondary');
          */
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<EntityMetadata>;
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadata>;
 
         /**
          * Get metadata for all entities
-         *
+         * @param selectColumns - Optional array of column names to retrieve (retrieves LogicalName, DisplayName, MetadataId by default)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing all entity metadata
          *
          * @example
-         * const allEntities = await dataverseAPI.getAllEntitiesMetadata();
+         * const allEntities = await dataverseAPI.getAllEntitiesMetadata(['LogicalName', 'DisplayName', 'EntitySetName'] );
          * console.log(`Total entities: ${allEntities.value.length}`);
          * allEntities.value.forEach(entity => {
          *     console.log(`${entity.LogicalName} - ${entity.DisplayName?.LocalizedLabels[0]?.Label}`);
          * });
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const allEntities = await dataverseAPI.getAllEntitiesMetadata(['LogicalName'], 'secondary');
          */
-        getAllEntitiesMetadata: () => Promise<EntityMetadataCollection>;
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadataCollection>;
 
         /**
          * Get related metadata for a specific entity (attributes, relationships, etc.)
@@ -243,6 +289,7 @@ declare namespace DataverseAPI {
          * @param entityLogicalName - Logical name of the entity
          * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships', 'ManyToManyRelationships', 'Keys')
          * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the related metadata
          *
          * @example
@@ -266,13 +313,18 @@ declare namespace DataverseAPI {
          *     'OneToManyRelationships'
          * );
          * console.log('One-to-many relationships:', relationships.value);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const attributes = await dataverseAPI.getEntityRelatedMetadata('account', 'Attributes', ['LogicalName'], 'secondary');
          */
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => Promise<Record<string, unknown>>;
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
 
         /**
          * Get solutions from the environment
          *
          * @param selectColumns - Required array of column names to retrieve (must contain at least one column)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing solutions
          *
          * @example
@@ -287,13 +339,18 @@ declare namespace DataverseAPI {
          * solutions.value.forEach(solution => {
          *     console.log(`${solution.friendlyname} (${solution.uniquename}) - v${solution.version}`);
          * });
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const solutions = await dataverseAPI.getSolutions(['uniquename'], 'secondary');
          */
-        getSolutions: (selectColumns: string[]) => Promise<{ value: Record<string, unknown>[] }>;
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
 
         /**
          * Query data from Dataverse using OData query parameters
          *
          * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing matching records
          *
          * @example
@@ -317,8 +374,12 @@ declare namespace DataverseAPI {
          * const result = await dataverseAPI.queryData(
          *     '$filter=contains(fullname, \'Smith\')&$top=20'
          * );
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.queryData('$filter=statecode eq 0', 'secondary');
          */
-        queryData: (odataQuery: string) => Promise<{ value: Record<string, unknown>[] }>;
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
     }
 }
 
