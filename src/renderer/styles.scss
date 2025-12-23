@@ -1028,6 +1028,10 @@ body {
     color: #8a8886;
 }
 
+.tool-item-authors-pptb {
+    margin-bottom: 6px;
+}
+
 .tool-library-item .btn {
     padding: 6px 16px;
     font-size: 13px;
@@ -1612,6 +1616,22 @@ body {
     overflow: hidden;
 }
 
+.tool-item-updated-version-available-pptb {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.tool-item-updated-version-available-info-icon {
+    filter: brightness(0) saturate(100%) invert(29%) sepia(62%) saturate(5964%) hue-rotate(192deg) brightness(100%) contrast(100%);
+}
+
+.tool-item-updated-version-available-text {
+    font-size: 11px;
+    color: #8a8886;
+    font-family: monospace;
+}
+
 .tool-item-actions-pptb {
     display: flex;
     gap: 8px;
@@ -1652,7 +1672,7 @@ body {
 .tool-item-version-pptb {
     font-size: 11px;
     color: #8a8886;
-    margin-bottom: 6px;
+    margin-top: 4px;
     font-family: monospace;
 }
 
@@ -1732,6 +1752,7 @@ body {
 .marketplace-item-author-pptb {
     font-size: 11px;
     color: #8a8886;
+    margin-bottom: 6px;
 }
 
 .marketplace-item-description-pptb {
@@ -1770,7 +1791,8 @@ body {
 
 .marketplace-item-version-pptb {
     font-size: 11px;
-    color: #605e5c;
+    color: #8a8886;
+    margin-top: 4px;
     font-family: monospace;
 }
 

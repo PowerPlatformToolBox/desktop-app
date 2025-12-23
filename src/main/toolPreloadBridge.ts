@@ -45,14 +45,14 @@ const TOOL_CONTEXT_TIMEOUT_ERROR = "Tool context initialization timed out after 
 // Helper to wrap a promise with a timeout
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
     let timeoutHandle: NodeJS.Timeout | undefined;
-    
+
     const timeoutPromise = new Promise<T>((_, reject) => {
         timeoutHandle = setTimeout(() => {
             timeoutHandle = undefined;
             reject(new Error(errorMessage));
         }, timeoutMs);
     });
-    
+
     return Promise.race([
         promise.then(
             (result) => {
@@ -62,9 +62,9 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: st
             (error) => {
                 if (timeoutHandle) clearTimeout(timeoutHandle);
                 throw error;
-            }
+            },
         ),
-        timeoutPromise
+        timeoutPromise,
     ]);
 }
 
@@ -72,7 +72,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: st
 async function ensureToolContext(): Promise<string> {
     await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
     // After promise resolves, toolContext must be set and have a toolId
-    if (!toolContext || typeof toolContext.toolId !== 'string') {
+    if (!toolContext || typeof toolContext.toolId !== "string") {
         throw new Error("Tool context not initialized properly");
     }
     return toolContext.toolId;
@@ -96,7 +96,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         // Get tool's primary connection from context
         getConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.connectionId !== 'string') {
+            if (!toolContext || typeof toolContext.connectionId !== "string") {
                 return null;
             }
             return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         // Tools call this expecting their own connection, not a global active connection
         getActiveConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.connectionId !== 'string') {
+            if (!toolContext || typeof toolContext.connectionId !== "string") {
                 return null;
             }
             return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
@@ -128,7 +128,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         // Secondary connection methods for multi-connection tools
         getSecondaryConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.secondaryConnectionId !== 'string') {
+            if (!toolContext || typeof toolContext.secondaryConnectionId !== "string") {
                 return null;
             }
             return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
@@ -145,30 +145,23 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => 
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
-        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
-        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
-        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
-        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+        execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
         getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
-        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
         getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
-        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
-        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => 
-            ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
     },
 
     // Utils API
@@ -239,30 +232,23 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
 // Also expose dataverseAPI as a direct alias (for tools that use it directly)
 contextBridge.exposeInMainWorld("dataverseAPI", {
-    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+    create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
-    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => 
+    retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
-    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
+    update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
-    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
-    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
-    execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
-    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+    delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+    retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+    execute: (request: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+    fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
     getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
-    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+    getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
     getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
-    getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
-    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => 
-        ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+    getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+    queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
 });
 
 console.log("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");

@@ -84,7 +84,7 @@ interface LocalRegistryTool {
     id: string;
     name: string;
     description: string;
-    author: string;
+    authors?: string[];
     version: string;
     downloadUrl: string;
     icon?: string;
@@ -259,7 +259,7 @@ export class ToolRegistryManager extends EventEmitter {
                 id: tool.id,
                 name: tool.name,
                 description: tool.description,
-                author: tool.author,
+                authors: tool.authors,
                 version: tool.version,
                 icon: tool.icon,
                 downloadUrl: tool.downloadUrl,

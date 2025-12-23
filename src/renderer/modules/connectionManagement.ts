@@ -3,7 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import type { DataverseConnection, UIConnectionData, ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
+import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
@@ -12,9 +12,9 @@ import { getSelectMultiConnectionModalControllerScript } from "../modals/selectM
 import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
 import {
     closeBrowserWindowModal,
-    onBrowserWindowModalMessage,
     offBrowserWindowModalClosed,
     onBrowserWindowModalClosed,
+    onBrowserWindowModalMessage,
     sendBrowserWindowModalMessage,
     showBrowserWindowModal,
 } from "./browserWindowModals";
@@ -36,13 +36,13 @@ interface ConnectionFormPayload {
 }
 
 interface AuthenticateConnectionAction {
-    action: 'authenticate';
+    action: "authenticate";
     connectionId: string;
-    listType: 'primary' | 'secondary';
+    listType: "primary" | "secondary";
 }
 
 interface ConfirmConnectionsAction {
-    action: 'confirm';
+    action: "confirm";
     primaryConnectionId: string;
     secondaryConnectionId: string;
 }
@@ -194,14 +194,14 @@ export function initializeSelectConnectionModalBridge(): void {
 export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<string> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
-        
+
         // Store the tool connection ID to highlight in the modal
         highlightConnectionId = toolConnectionId || null;
-        
+
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
         selectConnectionModalPromiseHandlers.reject = reject;
-        
+
         // Listen for modal close event to reject if not already resolved
         const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
             if (selectConnectionModalPromiseHandlers.reject && payload?.id === "select-connection-browser-modal") {
@@ -214,9 +214,9 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
         };
-        
+
         onBrowserWindowModalClosed(modalClosedHandler);
-        
+
         showBrowserWindowModal({
             id: "select-connection-browser-modal",
             html: buildSelectConnectionModalHtml(),
@@ -251,7 +251,7 @@ function buildSelectConnectionModalHtml(): string {
 
 async function handleSelectConnectionRequest(data?: { connectionId?: string }): Promise<void> {
     const connectionId = data?.connectionId;
-    
+
     if (!connectionId) {
         await signalSelectConnectionReady();
         return;
@@ -260,27 +260,27 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
     try {
         // Authenticate the connection - this will trigger the authentication flow
         await window.toolboxAPI.connections.authenticate(connectionId);
-        
+
         // Connect to the selected connection - this will update UI
         const connectedId = await connectToConnection(connectionId);
-        
+
         // Verify the connection was successful
         if (!connectedId || connectedId !== connectionId) {
             throw new Error("Connection was not successfully established");
         }
-        
+
         // Resolve the promise BEFORE closing the modal to avoid race condition
         // where modal close handler might reject the promise
         const resolveHandler = selectConnectionModalPromiseHandlers.resolve;
         selectConnectionModalPromiseHandlers.resolve = null;
         selectConnectionModalPromiseHandlers.reject = null;
-        
+
         // Clear highlight connection ID
         highlightConnectionId = null;
-        
+
         // Close the modal
         await closeBrowserWindowModal();
-        
+
         // Now resolve the promise with the connectionId after handlers are cleared
         if (resolveHandler) {
             resolveHandler(connectionId);
@@ -288,7 +288,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
     } catch (error) {
         console.error("Error connecting to selected connection:", error);
         await signalSelectConnectionReady();
-        
+
         // Don't close modal on error - let user try again or cancel
     }
 }
@@ -296,22 +296,24 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
-        
+
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
                 // Map persisted connections to UI-level data with isActive property
-                connections: connections.map((conn: DataverseConnection): UIConnectionData => ({
-                    id: conn.id,
-                    name: conn.name,
-                    url: conn.url,
-                    environment: conn.environment,
-                    authenticationType: conn.authenticationType,
-                    // If highlightConnectionId is set (tool-specific modal), use it to mark as active
-                    // Otherwise, mark none as active since there's no global active connection
-                    isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
-                })),
+                connections: connections.map(
+                    (conn: DataverseConnection): UIConnectionData => ({
+                        id: conn.id,
+                        name: conn.name,
+                        url: conn.url,
+                        environment: conn.environment,
+                        authenticationType: conn.authenticationType,
+                        // If highlightConnectionId is set (tool-specific modal), use it to mark as active
+                        // Otherwise, mark none as active since there's no global active connection
+                        isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
+                    }),
+                ),
             },
         });
     } catch (error) {
@@ -343,11 +345,11 @@ export function initializeSelectMultiConnectionModalBridge(): void {
 export async function openSelectMultiConnectionModal(): Promise<{ primaryConnectionId: string; secondaryConnectionId: string }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
-        
+
         // Store resolve/reject handlers for later use
         selectMultiConnectionModalPromiseHandlers.resolve = resolve;
         selectMultiConnectionModalPromiseHandlers.reject = reject;
-        
+
         // Listen for modal close event to reject if not already resolved
         const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
             if (selectMultiConnectionModalPromiseHandlers.reject && payload?.id === "select-multi-connection-browser-modal") {
@@ -359,9 +361,9 @@ export async function openSelectMultiConnectionModal(): Promise<{ primaryConnect
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
         };
-        
+
         onBrowserWindowModalClosed(modalClosedHandler);
-        
+
         showBrowserWindowModal({
             id: "select-multi-connection-browser-modal",
             html: buildSelectMultiConnectionModalHtml(),
@@ -396,11 +398,11 @@ function buildSelectMultiConnectionModalHtml(): string {
 
 async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionPayload): Promise<void> {
     // Handle authentication requests from individual connect buttons
-    if (data && 'action' in data && data.action === 'authenticate') {
+    if (data && "action" in data && data.action === "authenticate") {
         try {
             // Authenticate the connection
             await window.toolboxAPI.connections.authenticate(data.connectionId);
-            
+
             // Send success message back to modal
             await sendBrowserWindowModalMessage({
                 channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
@@ -425,18 +427,18 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
         }
         return;
     }
-    
+
     // Handle confirm button - connections are already authenticated
-    if (data && 'action' in data && data.action === 'confirm') {
+    if (data && "action" in data && data.action === "confirm") {
         try {
             // Resolve the promise BEFORE closing the modal
             const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
             selectMultiConnectionModalPromiseHandlers.resolve = null;
             selectMultiConnectionModalPromiseHandlers.reject = null;
-            
+
             // Close the modal
             await closeBrowserWindowModal();
-            
+
             // Now resolve the promise with both connection IDs
             if (resolveHandler) {
                 resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
@@ -450,7 +452,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
     // Legacy path - should not be hit anymore but keeping for backwards compatibility
     const primaryConnectionId = data?.primaryConnectionId;
     const secondaryConnectionId = data?.secondaryConnectionId;
-    
+
     if (!primaryConnectionId || !secondaryConnectionId) {
         await signalSelectMultiConnectionReady();
         return;
@@ -461,10 +463,10 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
         const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
         selectMultiConnectionModalPromiseHandlers.resolve = null;
         selectMultiConnectionModalPromiseHandlers.reject = null;
-        
+
         // Close the modal
         await closeBrowserWindowModal();
-        
+
         // Now resolve the promise with both connection IDs
         if (resolveHandler) {
             resolveHandler({ primaryConnectionId, secondaryConnectionId });
@@ -478,7 +480,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
-        
+
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
@@ -631,7 +633,7 @@ export async function connectToConnection(id: string): Promise<string> {
         if (!connection) {
             throw new Error("Connection not found");
         }
-        
+
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
@@ -640,7 +642,7 @@ export async function connectToConnection(id: string): Promise<string> {
         await loadConnections();
         await loadSidebarConnections();
         await updateFooterConnection();
-        
+
         return id; // Return the connectionId
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({

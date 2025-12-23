@@ -613,10 +613,11 @@ class ToolBoxApp {
         ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
                 // Get the connectionId based on connectionTarget (defaults to primary)
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -629,10 +630,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (event, entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -645,10 +647,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (event, entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -662,10 +665,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -679,10 +683,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -704,13 +709,14 @@ class ToolBoxApp {
                     operationType: "action" | "function";
                     parameters?: Record<string, unknown>;
                 },
-                connectionTarget?: "primary" | "secondary"
+                connectionTarget?: "primary" | "secondary",
             ) => {
                 try {
-                    const connectionId = connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                    
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                     if (!connectionId) {
                         const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                         throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -724,10 +730,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -738,28 +745,33 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.GET_ENTITY_METADATA,
+            async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.getEntityMetadata(connectionId, entityLogicalName, searchByLogicalName, selectColumns);
+                } catch (error) {
+                    throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.getEntityMetadata(connectionId, entityLogicalName, searchByLogicalName, selectColumns);
-            } catch (error) {
-                throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async (event, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -770,28 +782,33 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA,
+            async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.getEntityRelatedMetadata(connectionId, entityLogicalName, relatedPath, selectColumns);
+                } catch (error) {
+                    throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.getEntityRelatedMetadata(connectionId, entityLogicalName, relatedPath, selectColumns);
-            } catch (error) {
-                throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
@@ -804,10 +821,11 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                const connectionId = connectionTarget === "secondary"
-                    ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                    : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
                 if (!connectionId) {
                     const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
                     throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
