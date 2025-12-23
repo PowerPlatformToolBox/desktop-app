@@ -162,11 +162,11 @@ export async function loadMarketplace(): Promise<void> {
                     <div class="marketplace-item-name-pptb">
                         ${tool.name}
                     </div>
-                    <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
+                    <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
             </div>
             <div class="marketplace-item-description-pptb">${tool.description}</div>
-            <div class="marketplace-item-version-pptb">${tool.version}</div>
+            <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
             <div class="marketplace-item-footer-pptb">
                 ${analyticsHtml}
                 <div class="marketplace-item-actions-right">
