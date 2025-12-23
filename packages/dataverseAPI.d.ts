@@ -387,8 +387,10 @@ declare namespace DataverseAPI {
          * This is typically used when building OData queries where the collection name
          * (entity set name) is required instead of the logical table name.
          *
+         * Note: This is a utility method that applies pluralization rules and does not
+         * require an active connection to Dataverse.
+         *
          * @param entityLogicalName - The logical name of the Dataverse table (for example, "account").
-         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns The corresponding entity set name (for example, "accounts").
          *
          * @example
@@ -396,11 +398,10 @@ declare namespace DataverseAPI {
          * console.log(entitySetName); // Output: "accounts"
          *
          * @example
-         * // Multi-connection tool using secondary connection
-         * const entitySetName = await dataverseAPI.getEntitySetName('contact', 'secondary');
-         * console.log(entitySetName); // Output: "contacts"
+         * const entitySetName = await dataverseAPI.getEntitySetName('opportunity');
+         * console.log(entitySetName); // Output: "opportunities"
          */
-        getEntitySetName: (entityLogicalName: string, connectionTarget?: "primary" | "secondary") => Promise<string>;
+        getEntitySetName: (entityLogicalName: string) => Promise<string>;
     }
 }
 
