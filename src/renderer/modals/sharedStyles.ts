@@ -12,6 +12,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
     return `
 <style>
     :root {
+        /* Enable native browser theming for built-in UI elements (inputs, selects, scrollbars) to match the theme */
         color-scheme: ${isDarkTheme ? "dark" : "light"};
     }
 
