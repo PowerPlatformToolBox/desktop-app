@@ -1,3 +1,5 @@
+import { getModalStyles } from "../sharedStyles";
+
 export interface ModalViewTemplate {
     styles: string;
     body: string;
@@ -6,95 +8,12 @@ export interface ModalViewTemplate {
 /**
  * Returns the view markup (styles + body) for the select multi-connection modal BrowserWindow.
  */
-export function getSelectMultiConnectionModalView(): ModalViewTemplate {
-    const styles = `
+export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalViewTemplate {
+    const styles =
+        getModalStyles(isDarkTheme) +
+        `
 <style>
-    :root {
-        color-scheme: dark;
-    }
-
-    * {
-        box-sizing: border-box;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: #f3f3f3;
-    }
-
-    .modal-panel {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        padding: 24px;
-        background: #1f1f23;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-    }
-
-    .modal-eyebrow {
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.6);
-        margin: 0;
-    }
-
-    .modal-header h3 {
-        margin: 4px 0 0;
-        font-size: 20px;
-        font-weight: 600;
-    }
-
-    .icon-button {
-        background: rgba(255, 255, 255, 0.08);
-        border: none;
-        color: #fff;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 1;
-    }
-
-    .icon-button:hover {
-        background: rgba(255, 255, 255, 0.18);
-    }
-
-    .modal-body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .info-message {
-        padding: 12px;
-        border-radius: 8px;
-        background: rgba(14, 99, 156, 0.12);
-        border: 1px solid rgba(14, 99, 156, 0.3);
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 13px;
-        line-height: 1.5;
-        margin-bottom: 16px;
-    }
-
+    /* Additional styles specific to multi-connection modal */
     .connections-container {
         display: flex;
         gap: 16px;
