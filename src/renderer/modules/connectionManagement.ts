@@ -574,7 +574,7 @@ export async function loadConnections(): Promise<void> {
                                 ? '<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>'
                                 : '<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
                         }
-                        <button class="fluent-button fluent-button-secondary" data-action="edit" data-connection-id="${conn.id}">Edit</button>
+                        <button class="fluent-button fluent-button-secondary" data-action="edit" data-connection-id="${conn.id}" title="Edit connection">Edit</button>
                         <button class="fluent-button fluent-button-secondary" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                     </div>
                 </div>
