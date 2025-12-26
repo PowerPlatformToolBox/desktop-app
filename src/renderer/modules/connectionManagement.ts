@@ -1028,7 +1028,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
     const connection: DataverseConnection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
