@@ -786,7 +786,7 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
                 body: "Successfully connected to the environment!",
                 type: "success",
             });
-            if (isEditMode) {
+            if (editingConnectionId !== null) {
                 await setEditConnectionTestFeedback("");
             } else {
                 await setAddConnectionTestFeedback("");
@@ -797,7 +797,7 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
                 body: result.error || "Failed to connect to the environment.",
                 type: "error",
             });
-            if (isEditMode) {
+            if (editingConnectionId !== null) {
                 await setEditConnectionTestFeedback(result.error || "Failed to connect to the environment.");
             } else {
                 await setAddConnectionTestFeedback(result.error || "Failed to connect to the environment.");
@@ -809,13 +809,13 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
             body: (error as Error).message,
             type: "error",
         });
-        if (isEditMode) {
+        if (editingConnectionId !== null) {
             await setEditConnectionTestFeedback((error as Error).message);
         } else {
             await setAddConnectionTestFeedback((error as Error).message);
         }
     } finally {
-        if (isEditMode) {
+        if (editingConnectionId !== null) {
             await signalEditConnectionTestReady();
         } else {
             await signalAddConnectionTestReady();
