@@ -870,7 +870,7 @@ function handleEditConnectionModalMessage(payload: ModalWindowMessagePayload): v
 function buildEditConnectionModalHtml(): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
-    console.log("Building edit connection modal HTML, isDarkTheme:", isDarkTheme);
+    console.debug("Building edit connection modal HTML, isDarkTheme:", isDarkTheme);
 
     const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
     const { styles, body } = getEditConnectionModalView(isDarkTheme);
