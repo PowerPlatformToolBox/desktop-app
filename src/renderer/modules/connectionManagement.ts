@@ -753,9 +753,7 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
 }
 
 async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload): Promise<void> {
-    const isEditMode = editingConnectionId !== null;
-
-    if (isEditMode) {
+    if (editingConnectionId !== null) {
         await setEditConnectionTestFeedback("");
     } else {
         await setAddConnectionTestFeedback("");
@@ -768,7 +766,7 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
             body: validationMessage,
             type: "error",
         });
-        if (isEditMode) {
+        if (editingConnectionId !== null) {
             await setEditConnectionTestFeedback(validationMessage);
             await signalEditConnectionTestReady();
         } else {
@@ -910,7 +908,7 @@ async function handlePopulateEditConnectionRequest(): Promise<void> {
 }
 
 async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): Promise<void> {
-    const validationMessage = validateConnectionPayload(formPayload, "add");
+    const validationMessage = validateConnectionPayload(formPayload, "edit");
     if (validationMessage) {
         await window.toolboxAPI.utils.showNotification({
             title: "Invalid Input",
@@ -931,9 +929,8 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         return;
     }
 
-    const updates = buildConnectionFromPayload(formPayload!, "add");
-    // Remove the ID as we're updating, not creating
-    delete (updates as any).id;
+    const updates = buildConnectionFromPayload(formPayload!, "edit");
+    updates.id = editingConnectionId; // Ensure ID remains the same
 
     try {
         await window.toolboxAPI.connections.update(editingConnectionId, updates);
@@ -999,7 +996,7 @@ export async function deleteConnection(id: string): Promise<void> {
     }
 }
 
-function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "test"): string | null {
+function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
     }
@@ -1008,7 +1005,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
-    if (mode === "add" && !sanitizeInput(formPayload.name)) {
+    if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
 
@@ -1027,13 +1024,13 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     return null;
 }
 
-function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "test"): DataverseConnection {
+function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
     const connection: DataverseConnection = {
-        id: mode === "add" ? Date.now().toString() : "test",
-        name: mode === "add" ? sanitizeInput(formPayload.name) : "Test Connection",
+        id: mode === "add" || mode === "edit" ? Date.now().toString() : "test",
+        name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
-        environment: mode === "add" ? normalizeEnvironment(formPayload.environment) : "Test",
+        environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
         authenticationType,
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
