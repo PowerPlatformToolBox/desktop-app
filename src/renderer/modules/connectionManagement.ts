@@ -25,6 +25,7 @@ type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
 
 interface ConnectionFormPayload {
+    id?: string;
     name?: string;
     url?: string;
     environment?: ConnectionEnvironment;
