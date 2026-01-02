@@ -8,6 +8,7 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+import { MachineIdManager } from "./machineIdManager";
 
 /**
  * Supabase database types
@@ -28,7 +29,7 @@ interface SupabaseContributorRow {
 interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users
 }
 
 interface SupabaseCategoryRow {
@@ -47,7 +48,7 @@ interface SupabaseContributorRow {
 interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users
 }
 
 interface SupabaseTool {
@@ -111,12 +112,14 @@ export class ToolRegistryManager extends EventEmitter {
     private supabase: SupabaseClient | null = null;
     private useLocalFallback: boolean = false;
     private localRegistryPath: string;
+    private machineIdManager: MachineIdManager | null = null;
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, machineIdManager?: MachineIdManager) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
         this.localRegistryPath = path.join(__dirname, "data", "registry.json");
+        this.machineIdManager = machineIdManager || null;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -174,7 +177,7 @@ export class ToolRegistryManager extends EventEmitter {
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
-                "tool_analytics(downloads,rating,aum)",
+                "tool_analytics(downloads,rating,mau)",
             ].join(", ");
 
             if (!this.supabase) {
@@ -197,12 +200,12 @@ export class ToolRegistryManager extends EventEmitter {
                 const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
                 let downloads: number | undefined;
                 let rating: number | undefined;
-                let aum: number | undefined;
+                let mau: number | undefined;
                 if (tool.tool_analytics) {
                     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
                     downloads = analytics?.downloads;
                     rating = analytics?.rating;
-                    aum = analytics?.aum;
+                    mau = analytics?.mau;
                 }
 
                 return {
@@ -223,7 +226,7 @@ export class ToolRegistryManager extends EventEmitter {
                     license: tool.license,
                     downloads,
                     rating,
-                    aum,
+                    mau,
                 } as ToolRegistryEntry;
             });
 
@@ -448,7 +451,7 @@ export class ToolRegistryManager extends EventEmitter {
             license: tool.license || packageJson.license,
             downloads: tool.downloads,
             rating: tool.rating,
-            aum: tool.aum,
+            mau: tool.mau,
         };
 
         // Save to manifest file
@@ -456,6 +459,11 @@ export class ToolRegistryManager extends EventEmitter {
 
         console.log(`[ToolRegistry] Tool ${toolId} installed successfully`);
         this.emit("tool:installed", manifest);
+
+        // Track the download (async, don't wait for completion)
+        this.trackToolDownload(toolId).catch((error) => {
+            console.error(`[ToolRegistry] Failed to track download asynchronously:`, error);
+        });
 
         return manifest;
     }
@@ -501,7 +509,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, aum } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau } = t as any;
                 return {
                     id,
                     name,
@@ -520,7 +528,7 @@ export class ToolRegistryManager extends EventEmitter {
                     license,
                     downloads,
                     rating,
-                    aum,
+                    mau,
                 } as ToolManifest;
             });
             return normalized;
@@ -601,5 +609,141 @@ export class ToolRegistryManager extends EventEmitter {
         this.supabase = createClient(url, key);
         this.useLocalFallback = false;
         console.log(`[ToolRegistry] Supabase client updated`);
+    }
+
+    /**
+     * Track a tool download
+     * Increments the download count for the tool in the analytics table
+     * @param toolId - The unique identifier of the tool
+     */
+    async trackToolDownload(toolId: string): Promise<void> {
+        // Skip tracking if using local fallback (no Supabase)
+        if (this.useLocalFallback || !this.supabase) {
+            console.log(`[ToolRegistry] Skipping download tracking (no Supabase connection)`);
+            return;
+        }
+
+        try {
+            console.log(`[ToolRegistry] Tracking download for tool: ${toolId}`);
+
+            // Fetch current analytics
+            const { data: existingAnalytics, error: fetchError } = await this.supabase
+                .from("tool_analytics")
+                .select("downloads")
+                .eq("tool_id", toolId)
+                .maybeSingle();
+
+            if (fetchError && fetchError.code !== "PGRST116") {
+                // PGRST116 is "no rows found" - that's okay
+                throw fetchError;
+            }
+
+            const currentDownloads = existingAnalytics?.downloads || 0;
+            const newDownloads = currentDownloads + 1;
+
+            // Upsert the analytics record
+            const { error: upsertError } = await this.supabase
+                .from("tool_analytics")
+                .upsert(
+                    {
+                        tool_id: toolId,
+                        downloads: newDownloads,
+                    },
+                    {
+                        onConflict: "tool_id",
+                    },
+                );
+
+            if (upsertError) {
+                throw upsertError;
+            }
+
+            console.log(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
+        } catch (error) {
+            // Log but don't throw - analytics failures shouldn't break tool installation
+            console.error(`[ToolRegistry] Failed to track download for ${toolId}:`, error);
+        }
+    }
+
+    /**
+     * Track tool usage for Monthly Active Users (MAU) analytics
+     * Records a unique machine-tool-month combination for MAU tracking
+     * @param toolId - The unique identifier of the tool
+     */
+    async trackToolUsage(toolId: string): Promise<void> {
+        // Skip tracking if using local fallback (no Supabase)
+        if (this.useLocalFallback || !this.supabase) {
+            console.log(`[ToolRegistry] Skipping usage tracking (no Supabase connection)`);
+            return;
+        }
+
+        // Skip if no machine ID manager available
+        if (!this.machineIdManager) {
+            console.warn(`[ToolRegistry] Skipping usage tracking (no MachineIdManager)`);
+            return;
+        }
+
+        try {
+            console.log(`[ToolRegistry] Tracking usage for tool: ${toolId}`);
+
+            // Get the machine ID
+            const machineId = this.machineIdManager.getMachineId();
+
+            // Calculate current year-month for MAU tracking
+            const now = new Date();
+            const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+            // Insert or update the usage record
+            // This table should have a unique constraint on (tool_id, machine_id, year_month)
+            const { error: usageError } = await this.supabase.from("tool_usage_tracking").upsert(
+                {
+                    tool_id: toolId,
+                    machine_id: machineId,
+                    year_month: yearMonth,
+                    last_used_at: now.toISOString(),
+                },
+                {
+                    onConflict: "tool_id,machine_id,year_month",
+                },
+            );
+
+            if (usageError) {
+                throw usageError;
+            }
+
+            // Now update the aggregated MAU count in tool_analytics
+            // Count distinct machines for this tool in the current month
+            const { count, error: countError } = await this.supabase
+                .from("tool_usage_tracking")
+                .select("*", { count: "exact", head: true })
+                .eq("tool_id", toolId)
+                .eq("year_month", yearMonth);
+
+            if (countError) {
+                throw countError;
+            }
+
+            // Update the tool_analytics table with current month's MAU
+            const { error: analyticsError } = await this.supabase
+                .from("tool_analytics")
+                .upsert(
+                    {
+                        tool_id: toolId,
+                        mau: count || 0,
+                    },
+                    {
+                        onConflict: "tool_id",
+                    },
+                );
+
+            if (analyticsError) {
+                throw analyticsError;
+            }
+
+            console.log(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
+        } catch (error) {
+            // Log but don't throw - analytics failures shouldn't break tool functionality
+            console.error(`[ToolRegistry] Failed to track usage for ${toolId}:`, error);
+        }
     }
 }

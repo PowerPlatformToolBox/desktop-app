@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import { MachineIdManager } from "./machineIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -30,10 +31,10 @@ export class ToolManager extends EventEmitter {
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, machineIdManager?: MachineIdManager) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, machineIdManager);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -88,7 +89,7 @@ export class ToolManager extends EventEmitter {
             license: manifest.license,
             downloads: manifest.downloads,
             rating: manifest.rating,
-            aum: manifest.aum,
+            mau: manifest.mau,
         };
 
         this.tools.set(tool.id, tool);
@@ -193,6 +194,14 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(toolId: string): Promise<void> {
         await this.registryManager.uninstallTool(toolId);
+    }
+
+    /**
+     * Track tool usage for analytics
+     * This should be called when a tool is launched/opened
+     */
+    async trackToolUsage(toolId: string): Promise<void> {
+        await this.registryManager.trackToolUsage(toolId);
     }
 
     // ========================================================================

@@ -29,7 +29,7 @@ export interface Tool {
     license?: string;
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users (unique machines per month)
     readmeUrl?: string;
     features?: ToolFeatures; // Tool features configuration
 }
@@ -54,7 +54,7 @@ export interface ToolRegistryEntry {
     license?: string; // SPDX or license name
     downloads?: number; // analytics - total downloads
     rating?: number; // analytics - average rating
-    aum?: number; // analytics - active user months
+    mau?: number; // analytics - Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
 }
 
@@ -78,7 +78,7 @@ export interface ToolManifest {
     license?: string;
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
 }
 

@@ -83,6 +83,6 @@ export interface ToolDetail {
     categories?: string[];
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users
     readmeUrl?: string;
 }

@@ -6,6 +6,7 @@ import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
+import { ToolManager } from "./toolsManager";
 
 /**
  * ToolWindowManager
@@ -25,6 +26,7 @@ export class ToolWindowManager {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
+    private toolManager: ToolManager;
     /**
      * Maps tool instanceId (NOT toolId) to BrowserView.
      *
@@ -46,11 +48,12 @@ export class ToolWindowManager {
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
-    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager) {
+    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
         this.mainWindow = mainWindow;
         this.browserviewProtocolManager = browserviewProtocolManager;
         this.connectionsManager = connectionsManager;
         this.settingsManager = settingsManager;
+        this.toolManager = toolManager;
         this.setupIpcHandlers();
     }
 
@@ -224,6 +227,11 @@ export class ToolWindowManager {
 
             // Show this tool instance
             await this.switchToTool(instanceId);
+
+            // Track tool usage for analytics (async, don't wait for completion)
+            this.toolManager.trackToolUsage(toolId).catch((error) => {
+                console.error(`[ToolWindowManager] Failed to track tool usage asynchronously:`, error);
+            });
 
             console.log(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
