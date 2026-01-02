@@ -81,7 +81,6 @@ export async function launchTool(toolId: string): Promise<void> {
         if (requiresMultiConnection) {
             // Tool requires two connections - always show modal for new instance
             console.log("Tool requires multi-connection. Showing multi-connection modal...");
-
             try {
                 // Show the select multi-connection modal and wait for user to select both connections
                 const result = await openSelectMultiConnectionModal();
@@ -101,13 +100,11 @@ export async function launchTool(toolId: string): Promise<void> {
         } else {
             // Regular single-connection flow - always show modal for new instance
             console.log("Showing connection selection modal for new instance...");
-
             try {
                 // Show the select connection modal and wait for user to connect
                 // Show connection selection modal and get selected connectionId
                 const selectedConnectionId = await openSelectConnectionModal();
                 console.log("Connection established. Continuing with tool launch...");
-
                 if (selectedConnectionId) {
                     primaryConnectionId = selectedConnectionId;
                 } else {
@@ -648,7 +645,6 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
-
     if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
         // Tool has both primary and secondary connections
         const connections = await window.toolboxAPI.connections.getAll();
@@ -676,7 +672,6 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         // Tool has a single connection
         const connections = await window.toolboxAPI.connections.getAll();
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
-
         if (toolConnection) {
             // Check if token is expired
             let isExpired = false;
@@ -685,7 +680,6 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 const now = new Date();
                 isExpired = expiryDate.getTime() <= now.getTime();
             }
-
             // Format: "ToolName is connected to: ConnectionName"
             if (isExpired) {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
@@ -694,13 +688,11 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
                 statusElement.className = "connection-status connected";
             }
-
             // Update tool panel border based on environment
             updateToolPanelBorder(toolConnection.environment);
             return;
         }
     }
-
     // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
@@ -780,7 +772,6 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //     const currentConnectionId = currentTool?.connectionId;
 
 //     let menuHtml = `<div class="context-menu-header">Connection for ${currentTool?.tool.name || "Tool"}</div>`;
-
 //     // Add "Use Global Connection" option
 //     menuHtml += `
 //         <div class="context-menu-item ${!currentConnectionId ? "active" : ""}" data-action="use-global">
@@ -816,7 +807,6 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //         item.addEventListener("click", async (e) => {
 //             const target = e.currentTarget as HTMLElement;
 //             const action = target.getAttribute("data-action");
-
 //             if (action === "use-global") {
 //                 await setToolConnection(toolId, null);
 //             } else if (action === "set-connection") {
@@ -825,7 +815,6 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //                     await setToolConnection(toolId, connectionId);
 //                 }
 //             }
-
 //             menu.remove();
 //         });
 //     });
@@ -837,7 +826,6 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 //             document.removeEventListener("click", closeMenu);
 //         }
 //     };
-
 //     // Add click listener after a small delay to prevent immediate closing
 //     setTimeout(() => {
 //         document.addEventListener("click", closeMenu);

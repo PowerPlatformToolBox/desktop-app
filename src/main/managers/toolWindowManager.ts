@@ -504,7 +504,7 @@ export class ToolWindowManager {
         };
 
         toolView.webContents.send("toolbox:context", updatedContext);
-        
+
         // Emit connection:updated event to the tool AFTER context is updated
         // This allows the tool's event handler to call getActiveConnection() and get the updated connection
         const eventPayload = {
@@ -513,7 +513,7 @@ export class ToolWindowManager {
             timestamp: new Date().toISOString(),
         };
         toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
-        
+
         console.log(`[ToolWindowManager] Updated connection for tool instance ${instanceId}:`, { primaryConnectionId, secondaryConnectionId });
     }
 

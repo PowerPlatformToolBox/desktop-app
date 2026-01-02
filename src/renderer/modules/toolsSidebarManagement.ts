@@ -4,6 +4,7 @@
  */
 
 import { ToolDetail } from "../types/index";
+import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace } from "./marketplaceManagement";
 import { launchTool } from "./toolManagement";
 
@@ -95,6 +96,7 @@ export async function loadSidebarTools(): Promise<void> {
                 // Asset paths
                 const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
                 const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
+                const infoIconPath = "icons/light/info_16_filled.svg";
 
                 const hasUpdate = !!tool.hasUpdate;
                 const latestVersion = tool.latestVersion;
@@ -102,13 +104,27 @@ export async function loadSidebarTools(): Promise<void> {
                 const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
                 const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
-                const analyticsHtml = `<div class="tool-analytics-left">${tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}${
-                    tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""
-                }${tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}</div>`;
+
+                // Get tool source icon
+                const sourceIconHtml = getToolSourceIconHtml(tool.id);
+
+                // Determine tool source
+                let toolSourceClass = "";
+                if (tool.id.startsWith("local-")) {
+                    toolSourceClass = "tool-item-pptb-local";
+                } else if (tool.id.startsWith("npm-")) {
+                    toolSourceClass = "tool-item-pptb-npm";
+                }
+
+                const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${
+                    tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""
+                }${tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}${
+                    tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""
+                }</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
                 return `
-                    <div class="tool-item-pptb" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb ${toolSourceClass}" data-tool-id="${tool.id}">
                         <div class="tool-item-top-tags">${categoriesHtml}</div>
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
@@ -117,7 +133,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <div class="tool-item-name-pptb">
                                         ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
-                                    <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                                    <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
                             </div>
                             <div class="tool-item-header-right-pptb">
@@ -127,6 +143,15 @@ export async function loadSidebarTools(): Promise<void> {
                             </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
+                        <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                        ${
+                            hasUpdate && latestVersion
+                                ? `<div class="tool-item-updated-version-available-pptb">
+                                        <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
+                                        <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
+                                    </div>`
+                                : ""
+                        }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
                             <div class="tool-item-actions-right">
@@ -137,7 +162,7 @@ export async function loadSidebarTools(): Promise<void> {
                         </div>
                         ${
                             hasUpdate && latestVersion
-                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-secondary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
+                                ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
                                 : ""
                         }
                     </div>`;
