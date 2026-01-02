@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { SettingsManager } from "./settingsManager";
 
 /**
@@ -30,8 +31,8 @@ export class MachineIdManager {
             return this.machineId;
         }
 
-        // Generate new machine ID using crypto.randomUUID (Node 18+)
-        this.machineId = crypto.randomUUID();
+        // Generate new machine ID using randomUUID from crypto module (Node 18+)
+        this.machineId = randomUUID();
         this.settingsManager.setSetting("machineId", this.machineId);
         console.log("[MachineId] Generated new machine ID");
 
