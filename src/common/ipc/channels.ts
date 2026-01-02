@@ -129,6 +129,7 @@ export const DATAVERSE_CHANNELS = {
     QUERY_DATA: "dataverse.queryData",
     CREATE_MULTIPLE: "dataverse.createMultiple",
     UPDATE_MULTIPLE: "dataverse.updateMultiple",
+    GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
 } as const;
 
 // Event-related IPC channels (from main to renderer)
