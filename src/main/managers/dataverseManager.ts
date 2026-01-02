@@ -504,7 +504,7 @@ export class DataverseManager {
         const primaryKey = `${entityLogicalName}id`;
         const recordsWithoutId = records.filter((record) => !record[primaryKey]);
         if (recordsWithoutId.length > 0) {
-            throw new Error(`All records must contain the primary key field '${primaryKey}' for update operations`);
+            throw new Error(`All records must contain the primary key field '${primaryKey}' for update operations. ${recordsWithoutId.length} of ${records.length} record(s) are missing this field.`);
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
