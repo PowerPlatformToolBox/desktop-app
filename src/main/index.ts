@@ -835,8 +835,15 @@ class ToolBoxApp {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }
         });
-    }
 
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, (event, entityLogicalName: string) => {
+            try {
+                return this.dataverseManager.getEntitySetName(entityLogicalName);
+            } catch (error) {
+                throw new Error(`Dataverse getEntitySetName failed: ${(error as Error).message}`);
+            }
+        });
+    }
     /**
      * Create application menu
      */
