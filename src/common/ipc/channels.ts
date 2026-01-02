@@ -127,6 +127,8 @@ export const DATAVERSE_CHANNELS = {
     GET_ENTITY_RELATED_METADATA: "dataverse.getEntityRelatedMetadata",
     GET_SOLUTIONS: "dataverse.getSolutions",
     QUERY_DATA: "dataverse.queryData",
+    CREATE_MULTIPLE: "dataverse.createMultiple",
+    UPDATE_MULTIPLE: "dataverse.updateMultiple",
     GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
 } as const;
 

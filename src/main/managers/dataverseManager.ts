@@ -479,4 +479,49 @@ export class DataverseManager {
         const match = url.match(/\(([a-f0-9-]+)\)/i);
         return match ? match[1] : url;
     }
+
+    /** Create multiple records in Dataverse */
+    async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
+        if (!records || records.length === 0) {
+            throw new Error("records parameter is required and must contain at least one record");
+        }
+
+        // Validate that each record has the required @odata.type property
+        const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
+        if (recordsWithoutODataType.length > 0) {
+            throw new Error(`All records must contain the "@odata.type" property for create operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
+        const response = await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+        const responseData = response.data as Record<string, unknown>;
+        return responseData.Ids as string[];
+    }
+
+    /** Update multiple records in Dataverse */
+    async updateMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<void> {
+        if (!records || records.length === 0) {
+            throw new Error("records parameter is required and must contain at least one record");
+        }
+
+        // Validate that each record has an ID field (required for updates)
+        const primaryKey = `${entityLogicalName}id`;
+        const recordsWithoutId = records.filter((record) => !record[primaryKey]);
+        if (recordsWithoutId.length > 0) {
+            throw new Error(`All records must contain the primary key field '${primaryKey}' for update operations. ${recordsWithoutId.length} of ${records.length} record(s) are missing this field.`);
+        }
+
+        // Validate that each record has the required @odata.type property
+        const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
+        if (recordsWithoutODataType.length > 0) {
+            throw new Error(`All records must contain the "@odata.type" property for update operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
+        await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+    }
 }
