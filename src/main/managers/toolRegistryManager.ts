@@ -29,7 +29,7 @@ interface SupabaseContributorRow {
 interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users
 }
 
 interface SupabaseCategoryRow {
@@ -48,7 +48,7 @@ interface SupabaseContributorRow {
 interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
-    aum?: number;
+    mau?: number; // Monthly Active Users
 }
 
 interface SupabaseTool {
@@ -177,7 +177,7 @@ export class ToolRegistryManager extends EventEmitter {
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
-                "tool_analytics(downloads,rating,aum)",
+                "tool_analytics(downloads,rating,mau)",
             ].join(", ");
 
             if (!this.supabase) {
@@ -200,12 +200,12 @@ export class ToolRegistryManager extends EventEmitter {
                 const contributors = (tool.tool_contributors || []).map((row) => row.contributors?.name?.trim()).filter((n): n is string => !!n);
                 let downloads: number | undefined;
                 let rating: number | undefined;
-                let aum: number | undefined;
+                let mau: number | undefined;
                 if (tool.tool_analytics) {
                     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
                     downloads = analytics?.downloads;
                     rating = analytics?.rating;
-                    aum = analytics?.aum;
+                    mau = analytics?.mau;
                 }
 
                 return {
@@ -226,7 +226,7 @@ export class ToolRegistryManager extends EventEmitter {
                     license: tool.license,
                     downloads,
                     rating,
-                    aum,
+                    mau,
                 } as ToolRegistryEntry;
             });
 
@@ -451,7 +451,7 @@ export class ToolRegistryManager extends EventEmitter {
             license: tool.license || packageJson.license,
             downloads: tool.downloads,
             rating: tool.rating,
-            aum: tool.aum,
+            mau: tool.mau,
         };
 
         // Save to manifest file
@@ -509,7 +509,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, aum } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau } = t as any;
                 return {
                     id,
                     name,
@@ -528,7 +528,7 @@ export class ToolRegistryManager extends EventEmitter {
                     license,
                     downloads,
                     rating,
-                    aum,
+                    mau,
                 } as ToolManifest;
             });
             return normalized;
@@ -666,7 +666,7 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
-     * Track tool usage for Active User Month (AUM) analytics
+     * Track tool usage for Monthly Active Users (MAU) analytics
      * Records a unique machine-tool-month combination for MAU tracking
      * @param toolId - The unique identifier of the tool
      */
@@ -711,7 +711,7 @@ export class ToolRegistryManager extends EventEmitter {
                 throw usageError;
             }
 
-            // Now update the aggregated AUM count in tool_analytics
+            // Now update the aggregated MAU count in tool_analytics
             // Count distinct machines for this tool in the current month
             const { count, error: countError } = await this.supabase
                 .from("tool_usage_tracking")
@@ -723,13 +723,13 @@ export class ToolRegistryManager extends EventEmitter {
                 throw countError;
             }
 
-            // Update the tool_analytics table with current month's AUM
+            // Update the tool_analytics table with current month's MAU
             const { error: analyticsError } = await this.supabase
                 .from("tool_analytics")
                 .upsert(
                     {
                         tool_id: toolId,
-                        aum: count || 0,
+                        mau: count || 0,
                     },
                     {
                         onConflict: "tool_id",

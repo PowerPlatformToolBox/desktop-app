@@ -104,7 +104,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
                 const analyticsHtml = `<div class="tool-analytics-left">${tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}${
                     tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""
-                }${tool.aum !== undefined ? `<span class="tool-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}</div>`;
+                }${tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
                 return `

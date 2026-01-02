@@ -89,7 +89,7 @@ export class ToolManager extends EventEmitter {
             license: manifest.license,
             downloads: manifest.downloads,
             rating: manifest.rating,
-            aum: manifest.aum,
+            mau: manifest.mau,
         };
 
         this.tools.set(tool.id, tool);

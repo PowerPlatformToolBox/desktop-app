@@ -65,7 +65,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     icon: tool.iconUrl,
                     downloads: tool.downloads,
                     rating: tool.rating,
-                    aum: tool.aum,
+                    mau: tool.mau,
                     readmeUrl: tool.readmeUrl,
                 } as ToolDetail),
         );
@@ -136,7 +136,7 @@ export async function loadMarketplace(): Promise<void> {
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
                 ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
-                ${tool.aum !== undefined ? `<span class="marketplace-metric" title="Active User Months">👥 ${tool.aum}</span>` : ""}
+                ${tool.mau !== undefined ? `<span class="marketplace-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}
             </div>`;
             const authorsDisplay = tool.authors && tool.authors.length ? tool.authors.join(", ") : "";
 

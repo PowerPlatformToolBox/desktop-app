@@ -6,7 +6,7 @@ This document describes the Supabase database schema required for tool analytics
 
 Tool analytics tracks two key metrics:
 1. **Downloads**: Total number of times a tool has been downloaded from the marketplace
-2. **AUM (Active User Months)**: Number of unique machines that used the tool in the current month
+2. **MAU (Monthly Active Users)**: Number of unique machines that used the tool in the current month
 
 ## Database Tables
 
@@ -19,7 +19,7 @@ CREATE TABLE tool_analytics (
     tool_id TEXT PRIMARY KEY REFERENCES tools(id) ON DELETE CASCADE,
     downloads INTEGER DEFAULT 0,
     rating NUMERIC(3, 2),  -- Average rating (e.g., 4.50)
-    aum INTEGER DEFAULT 0,  -- Active User Months (current month's unique machines)
+    mau INTEGER DEFAULT 0,  -- Monthly Active Users (current month's unique machines)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -29,7 +29,7 @@ CREATE TABLE tool_analytics (
 - `tool_id`: Foreign key to the `tools` table
 - `downloads`: Total number of downloads (incremented on each install)
 - `rating`: Average rating (managed elsewhere, not by this implementation)
-- `aum`: Current month's active user count (unique machines)
+- `mau`: Current month's active user count (unique machines)
 - `created_at`: When the record was first created
 - `updated_at`: When the record was last updated
 
@@ -127,7 +127,7 @@ USING (true);
    - Increments the count by 1
    - Upserts the record in `tool_analytics`
 
-### Usage Tracking (AUM)
+### Usage Tracking (MAU)
 
 1. User launches a tool (opens it in a tool window)
 2. `ToolWindowManager.launchTool()` completes successfully
@@ -137,7 +137,7 @@ USING (true);
    - Calculates current year-month (e.g., "2025-01")
    - Upserts a record in `tool_usage_tracking` for this tool-machine-month
    - Counts distinct machines for this tool in the current month
-   - Updates the `aum` field in `tool_analytics` with the current count
+   - Updates the `mau` field in `tool_analytics` with the current count
 
 ## Privacy Considerations
 
@@ -163,7 +163,7 @@ The implementation is designed with privacy in mind:
 
 ## Maintenance
 
-### Monthly AUM Cleanup
+### Monthly MAU Cleanup
 
 Consider implementing a periodic cleanup job to remove old usage tracking data:
 
@@ -185,7 +185,7 @@ CREATE TABLE tool_analytics_history (
     tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
     year_month TEXT NOT NULL,
     downloads INTEGER DEFAULT 0,
-    aum INTEGER DEFAULT 0,
+    mau INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(tool_id, year_month)
 );
@@ -202,7 +202,7 @@ To test the analytics implementation:
 3. Build and run the application
 4. Install a tool from the marketplace → Check `tool_analytics.downloads` increments
 5. Launch the tool → Check `tool_usage_tracking` has a new record
-6. Verify `tool_analytics.aum` reflects the unique machine count
+6. Verify `tool_analytics.mau` reflects the unique machine count
 
 ## Security Notes
 

@@ -6,7 +6,7 @@ This guide helps maintainers deploy the tool analytics tracking feature.
 
 Tool analytics tracking for:
 - **Downloads**: Count each time a tool is installed from marketplace
-- **AUM (Active User Months)**: Count unique machines using each tool per month
+- **MAU (Monthly Active Users)**: Count unique machines using each tool per month
 
 ## Step 1: Create Supabase Tables
 
@@ -18,7 +18,7 @@ CREATE TABLE tool_analytics (
     tool_id TEXT PRIMARY KEY REFERENCES tools(id) ON DELETE CASCADE,
     downloads INTEGER DEFAULT 0,
     rating NUMERIC(3, 2),
-    aum INTEGER DEFAULT 0,
+    mau INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -114,7 +114,7 @@ The app will now track analytics automatically.
 4. Check Supabase: `SELECT * FROM tool_analytics;`
 5. Verify `downloads` column incremented
 
-### Test AUM Tracking:
+### Test MAU Tracking:
 1. Launch the installed tool (click to open)
 2. Check Supabase: `SELECT * FROM tool_usage_tracking;`
 3. Verify a new record exists with:
@@ -122,7 +122,7 @@ The app will now track analytics automatically.
    - A machine_id (UUID)
    - Current year_month (e.g., "2025-01")
 4. Check Supabase: `SELECT * FROM tool_analytics;`
-5. Verify `aum` column is 1 (first machine this month)
+5. Verify `mau` column is 1 (first machine this month)
 
 ### Test Duplicate Prevention:
 1. Launch the same tool again
@@ -154,7 +154,7 @@ WHERE year_month = TO_CHAR(NOW(), 'YYYY-MM')
 GROUP BY tool_id;
 
 -- Most popular tools
-SELECT t.name, ta.downloads, ta.aum
+SELECT t.name, ta.downloads, ta.mau
 FROM tools t
 LEFT JOIN tool_analytics ta ON t.id = ta.tool_id
 ORDER BY ta.downloads DESC;
@@ -168,7 +168,7 @@ ORDER BY ta.downloads DESC;
 - Check RLS policies allow INSERT on tool_analytics
 - Verify tool installation completes successfully
 
-### AUM not updating?
+### MAU not updating?
 - Check console logs for "[ToolRegistry] Tracking usage"
 - Verify tool_usage_tracking table exists
 - Check RLS policies allow INSERT on tool_usage_tracking

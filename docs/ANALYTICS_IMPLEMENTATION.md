@@ -4,7 +4,7 @@
 
 This implementation adds tool analytics tracking to Power Platform Tool Box, enabling tracking of:
 1. **Tool Downloads** - Count of installations from the marketplace
-2. **Active User Months (AUM)** - Unique machines using each tool per month
+2. **Monthly Active Users (MAU)** - Unique machines using each tool per month
 
 ## Architecture
 
@@ -23,7 +23,7 @@ User Action → Desktop App → Supabase Database
     ↓              ↓              ↓
 Install Tool → trackDownload() → tool_analytics
 Launch Tool  → trackUsage()    → tool_usage_tracking
-                                → tool_analytics (aum)
+                                → tool_analytics (mau)
 ```
 
 ## Implementation Details
@@ -60,7 +60,7 @@ class MachineIdManager {
 - Failures are logged but don't break installation
 - Gracefully handles missing Supabase credentials (local-only mode)
 
-### 3. Usage Tracking (AUM)
+### 3. Usage Tracking (MAU)
 
 **Location:** `src/main/managers/toolRegistryManager.ts`
 
@@ -73,11 +73,11 @@ class MachineIdManager {
 4. Calculates current year-month (e.g., "2025-01")
 5. Upserts record in `tool_usage_tracking` table (unique constraint prevents duplicates)
 6. Counts distinct machines for this tool in current month
-7. Updates `aum` field in `tool_analytics` table
+7. Updates `mau` field in `tool_analytics` table
 
 **Key Features:**
 - Only counts each machine once per month per tool
-- Automatically updates aggregate AUM count
+- Automatically updates aggregate MAU count
 - Historical data preserved in `tool_usage_tracking` table
 
 ### 4. Integration Points
@@ -112,7 +112,7 @@ CREATE TABLE tool_analytics (
     tool_id TEXT PRIMARY KEY,
     downloads INTEGER DEFAULT 0,
     rating NUMERIC(3, 2),
-    aum INTEGER DEFAULT 0,
+    mau INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -192,11 +192,11 @@ See `docs/ANALYTICS_SCHEMA.md` for complete RLS policy definitions.
    # Check Supabase: tool_analytics.downloads should increment
    ```
 
-3. **Test AUM Tracking:**
+3. **Test MAU Tracking:**
    ```bash
    # Launch the installed tool
    # Check Supabase: tool_usage_tracking should have new record
-   # Check Supabase: tool_analytics.aum should be 1 (first machine this month)
+   # Check Supabase: tool_analytics.mau should be 1 (first machine this month)
    ```
 
 4. **Test Duplicate Prevention:**
@@ -212,8 +212,8 @@ See `docs/ANALYTICS_SCHEMA.md` for complete RLS policy definitions.
 -- Check download counts
 SELECT tool_id, downloads FROM tool_analytics;
 
--- Check AUM for current month
-SELECT tool_id, aum FROM tool_analytics;
+-- Check MAU for current month
+SELECT tool_id, mau FROM tool_analytics;
 
 -- Check unique machines per tool
 SELECT tool_id, COUNT(DISTINCT machine_id) as unique_machines
@@ -236,7 +236,7 @@ SELECT COUNT(DISTINCT (tool_id, machine_id, year_month)) FROM tool_usage_trackin
 - [ ] Set `SUPABASE_ANON_KEY` in build environment
 - [ ] Build application with environment variables
 - [ ] Test download tracking
-- [ ] Test AUM tracking
+- [ ] Test MAU tracking
 - [ ] Monitor Supabase logs for errors
 - [ ] Set up periodic cleanup job (optional)
 
@@ -267,10 +267,10 @@ ORDER BY ta.downloads DESC
 LIMIT 10;
 
 -- Most active tools by MAU
-SELECT t.name, ta.aum
+SELECT t.name, ta.mau
 FROM tools t
 JOIN tool_analytics ta ON t.id = ta.tool_id
-ORDER BY ta.aum DESC
+ORDER BY ta.mau DESC
 LIMIT 10;
 
 -- Usage trends over time (requires historical tracking)
@@ -322,7 +322,7 @@ echo $SUPABASE_ANON_KEY
 # Check RLS policies in Supabase dashboard
 ```
 
-### Issue: AUM not updating
+### Issue: MAU not updating
 
 **Possible causes:**
 1. Machine ID not generated
