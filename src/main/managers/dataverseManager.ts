@@ -482,6 +482,10 @@ export class DataverseManager {
 
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
+        if (!records || records.length === 0) {
+            throw new Error("records parameter is required and must contain at least one record");
+        }
+
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
@@ -492,6 +496,17 @@ export class DataverseManager {
 
     /** Update multiple records in Dataverse */
     async updateMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<void> {
+        if (!records || records.length === 0) {
+            throw new Error("records parameter is required and must contain at least one record");
+        }
+
+        // Validate that each record has an ID field (required for updates)
+        const primaryKey = `${entityLogicalName}id`;
+        const recordsWithoutId = records.filter((record) => !record[primaryKey]);
+        if (recordsWithoutId.length > 0) {
+            throw new Error(`All records must contain the primary key field '${primaryKey}' for update operations`);
+        }
+
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
