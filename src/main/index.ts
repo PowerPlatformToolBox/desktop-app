@@ -867,7 +867,6 @@ class ToolBoxApp {
                 throw new Error(`Dataverse updateMultiple failed: ${(error as Error).message}`);
             }
         });
-    }
 
         ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, (event, entityLogicalName: string) => {
             try {
