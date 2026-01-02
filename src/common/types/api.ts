@@ -78,7 +78,7 @@ export interface DataverseAPI {
     getAllEntitiesMetadata: () => Promise<unknown>;
     queryData: (odataQuery: string) => Promise<unknown>;
     createMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<string[]>;
-    updateMultiple: (entityLogicalName: string, records:  Record<string, unknown>[]) => Promise<void>;
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<void>;
 }
 
 /**

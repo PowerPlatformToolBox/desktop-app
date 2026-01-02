@@ -214,7 +214,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
         createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => 
             ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
-        updateMultiple: (entityLogicalName: string, records:  Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => 
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => 
             ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
     },
 });
