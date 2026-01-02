@@ -1,22 +1,22 @@
 {
-  "name": "@pptb/types",
-  "version": "1.0.11",
-  "description": "TypeScript type definitions for Power Platform Tool Box API",
-  "main": "index.d.ts",
-  "types": "index.d.ts",
-  "keywords": [
-    "powerplatform",
-    "pptb",
-    "toolbox",
-    "types",
-    "typescript",
-    "dataverse"
-  ],
-  "author": "Power Platform Tool Box",
-  "license": "GPL-3.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
-    "directory": "packages"
-  }
+    "name": "@pptb/types",
+    "version": "1.0.12",
+    "description": "TypeScript type definitions for Power Platform Tool Box API",
+    "main": "index.d.ts",
+    "types": "index.d.ts",
+    "keywords": [
+        "powerplatform",
+        "pptb",
+        "toolbox",
+        "types",
+        "typescript",
+        "dataverse"
+    ],
+    "author": "Power Platform Tool Box",
+    "license": "GPL-3.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
+        "directory": "packages"
+    }
 }

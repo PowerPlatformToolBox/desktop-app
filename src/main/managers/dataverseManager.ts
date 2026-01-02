@@ -479,4 +479,22 @@ export class DataverseManager {
         const match = url.match(/\(([a-f0-9-]+)\)/i);
         return match ? match[1] : url;
     }
+
+    /** Create multiple records in Dataverse */
+    async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
+        const response = await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+        const responseData = response.data as Record<string, unknown>;
+        return responseData.Ids as string[];
+    }
+
+    /** Update multiple records in Dataverse */
+    async updateMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const entitySetName = this.getEntitySetName(entityLogicalName);
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
+        await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+    }
 }

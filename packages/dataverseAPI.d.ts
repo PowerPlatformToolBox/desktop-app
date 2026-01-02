@@ -380,6 +380,36 @@ declare namespace DataverseAPI {
          * const result = await dataverseAPI.queryData('$filter=statecode eq 0', 'secondary');
          */
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
+
+        /**
+         * Create multiple records in Dataverse
+         *
+         * @param entityLogicalName - Logical name of the entity (e.g., 'account', 'contact')
+         * @param records - Array of record data to create, including the "@odata.type" property for each record
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Array of strings representing the created record IDs
+         *
+         * @example
+         * const results = await dataverseAPI.createMultiple('account', [
+         *     { name: 'Contoso Ltd', "@odata.type": "Microsoft.Dynamics.CRM.account" },
+         *     { name: 'Fabrikam Inc', "@odata.type": "Microsoft.Dynamics.CRM.account" }
+         * ]);
+         */
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<string[]>;
+
+        /**
+         * Update multiple records in Dataverse
+         * @param entityLogicalName - Logical name of the entity
+         * @param records - Array of record data to update, each including the "id" property and the "odata.type" property
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * await dataverseAPI.updateMultiple('account', [
+         *     { accountid: 'guid-1', name: 'Updated Name 1', "@odata.type": "Microsoft.Dynamics.CRM.account" },
+         *     { accountid: 'guid-2', name: 'Updated Name 2', "@odata.type": "Microsoft.Dynamics.CRM.account" }
+         * ]);
+         */
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<void>;
     }
 }
 
