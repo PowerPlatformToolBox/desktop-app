@@ -655,13 +655,15 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
-            statusElement.className = "connection-status connected";
+            const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
+            statusElement.className = `connection-status connected ${primaryEnvClass}`;
 
             // Display secondary connection on the right
             if (secondaryStatusElement) {
                 const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
                 secondaryStatusElement.textContent = secondaryText;
-                secondaryStatusElement.classList.add("connected", "visible");
+                const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
+                secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
             }
 
             // Update tool panel border based on both primary and secondary environment
@@ -680,13 +682,14 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 const now = new Date();
                 isExpired = expiryDate.getTime() <= now.getTime();
             }
+            const envClass = `env-${toolConnection.environment.toLowerCase()}`;
             // Format: "ToolName is connected to: ConnectionName"
             if (isExpired) {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
-                statusElement.className = "connection-status expired";
+                statusElement.className = `connection-status expired ${envClass}`;
             } else {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
-                statusElement.className = "connection-status connected";
+                statusElement.className = `connection-status connected ${envClass}`;
             }
             // Update tool panel border based on environment
             updateToolPanelBorder(toolConnection.environment);
