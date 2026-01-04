@@ -85,4 +85,5 @@ export interface ToolDetail {
     rating?: number;
     mau?: number; // Monthly Active Users
     readmeUrl?: string;
+    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
 }

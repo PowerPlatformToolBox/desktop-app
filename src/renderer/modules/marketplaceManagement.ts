@@ -67,6 +67,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     rating: tool.rating,
                     mau: tool.mau,
                     readmeUrl: tool.readmeUrl,
+                    status: tool.status,
                 } as ToolDetail),
         );
 
@@ -133,6 +134,8 @@ export async function loadMarketplace(): Promise<void> {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
             const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+            const isDeprecated = tool.status === "deprecated";
+            const deprecatedBadgeHtml = isDeprecated ? '<span class="marketplace-item-deprecated-badge">Deprecated</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
                 ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
@@ -154,8 +157,8 @@ export async function loadMarketplace(): Promise<void> {
             }
 
             return `
-        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""}" data-tool-id="${tool.id}">
-            <div class="marketplace-item-top-tags">${categoriesHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}</div>
+        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+            <div class="marketplace-item-top-tags">${categoriesHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}${deprecatedBadgeHtml}</div>
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">

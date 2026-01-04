@@ -66,6 +66,7 @@ interface SupabaseTool {
     csp_exceptions?: unknown;
     features?: unknown; // JSON column for tool features
     license?: string;
+    status?: string; // Tool lifecycle status: active, deprecated, archived
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -100,6 +101,7 @@ interface LocalRegistryTool {
     license?: string;
     cspExceptions?: CspExceptions;
     features?: Record<string, unknown>;
+    status?: string; // Tool lifecycle status: active, deprecated, archived
 }
 
 /**
@@ -174,6 +176,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "license",
                 "csp_exceptions",
                 "features",
+                "status",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
@@ -183,7 +186,7 @@ export class ToolRegistryManager extends EventEmitter {
             if (!this.supabase) {
                 throw new Error("Supabase client is not initialized");
             }
-            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).order("name", { ascending: true });
+            const { data: toolsData, error } = await this.supabase.from("tools").select(selectColumns).in("status", ["active", "deprecated"]).order("name", { ascending: true });
 
             if (error) {
                 throw new Error(`Supabase query failed: ${error.message}`);
@@ -227,6 +230,7 @@ export class ToolRegistryManager extends EventEmitter {
                     downloads,
                     rating,
                     mau,
+                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 } as ToolRegistryEntry;
             });
 
@@ -258,23 +262,26 @@ export class ToolRegistryManager extends EventEmitter {
                 return [];
             }
 
-            const tools: ToolRegistryEntry[] = registryData.tools.map((tool) => ({
-                id: tool.id,
-                name: tool.name,
-                description: tool.description,
-                authors: tool.authors,
-                version: tool.version,
-                icon: tool.icon,
-                downloadUrl: tool.downloadUrl,
-                checksum: tool.checksum,
-                size: tool.size,
-                publishedAt: tool.publishedAt || new Date().toISOString(),
-                tags: tool.tags,
-                readme: tool.readme,
-                cspExceptions: tool.cspExceptions,
-                features: tool.features,
-                license: tool.license,
-            }));
+            const tools: ToolRegistryEntry[] = registryData.tools
+                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+                .map((tool) => ({
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    authors: tool.authors,
+                    version: tool.version,
+                    icon: tool.icon,
+                    downloadUrl: tool.downloadUrl,
+                    checksum: tool.checksum,
+                    size: tool.size,
+                    publishedAt: tool.publishedAt || new Date().toISOString(),
+                    tags: tool.tags,
+                    readme: tool.readme,
+                    cspExceptions: tool.cspExceptions,
+                    features: tool.features,
+                    license: tool.license,
+                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                }));
 
             console.log(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
@@ -452,6 +459,7 @@ export class ToolRegistryManager extends EventEmitter {
             downloads: tool.downloads,
             rating: tool.rating,
             mau: tool.mau,
+            status: tool.status,
         };
 
         // Save to manifest file
@@ -509,7 +517,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau, status } = t as any;
                 return {
                     id,
                     name,
@@ -529,6 +537,7 @@ export class ToolRegistryManager extends EventEmitter {
                     downloads,
                     rating,
                     mau,
+                    status,
                 } as ToolManifest;
             });
             return normalized;
@@ -627,11 +636,7 @@ export class ToolRegistryManager extends EventEmitter {
             console.log(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
             // Fetch current analytics
-            const { data: existingAnalytics, error: fetchError } = await this.supabase
-                .from("tool_analytics")
-                .select("downloads")
-                .eq("tool_id", toolId)
-                .maybeSingle();
+            const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
 
             if (fetchError && fetchError.code !== "PGRST116") {
                 // PGRST116 is "no rows found" - that's okay
@@ -642,17 +647,15 @@ export class ToolRegistryManager extends EventEmitter {
             const newDownloads = currentDownloads + 1;
 
             // Upsert the analytics record
-            const { error: upsertError } = await this.supabase
-                .from("tool_analytics")
-                .upsert(
-                    {
-                        tool_id: toolId,
-                        downloads: newDownloads,
-                    },
-                    {
-                        onConflict: "tool_id",
-                    },
-                );
+            const { error: upsertError } = await this.supabase.from("tool_analytics").upsert(
+                {
+                    tool_id: toolId,
+                    downloads: newDownloads,
+                },
+                {
+                    onConflict: "tool_id",
+                },
+            );
 
             if (upsertError) {
                 throw upsertError;
@@ -713,28 +716,22 @@ export class ToolRegistryManager extends EventEmitter {
 
             // Now update the aggregated MAU count in tool_analytics
             // Count distinct machines for this tool in the current month
-            const { count, error: countError } = await this.supabase
-                .from("tool_usage_tracking")
-                .select("*", { count: "exact", head: true })
-                .eq("tool_id", toolId)
-                .eq("year_month", yearMonth);
+            const { count, error: countError } = await this.supabase.from("tool_usage_tracking").select("*", { count: "exact", head: true }).eq("tool_id", toolId).eq("year_month", yearMonth);
 
             if (countError) {
                 throw countError;
             }
 
             // Update the tool_analytics table with current month's MAU
-            const { error: analyticsError } = await this.supabase
-                .from("tool_analytics")
-                .upsert(
-                    {
-                        tool_id: toolId,
-                        mau: count || 0,
-                    },
-                    {
-                        onConflict: "tool_id",
-                    },
-                );
+            const { error: analyticsError } = await this.supabase.from("tool_analytics").upsert(
+                {
+                    tool_id: toolId,
+                    mau: count || 0,
+                },
+                {
+                    onConflict: "tool_id",
+                },
+            );
 
             if (analyticsError) {
                 throw analyticsError;

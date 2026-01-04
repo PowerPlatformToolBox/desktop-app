@@ -32,6 +32,7 @@ export interface Tool {
     mau?: number; // Monthly Active Users (unique machines per month)
     readmeUrl?: string;
     features?: ToolFeatures; // Tool features configuration
+    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
 }
 
 /**
@@ -56,6 +57,7 @@ export interface ToolRegistryEntry {
     rating?: number; // analytics - average rating
     mau?: number; // analytics - Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
+    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
 }
 
 /**
@@ -80,6 +82,7 @@ export interface ToolManifest {
     rating?: number;
     mau?: number; // Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
+    status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
 }
 
 /**

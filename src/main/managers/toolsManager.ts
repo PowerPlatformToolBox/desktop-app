@@ -90,6 +90,7 @@ export class ToolManager extends EventEmitter {
             downloads: manifest.downloads,
             rating: manifest.rating,
             mau: manifest.mau,
+            status: manifest.status,
         };
 
         this.tools.set(tool.id, tool);

@@ -91,7 +91,8 @@ body {
 
 .app-container {
     display: flex;
-    height: 100vh;
+    height: calc(100vh - var(--app-footer-height));
+    flex: 1;
 }
 
 /* Activity Bar (VSCode-like) */
@@ -102,7 +103,7 @@ body {
     @include flex-column;
     position: relative;
     z-index: $z-activity-bar;
-    height: calc(100% - var(--app-footer-height));
+    height: 100%;
 }
 
 .activity-bar-header {
@@ -927,7 +928,6 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 32px;
-    padding-bottom: 64px; /* Extra space for footer */
 }
 
 /* Empty State */
@@ -1104,7 +1104,7 @@ body {
     right: 0;
     bottom: 0;
     width: 100%;
-    height: calc(100% - var(--app-footer-height));
+    height: 100%;
     background: var(--bg-color);
 }
 
@@ -1682,6 +1682,28 @@ body {
     color: #0078d4;
     margin-left: 6px;
     animation: pulse 2s infinite;
+}
+
+.tool-deprecated-badge {
+    background: #d83b01;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+}
+
+.tool-item-pptb.deprecated {
+    border-left: 3px solid #d83b01;
+    background: rgba(216, 59, 1, 0.05);
+}
+
+.tool-item-pptb.deprecated:hover {
+    background: rgba(216, 59, 1, 0.1);
 }
 
 @keyframes pulse {
@@ -2640,6 +2662,32 @@ body.dark-theme .modern-markdown code {
 
 .marketplace-item-installed-badge::before {
     content: "✓";
+}
+
+/* Marketplace item with deprecated badge */
+.marketplace-item-deprecated-badge {
+    background: #d83b01;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.marketplace-item-deprecated-badge::before {
+    content: "⚠";
+}
+
+.marketplace-item-pptb.deprecated {
+    background: rgba(216, 59, 1, 0.05);
+    border-left: 3px solid #d83b01;
+}
+
+.marketplace-item-pptb.deprecated:hover {
+    background: rgba(216, 59, 1, 0.1);
 }
 
 .marketplace-item-pptb.installed {

@@ -101,9 +101,11 @@ export async function loadSidebarTools(): Promise<void> {
                 const hasUpdate = !!tool.hasUpdate;
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
+                const isDeprecated = tool.status === "deprecated";
                 const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
                 const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+                const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
 
                 // Get tool source icon
                 const sourceIconHtml = getToolSourceIconHtml(tool.id);
@@ -124,8 +126,8 @@ export async function loadSidebarTools(): Promise<void> {
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
                 return `
-                    <div class="tool-item-pptb ${toolSourceClass}" data-tool-id="${tool.id}">
-                        <div class="tool-item-top-tags">${categoriesHtml}</div>
+                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
