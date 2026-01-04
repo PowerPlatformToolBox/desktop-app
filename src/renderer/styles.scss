@@ -894,13 +894,11 @@ body {
 }
 
 .connection-status.connected {
-    color: #107c10;
     font-weight: 500;
 }
 
 .connection-status.connected::before {
     content: "●";
-    color: #107c10;
 }
 
 .connection-status.expired {
@@ -913,14 +911,45 @@ body {
     color: #f59e0b;
 }
 
+/* Environment-specific colors for primary connection */
+.connection-status.connected.env-dev {
+    color: var(--env-border-dev);
+}
+
+.connection-status.connected.env-dev::before {
+    color: var(--env-border-dev);
+}
+
+.connection-status.connected.env-test {
+    color: var(--env-border-test);
+}
+
+.connection-status.connected.env-test::before {
+    color: var(--env-border-test);
+}
+
+.connection-status.connected.env-uat {
+    color: var(--env-border-uat);
+}
+
+.connection-status.connected.env-uat::before {
+    color: var(--env-border-uat);
+}
+
+.connection-status.connected.env-production {
+    color: var(--env-border-prod);
+}
+
+.connection-status.connected.env-production::before {
+    color: var(--env-border-prod);
+}
+
 .secondary-connection-status.connected {
-    color: #ff8c00;
     font-weight: 500;
 }
 
 .secondary-connection-status.connected::before {
     content: "●";
-    color: #ff8c00;
 }
 
 .secondary-connection-status.expired {
@@ -931,6 +960,39 @@ body {
 .secondary-connection-status.expired::before {
     content: "⚠";
     color: #f59e0b;
+}
+
+/* Environment-specific colors for secondary connection */
+.secondary-connection-status.connected.env-dev {
+    color: var(--env-border-dev);
+}
+
+.secondary-connection-status.connected.env-dev::before {
+    color: var(--env-border-dev);
+}
+
+.secondary-connection-status.connected.env-test {
+    color: var(--env-border-test);
+}
+
+.secondary-connection-status.connected.env-test::before {
+    color: var(--env-border-test);
+}
+
+.secondary-connection-status.connected.env-uat {
+    color: var(--env-border-uat);
+}
+
+.secondary-connection-status.connected.env-uat::before {
+    color: var(--env-border-uat);
+}
+
+.secondary-connection-status.connected.env-production {
+    color: var(--env-border-prod);
+}
+
+.secondary-connection-status.connected.env-production::before {
+    color: var(--env-border-prod);
 }
 
 /* Adjust main content to account for footer */
