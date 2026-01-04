@@ -172,7 +172,6 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
         padding: 4px 10px;
         border-radius: 6px;
         font-size: 11px;
-        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
