@@ -666,31 +666,42 @@ body {
 
 .connection-env-badge {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.env-dev {
-    background-color: #e1f5fe;
-    color: #01579b;
+.connection-env-badge.env-dev {
+    background: rgba(0, 120, 212, 0.2);
+    color: #4cc2ff;
 }
 
-.env-test {
-    background-color: #fff3e0;
-    color: #e65100;
+.connection-env-badge.env-test {
+    background: rgba(255, 185, 0, 0.2);
+    color: #ffb900;
 }
 
-.env-uat {
-    background-color: #f3e5f5;
-    color: #4a148c;
+.connection-env-badge.env-uat {
+    background: rgba(255, 140, 0, 0.2);
+    color: #ff8c00;
 }
 
-.env-production {
-    background-color: #ffebee;
-    color: #b71c1c;
+.connection-env-badge.env-production {
+    background: rgba(232, 17, 35, 0.2);
+    color: #ff4343;
+}
+
+.connection-env-badge.env-sandbox {
+    background: rgba(255, 165, 0, 0.2);
+    color: #ffa500;
+}
+
+.connection-env-badge.env-development {
+    background: rgba(16, 124, 16, 0.2);
+    color: #4ade80;
 }
 
 .connection-url {
@@ -1857,43 +1868,7 @@ body {
     font-size: 13px;
 }
 
-.connection-env-pill {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-}
 
-.connection-env-pill.env-dev {
-    background: rgba(0, 120, 212, 0.2);
-    color: #4cc2ff;
-}
-
-.connection-env-pill.env-test {
-    background: rgba(255, 185, 0, 0.2);
-    color: #ffb900;
-}
-
-.connection-env-pill.env-uat {
-    background: rgba(255, 140, 0, 0.2);
-    color: #ff8c00;
-}
-
-.connection-env-pill.env-production {
-    background: rgba(232, 17, 35, 0.2);
-    color: #ff4343;
-}
-
-.connection-env-pill.env-sandbox {
-    background: rgba(255, 165, 0, 0.2);
-    color: #ffa500;
-}
-
-.connection-env-pill.env-development {
-    background: rgba(16, 124, 16, 0.2);
-    color: #4ade80;
-}
 
 .connection-item-url-pptb {
     font-size: 11px;
