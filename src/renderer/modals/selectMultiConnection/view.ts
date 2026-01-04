@@ -178,23 +178,33 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     }
 
     .env-dev {
-        background: rgba(0, 120, 212, 0.2);
-        color: #4cc2ff;
+        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(129, 199, 132, 0.2)"};
+        color: ${isDarkTheme ? "#2e7d32" : "#81c784"};
     }
 
     .env-test {
-        background: rgba(255, 185, 0, 0.2);
-        color: #ffb900;
+        background: ${isDarkTheme ? "rgba(255, 179, 0, 0.2)" : "rgba(255, 224, 130, 0.2)"};
+        color: ${isDarkTheme ? "#ffb300" : "#ffe082"};
     }
 
     .env-uat {
-        background: rgba(255, 140, 0, 0.2);
-        color: #ff8c00;
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(129, 212, 250, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#81d4fa"};
     }
 
     .env-production {
-        background: rgba(232, 17, 35, 0.2);
-        color: #ff4343;
+        background: ${isDarkTheme ? "rgba(198, 40, 40, 0.2)" : "rgba(250, 120, 133, 0.2)"};
+        color: ${isDarkTheme ? "#c62828" : "#fa7885"};
+    }
+
+    .env-sandbox {
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(129, 212, 250, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#81d4fa"};
+    }
+
+    .env-development {
+        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(129, 199, 132, 0.2)"};
+        color: ${isDarkTheme ? "#2e7d32" : "#81c784"};
     }
 
     .connection-url {
