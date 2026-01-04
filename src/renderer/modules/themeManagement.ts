@@ -32,6 +32,12 @@ export function applyTheme(theme: string): void {
 
     // Update connection icons when theme changes
     updateConnectionIconsForTheme();
+
+    // Update tool sidebar icons when theme changes
+    updateToolSidebarIconsForTheme();
+
+    // Update marketplace icons when theme changes
+    updateMarketplaceIconsForTheme();
 }
 
 /**
@@ -88,6 +94,77 @@ export function updateActivityBarIconsForTheme(): void {
             el.src = `${prefix}/${m.file}`;
         }
     }
+}
+
+/**
+ * Update tool sidebar icons to match current theme
+ * Called when theme changes to update star/trash icons in installed tools
+ */
+export function updateToolSidebarIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const cacheBuster = `?t=${Date.now()}`;
+    const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const starIconPath = isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
+    const starFilledIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
+    const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+
+    const toolsList = document.getElementById("sidebar-tools-list");
+    if (!toolsList) return;
+
+    // Update trash icons (delete buttons)
+    toolsList.querySelectorAll(".tool-item-delete-btn img").forEach((img) => {
+        (img as HTMLImageElement).src = trashIconPath + cacheBuster;
+    });
+
+    // Update star icons (favorite buttons)
+    toolsList.querySelectorAll(".tool-favorite-btn img").forEach((img) => {
+        const button = img.closest(".tool-favorite-btn") as HTMLButtonElement;
+        if (!button) return;
+
+        const toolId = button.getAttribute("data-tool-id");
+        if (!toolId) return;
+
+        // Check if tool is favorited by checking if it's using the filled star
+        const currentSrc = (img as HTMLImageElement).src;
+        const isFavorited = currentSrc.includes("star-filled");
+
+        (img as HTMLImageElement).src = (isFavorited ? starFilledIconPath : starIconPath) + cacheBuster;
+    });
+
+    // Update default tool icons (fallback icons only)
+    toolsList.querySelectorAll(".tool-item-icon-img").forEach((img) => {
+        const currentSrc = (img as HTMLImageElement).src;
+        // Only update if it's using the default tool icon (not custom tool icons)
+        if (currentSrc.includes("tool-default.svg")) {
+            (img as HTMLImageElement).src = defaultToolIcon + cacheBuster;
+        }
+    });
+}
+
+/**
+ * Update marketplace icons to match current theme
+ * Called when theme changes to update default tool icons in marketplace
+ */
+export function updateMarketplaceIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const cacheBuster = `?t=${Date.now()}`;
+    const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+
+    const marketplaceList = document.getElementById("marketplace-tools-list");
+    if (!marketplaceList) return;
+
+    // Update default tool icons (fallback icons only, not custom tool icons)
+    marketplaceList.querySelectorAll(".marketplace-item-icon-pptb .tool-item-icon-img").forEach((img) => {
+        const currentSrc = (img as HTMLImageElement).src;
+        // Only update if it's using the default tool icon (not custom tool icons from URLs)
+        if (currentSrc.includes("tool-default.svg")) {
+            (img as HTMLImageElement).src = defaultToolIcon + cacheBuster;
+            // Also update the onerror attribute to match the new theme
+            (img as HTMLImageElement).onerror = function () {
+                this.src = defaultToolIcon;
+            };
+        }
+    });
 }
 
 /**
