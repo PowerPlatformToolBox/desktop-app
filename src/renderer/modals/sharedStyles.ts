@@ -276,33 +276,33 @@ export function getModalStyles(isDarkTheme: boolean): string {
     }
 
     .env-dev {
-        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(129, 199, 132, 0.2)"};
-        color: ${isDarkTheme ? "#2e7d32" : "#81c784"};
+        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.2)"};
+        color: ${isDarkTheme ? "#2e7d32" : "#2e7d32"};
     }
 
     .env-test {
-        background: ${isDarkTheme ? "rgba(255, 179, 0, 0.2)" : "rgba(255, 224, 130, 0.2)"};
-        color: ${isDarkTheme ? "#ffb300" : "#ffe082"};
+        background: ${isDarkTheme ? "rgba(255, 179, 0, 0.2)" : "rgba(245, 124, 0, 0.2)"};
+        color: ${isDarkTheme ? "#ffb300" : "#f57c00"};
     }
 
     .env-uat {
-        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(129, 212, 250, 0.2)"};
-        color: ${isDarkTheme ? "#0288d1" : "#81d4fa"};
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(2, 119, 189, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#0277bd"};
     }
 
     .env-production {
-        background: ${isDarkTheme ? "rgba(198, 40, 40, 0.2)" : "rgba(250, 120, 133, 0.2)"};
-        color: ${isDarkTheme ? "#c62828" : "#fa7885"};
+        background: ${isDarkTheme ? "rgba(198, 40, 40, 0.2)" : "rgba(198, 40, 40, 0.2)"};
+        color: ${isDarkTheme ? "#c62828" : "#c62828"};
     }
 
     .env-sandbox {
-        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(129, 212, 250, 0.2)"};
-        color: ${isDarkTheme ? "#0288d1" : "#81d4fa"};
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(2, 119, 189, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#0277bd"};
     }
 
     .env-development {
-        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(129, 199, 132, 0.2)"};
-        color: ${isDarkTheme ? "#2e7d32" : "#81c784"};
+        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.2)"};
+        color: ${isDarkTheme ? "#2e7d32" : "#2e7d32"};
     }
 
     .connection-item {
