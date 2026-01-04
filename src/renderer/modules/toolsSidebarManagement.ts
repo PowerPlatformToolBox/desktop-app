@@ -95,7 +95,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Asset paths
                 const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-                const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
+                const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star-regular.svg";
                 const infoIconPath = "icons/light/info_16_filled.svg";
 
                 const hasUpdate = !!tool.hasUpdate;
