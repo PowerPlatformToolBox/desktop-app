@@ -172,29 +172,38 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
         padding: 4px 10px;
         border-radius: 6px;
         font-size: 11px;
-        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
 
     .env-dev {
-        background: rgba(0, 120, 212, 0.2);
-        color: #4cc2ff;
+        background: rgba(46, 125, 50, 0.2);
+        color: #2e7d32;
     }
 
     .env-test {
-        background: rgba(255, 185, 0, 0.2);
-        color: #ffb900;
+        background: ${isDarkTheme ? "rgba(255, 179, 0, 0.2)" : "rgba(245, 124, 0, 0.2)"};
+        color: ${isDarkTheme ? "#ffb300" : "#f57c00"};
     }
 
     .env-uat {
-        background: rgba(255, 140, 0, 0.2);
-        color: #ff8c00;
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(2, 119, 189, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#0277bd"};
     }
 
     .env-production {
-        background: rgba(232, 17, 35, 0.2);
-        color: #ff4343;
+        background: rgba(198, 40, 40, 0.2);
+        color: #c62828;
+    }
+
+    .env-sandbox {
+        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(2, 119, 189, 0.2)"};
+        color: ${isDarkTheme ? "#0288d1" : "#0277bd"};
+    }
+
+    .env-development {
+        background: rgba(46, 125, 50, 0.2);
+        color: #2e7d32;
     }
 
     .connection-url {

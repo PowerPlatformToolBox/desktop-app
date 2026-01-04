@@ -1123,7 +1123,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-name-pptb">${conn.name}</div>
-                        <span class="connection-env-pill env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
                     <div class="connection-item-url-pptb">${conn.url}</div>
                     <div class="connection-item-actions-pptb" style="display: flex; justify-content: flex-end; align-items: center;">

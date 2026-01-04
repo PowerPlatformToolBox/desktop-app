@@ -666,31 +666,41 @@ body {
 
 .connection-env-badge {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 11px;
-    font-weight: 500;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.env-dev {
-    background-color: #e1f5fe;
-    color: #01579b;
+.connection-env-badge.env-dev {
+    background-color: color-mix(in srgb, var(--env-border-dev) 20%, transparent);
+    color: var(--env-border-dev);
 }
 
-.env-test {
-    background-color: #fff3e0;
-    color: #e65100;
+.connection-env-badge.env-test {
+    background-color: color-mix(in srgb, var(--env-border-test) 20%, transparent);
+    color: var(--env-border-test);
 }
 
-.env-uat {
-    background-color: #f3e5f5;
-    color: #4a148c;
+.connection-env-badge.env-uat {
+    background-color: color-mix(in srgb, var(--env-border-uat) 20%, transparent);
+    color: var(--env-border-uat);
 }
 
-.env-production {
-    background-color: #ffebee;
-    color: #b71c1c;
+.connection-env-badge.env-production {
+    background-color: color-mix(in srgb, var(--env-border-prod) 20%, transparent);
+    color: var(--env-border-prod);
+}
+
+.connection-env-badge.env-sandbox {
+    background-color: color-mix(in srgb, var(--env-border-uat) 20%, transparent);
+    color: var(--env-border-uat);
+}
+
+.connection-env-badge.env-development {
+    background-color: color-mix(in srgb, var(--env-border-dev) 20%, transparent);
+    color: var(--env-border-dev);
 }
 
 .connection-url {
@@ -1917,29 +1927,6 @@ body {
 .connection-item-name-pptb {
     font-weight: 500;
     font-size: 13px;
-}
-
-.connection-env-pill {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-}
-
-.connection-env-pill.env-production {
-    background: #d13438;
-    color: white;
-}
-
-.connection-env-pill.env-sandbox {
-    background: #ffa500;
-    color: white;
-}
-
-.connection-env-pill.env-development {
-    background: #107c10;
-    color: white;
 }
 
 .connection-item-url-pptb {
