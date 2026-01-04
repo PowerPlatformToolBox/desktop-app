@@ -268,31 +268,42 @@ export function getModalStyles(isDarkTheme: boolean): string {
 
     .connection-env-badge {
         display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
+        padding: 4px 10px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .env-dev {
-        background: rgba(76, 175, 80, 0.2);
-        color: #4caf50;
+        background: rgba(0, 120, 212, 0.2);
+        color: #4cc2ff;
     }
 
     .env-test {
-        background: rgba(33, 150, 243, 0.2);
-        color: #2196f3;
+        background: rgba(255, 185, 0, 0.2);
+        color: #ffb900;
     }
 
     .env-uat {
-        background: rgba(255, 152, 0, 0.2);
-        color: #ff9800;
+        background: rgba(255, 140, 0, 0.2);
+        color: #ff8c00;
     }
 
     .env-production {
-        background: rgba(244, 67, 54, 0.2);
-        color: #f44336;
+        background: rgba(232, 17, 35, 0.2);
+        color: #ff4343;
+    }
+
+    .env-sandbox {
+        background: rgba(255, 165, 0, 0.2);
+        color: #ffa500;
+    }
+
+    .env-development {
+        background: rgba(16, 124, 16, 0.2);
+        color: #4ade80;
     }
 
     .connection-item {
