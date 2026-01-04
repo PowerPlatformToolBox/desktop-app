@@ -6,9 +6,9 @@ export interface ModalViewTemplate {
 }
 
 /**
- * Returns the view markup (styles + body) for the add connection modal BrowserWindow.
+ * Returns the view markup (styles + body) for the edit connection modal BrowserWindow.
  */
-export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTemplate {
+export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTemplate {
     const styles = getModalStyles(isDarkTheme);
 
     const body = `
@@ -16,7 +16,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
     <div class="modal-header">
         <div>
             <p class="modal-eyebrow">Connections</p>
-            <h3>Add Dataverse Connection</h3>
+            <h3>Edit Dataverse Connection</h3>
         </div>
         <button id="close-connection-modal" class="icon-button" aria-label="Close">&times;</button>
     </div>
@@ -79,7 +79,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
         <button id="test-connection-btn" class="fluent-button fluent-button-ghost" style="display: none">Test Connection</button>
         <span class="footer-spacer"></span>
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
-        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Add</button>
+        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save Changes</button>
     </div>
 </div>`;
 
