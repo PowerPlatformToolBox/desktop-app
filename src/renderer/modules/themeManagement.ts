@@ -29,6 +29,9 @@ export function applyTheme(theme: string): void {
 
     // Update activity bar icons when theme changes
     updateActivityBarIconsForTheme();
+
+    // Update connection icons when theme changes
+    updateConnectionIconsForTheme();
 }
 
 /**
@@ -49,6 +52,27 @@ export function updatePinIconsForTheme(): void {
             }
         }
     });
+}
+
+/**
+ * Update connection icons to match current theme
+ * Called when theme changes to update edit/delete icons
+ */
+export function updateConnectionIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
+
+    // Update all connection action icons in sidebar
+    const connectionsList = document.getElementById("sidebar-connections-list");
+    if (connectionsList) {
+        connectionsList.querySelectorAll('[data-action="edit"] img').forEach((img) => {
+            (img as HTMLImageElement).src = iconEditPath;
+        });
+        connectionsList.querySelectorAll('[data-action="delete"] img').forEach((img) => {
+            (img as HTMLImageElement).src = iconPath;
+        });
+    }
 }
 
 /**

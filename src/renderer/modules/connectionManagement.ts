@@ -6,6 +6,8 @@
 import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
+import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
+import { getEditConnectionModalView } from "../modals/editConnection/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
@@ -23,6 +25,7 @@ type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
 
 interface ConnectionFormPayload {
+    id?: string;
     name?: string;
     url?: string;
     environment?: ConnectionEnvironment;
@@ -68,6 +71,20 @@ const ADD_CONNECTION_MODAL_DIMENSIONS = {
     height: 700,
 };
 
+const EDIT_CONNECTION_MODAL_CHANNELS = {
+    submit: "edit-connection:submit",
+    submitReady: "edit-connection:submit:ready",
+    test: "edit-connection:test",
+    testReady: "edit-connection:test:ready",
+    testFeedback: "edit-connection:test:feedback",
+    populateConnection: "edit-connection:populate",
+} as const;
+
+const EDIT_CONNECTION_MODAL_DIMENSIONS = {
+    width: 520,
+    height: 700,
+};
+
 const SELECT_CONNECTION_MODAL_CHANNELS = {
     selectConnection: "select-connection:select",
     connectReady: "select-connection:connect:ready",
@@ -91,6 +108,7 @@ const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
 };
 
 let addConnectionModalHandlersRegistered = false;
+let editConnectionModalHandlersRegistered = false;
 let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
 
@@ -114,6 +132,9 @@ const selectMultiConnectionModalPromiseHandlers: {
 
 // Store the connection ID to highlight in the modal (for tool-specific connection selection)
 let highlightConnectionId: string | null = null;
+
+// Store the connection ID being edited
+let editingConnectionId: string | null = null;
 
 /**
  * Update footer connection information
@@ -172,9 +193,13 @@ function handleAddConnectionModalMessage(payload: ModalWindowMessagePayload): vo
 }
 
 function buildAddConnectionModalHtml(): string {
-    const { styles, body } = getAddConnectionModalView();
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
+    const { styles, body } = getAddConnectionModalView(isDarkTheme);
     const script = getAddConnectionModalControllerScript(ADD_CONNECTION_MODAL_CHANNELS);
-    return `${styles}\n${body}\n${script}`.trim();
+    // Inject theme class into body tag
+    const bodyWithTheme = body.replace("<body>", `<body class="${themeClass}">`);
+    return `${styles}\n${bodyWithTheme}\n${script}`.trim();
 }
 
 /**
@@ -244,7 +269,8 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 }
 
 function buildSelectConnectionModalHtml(): string {
-    const { styles, body } = getSelectConnectionModalView();
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const { styles, body } = getSelectConnectionModalView(isDarkTheme);
     const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -391,7 +417,8 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 }
 
 function buildSelectMultiConnectionModalHtml(): string {
-    const { styles, body } = getSelectMultiConnectionModalView();
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme);
     const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -548,6 +575,7 @@ export async function loadConnections(): Promise<void> {
                                 ? '<button class="fluent-button fluent-button-secondary" data-action="disconnect">Disconnect</button>'
                                 : '<button class="fluent-button fluent-button-primary" data-action="connect" data-connection-id="' + conn.id + '">Connect</button>'
                         }
+                        <button class="fluent-button fluent-button-secondary" data-action="edit" data-connection-id="${conn.id}" title="Edit connection">Edit</button>
                         <button class="fluent-button fluent-button-secondary" data-action="delete" data-connection-id="${conn.id}">Delete</button>
                     </div>
                 </div>
@@ -571,6 +599,8 @@ export async function loadConnections(): Promise<void> {
                     // Disconnect action is no longer needed as there's no global active connection
                     // Tools have their own per-instance connections
                     console.log("Disconnect action is deprecated - connections are per-tool-instance");
+                } else if (action === "edit" && connectionId) {
+                    editConnection(connectionId);
                 } else if (action === "delete" && connectionId) {
                     deleteConnection(connectionId);
                 }
@@ -724,7 +754,12 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
 }
 
 async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload): Promise<void> {
-    await setAddConnectionTestFeedback("");
+    if (editingConnectionId !== null) {
+        await setEditConnectionTestFeedback("");
+    } else {
+        await setAddConnectionTestFeedback("");
+    }
+
     const validationMessage = validateConnectionPayload(formPayload, "test");
     if (validationMessage) {
         await window.toolboxAPI.utils.showNotification({
@@ -732,8 +767,13 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
             body: validationMessage,
             type: "error",
         });
-        await setAddConnectionTestFeedback(validationMessage);
-        await signalAddConnectionTestReady();
+        if (editingConnectionId !== null) {
+            await setEditConnectionTestFeedback(validationMessage);
+            await signalEditConnectionTestReady();
+        } else {
+            await setAddConnectionTestFeedback(validationMessage);
+            await signalAddConnectionTestReady();
+        }
         return;
     }
 
@@ -747,14 +787,22 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
                 body: "Successfully connected to the environment!",
                 type: "success",
             });
-            await setAddConnectionTestFeedback("");
+            if (editingConnectionId !== null) {
+                await setEditConnectionTestFeedback("");
+            } else {
+                await setAddConnectionTestFeedback("");
+            }
         } else {
             await window.toolboxAPI.utils.showNotification({
                 title: "Connection Failed",
                 body: result.error || "Failed to connect to the environment.",
                 type: "error",
             });
-            await setAddConnectionTestFeedback(result.error || "Failed to connect to the environment.");
+            if (editingConnectionId !== null) {
+                await setEditConnectionTestFeedback(result.error || "Failed to connect to the environment.");
+            } else {
+                await setAddConnectionTestFeedback(result.error || "Failed to connect to the environment.");
+            }
         }
     } catch (error) {
         await window.toolboxAPI.utils.showNotification({
@@ -762,10 +810,160 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
             body: (error as Error).message,
             type: "error",
         });
-        await setAddConnectionTestFeedback((error as Error).message);
+        if (editingConnectionId !== null) {
+            await setEditConnectionTestFeedback((error as Error).message);
+        } else {
+            await setAddConnectionTestFeedback((error as Error).message);
+        }
     } finally {
-        await signalAddConnectionTestReady();
+        if (editingConnectionId !== null) {
+            await signalEditConnectionTestReady();
+        } else {
+            await signalAddConnectionTestReady();
+        }
     }
+}
+
+/**
+ * Initialize edit connection modal bridge
+ */
+export function initializeEditConnectionModalBridge(): void {
+    if (editConnectionModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleEditConnectionModalMessage);
+    editConnectionModalHandlersRegistered = true;
+}
+
+/**
+ * Edit a connection by ID
+ */
+export async function editConnection(id: string): Promise<void> {
+    console.log("editConnection called with id:", id);
+    editingConnectionId = id;
+    initializeEditConnectionModalBridge();
+    await showBrowserWindowModal({
+        id: "edit-connection-browser-modal",
+        html: buildEditConnectionModalHtml(),
+        width: EDIT_CONNECTION_MODAL_DIMENSIONS.width,
+        height: EDIT_CONNECTION_MODAL_DIMENSIONS.height,
+    });
+}
+
+function handleEditConnectionModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    switch (payload.channel) {
+        case EDIT_CONNECTION_MODAL_CHANNELS.submit:
+            void handleEditConnectionSubmit(payload.data as ConnectionFormPayload);
+            break;
+        case EDIT_CONNECTION_MODAL_CHANNELS.test:
+            void handleTestConnectionRequest(payload.data as ConnectionFormPayload);
+            break;
+        case EDIT_CONNECTION_MODAL_CHANNELS.populateConnection:
+            void handlePopulateEditConnectionRequest();
+            break;
+        default:
+            break;
+    }
+}
+
+function buildEditConnectionModalHtml(): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
+    console.debug("Building edit connection modal HTML, isDarkTheme:", isDarkTheme);
+
+    const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
+    const { styles, body } = getEditConnectionModalView(isDarkTheme);
+    const script = getEditConnectionModalControllerScript(EDIT_CONNECTION_MODAL_CHANNELS);
+    // Inject theme class into body tag
+    const bodyWithTheme = body.replace("<body>", `<body class="${themeClass}">`);
+    return `${styles}\n${bodyWithTheme}\n${script}`.trim();
+}
+
+async function handlePopulateEditConnectionRequest(): Promise<void> {
+    if (!editingConnectionId) {
+        console.error("No connection ID to edit");
+        return;
+    }
+
+    try {
+        const connection = await window.toolboxAPI.connections.getById(editingConnectionId);
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        await sendBrowserWindowModalMessage({
+            channel: EDIT_CONNECTION_MODAL_CHANNELS.populateConnection,
+            data: connection,
+        });
+    } catch (error) {
+        console.error("Failed to populate connection for editing:", error);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Failed to Load Connection",
+            body: (error as Error).message,
+            type: "error",
+        });
+        await closeBrowserWindowModal();
+    }
+}
+
+async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): Promise<void> {
+    const validationMessage = validateConnectionPayload(formPayload, "edit");
+    if (validationMessage) {
+        await window.toolboxAPI.utils.showNotification({
+            title: "Invalid Input",
+            body: validationMessage,
+            type: "error",
+        });
+        await signalEditConnectionSubmitReady();
+        return;
+    }
+
+    if (!editingConnectionId) {
+        await window.toolboxAPI.utils.showNotification({
+            title: "Error",
+            body: "No connection ID found for editing.",
+            type: "error",
+        });
+        await signalEditConnectionSubmitReady();
+        return;
+    }
+
+    const updates = buildConnectionFromPayload({ ...formPayload, id: editingConnectionId }, "edit");
+
+    try {
+        await window.toolboxAPI.connections.update(editingConnectionId, updates);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Connection Updated",
+            body: `Connection "${updates.name}" has been updated.`,
+            type: "success",
+        });
+        editingConnectionId = null;
+        await closeBrowserWindowModal();
+        await loadConnections();
+        await loadSidebarConnections();
+    } catch (error) {
+        console.error("Error updating connection:", error);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Failed to Update Connection",
+            body: (error as Error).message,
+            type: "error",
+        });
+        await signalEditConnectionSubmitReady();
+    }
+}
+
+async function signalEditConnectionSubmitReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: EDIT_CONNECTION_MODAL_CHANNELS.submitReady });
+}
+
+async function signalEditConnectionTestReady(): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: EDIT_CONNECTION_MODAL_CHANNELS.testReady });
+}
+
+async function setEditConnectionTestFeedback(message?: string): Promise<void> {
+    await sendBrowserWindowModalMessage({ channel: EDIT_CONNECTION_MODAL_CHANNELS.testFeedback, data: message ?? "" });
 }
 
 /**
@@ -798,7 +996,7 @@ export async function deleteConnection(id: string): Promise<void> {
     }
 }
 
-function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "test"): string | null {
+function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
     }
@@ -807,7 +1005,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
-    if (mode === "add" && !sanitizeInput(formPayload.name)) {
+    if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
 
@@ -826,13 +1024,13 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     return null;
 }
 
-function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "test"): DataverseConnection {
+function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
     const connection: DataverseConnection = {
-        id: mode === "add" ? Date.now().toString() : "test",
-        name: mode === "add" ? sanitizeInput(formPayload.name) : "Test Connection",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+        name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
-        environment: mode === "add" ? normalizeEnvironment(formPayload.environment) : "Test",
+        environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
         authenticationType,
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
@@ -919,6 +1117,7 @@ export async function loadSidebarConnections(): Promise<void> {
             .map((conn: any) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+                const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
 
                 return `
                 <div class="connection-item-pptb">
@@ -928,7 +1127,10 @@ export async function loadSidebarConnections(): Promise<void> {
                     </div>
                     <div class="connection-item-url-pptb">${conn.url}</div>
                     <div class="connection-item-actions-pptb" style="display: flex; justify-content: flex-end; align-items: center;">
-                        <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
+                        <button class="btn btn-icon" data-action="edit" data-connection-id="${conn.id}" style="color: #d83b01;" title="Edit connection">
+                            <img src="${iconEditPath}" alt="Edit" style="width:16px; height:16px;" />
+                        </button>
+                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
                             <img src="${iconPath}" alt="Delete" style="width:16px; height:16px;" />
                         </button>
                     </div>
@@ -952,6 +1154,8 @@ export async function loadSidebarConnections(): Promise<void> {
                         const { updateActiveToolConnectionStatus } = await import("./toolManagement");
                         await updateActiveToolConnectionStatus();
                     }
+                } else if (action === "edit" && connectionId) {
+                    await editConnection(connectionId);
                 }
             });
         });
