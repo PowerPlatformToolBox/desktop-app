@@ -930,10 +930,7 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         return;
     }
 
-    const updates = buildConnectionFromPayload(
-        { ...formPayload!, id: editingConnectionId },
-        "edit",
-    );
+    const updates = buildConnectionFromPayload({ ...formPayload, id: editingConnectionId }, "edit");
 
     try {
         await window.toolboxAPI.connections.update(editingConnectionId, updates);
