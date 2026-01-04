@@ -177,8 +177,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     }
 
     .env-dev {
-        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.2)"};
-        color: ${isDarkTheme ? "#2e7d32" : "#2e7d32"};
+        background: rgba(46, 125, 50, 0.2);
+        color: #2e7d32;
     }
 
     .env-test {
@@ -192,8 +192,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     }
 
     .env-production {
-        background: ${isDarkTheme ? "rgba(198, 40, 40, 0.2)" : "rgba(198, 40, 40, 0.2)"};
-        color: ${isDarkTheme ? "#c62828" : "#c62828"};
+        background: rgba(198, 40, 40, 0.2);
+        color: #c62828;
     }
 
     .env-sandbox {
@@ -202,8 +202,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     }
 
     .env-development {
-        background: ${isDarkTheme ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.2)"};
-        color: ${isDarkTheme ? "#2e7d32" : "#2e7d32"};
+        background: rgba(46, 125, 50, 0.2);
+        color: #2e7d32;
     }
 
     .connection-url {
