@@ -94,6 +94,159 @@ body.dark-theme .hero-stat-label {
     color: var(--text-secondary, #a19f9d);
 }
 
+/* Quick Access Tools Section */
+.quick-tools-section {
+    margin-bottom: 48px;
+}
+
+.quick-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+@media (max-width: 768px) {
+    .quick-tools-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.quick-tools-column {
+    background: var(--card-background, var(--bg-color));
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.2s ease;
+}
+
+body.dark-theme .quick-tools-column {
+    background: #2d2d30;
+    border-color: #3e3e42;
+}
+
+.quick-tools-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.dark-theme .quick-tools-header {
+    border-bottom-color: #3e3e42;
+}
+
+.quick-tools-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary, var(--text-color));
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quick-tools-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.quick-tool-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--input-background, #f3f2f1);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-tool-item:hover {
+    background: var(--card-background-hover, #e1dfdd);
+    border-color: var(--accent-color, #6a00ff);
+    transform: translateX(4px);
+}
+
+body.dark-theme .quick-tool-item {
+    background: #1e1e1e;
+}
+
+body.dark-theme .quick-tool-item:hover {
+    background: #2d2d30;
+    border-color: var(--accent-color, #6a00ff);
+}
+
+.quick-tool-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-color, #6a00ff);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.quick-tool-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.quick-tool-icon-placeholder {
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.quick-tool-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.quick-tool-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, var(--text-color));
+    margin: 0 0 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quick-tool-version {
+    font-size: 12px;
+    color: var(--text-secondary, #605e5c);
+    margin: 0;
+}
+
+body.dark-theme .quick-tool-version {
+    color: var(--text-secondary, #a19f9d);
+}
+
+.quick-tools-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-secondary, #605e5c);
+}
+
+body.dark-theme .quick-tools-empty {
+    color: var(--text-secondary, #a19f9d);
+}
+
+.quick-tools-empty p {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+
+.quick-tools-empty small {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
 /* Sponsor CTA Card */
 .sponsor-cta-card {
     position: relative;

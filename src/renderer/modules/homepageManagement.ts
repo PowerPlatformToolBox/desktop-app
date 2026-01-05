@@ -45,7 +45,7 @@ export function hideHomePage(): void {
  * Load all homepage data
  */
 export async function loadHomepageData(): Promise<void> {
-    await Promise.all([loadHeroStats(), loadWhatsNew(), loadSponsorData()]);
+    await Promise.all([loadHeroStats(), loadWhatsNew(), loadSponsorData(), loadQuickAccessTools()]);
 }
 
 /**
@@ -200,6 +200,157 @@ async function loadSponsorData(): Promise<void> {
         // which would require authentication
     } catch (error) {
         console.error("Failed to load sponsor data:", error);
+    }
+}
+
+/**
+ * Load quick access tools (favorites and recently used)
+ */
+async function loadQuickAccessTools(): Promise<void> {
+    try {
+        // Get all tools and settings
+        const [allTools, userSettings] = await Promise.all([window.toolboxAPI.getAllTools(), window.toolboxAPI.getUserSettings()]);
+
+        // Load favorite tools
+        await loadFavoriteTools(allTools, userSettings.favoriteTools || []);
+
+        // Load recently used tools
+        await loadRecentlyUsedTools(allTools, userSettings.lastUsedTools || []);
+    } catch (error) {
+        console.error("Failed to load quick access tools:", error);
+    }
+}
+
+/**
+ * Load favorite tools into the UI
+ */
+async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Promise<void> {
+    const favoriteToolsList = document.getElementById("favorite-tools-list");
+    if (!favoriteToolsList) return;
+
+    // Get top 3 favorite tools
+    const favoriteTools = favoriteToolIds
+        .slice(0, 3)
+        .map((toolId) => allTools.find((tool) => tool.id === toolId))
+        .filter((tool) => tool !== undefined);
+
+    if (favoriteTools.length === 0) {
+        // Show empty state
+        favoriteToolsList.innerHTML = `
+            <div class="quick-tools-empty">
+                <p>No favorite tools yet</p>
+                <small>Mark tools as favorites to see them here</small>
+            </div>
+        `;
+        return;
+    }
+
+    // Render favorite tools
+    favoriteToolsList.innerHTML = favoriteTools
+        .map(
+            (tool) => `
+        <div class="quick-tool-item" data-tool-id="${tool.id}">
+            <div class="quick-tool-icon">
+                ${
+                    tool.iconUrl
+                        ? `<img src="${tool.iconUrl}" alt="${tool.name}" />`
+                        : `<div class="quick-tool-icon-placeholder">${tool.name.charAt(0).toUpperCase()}</div>`
+                }
+            </div>
+            <div class="quick-tool-info">
+                <div class="quick-tool-name">${tool.name}</div>
+                <div class="quick-tool-version">v${tool.version}</div>
+            </div>
+        </div>
+    `,
+        )
+        .join("");
+
+    // Add click handlers
+    favoriteToolsList.querySelectorAll(".quick-tool-item").forEach((item) => {
+        item.addEventListener("click", async () => {
+            const toolId = item.getAttribute("data-tool-id");
+            if (toolId) {
+                await openTool(toolId);
+            }
+        });
+    });
+}
+
+/**
+ * Load recently used tools into the UI
+ */
+async function loadRecentlyUsedTools(allTools: any[], recentlyUsedToolIds: string[]): Promise<void> {
+    const recentlyUsedToolsList = document.getElementById("recently-used-tools-list");
+    if (!recentlyUsedToolsList) return;
+
+    // Get top 3 recently used tools (reverse order - most recent first)
+    const recentTools = recentlyUsedToolIds
+        .slice()
+        .reverse()
+        .slice(0, 3)
+        .map((toolId) => allTools.find((tool) => tool.id === toolId))
+        .filter((tool) => tool !== undefined);
+
+    if (recentTools.length === 0) {
+        // Show empty state
+        recentlyUsedToolsList.innerHTML = `
+            <div class="quick-tools-empty">
+                <p>No recently used tools</p>
+                <small>Launch tools to see them here</small>
+            </div>
+        `;
+        return;
+    }
+
+    // Render recently used tools
+    recentlyUsedToolsList.innerHTML = recentTools
+        .map(
+            (tool) => `
+        <div class="quick-tool-item" data-tool-id="${tool.id}">
+            <div class="quick-tool-icon">
+                ${
+                    tool.iconUrl
+                        ? `<img src="${tool.iconUrl}" alt="${tool.name}" />`
+                        : `<div class="quick-tool-icon-placeholder">${tool.name.charAt(0).toUpperCase()}</div>`
+                }
+            </div>
+            <div class="quick-tool-info">
+                <div class="quick-tool-name">${tool.name}</div>
+                <div class="quick-tool-version">v${tool.version}</div>
+            </div>
+        </div>
+    `,
+        )
+        .join("");
+
+    // Add click handlers
+    recentlyUsedToolsList.querySelectorAll(".quick-tool-item").forEach((item) => {
+        item.addEventListener("click", async () => {
+            const toolId = item.getAttribute("data-tool-id");
+            if (toolId) {
+                await openTool(toolId);
+            }
+        });
+    });
+}
+
+/**
+ * Open a tool by ID
+ */
+async function openTool(toolId: string): Promise<void> {
+    try {
+        // Switch to tools sidebar to show the tool
+        switchSidebar("tools");
+
+        // Find and trigger the tool click in the tools sidebar
+        // This will handle launching the tool with proper connection selection
+        const toolElement = document.querySelector(`.tool-item[data-tool-id="${toolId}"]`);
+        if (toolElement) {
+            (toolElement as HTMLElement).click();
+        }
+    } catch (error) {
+        console.error(`Failed to open tool ${toolId}:`, error);
     }
 }
 
