@@ -47,6 +47,7 @@ jobs:
                   # These are replaced at build time and not exposed in the bundle
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
               run: pnpm run build
 
             - name: Verify build output
