@@ -258,4 +258,33 @@ export class SettingsManager {
   getAllToolSecondaryConnections(): { [toolId: string]: string } {
     return this.store.get('toolSecondaryConnections') || {};
   }
+
+  /**
+   * Add a tool to the recently used list
+   * Keeps track of tool usage order with most recent at the end
+   */
+  addLastUsedTool(toolId: string): void {
+    const lastUsedTools = this.store.get('lastUsedTools') || [];
+    // Remove the tool if it already exists to avoid duplicates
+    const filtered = lastUsedTools.filter((t: string) => t !== toolId);
+    // Add the tool to the end (most recent)
+    filtered.push(toolId);
+    // Keep only the last 20 tools
+    const trimmed = filtered.slice(-20);
+    this.store.set('lastUsedTools', trimmed);
+  }
+
+  /**
+   * Get all recently used tools (ordered from oldest to newest)
+   */
+  getLastUsedTools(): string[] {
+    return this.store.get('lastUsedTools') || [];
+  }
+
+  /**
+   * Clear the recently used tools list
+   */
+  clearLastUsedTools(): void {
+    this.store.set('lastUsedTools', []);
+  }
 }

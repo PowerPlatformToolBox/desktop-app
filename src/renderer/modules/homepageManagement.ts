@@ -4,6 +4,7 @@
  */
 
 import { switchSidebar } from "./sidebarManagement";
+import { launchTool } from "./toolManagement";
 
 /**
  * Show the homepage and hide the tool panel
@@ -45,7 +46,7 @@ export function hideHomePage(): void {
  * Load all homepage data
  */
 export async function loadHomepageData(): Promise<void> {
-    await Promise.all([loadHeroStats(), loadWhatsNew(), loadSponsorData()]);
+    await Promise.all([loadHeroStats(), loadWhatsNew(), loadSponsorData(), loadQuickAccessTools()]);
 }
 
 /**
@@ -76,7 +77,8 @@ async function loadHeroStats(): Promise<void> {
 
         // TODO: Active users is a placeholder for now
         if (activeUsersEl) {
-            activeUsersEl.textContent = "N/A";
+            activeUsersEl.textContent = "Coming soon";
+            activeUsersEl.setAttribute("aria-label", "Active users statistic coming soon");
         }
     } catch (error) {
         console.error("Failed to load hero stats:", error);
@@ -193,13 +195,167 @@ async function loadSponsorData(): Promise<void> {
         // TODO: Placeholder sponsor count and avatars
         const sponsorCountEl = document.getElementById("sponsor-count");
         if (sponsorCountEl) {
-            sponsorCountEl.textContent = "23";
+            sponsorCountEl.textContent = "0";
         }
 
         // In the future, this could fetch real sponsor data from GitHub Sponsors API
         // which would require authentication
     } catch (error) {
         console.error("Failed to load sponsor data:", error);
+    }
+}
+
+/**
+ * Load quick access tools (favorites and recently used)
+ */
+async function loadQuickAccessTools(): Promise<void> {
+    try {
+        // Get all tools and settings
+        const [allTools, userSettings] = await Promise.all([window.toolboxAPI.getAllTools(), window.toolboxAPI.getUserSettings()]);
+
+        // Load favorite tools
+        await loadFavoriteTools(allTools, userSettings.favoriteTools || []);
+
+        // Load recently used tools
+        await loadRecentlyUsedTools(allTools, userSettings.lastUsedTools || []);
+    } catch (error) {
+        console.error("Failed to load quick access tools:", error);
+    }
+}
+
+/**
+ * Escape HTML to prevent XSS attacks
+ */
+function escapeHtml(text: string): string {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Load favorite tools into the UI
+ */
+async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Promise<void> {
+    const favoriteToolsList = document.getElementById("favorite-tools-list");
+    if (!favoriteToolsList) return;
+
+    // Get top 3 favorite tools
+    const favoriteTools = favoriteToolIds
+        .slice(0, 3)
+        .map((toolId) => allTools.find((tool) => tool.id === toolId))
+        .filter((tool) => tool !== undefined);
+
+    if (favoriteTools.length === 0) {
+        // Show empty state
+        favoriteToolsList.innerHTML = `
+            <div class="quick-tools-empty">
+                <p>No favorite tools yet</p>
+                <small>Mark tools as favorites to see them here</small>
+            </div>
+        `;
+        return;
+    }
+
+    // Render favorite tools using safe DOM creation
+    renderToolsList(favoriteToolsList, favoriteTools);
+}
+
+/**
+ * Load recently used tools into the UI
+ */
+async function loadRecentlyUsedTools(allTools: any[], recentlyUsedToolIds: string[]): Promise<void> {
+    const recentlyUsedToolsList = document.getElementById("recently-used-tools-list");
+    if (!recentlyUsedToolsList) return;
+
+    // Get top 3 recently used tools (reverse order - most recent first)
+    const recentTools = recentlyUsedToolIds
+        .slice()
+        .reverse()
+        .slice(0, 3)
+        .map((toolId) => allTools.find((tool) => tool.id === toolId))
+        .filter((tool) => tool !== undefined);
+
+    if (recentTools.length === 0) {
+        // Show empty state
+        recentlyUsedToolsList.innerHTML = `
+            <div class="quick-tools-empty">
+                <p>No recently used tools</p>
+                <small>Launch tools to see them here</small>
+            </div>
+        `;
+        return;
+    }
+
+    // Render recently used tools using safe DOM creation
+    renderToolsList(recentlyUsedToolsList, recentTools);
+}
+
+/**
+ * Render a list of tools into a container (shared helper to avoid duplication)
+ */
+function renderToolsList(container: HTMLElement, tools: any[]): void {
+    // Clear existing content
+    container.innerHTML = "";
+
+    tools.forEach((tool) => {
+        // Create tool item
+        const toolItem = document.createElement("div");
+        toolItem.className = "quick-tool-item";
+        toolItem.setAttribute("data-tool-id", tool.id);
+
+        // Create icon container
+        const iconContainer = document.createElement("div");
+        iconContainer.className = "quick-tool-icon";
+
+        if (tool.iconUrl) {
+            const img = document.createElement("img");
+            img.src = tool.iconUrl;
+            img.alt = escapeHtml(tool.name);
+            iconContainer.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.className = "quick-tool-icon-placeholder";
+            placeholder.textContent = tool.name.charAt(0).toUpperCase();
+            iconContainer.appendChild(placeholder);
+        }
+
+        // Create info container
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "quick-tool-info";
+
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "quick-tool-name";
+        nameDiv.textContent = tool.name;
+
+        const versionDiv = document.createElement("div");
+        versionDiv.className = "quick-tool-version";
+        versionDiv.textContent = `v${tool.version}`;
+
+        infoContainer.appendChild(nameDiv);
+        infoContainer.appendChild(versionDiv);
+
+        // Assemble the tool item
+        toolItem.appendChild(iconContainer);
+        toolItem.appendChild(infoContainer);
+
+        // Add click handler
+        toolItem.addEventListener("click", async () => {
+            await openTool(tool.id);
+        });
+
+        // Add to container
+        container.appendChild(toolItem);
+    });
+}
+
+/**
+ * Open a tool by ID
+ */
+async function openTool(toolId: string): Promise<void> {
+    try {
+        launchTool(toolId);
+    } catch (error) {
+        console.error(`Failed to open tool ${toolId}:`, error);
     }
 }
 

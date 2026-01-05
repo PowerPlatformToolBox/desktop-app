@@ -143,6 +143,11 @@ export interface ToolboxAPI {
     removeToolSecondaryConnection: (toolId: string) => Promise<void>;
     getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
 
+    // Recently used tools
+    addLastUsedTool: (toolId: string) => Promise<void>;
+    getLastUsedTools: () => Promise<string[]>;
+    clearLastUsedTools: () => Promise<void>;
+
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => Promise<Tool>;
     getLocalToolWebviewHtml: (localPath: string) => Promise<string | null>;

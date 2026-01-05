@@ -605,6 +605,19 @@ class ToolBoxApp {
             return this.settingsManager.getAllToolSecondaryConnections();
         });
 
+        // Recently used tools
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, toolId: string) => {
+            this.settingsManager.addLastUsedTool(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS, () => {
+            return this.settingsManager.getLastUsedTools();
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS, () => {
+            this.settingsManager.clearLastUsedTools();
+        });
+
         // Webview protocol handler
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, (_, toolId) => {
             return this.browserviewProtocolManager.buildToolUrl(toolId);
