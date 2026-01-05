@@ -1,5 +1,4 @@
 import * as appInsights from "applicationinsights";
-import { KnownSeverityLevel } from "applicationinsights/out/src/declarations/generated";
 import { randomUUID } from "crypto";
 import { app } from "electron";
 import { MachineIdManager } from "./machineIdManager";
@@ -226,18 +225,18 @@ export class TelemetryManager {
         }
 
         try {
-            // Map our log levels to Application Insights severity levels
-            const severityMap = {
-                [LogLevel.VERBOSE]: KnownSeverityLevel.Verbose,
-                [LogLevel.INFO]: KnownSeverityLevel.Information,
-                [LogLevel.WARNING]: KnownSeverityLevel.Warning,
-                [LogLevel.ERROR]: KnownSeverityLevel.Error,
-                [LogLevel.CRITICAL]: KnownSeverityLevel.Critical,
+            // Map our log levels to Application Insights severity levels (using string literals)
+            const severityMap: { [key: string]: string } = {
+                [LogLevel.VERBOSE]: "Verbose",
+                [LogLevel.INFO]: "Information",
+                [LogLevel.WARNING]: "Warning",
+                [LogLevel.ERROR]: "Error",
+                [LogLevel.CRITICAL]: "Critical",
             };
 
             this.client.trackTrace({
                 message,
-                severity: severityMap[level],
+                severity: severityMap[level] as any, // Cast to any since the type definition expects specific values
                 properties: this.sanitizeProperties(properties),
             });
         } catch (error) {
