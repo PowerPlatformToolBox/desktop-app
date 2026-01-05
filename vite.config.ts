@@ -50,11 +50,13 @@ export default defineConfig(({ mode }) => {
                             sourcemap: enableSourceMap,
                             outDir: "dist/main",
                             rollupOptions: {
-                                // Externalize applicationinsights and its OpenTelemetry dependencies to avoid bundling issues
+                                // Externalize applicationinsights and all its dependencies to avoid bundling issues
                                 // These will be loaded at runtime via Node.js require()
                                 external: [
                                     "applicationinsights",
                                     /^@opentelemetry\//,  // Externalize all @opentelemetry/* packages
+                                    /^@azure\//,          // Externalize all @azure/* packages (core-client, monitor-opentelemetry-exporter, etc.)
+                                    /^@typespec\//,       // Externalize all @typespec/* packages (ts-http-runtime, etc.)
                                 ],
                                 output: {
                                     entryFileNames: "index.js",
