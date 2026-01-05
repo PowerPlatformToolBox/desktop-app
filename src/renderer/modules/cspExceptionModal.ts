@@ -119,10 +119,13 @@ function handleCspConsentDeclined(): void {
  * Build the CSP exception modal HTML
  */
 function buildCspExceptionModalHtml(tool: any): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
     const { styles, body } = getCspExceptionModalView({
         toolName: tool.name,
         authors: tool.authors || [],
         cspExceptions: tool.cspExceptions || {},
+        isDarkTheme,
     });
     const script = getCspExceptionModalControllerScript(CSP_EXCEPTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();

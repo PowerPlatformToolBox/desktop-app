@@ -377,6 +377,8 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
     if (tool.rating !== undefined) metaBadges.push(`${tool.rating.toFixed(1)} rating`);
     const categories = tool.categories && tool.categories.length ? tool.categories.map((category) => escapeHtml(category)) : [];
 
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+
     const { styles, body } = getToolDetailModalView({
         toolId: escapeHtml(tool.id),
         name: escapeHtml(tool.name),
@@ -387,6 +389,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         categories: categories,
         isInstalled,
         readmeUrl: tool.readmeUrl,
+        isDarkTheme,
     });
 
     const script = getToolDetailModalControllerScript({

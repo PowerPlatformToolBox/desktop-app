@@ -38,9 +38,8 @@ export function getModalStyles(isDarkTheme: boolean): string {
         gap: 16px;
         padding: 24px;
         background: ${isDarkTheme ? "#1f1f23" : "#ffffff"};
-        border-radius: 16px;
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
-        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, ${isDarkTheme ? "0.6" : "0.15"});
     }
 
     .modal-header {
@@ -177,9 +176,9 @@ export function getModalStyles(isDarkTheme: boolean): string {
         color: #fff;
     }
 
-    .fluent-button-primary:hover {
-        background: #1177bb;
-    }
+    // .fluent-button-primary:hover {
+    //     background: #1177bb;
+    // }
 
     .fluent-button-secondary {
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"};
@@ -361,9 +360,9 @@ export function getModalStyles(isDarkTheme: boolean): string {
         cursor: not-allowed;
     }
 
-    .fluent-button-primary:hover:not(:disabled) {
-        background: #1177bb;
-    }
+    // .fluent-button-primary:hover:not(:disabled) {
+    //     background: #1177bb;
+    // }
 
     .fluent-button-secondary:hover:not(:disabled) {
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)"};
