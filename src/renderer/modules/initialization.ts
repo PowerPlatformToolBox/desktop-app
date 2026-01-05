@@ -8,6 +8,7 @@ import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constant
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
@@ -56,6 +57,9 @@ export async function initializeApplication(): Promise<void> {
     // Set up keyboard shortcuts
     setupKeyboardShortcuts();
 
+    // Set up homepage actions
+    setupHomepageActions();
+
     // Load and apply theme settings on startup
     await loadInitialSettings();
 
@@ -73,6 +77,9 @@ export async function initializeApplication(): Promise<void> {
     // Update footer connection status
     // Note: Footer shows active tool's connection, not a global connection
     await updateFooterConnection();
+
+    // Load homepage data
+    await loadHomepageData();
 
     // Restore previous session
     await restoreSession();

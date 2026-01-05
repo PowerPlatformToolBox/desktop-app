@@ -1,13 +1,18 @@
 // Import variables and mixins using modern @use syntax
 @use "./styles/variables" as *;
 @use "./styles/mixins" as *;
+@use "./styles/homepage" as *;
 
 :root {
     --primary-color: #{$primary-color};
     --primary-hover: #{$primary-hover};
     --secondary-color: #{$secondary-color};
     --text-color: #{$text-color};
+    --text-primary: #{$text-color};
+    --text-secondary: #605e5c;
     --bg-color: #{$bg-color};
+    --card-background: #{$bg-color};
+    --input-background: #f3f2f1;
     --sidebar-bg: #{$sidebar-bg};
     --border-color: #{$border-color};
     --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -37,7 +42,11 @@
 /* Dark theme */
 body.dark-theme {
     --text-color: #{$dark-text-color};
+    --text-primary: #{$dark-text-color};
+    --text-secondary: #a19f9d;
     --bg-color: #{$dark-bg-color};
+    --card-background: #2d2d30;
+    --input-background: #1e1e1e;
     --sidebar-bg: #{$dark-sidebar-bg};
     --border-color: #{$dark-border-color};
     --secondary-color: #{$dark-secondary-color};
