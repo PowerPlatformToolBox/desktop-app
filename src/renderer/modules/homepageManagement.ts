@@ -195,7 +195,7 @@ async function loadSponsorData(): Promise<void> {
         // TODO: Placeholder sponsor count and avatars
         const sponsorCountEl = document.getElementById("sponsor-count");
         if (sponsorCountEl) {
-            sponsorCountEl.textContent = "23";
+            sponsorCountEl.textContent = "0";
         }
 
         // In the future, this could fetch real sponsor data from GitHub Sponsors API
