@@ -22,7 +22,7 @@ import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
-import { TelemetryManager, TelemetryEvent } from "./managers/telemetryManager";
+import { TelemetryEvent, TelemetryManager } from "./managers/telemetryManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
@@ -1259,10 +1259,10 @@ class ToolBoxApp {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
             const message = `Version ${appVersion}
-Electron: ${process.versions.electron}
-Node.js: ${process.versions.node}
-Chromium: ${process.versions.chrome}
-OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+                Electron: ${process.versions.electron}
+                Node.js: ${process.versions.node}
+                Chromium: ${process.versions.chrome}
+                OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
