@@ -29,6 +29,9 @@ export function applyTheme(theme: string): void {
 
     // Update activity bar icons when theme changes
     updateActivityBarIconsForTheme();
+
+    // Update homepage icon when theme changes
+    updateHomepageIconForTheme();
 }
 
 /**
@@ -89,5 +92,16 @@ export function applyDebugMenuVisibility(showDebugMenu: boolean): void {
     const debugActivityItem = document.querySelector('[data-sidebar="debug"]') as HTMLElement;
     if (debugActivityItem) {
         debugActivityItem.style.display = showDebugMenu ? "" : "none";
+    }
+}
+
+/**
+ * Update homepage icon to match current theme
+ */
+function updateHomepageIconForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const homepageIcon = document.getElementById("homepage-app-icon") as HTMLImageElement;
+    if (homepageIcon) {
+        homepageIcon.src = isDarkTheme ? "icons/dark/app-icon.svg" : "icons/light/app-icon.svg";
     }
 }

@@ -4,6 +4,7 @@
  */
 
 import type { OpenTool, SessionData } from "../types/index";
+import { showHomePage as showHomePageNew, hideHomePage } from "./homepageManagement";
 
 // Tool state
 const openTools = new Map<string, OpenTool>();
@@ -170,6 +171,9 @@ export async function launchTool(toolId: string): Promise<void> {
             view.classList.remove("active");
             (view as HTMLElement).style.display = "none";
         });
+
+        // Hide homepage explicitly
+        hideHomePage();
 
         // Show tool panel
         const toolPanel = document.getElementById("tool-panel");
@@ -542,18 +546,7 @@ export function setToolConnection(toolId: string, connectionId: string | null): 
  * Show home page
  */
 export function showHomePage(): void {
-    // Hide tool panel
-    const toolPanel = document.getElementById("tool-panel");
-    if (toolPanel) {
-        toolPanel.style.display = "none";
-    }
-
-    // Show home view
-    const homeView = document.getElementById("home-view");
-    if (homeView) {
-        homeView.style.display = "block";
-        homeView.classList.add("active");
-    }
+    showHomePageNew();
 }
 
 /**

@@ -15,6 +15,7 @@ import {
     updateFooterConnection,
     updateFooterConnectionStatus,
 } from "./connectionManagement";
+import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
@@ -63,6 +64,9 @@ export async function initializeApplication(): Promise<void> {
     // Set up keyboard shortcuts
     setupKeyboardShortcuts();
 
+    // Set up homepage actions
+    setupHomepageActions();
+
     // Load and apply theme settings on startup
     await loadInitialSettings();
 
@@ -82,6 +86,9 @@ export async function initializeApplication(): Promise<void> {
     // Update footer connection status
     const activeConnection = await window.toolboxAPI.connections.getActiveConnection();
     updateFooterConnectionStatus(activeConnection);
+
+    // Load homepage data
+    await loadHomepageData();
 
     // Restore previous session
     await restoreSession();
