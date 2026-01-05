@@ -50,6 +50,9 @@ export default defineConfig(({ mode }) => {
                             sourcemap: enableSourceMap,
                             outDir: "dist/main",
                             rollupOptions: {
+                                // Externalize applicationinsights to avoid bundling issues
+                                // It will be loaded at runtime via Node.js require()
+                                external: ["applicationinsights"],
                                 output: {
                                     entryFileNames: "index.js",
                                 },
