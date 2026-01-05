@@ -1,7 +1,9 @@
-import { defaultClient, DistributedTracingModes, setup, start, TelemetryClient } from "applicationinsights";
 import { randomUUID } from "crypto";
 import { app } from "electron";
 import { MachineIdManager } from "./machineIdManager";
+
+// Type definitions for Application Insights (avoid importing at module level)
+type TelemetryClient = any;
 
 export enum TelemetryEvent {
     // Application lifecycle
@@ -92,11 +94,15 @@ export class TelemetryManager {
     }
 
     /**
-     * Initialize Application Insights
+     * Initialize Application Insights (uses dynamic import to avoid bundling issues)
      */
-    private initialize(connectionString: string): void {
+    private async initialize(connectionString: string): Promise<void> {
         try {
-            setup(connectionString)
+            // Dynamic import to avoid Vite/Rollup bundling issues with CommonJS module
+            const appInsights = await import("applicationinsights");
+            
+            appInsights
+                .setup(connectionString)
                 .setAutoCollectRequests(false) // Disable auto HTTP request tracking
                 .setAutoCollectPerformance(true, true) // Enable performance tracking with extended metrics
                 .setAutoCollectExceptions(true) // Enable exception tracking
@@ -104,11 +110,11 @@ export class TelemetryManager {
                 .setAutoCollectConsole(false) // Don't auto-collect console logs
                 .setUseDiskRetryCaching(true) // Cache telemetry to disk if network fails
                 .setSendLiveMetrics(false) // Disable live metrics for privacy
-                .setDistributedTracingMode(DistributedTracingModes.AI_AND_W3C); // Enable distributed tracing
+                .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C); // Enable distributed tracing
 
-            start();
+            appInsights.start();
 
-            this.client = defaultClient;
+            this.client = appInsights.defaultClient;
 
             // Set common properties for all telemetry
             this.client.commonProperties = {
