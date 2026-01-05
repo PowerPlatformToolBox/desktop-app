@@ -96,6 +96,12 @@ export class TelemetryManager {
      */
     private initialize(connectionString: string): void {
         try {
+            // Ensure this runs before any AppInsights code
+            if (typeof globalThis.crypto === "undefined") {
+                const nodeCrypto = require("node:crypto");
+                globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
+            }
+
             setup(connectionString)
                 .setAutoCollectRequests(false) // Disable auto HTTP request tracking
                 .setAutoCollectPerformance(true, true) // Enable performance tracking with extended metrics
