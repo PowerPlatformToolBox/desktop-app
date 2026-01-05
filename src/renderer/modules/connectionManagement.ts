@@ -1005,6 +1005,13 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
+    // Validate URL format matches Dynamics 365/Dataverse pattern
+    const url = sanitizeInput(formPayload.url);
+    const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+    if (!dynamicsUrlPattern.test(url)) {
+        return "Please provide a valid Dynamics 365/Dataverse URL (must contain .crm*.dynamics pattern, e.g., https://orgname.crm.dynamics.com).";
+    }
+
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
@@ -1073,6 +1080,15 @@ function normalizeEnvironment(value?: string): ConnectionEnvironment {
     return map[normalized] || "Dev";
 }
 
+function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword") {
+    const labels: Record<string, string> = {
+        interactive: "Microsoft Login",
+        clientSecret: "Client Secret",
+        usernamePassword: "Username/Password",
+    };
+    return labels[authType] || authType;
+}
+
 function normalizeAuthenticationType(value?: string): ConnectionAuthenticationType {
     if (value === "clientSecret" || value === "usernamePassword") {
         return value;
@@ -1126,6 +1142,11 @@ export async function loadSidebarConnections(): Promise<void> {
                         <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
                     <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-meta">
+                        <div class="connection-meta-item">
+                            <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                        </div>
+                    </div>
                     <div class="connection-item-actions-pptb" style="display: flex; justify-content: flex-end; align-items: center;">
                         <button class="btn btn-icon" data-action="edit" data-connection-id="${conn.id}" style="color: #d83b01;" title="Edit connection">
                             <img src="${iconEditPath}" alt="Edit" style="width:16px; height:16px;" />

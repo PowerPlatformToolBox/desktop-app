@@ -1,17 +1,28 @@
+import { getModalStyles } from "../sharedStyles";
+
 export interface ModalViewTemplate {
     styles: string;
     body: string;
 }
 
+export interface CspExceptionModalViewModel {
+    toolName: string;
+    authors: string[];
+    cspExceptions: { [directive: string]: string[] };
+    isDarkTheme: boolean;
+}
+
 /**
  * Returns the view markup (styles + body) for the CSP exception modal BrowserWindow.
  */
-export function getCspExceptionModalView(data: { toolName: string; authors: string[]; cspExceptions: { [directive: string]: string[] } }): ModalViewTemplate {
-    const authorsList = data.authors && data.authors.length ? data.authors.join(", ") : "Unknown";
+export function getCspExceptionModalView(model: CspExceptionModalViewModel): ModalViewTemplate {
+    const isDarkTheme = model.isDarkTheme;
+
+    const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
     // Build list of CSP exceptions
     let exceptionsHtml = "";
-    for (const [directive, sources] of Object.entries(data.cspExceptions)) {
+    for (const [directive, sources] of Object.entries(model.cspExceptions)) {
         if (Array.isArray(sources) && sources.length > 0) {
             const directiveName = directive.replace("-src", "").replace(/-/g, " ");
             exceptionsHtml += `
@@ -25,81 +36,13 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
         }
     }
 
-    const styles = `
+    const styles =
+        getModalStyles(isDarkTheme) +
+        `
 <style>
-    :root {
-        color-scheme: dark;
-    }
-
-    * {
-        box-sizing: border-box;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: #f3f3f3;
-    }
-
-    .modal-panel {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        padding: 24px;
-        background: #1f1f23;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-    }
-
-    .modal-eyebrow {
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.6);
-        margin: 0;
-    }
-
+    /* CSP exception modal specific styles */
     .modal-header h3 {
-        margin: 4px 0 0;
-        font-size: 20px;
-        font-weight: 600;
         color: #ffb900;
-    }
-
-    .icon-button {
-        background: rgba(255, 255, 255, 0.08);
-        border: none;
-        color: #fff;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 1;
-    }
-
-    .icon-button:hover {
-        background: rgba(255, 255, 255, 0.18);
-    }
-
-    .modal-body {
-        flex: 1;
-        overflow-y: auto;
-        padding-right: 4px;
     }
 
     .modal-body p {
@@ -114,18 +57,18 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
     .tool-name {
         font-weight: 600;
         font-size: 15px;
-        color: #fff;
+        color: ${isDarkTheme ? "#fff" : "#000"};
     }
 
     .tool-author {
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.6);
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
         margin-top: 4px;
     }
 
     .csp-exceptions-list {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"};
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         border-radius: 8px;
         padding: 16px;
         margin: 16px 0;
@@ -156,17 +99,17 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
     .csp-exception li {
         margin: 4px 0;
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.8);
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.8)" : "rgba(0, 0, 0, 0.8)"};
     }
 
     .csp-exception code {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.06)"};
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
         border-radius: 3px;
         padding: 2px 6px;
         font-family: "Consolas", "Monaco", "Courier New", monospace;
         font-size: 12px;
-        color: #f48771;
+        color: ${isDarkTheme ? "#f48771" : "#d84315"};
     }
 
     .csp-warning {
@@ -179,7 +122,7 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
 
     .csp-warning p {
         margin: 0 0 12px 0;
-        color: rgba(255, 255, 255, 0.9);
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.9)"};
         font-size: 13px;
         line-height: 1.5;
     }
@@ -195,53 +138,12 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
     .csp-warning ul {
         margin: 0;
         padding-left: 20px;
-        color: rgba(255, 255, 255, 0.8);
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.8)" : "rgba(0, 0, 0, 0.8)"};
     }
 
     .csp-warning li {
         margin: 4px 0;
         font-size: 13px;
-    }
-
-    .modal-footer {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-    }
-
-    .fluent-button {
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        padding: 10px 18px;
-        cursor: pointer;
-        transition: background 0.2s ease, color 0.2s ease;
-    }
-
-    .fluent-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .fluent-button-primary {
-        background: #0e639c;
-        color: #fff;
-    }
-
-    .fluent-button-primary:hover:not(:disabled) {
-        background: #1177bb;
-    }
-
-    .fluent-button-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-    }
-
-    .fluent-button-secondary:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.2);
     }
 </style>`;
 
@@ -255,7 +157,7 @@ export function getCspExceptionModalView(data: { toolName: string; authors: stri
     </div>
     <div class="modal-body">
         <p>
-            <span class="tool-name">${data.toolName}</span> by <span class="tool-author">${authorsList}</span>
+            <span class="tool-name">${model.toolName}</span> by <span class="tool-author">${authorsList}</span>
             is requesting permission to access external resources.
         </p>
         <p>
