@@ -245,6 +245,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
                 <div class="tool-detail-actions">
                     <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""}>Install</button>
                     <span id="tool-detail-installed-badge" class="tool-installed-badge" ${model.isInstalled ? "" : 'style="display:none"'}>Installed</span>
+                    <button id="tool-detail-review-btn" class="fluent-button fluent-button-secondary" type="button">Leave a review</button>
                 </div>
             </div>
         </div>

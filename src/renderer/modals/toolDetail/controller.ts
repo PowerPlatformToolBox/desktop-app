@@ -1,6 +1,7 @@
 export interface ToolDetailModalChannelIds {
     install: string;
     installResult: string;
+    review: string;
 }
 
 export interface ToolDetailModalState {
@@ -8,6 +9,7 @@ export interface ToolDetailModalState {
     toolName: string;
     isInstalled: boolean;
     readmeUrl?: string | null;
+    reviewUrl: string;
 }
 
 export interface ToolDetailModalControllerConfig {
@@ -29,6 +31,7 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
 
     const installBtn = document.getElementById("tool-detail-install-btn");
     const installedBadge = document.getElementById("tool-detail-installed-badge");
+    const reviewBtn = document.getElementById("tool-detail-review-btn");
     const feedback = document.getElementById("tool-detail-feedback");
     const closeBtn = document.getElementById("tool-detail-close-btn");
     const readmeContainer = document.getElementById("tool-detail-readme-content");
@@ -69,6 +72,11 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
     };
 
     installBtn?.addEventListener("click", handleInstallClick);
+    reviewBtn?.addEventListener("click", () => {
+        const reviewUrl = typeof CONFIG.state.reviewUrl === "string" ? CONFIG.state.reviewUrl.trim() : "";
+        if (!reviewUrl) return;
+        modalBridge.send(CONFIG.channels.review, { url: reviewUrl });
+    });
     closeBtn?.addEventListener("click", () => modalBridge.close());
 
     if (CONFIG.state.isInstalled) {

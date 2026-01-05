@@ -22,6 +22,7 @@ let toolLibrary: ToolDetail[] = [];
 const TOOL_DETAIL_MODAL_CHANNELS = {
     install: "tool-detail:install",
     installResult: "tool-detail:install:result",
+    review: "tool-detail:review",
 } as const;
 
 const TOOL_DETAIL_MODAL_DIMENSIONS = {
@@ -313,6 +314,17 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
         case TOOL_DETAIL_MODAL_CHANNELS.install:
             void handleToolDetailInstallRequest();
             break;
+        case TOOL_DETAIL_MODAL_CHANNELS.review: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open review link", error);
+            });
+            break;
+        }
         default:
             break;
     }
@@ -399,6 +411,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
             toolName: tool.name,
             isInstalled,
             readmeUrl: tool.readmeUrl || null,
+            reviewUrl: `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`,
         },
     });
 
