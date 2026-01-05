@@ -222,6 +222,15 @@ async function loadQuickAccessTools(): Promise<void> {
 }
 
 /**
+ * Escape HTML to prevent XSS attacks
+ */
+function escapeHtml(text: string): string {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Load favorite tools into the UI
  */
 async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Promise<void> {
@@ -245,36 +254,8 @@ async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Pr
         return;
     }
 
-    // Render favorite tools
-    favoriteToolsList.innerHTML = favoriteTools
-        .map(
-            (tool) => `
-        <div class="quick-tool-item" data-tool-id="${tool.id}">
-            <div class="quick-tool-icon">
-                ${
-                    tool.iconUrl
-                        ? `<img src="${tool.iconUrl}" alt="${tool.name}" />`
-                        : `<div class="quick-tool-icon-placeholder">${tool.name.charAt(0).toUpperCase()}</div>`
-                }
-            </div>
-            <div class="quick-tool-info">
-                <div class="quick-tool-name">${tool.name}</div>
-                <div class="quick-tool-version">v${tool.version}</div>
-            </div>
-        </div>
-    `,
-        )
-        .join("");
-
-    // Add click handlers
-    favoriteToolsList.querySelectorAll(".quick-tool-item").forEach((item) => {
-        item.addEventListener("click", async () => {
-            const toolId = item.getAttribute("data-tool-id");
-            if (toolId) {
-                await openTool(toolId);
-            }
-        });
-    });
+    // Render favorite tools using safe DOM creation
+    renderToolsList(favoriteToolsList, favoriteTools);
 }
 
 /**
@@ -303,35 +284,65 @@ async function loadRecentlyUsedTools(allTools: any[], recentlyUsedToolIds: strin
         return;
     }
 
-    // Render recently used tools
-    recentlyUsedToolsList.innerHTML = recentTools
-        .map(
-            (tool) => `
-        <div class="quick-tool-item" data-tool-id="${tool.id}">
-            <div class="quick-tool-icon">
-                ${
-                    tool.iconUrl
-                        ? `<img src="${tool.iconUrl}" alt="${tool.name}" />`
-                        : `<div class="quick-tool-icon-placeholder">${tool.name.charAt(0).toUpperCase()}</div>`
-                }
-            </div>
-            <div class="quick-tool-info">
-                <div class="quick-tool-name">${tool.name}</div>
-                <div class="quick-tool-version">v${tool.version}</div>
-            </div>
-        </div>
-    `,
-        )
-        .join("");
+    // Render recently used tools using safe DOM creation
+    renderToolsList(recentlyUsedToolsList, recentTools);
+}
 
-    // Add click handlers
-    recentlyUsedToolsList.querySelectorAll(".quick-tool-item").forEach((item) => {
-        item.addEventListener("click", async () => {
-            const toolId = item.getAttribute("data-tool-id");
-            if (toolId) {
-                await openTool(toolId);
-            }
+/**
+ * Render a list of tools into a container (shared helper to avoid duplication)
+ */
+function renderToolsList(container: HTMLElement, tools: any[]): void {
+    // Clear existing content
+    container.innerHTML = "";
+
+    tools.forEach((tool) => {
+        // Create tool item
+        const toolItem = document.createElement("div");
+        toolItem.className = "quick-tool-item";
+        toolItem.setAttribute("data-tool-id", tool.id);
+
+        // Create icon container
+        const iconContainer = document.createElement("div");
+        iconContainer.className = "quick-tool-icon";
+
+        if (tool.iconUrl) {
+            const img = document.createElement("img");
+            img.src = tool.iconUrl;
+            img.alt = escapeHtml(tool.name);
+            iconContainer.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.className = "quick-tool-icon-placeholder";
+            placeholder.textContent = tool.name.charAt(0).toUpperCase();
+            iconContainer.appendChild(placeholder);
+        }
+
+        // Create info container
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "quick-tool-info";
+
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "quick-tool-name";
+        nameDiv.textContent = tool.name;
+
+        const versionDiv = document.createElement("div");
+        versionDiv.className = "quick-tool-version";
+        versionDiv.textContent = `v${tool.version}`;
+
+        infoContainer.appendChild(nameDiv);
+        infoContainer.appendChild(versionDiv);
+
+        // Assemble the tool item
+        toolItem.appendChild(iconContainer);
+        toolItem.appendChild(infoContainer);
+
+        // Add click handler
+        toolItem.addEventListener("click", async () => {
+            await openTool(tool.id);
         });
+
+        // Add to container
+        container.appendChild(toolItem);
     });
 }
 
