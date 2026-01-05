@@ -315,4 +315,11 @@ export class TelemetryManager {
     isActive(): boolean {
         return this.isEnabled;
     }
+
+    /**
+     * Get the current session ID
+     */
+    getSessionId(): string {
+        return this.sessionId;
+    }
 }

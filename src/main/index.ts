@@ -1258,11 +1258,15 @@ class ToolBoxApp {
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
+            const machineId = this.machineIdManager.getMachineId();
+            const sessionId = this.telemetryManager.getSessionId();
             const message = `Version ${appVersion}
                 Electron: ${process.versions.electron}
                 Node.js: ${process.versions.node}
                 Chromium: ${process.versions.chrome}
-                OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+                OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}
+                Machine ID: ${machineId}
+                Session ID: ${sessionId}`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
