@@ -166,7 +166,7 @@ function parseReleaseHighlights(body: string): string[] {
 
             if (lowerText.includes("fix") || lowerText.includes("bug")) {
                 emoji = "🐛";
-            } else if (lowerText.includes("improve") || lowerText.includes("performance") || lowerText.includes("feature")) {
+            } else if (lowerText.includes("improve") || lowerText.includes("performance") || lowerText.includes("optimize")) {
                 emoji = "⚡";
             } else if (lowerText.includes("doc") || lowerText.includes("readme")) {
                 emoji = "📚";
