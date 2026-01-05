@@ -34,6 +34,9 @@ export const SETTINGS_CHANNELS = {
     GET_TOOL_SECONDARY_CONNECTION: "get-tool-secondary-connection",
     REMOVE_TOOL_SECONDARY_CONNECTION: "remove-tool-secondary-connection",
     GET_ALL_TOOL_SECONDARY_CONNECTIONS: "get-all-tool-secondary-connections",
+    ADD_LAST_USED_TOOL: "add-last-used-tool",
+    GET_LAST_USED_TOOLS: "get-last-used-tools",
+    CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
 } as const;
 
 // Connection-related IPC channels

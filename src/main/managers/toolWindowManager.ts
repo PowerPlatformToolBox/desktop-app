@@ -233,6 +233,9 @@ export class ToolWindowManager {
                 console.error(`[ToolWindowManager] Failed to track tool usage asynchronously:`, error);
             });
 
+            // Add to recently used tools list
+            this.settingsManager.addLastUsedTool(toolId);
+
             console.log(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {

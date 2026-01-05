@@ -95,6 +95,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     removeToolSecondaryConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, toolId),
     getAllToolSecondaryConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS),
 
+    // Recently used tools - Only for PPTB UI
+    addLastUsedTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, toolId),
+    getLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS),
+    clearLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS),
+
     // Webview URL generation - Only for PPTB UI
     getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, toolId),
 
