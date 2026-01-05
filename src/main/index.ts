@@ -61,7 +61,7 @@ class ToolBoxApp {
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
-        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.telemetryManager);
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -199,8 +199,22 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
+            const oldSettings = this.settingsManager.getUserSettings();
             this.settingsManager.updateUserSettings(settings);
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
+
+            // Track settings update
+            this.telemetryManager.trackEvent(TelemetryEvent.SETTINGS_UPDATED, {
+                settingsKeys: Object.keys(settings).join(","),
+            });
+
+            // Track theme change specifically if theme was updated
+            if (settings.theme && settings.theme !== oldSettings.theme) {
+                this.telemetryManager.trackEvent(TelemetryEvent.THEME_CHANGED, {
+                    oldTheme: oldSettings.theme || "system",
+                    newTheme: settings.theme,
+                });
+            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (_, key) => {
@@ -1223,7 +1237,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.telemetryManager, this.toolManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);

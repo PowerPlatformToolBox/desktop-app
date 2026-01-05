@@ -3,6 +3,7 @@ import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
+import { TelemetryEvent, TelemetryManager } from "./telemetryManager";
 
 /**
  * Dataverse API response type
@@ -50,10 +51,12 @@ interface EntityMetadata {
 export class DataverseManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private telemetryManager: TelemetryManager;
 
-    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
+    constructor(connectionsManager: ConnectionsManager, authManager: AuthManager, telemetryManager: TelemetryManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+        this.telemetryManager = telemetryManager;
     }
 
     /**
@@ -384,8 +387,11 @@ export class DataverseManager {
      * Make an HTTP request to Dataverse Web API
      */
     private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>, preferOptions?: string[]): Promise<{ data: unknown; headers: Record<string, string> }> {
+        const startTime = Date.now();
+        const urlObj = new URL(url);
+        const endpoint = urlObj.pathname.replace(/\/api\/data\/v[\d.]+\//, ""); // Extract entity/operation
+
         return new Promise((resolve, reject) => {
-            const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
 
             // Build Prefer header with multiple comma-separated values
@@ -419,6 +425,8 @@ export class DataverseManager {
                 });
 
                 res.on("end", () => {
+                    const duration = Date.now() - startTime;
+
                     // Collect response headers
                     const responseHeaders: Record<string, string> = {};
                     if (res.headers) {
@@ -433,6 +441,15 @@ export class DataverseManager {
 
                     // Handle success responses
                     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                        // Track successful request
+                        this.telemetryManager.trackEvent(TelemetryEvent.DATAVERSE_REQUEST, {
+                            method: method,
+                            endpoint: endpoint,
+                            statusCode: res.statusCode.toString(),
+                            duration: duration.toString(),
+                            success: "true",
+                        });
+
                         // Parse JSON response if there is data
                         let parsedData: unknown = {};
                         if (data && data.trim()) {
@@ -455,12 +472,33 @@ export class DataverseManager {
                         } catch {
                             errorMessage += `: ${data}`;
                         }
+
+                        // Track error
+                        this.telemetryManager.trackEvent(TelemetryEvent.DATAVERSE_ERROR, {
+                            method: method,
+                            endpoint: endpoint,
+                            statusCode: res.statusCode?.toString() || "unknown",
+                            duration: duration.toString(),
+                            error: errorMessage,
+                        });
+
                         reject(new Error(errorMessage));
                     }
                 });
             });
 
             req.on("error", (error) => {
+                const duration = Date.now() - startTime;
+
+                // Track network/connection error
+                this.telemetryManager.trackEvent(TelemetryEvent.DATAVERSE_ERROR, {
+                    method: method,
+                    endpoint: endpoint,
+                    duration: duration.toString(),
+                    error: `Request failed: ${error.message}`,
+                    errorType: "network",
+                });
+
                 reject(new Error(`Request failed: ${error.message}`));
             });
 

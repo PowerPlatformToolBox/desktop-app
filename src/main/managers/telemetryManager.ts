@@ -98,6 +98,7 @@ export class TelemetryManager {
         try {
             // Ensure this runs before any AppInsights code
             if (typeof globalThis.crypto === "undefined") {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
                 const nodeCrypto = require("node:crypto");
                 globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
             }
