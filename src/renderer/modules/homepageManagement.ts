@@ -4,6 +4,7 @@
  */
 
 import { switchSidebar } from "./sidebarManagement";
+import { launchTool } from "./toolManagement";
 
 /**
  * Show the homepage and hide the tool panel
@@ -351,15 +352,7 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
  */
 async function openTool(toolId: string): Promise<void> {
     try {
-        // Switch to tools sidebar to show the tool
-        switchSidebar("tools");
-
-        // Find and trigger the tool click in the tools sidebar
-        // This will handle launching the tool with proper connection selection
-        const toolElement = document.querySelector(`.tool-item[data-tool-id="${toolId}"]`);
-        if (toolElement) {
-            (toolElement as HTMLElement).click();
-        }
+        launchTool(toolId);
     } catch (error) {
         console.error(`Failed to open tool ${toolId}:`, error);
     }
