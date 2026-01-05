@@ -1,4 +1,4 @@
-import * as appInsights from "applicationinsights";
+import { defaultClient, DistributedTracingModes, setup, start, TelemetryClient } from "applicationinsights";
 import { randomUUID } from "crypto";
 import { app } from "electron";
 import { MachineIdManager } from "./machineIdManager";
@@ -72,7 +72,7 @@ export interface TelemetryMetrics {
  * Tracks events, metrics, logs, and exceptions for application monitoring
  */
 export class TelemetryManager {
-    private client: appInsights.TelemetryClient | null = null;
+    private client: TelemetryClient | null = null;
     private machineIdManager: MachineIdManager;
     private isEnabled: boolean = false;
     private appVersion: string;
@@ -96,8 +96,7 @@ export class TelemetryManager {
      */
     private initialize(connectionString: string): void {
         try {
-            appInsights
-                .setup(connectionString)
+            setup(connectionString)
                 .setAutoCollectRequests(false) // Disable auto HTTP request tracking
                 .setAutoCollectPerformance(true, true) // Enable performance tracking with extended metrics
                 .setAutoCollectExceptions(true) // Enable exception tracking
@@ -105,11 +104,11 @@ export class TelemetryManager {
                 .setAutoCollectConsole(false) // Don't auto-collect console logs
                 .setUseDiskRetryCaching(true) // Cache telemetry to disk if network fails
                 .setSendLiveMetrics(false) // Disable live metrics for privacy
-                .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C); // Enable distributed tracing
+                .setDistributedTracingMode(DistributedTracingModes.AI_AND_W3C); // Enable distributed tracing
 
-            appInsights.start();
+            start();
 
-            this.client = appInsights.defaultClient;
+            this.client = defaultClient;
 
             // Set common properties for all telemetry
             this.client.commonProperties = {
