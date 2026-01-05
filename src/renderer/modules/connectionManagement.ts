@@ -1080,8 +1080,8 @@ function normalizeEnvironment(value?: string): ConnectionEnvironment {
     return map[normalized] || "Dev";
 }
 
-function formatAuthType(authType: any) {
-    const labels = {
+function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword") {
+    const labels: Record<string, string> = {
         interactive: "Microsoft Login",
         clientSecret: "Client Secret",
         usernamePassword: "Username/Password",
