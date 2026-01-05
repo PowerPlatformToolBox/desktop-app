@@ -77,7 +77,8 @@ async function loadHeroStats(): Promise<void> {
 
         // TODO: Active users is a placeholder for now
         if (activeUsersEl) {
-            activeUsersEl.textContent = "N/A";
+            activeUsersEl.textContent = "Coming soon";
+            activeUsersEl.setAttribute("aria-label", "Active users statistic coming soon");
         }
     } catch (error) {
         console.error("Failed to load hero stats:", error);
