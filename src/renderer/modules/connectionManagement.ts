@@ -1005,6 +1005,13 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
+    // Validate URL format matches Dynamics 365/Dataverse pattern
+    const url = sanitizeInput(formPayload.url);
+    const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+    if (!dynamicsUrlPattern.test(url)) {
+        return "Please provide a valid Dynamics 365/Dataverse URL (must contain .crm*.dynamics pattern, e.g., https://orgname.crm.dynamics.com).";
+    }
+
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
