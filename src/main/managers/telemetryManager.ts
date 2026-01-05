@@ -1,5 +1,6 @@
 import * as appInsights from "applicationinsights";
 import { KnownSeverityLevel } from "applicationinsights/out/src/declarations/generated";
+import { randomUUID } from "crypto";
 import { app } from "electron";
 import { MachineIdManager } from "./machineIdManager";
 
@@ -161,7 +162,22 @@ export class TelemetryManager {
      * Generate a unique session ID for this app session
      */
     private generateSessionId(): string {
-        return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        return `${Date.now()}-${randomUUID()}`;
+    }
+
+    /**
+     * Sanitize properties to convert all values to strings
+     */
+    private sanitizeProperties(properties?: TelemetryProperties): { [key: string]: string } {
+        const sanitized: { [key: string]: string } = {};
+        if (properties) {
+            Object.entries(properties).forEach(([key, value]) => {
+                if (value !== undefined) {
+                    sanitized[key] = String(value);
+                }
+            });
+        }
+        return sanitized;
     }
 
     /**
@@ -173,23 +189,11 @@ export class TelemetryManager {
         }
 
         try {
-            // Convert all property values to strings for Application Insights
-            const sanitizedProperties: { [key: string]: string } = {};
-            if (properties) {
-                Object.entries(properties).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        sanitizedProperties[key] = String(value);
-                    }
-                });
-            }
-
             this.client.trackEvent({
                 name: eventName,
-                properties: sanitizedProperties,
+                properties: this.sanitizeProperties(properties),
                 measurements: metrics,
             });
-
-            this.client.flush();
         } catch (error) {
             console.error("[Telemetry] Failed to track event:", error);
         }
@@ -204,22 +208,10 @@ export class TelemetryManager {
         }
 
         try {
-            // Convert all property values to strings
-            const sanitizedProperties: { [key: string]: string } = {};
-            if (properties) {
-                Object.entries(properties).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        sanitizedProperties[key] = String(value);
-                    }
-                });
-            }
-
             this.client.trackException({
                 exception: error,
-                properties: sanitizedProperties,
+                properties: this.sanitizeProperties(properties),
             });
-
-            this.client.flush();
         } catch (err) {
             console.error("[Telemetry] Failed to track exception:", err);
         }
@@ -243,23 +235,11 @@ export class TelemetryManager {
                 [LogLevel.CRITICAL]: KnownSeverityLevel.Critical,
             };
 
-            // Convert all property values to strings
-            const sanitizedProperties: { [key: string]: string } = {};
-            if (properties) {
-                Object.entries(properties).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        sanitizedProperties[key] = String(value);
-                    }
-                });
-            }
-
             this.client.trackTrace({
                 message,
                 severity: severityMap[level],
-                properties: sanitizedProperties,
+                properties: this.sanitizeProperties(properties),
             });
-
-            this.client.flush();
         } catch (error) {
             console.error("[Telemetry] Failed to track trace:", error);
         }
@@ -274,23 +254,11 @@ export class TelemetryManager {
         }
 
         try {
-            // Convert all property values to strings
-            const sanitizedProperties: { [key: string]: string } = {};
-            if (properties) {
-                Object.entries(properties).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        sanitizedProperties[key] = String(value);
-                    }
-                });
-            }
-
             this.client.trackMetric({
                 name,
                 value,
-                properties: sanitizedProperties,
+                properties: this.sanitizeProperties(properties),
             });
-
-            this.client.flush();
         } catch (error) {
             console.error("[Telemetry] Failed to track metric:", error);
         }
