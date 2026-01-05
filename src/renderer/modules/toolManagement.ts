@@ -7,6 +7,7 @@ import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
+import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -157,6 +158,9 @@ export async function launchTool(toolId: string): Promise<void> {
             view.classList.remove("active");
             (view as HTMLElement).style.display = "none";
         });
+
+        // Hide homepage explicitly
+        hideHomePage();
 
         // Show tool panel
         const toolPanel = document.getElementById("tool-panel");
@@ -564,18 +568,7 @@ export async function setToolConnection(instanceId: string, connectionId: string
  * Show home page
  */
 export function showHomePage(): void {
-    // Hide tool panel
-    const toolPanel = document.getElementById("tool-panel");
-    if (toolPanel) {
-        toolPanel.style.display = "none";
-    }
-
-    // Show home view
-    const homeView = document.getElementById("home-view");
-    if (homeView) {
-        homeView.style.display = "block";
-        homeView.classList.add("active");
-    }
+    showDynamicHomePage();
 }
 
 /**

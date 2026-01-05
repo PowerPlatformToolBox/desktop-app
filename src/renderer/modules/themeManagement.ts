@@ -38,6 +38,9 @@ export function applyTheme(theme: string): void {
 
     // Update marketplace icons when theme changes
     updateMarketplaceIconsForTheme();
+
+    // Update homepage icon when theme changes
+    updateHomepageIconForTheme();
 }
 
 /**
@@ -165,6 +168,17 @@ export function updateMarketplaceIconsForTheme(): void {
             };
         }
     });
+}
+
+/**
+ * Update homepage icon to match current theme
+ */
+function updateHomepageIconForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const homepageIcon = document.getElementById("homepage-app-icon") as HTMLImageElement;
+    if (homepageIcon) {
+        homepageIcon.src = isDarkTheme ? "icons/dark/app-icon.svg" : "icons/light/app-icon.svg";
+    }
 }
 
 /**

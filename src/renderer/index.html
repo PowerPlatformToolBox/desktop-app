@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co; frame-src 'self' pptb-webview:"
+            content="default-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform Tool Box</title>
         <link rel="stylesheet" href="styles.scss" />
@@ -200,7 +200,7 @@
                         <div class="tool-tabs-container">
                             <button class="tool-tabs-scroll-button tool-tabs-scroll-left" id="scroll-tabs-left" title="Scroll tabs left" aria-label="Scroll tabs left">
                                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.316L6.715 7.96l3.357-3.357-.618-.62-4.667 4.668v.618l4.667 4.667.618-.62z"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.316L6.715 7.96l3.357-3.357-.618-.62-4.667 4.668v.618l4.667 4.667.618-.62z" />
                                 </svg>
                             </button>
                             <div class="tool-tabs" id="tool-tabs">
@@ -208,7 +208,7 @@
                             </div>
                             <button class="tool-tabs-scroll-button tool-tabs-scroll-right" id="scroll-tabs-right" title="Scroll tabs right" aria-label="Scroll tabs right">
                                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.928 11.316l3.357-3.356-3.357-3.357.618-.62 4.667 4.668v.618l-4.667 4.667-.618-.62z"/>
+                                    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.928 11.316l3.357-3.356-3.357-3.357.618-.62 4.667 4.668v.618l-4.667 4.667-.618-.62z" />
                                 </svg>
                             </button>
                         </div>
@@ -244,149 +244,153 @@
 
                 <!-- Home/Welcome View -->
                 <div id="home-view" class="view active">
-                    <div class="home-container">
-                        <div class="home-header">
-                            <h1 class="home-title">Power Platform Tool Box</h1>
-                            <p class="home-subtitle">A universal desktop app for Power Platform tools</p>
-                        </div>
+                    <div class="homepage-wrapper">
+                        <!-- Hero Section -->
+                        <section class="homepage-hero">
+                            <div class="homepage-hero-icon">
+                                <img id="homepage-app-icon" src="icons/dark/app-icon.svg" alt="Power Platform Tool Box" />
+                            </div>
+                            <h1 class="homepage-hero-headline">Power Platform Tool Box</h1>
+                            <p class="homepage-hero-tagline">A universal desktop app for Power Platform development tools. Build, manage, and deploy with ease.</p>
 
-                        <div class="home-content">
-                            <!-- What's New Section -->
-                            <section class="home-section">
-                                <div class="section-icon">
-                                    <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                            <div class="homepage-hero-stats">
+                                <div class="hero-stat">
+                                    <span class="hero-stat-value" id="stat-installed-count">0</span>
+                                    <span class="hero-stat-label">Tools Installed</span>
+                                </div>
+                                <div class="hero-stat">
+                                    <span class="hero-stat-value" id="stat-available-count">0</span>
+                                    <span class="hero-stat-label">Available Tools</span>
+                                </div>
+                                <div class="hero-stat">
+                                    <span class="hero-stat-value" id="stat-active-users">0</span>
+                                    <span class="hero-stat-label">Active Users</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Sponsor CTA Card -->
+                        <section class="sponsor-cta-card">
+                            <div class="sponsor-cta-header">
+                                <span class="sponsor-cta-heart">❤️</span>
+                                <h2 class="sponsor-cta-title">Support This Project</h2>
+                            </div>
+                            <p class="sponsor-cta-description">
+                                Power Platform Tool Box is free and open source. Your sponsorship helps us maintain and improve the toolbox, add new features, and support the community.
+                            </p>
+                            <ul class="sponsor-cta-benefits">
+                                <li>Provides a signed & certified desktop apps for Windows and Mac</li>
+                                <li>Help maintain and improve the toolbox</li>
+                                <li>Support new feature development</li>
+                                <li>Enable better documentation and tutorials</li>
+                                <li>Build a stronger Power Platform community</li>
+                            </ul>
+
+                            <div class="sponsor-tiers">
+                                <div class="sponsor-tier">
+                                    <div class="sponsor-tier-name">Supporter</div>
+                                    <div class="sponsor-tier-price">$10/mo</div>
+                                </div>
+                                <div class="sponsor-tier">
+                                    <div class="sponsor-tier-name">Contributor</div>
+                                    <div class="sponsor-tier-price">$25/mo</div>
+                                </div>
+                                <div class="sponsor-tier">
+                                    <div class="sponsor-tier-name">Advocate</div>
+                                    <div class="sponsor-tier-price">$50/mo</div>
+                                </div>
+                                <div class="sponsor-tier">
+                                    <div class="sponsor-tier-name">Champion</div>
+                                    <div class="sponsor-tier-price">$100/mo</div>
+                                </div>
+                            </div>
+                            <!--TODO Add later when we have few sponsors-->
+                            <!-- <div class="sponsor-stats">
+                                <div class="sponsor-count"><strong id="sponsor-count">23</strong> current sponsors</div>
+                                <div class="sponsor-avatars">
+                                    <div class="sponsor-avatar">👤</div>
+                                    <div class="sponsor-avatar">👤</div>
+                                    <div class="sponsor-avatar">👤</div>
+                                    <div class="sponsor-avatar">+</div>
+                                </div>
+                            </div> -->
+
+                            <button class="sponsor-cta-button" id="homepage-sponsor-btn">❤️ Become a Sponsor</button>
+                            <a href="#" class="sponsor-one-time" id="homepage-one-time-donation">Or make a one-time donation →</a>
+                        </section>
+
+                        <!-- What's New Section -->
+                        <section class="whats-new-card">
+                            <div class="whats-new-header">
+                                <h2 class="whats-new-title">What's New</h2>
+                                <div class="whats-new-meta">
+                                    <span class="release-version" id="release-version">Latest</span>
+                                    <span id="release-date">Loading...</span>
+                                </div>
+                            </div>
+                            <ul class="whats-new-highlights" id="release-highlights">
+                                <li>🎨 Modern VS Code-inspired interface with activity bar and sidebar</li>
+                                <li>🔧 Install and manage tools from the marketplace</li>
+                                <li>🔗 Manage multiple Dataverse connections</li>
+                                <li>⚙️ Customizable settings and themes</li>
+                                <li>🔄 Automatic updates to keep your toolbox current</li>
+                            </ul>
+                            <a href="#" class="whats-new-link" id="release-full-notes">View full release notes →</a>
+                        </section>
+
+                        <!-- Quick Actions Grid -->
+                        <section class="quick-actions-grid">
+                            <div class="quick-action-card" id="quick-action-browse-tools">
+                                <div class="quick-action-icon">
+                                    <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                                         <path
-                                            d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"
+                                            d="M2.5 2C2.22386 2 2 2.22386 2 2.5V17.5C2 17.7761 2.22386 18 2.5 18H17.5C17.7761 18 18 17.7761 18 17.5V2.5C18 2.22386 17.7761 2 17.5 2H2.5ZM3 3H17V17H3V3ZM5.5 5C5.22386 5 5 5.22386 5 5.5V9.5C5 9.77614 5.22386 10 5.5 10H9.5C9.77614 10 10 9.77614 10 9.5V5.5C10 5.22386 9.77614 5 9.5 5H5.5ZM6 6H9V9H6V6ZM11.5 5C11.2239 5 11 5.22386 11 5.5C11 5.77614 11.2239 6 11.5 6H14.5C14.7761 6 15 5.77614 15 5.5C15 5.22386 14.7761 5 14.5 5H11.5ZM11 7.5C11 7.22386 11.2239 7 11.5 7H14.5C14.7761 7 15 7.22386 15 7.5C15 7.77614 14.7761 8 14.5 8H11.5C11.2239 8 11 7.77614 11 7.5ZM5.5 11C5.22386 11 5 11.2239 5 11.5C5 11.7761 5.22386 12 5.5 12H14.5C14.7761 12 15 11.7761 15 11.5C15 11.2239 14.7761 11 14.5 11H5.5ZM5 13.5C5 13.2239 5.22386 13 5.5 13H14.5C14.7761 13 15 13.2239 15 13.5C15 13.7761 14.7761 14 14.5 14H5.5C5.22386 14 5 13.7761 5 13.5ZM5.5 15C5.22386 15 5 15.2239 5 15.5C5 15.7761 5.22386 16 5.5 16H10.5C10.7761 16 11 15.7761 11 15.5C11 15.2239 10.7761 15 10.5 15H5.5Z"
                                         />
-                                        <path d="M7.5 6h1v3h-1V6z" />
-                                        <path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z" />
                                     </svg>
                                 </div>
-                                <h2 class="section-title">What's New</h2>
-                                <p class="section-description">Latest updates and features in Power Platform Tool Box:</p>
-                                <ul class="feature-list">
-                                    <li>🎨 Modern VS Code-inspired interface with activity bar and sidebar</li>
-                                    <li>🔧 Install and manage tools from the marketplace</li>
-                                    <li>🔗 Manage multiple Dataverse connections</li>
-                                    <li>⚙️ Customizable settings and themes</li>
-                                    <li>🔄 Automatic updates to keep your toolbox current</li>
-                                </ul>
-                            </section>
-
-                            <!-- Getting Started Section -->
-                            <section class="home-section">
-                                <div class="section-icon">
-                                    <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 8.024L5.715 3.667l.618-.62L11 7.716v.618L6.333 13l-.618-.619 4.357-4.357z" />
-                                    </svg>
-                                </div>
-                                <h2 class="section-title">Getting Started</h2>
-                                <p class="section-description">Follow these steps to get started with Power Platform Tool Box:</p>
-                                <ol class="steps-list">
-                                    <li>
-                                        <span class="step-icon">📦</span>
-                                        <div><strong>Install Tools:</strong> Browse the marketplace in the sidebar to discover and install tools</div>
-                                    </li>
-                                    <li>
-                                        <span class="step-icon">🔗</span>
-                                        <div><strong>Add Connection:</strong> Set up your Dataverse environment connections in the connections panel</div>
-                                    </li>
-                                    <li>
-                                        <span class="step-icon">🚀</span>
-                                        <div><strong>Launch Tools:</strong> Open installed tools from the tools sidebar and start working!</div>
-                                    </li>
-                                </ol>
-                            </section>
-
-                            <!-- Action Buttons -->
-                            <section class="home-section home-actions">
-                                <a href="#" id="sponsor-btn" class="action-card">
-                                    <div class="action-icon">
-                                        <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                            <path
-                                                d="M7.655 14.9160005l-.53-.53-.53.53v.7l.53-.52.53.52v-.7zm-.006-1.3340001l-.528-.528-5.7-5.7L1 7.5v.7l5.17 5.17.485.48.485-.48L12.32 8.2l.5-.5v-.7l-.42-.45-5.6-5.7-.53-.53-.53.53-5.7 5.74L0 6.63v.68l6.13 6.17.52.5.52-.5 5.7-5.7.36-.35v-.7l-.42-.45-5.17-5.19z"
-                                            />
-                                        </svg>
-                                    </div>
-                                    <div class="action-content">
-                                        <h3>Sponsor This Project</h3>
-                                        <p>Support the development of Power Platform Tool Box</p>
-                                    </div>
-                                </a>
-
-                                <a href="#" id="github-btn" class="action-card">
-                                    <div class="action-icon">
-                                        <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                            <path
-                                                d="M7.976 0A7.977 7.977 0 0 0 0 7.976c0 3.522 2.3 6.507 5.431 7.584.392.049.538-.196.538-.392v-1.37c-2.201.49-2.69-1.076-2.69-1.076-.343-.93-.881-1.175-.881-1.175-.734-.489.048-.489.048-.489.783.049 1.224.832 1.224.832.734 1.223 1.859.88 2.3.685.048-.538.293-.88.489-1.076-1.762-.196-3.621-.881-3.621-3.964 0-.88.293-1.566.832-2.153-.05-.147-.343-.978.098-2.055 0 0 .685-.196 2.201.832.636-.196 1.322-.245 2.007-.245s1.37.098 2.006.245c1.517-1.027 2.202-.832 2.202-.832.44 1.077.146 1.908.097 2.104a3.16 3.16 0 0 1 .832 2.153c0 3.083-1.86 3.719-3.62 3.915.293.244.538.733.538 1.467v2.202c0 .196.146.44.538.392A7.984 7.984 0 0 0 16 7.976C15.951 3.572 12.38 0 7.976 0z"
-                                            />
-                                        </svg>
-                                    </div>
-                                    <div class="action-content">
-                                        <h3>View on GitHub</h3>
-                                        <p>Explore the source code and contribute</p>
-                                    </div>
-                                </a>
-
-                                <a href="#" id="bugs-features-btn" class="action-card">
-                                    <div class="action-icon">
-                                        <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                            <path
-                                                fill-rule="evenodd"
-                                                clip-rule="evenodd"
-                                                d="M9.0001 1.99999L10.5001 3.49999V1.99999H11.5001V3.49999L13.0001 1.99999L13.7072 2.70709L12.2001 4.21419V5.49999H13.4859L15.0001 3.99999L15.7072 4.70709L14.2001 6.21419V9.78579L15.7072 11.293L15.0001 12.0001L13.4859 10.5001H12.2001V11.7859L13.7072 13.293L13.0001 14.0001L11.5001 12.5001V14.0001H10.5001V12.5001L9.0001 14.0001L8.29299 13.293L9.8001 11.7859V10.5001H8.51429L7.0001 12.0001L6.29299 11.293L7.8001 9.78579V6.21419L6.29299 4.70709L7.0001 3.99999L8.51429 5.49999H9.8001V4.21419L8.29299 2.70709L9.0001 1.99999ZM11.2001 6.49999H8.8001V9.49999H11.2001V6.49999Z"
-                                            />
-                                            <path
-                                                fill-rule="evenodd"
-                                                clip-rule="evenodd"
-                                                d="M5.2072 9.79289L3.0001 12V9.99999H2.0001V12C2.0001 12.2652 2.10545 12.5196 2.29299 12.7071L4.5001 14.9142L5.2072 14.2071L3.4143 12.4142C3.78924 12.4759 4.17359 12.5076 4.5645 12.5076C6.20103 12.5076 7.5645 11.1441 7.5645 9.50762V6.49237C7.5645 4.85584 6.20103 3.49237 4.5645 3.49237C4.17359 3.49237 3.78924 3.52414 3.4143 3.58576L5.2072 1.79289L4.5001 1.08578L2.29299 3.29289C2.10545 3.48043 2.0001 3.73478 2.0001 4V5.99999H3.0001V4L5.2072 1.79289L4.5001 1.08578ZM4.5645 11.5076C5.64874 11.5076 6.5645 10.5918 6.5645 9.50762V6.49237C6.5645 5.40813 5.64874 4.49237 4.5645 4.49237C3.48025 4.49237 2.5645 5.40813 2.5645 6.49237V9.50762C2.5645 10.5918 3.48025 11.5076 4.5645 11.5076Z"
-                                            />
-                                        </svg>
-                                    </div>
-                                    <div class="action-content">
-                                        <h3>Report Issues & Requests</h3>
-                                        <p>Log bugs or request new features on GitHub</p>
-                                    </div>
-                                </a>
-
-                                <a href="#" id="create-tool-btn" class="action-card">
-                                    <div class="action-icon">
-                                        <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                            <path
-                                                fill-rule="evenodd"
-                                                clip-rule="evenodd"
-                                                d="M9.5 1.1l3.4 3.5.1.4v2h-1V5.5L8 5v-.5l.5-.5h1.6L7.9 1.8 7.5 1.1h2zM9 2v3h3V4H9.7L9 2zM1 14.5V13h1.5v1.5H4V16H1.5v-1.5H1zm6.5 0V13H9v1.5h1.5V16H8v-1.5H6.5zm6 0V13H15v1.5h-1.5V16H12v-1.5h-1.5zM7 7H1.5L1 6.5v-5l.5-.5h5l.5.5V7zm-1-5H2v4h4V2zm7.5 7h-2.25v1.5h2.25V10H15v3.5h-1.5V12zm-8.25 0H3v1.5h2.25V10H7v3.5H5.25V12zm5.5-2H9.25v1.5h1.5V10h1.5v3.5H10.5V12h-.75v-1.5z"
-                                            />
-                                        </svg>
-                                    </div>
-                                    <div class="action-content">
-                                        <h3>Create Your Own Tool</h3>
-                                        <p>Learn how to build tools for the ToolBox</p>
-                                    </div>
-                                </a>
-                            </section>
-
-                            <!-- Quick Links -->
-                            <section class="home-section">
-                                <div class="section-icon">
-                                    <svg width="24" height="24" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                <p class="quick-action-label">Browse Tools</p>
+                            </div>
+                            <div class="quick-action-card" id="quick-action-docs">
+                                <div class="quick-action-icon">
+                                    <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                                         <path
-                                            fill-rule="evenodd"
-                                            clip-rule="evenodd"
-                                            d="M13.5 1.5L13 1H7L1 7v1.5L1.5 9h1.646l.5-.5h5.208l.5.5H11v5.5l.5.5h2l.5-.5v-13zM12 14V9h-.5l-.5-.5H5.146L4.5 8H2.707L7 3.707V8.5l.5.5h1l.5-.5V2h4v12h-.5z"
+                                            d="M4.5 2C3.67157 2 3 2.67157 3 3.5V16.5C3 17.3284 3.67157 18 4.5 18H15.5C16.3284 18 17 17.3284 17 16.5V6.5C17 6.23478 16.8946 5.98043 16.7071 5.79289L13.2071 2.29289C13.0196 2.10536 12.7652 2 12.5 2H4.5ZM4 3.5C4 3.22386 4.22386 3 4.5 3H12V6.5C12 6.77614 12.2239 7 12.5 7H16V16.5C16 16.7761 15.7761 17 15.5 17H4.5C4.22386 17 4 16.7761 4 16.5V3.5ZM13 3.70711L15.2929 6H13V3.70711ZM6 9C5.72386 9 5.5 9.22386 5.5 9.5C5.5 9.77614 5.72386 10 6 10H14C14.2761 10 14.5 9.77614 14.5 9.5C14.5 9.22386 14.2761 9 14 9H6ZM5.5 11.5C5.5 11.2239 5.72386 11 6 11H14C14.2761 11 14.5 11.2239 14.5 11.5C14.5 11.7761 14.2761 12 14 12H6C5.72386 12 5.5 11.7761 5.5 11.5ZM6 13C5.72386 13 5.5 13.2239 5.5 13.5C5.5 13.7761 5.72386 14 6 14H10C10.2761 14 10.5 13.7761 10.5 13.5C10.5 13.2239 10.2761 13 10 13H6Z"
                                         />
-                                        <path fill-rule="evenodd" clip-rule="evenodd" d="M6 7h1v1H6V7z" />
                                     </svg>
                                 </div>
-                                <h2 class="section-title">Resources</h2>
-                                <ul class="resource-links">
-                                    <li><a href="#" id="docs-link">📚 Documentation</a></li>
-                                    <li><a href="#" id="tool-dev-guide-link">🛠️ Tool Development Guide</a></li>
-                                    <li><a href="#" id="architecture-link">🏗️ Architecture Overview</a></li>
-                                    <li><a href="#" id="contributing-link">🤝 Contributing Guidelines</a></li>
-                                </ul>
-                            </section>
-                        </div>
+                                <p class="quick-action-label">Documentation</p>
+                            </div>
+                            <div class="quick-action-card" id="quick-action-discord">
+                                <div class="quick-action-icon">
+                                    <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                        <path
+                                            d="M16.5 3.28c-1.15-.53-2.39-.93-3.69-1.15-.16.29-.34.68-.47.99-1.38-.21-2.74-.21-4.09 0-.12-.31-.31-.7-.47-.99-1.3.22-2.54.62-3.69 1.15C1.52 6.77.96 10.18 1.29 13.54c1.56 1.15 3.07 1.85 4.55 2.31.37-.5.69-1.03.97-1.59-.53-.2-1.04-.45-1.52-.74.13-.09.25-.19.37-.29 2.94 1.36 6.14 1.36 9.04 0 .12.1.24.2.37.29-.48.29-.99.54-1.52.74.28.56.6 1.09.97 1.59 1.48-.46 2.99-1.16 4.55-2.31.39-3.87-.66-7.23-2.79-10.26zM6.68 11.75c-.93 0-1.69-.85-1.69-1.9s.75-1.9 1.69-1.9c.94 0 1.7.85 1.69 1.9.01 1.05-.75 1.9-1.69 1.9zm6.65 0c-.93 0-1.69-.85-1.69-1.9s.75-1.9 1.69-1.9c.94 0 1.7.85 1.69 1.9.01 1.05-.75 1.9-1.69 1.9z"
+                                        />
+                                    </svg>
+                                </div>
+                                <p class="quick-action-label">Join Discord</p>
+                            </div>
+                            <div class="quick-action-card" id="quick-action-github">
+                                <div class="quick-action-icon">
+                                    <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                        <path
+                                            d="M10 2a8 8 0 00-2.53 15.59c.4.07.55-.17.55-.38v-1.34c-2.23.49-2.7-1.08-2.7-1.08-.37-.93-.9-1.18-.9-1.18-.73-.5.05-.49.05-.49.81.06 1.24.83 1.24.83.72 1.23 1.88.88 2.34.67.07-.52.28-.88.51-1.08-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.82a7.42 7.42 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.19c0 .21.15.46.55.38A8 8 0 0010 2z"
+                                        />
+                                    </svg>
+                                </div>
+                                <p class="quick-action-label">GitHub</p>
+                            </div>
+                        </section>
+
+                        <!-- Homepage Footer -->
+                        <footer class="homepage-footer">
+                            <div class="homepage-footer-links">
+                                <a href="#" class="homepage-footer-link" id="footer-tool-submission">Tool Submission</a>
+                                <a href="#" class="homepage-footer-link" id="footer-report-bug">Report Bug</a>
+                                <a href="#" class="homepage-footer-link" id="footer-request-feature">Request Feature</a>
+                                <a href="#" class="homepage-footer-link" id="footer-license">License</a>
+                            </div>
+                        </footer>
                     </div>
                 </div>
             </main>
