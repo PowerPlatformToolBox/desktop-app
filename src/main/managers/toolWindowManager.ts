@@ -6,7 +6,6 @@ import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
-import { TelemetryEvent, TelemetryManager } from "./telemetryManager";
 import { ToolManager } from "./toolsManager";
 
 /**
@@ -27,7 +26,6 @@ export class ToolWindowManager {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
-    private telemetryManager: TelemetryManager;
     private toolManager: ToolManager;
     /**
      * Maps tool instanceId (NOT toolId) to BrowserView.
@@ -50,12 +48,11 @@ export class ToolWindowManager {
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
 
-    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, telemetryManager: TelemetryManager, toolManager: ToolManager) {
+    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
         this.mainWindow = mainWindow;
         this.browserviewProtocolManager = browserviewProtocolManager;
         this.connectionsManager = connectionsManager;
         this.settingsManager = settingsManager;
-        this.telemetryManager = telemetryManager;
         this.toolManager = toolManager;
         this.setupIpcHandlers();
     }
@@ -239,27 +236,10 @@ export class ToolWindowManager {
             // Add to recently used tools list
             this.settingsManager.addLastUsedTool(toolId);
 
-            // Track tool launch
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_LAUNCHED, {
-                toolId: tool.id,
-                toolName: tool.name,
-                toolVersion: tool.version || "unknown",
-                instanceId: instanceId,
-                hasConnection: primaryConnectionId ? "yes" : "no",
-                hasSecondaryConnection: secondaryConnectionId ? "yes" : "no",
-            });
-
             console.log(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error launching tool instance ${instanceId}:`, error);
-
-            // Track tool error
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_ERROR, {
-                toolId: instanceId.split("-").slice(0, -2).join("-"),
-                operation: "launch",
-                error: (error as Error).message,
-            });
 
             return false;
         }
@@ -334,24 +314,10 @@ export class ToolWindowManager {
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
 
-            // Track tool close
-            const toolId = instanceId.split("-").slice(0, -2).join("-");
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_CLOSED, {
-                toolId: toolId,
-                instanceId: instanceId,
-            });
-
             console.log(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
-
-            // Track tool error
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_ERROR, {
-                toolId: instanceId.split("-").slice(0, -2).join("-"),
-                operation: "close",
-                error: (error as Error).message,
-            });
 
             return false;
         }

@@ -14,7 +14,6 @@ export default defineConfig(({ mode }) => {
     // Debug: Log if Supabase credentials are loaded
     const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
-    const appInsightsConnectionString = env.APPINSIGHTS_CONNECTION_STRING || process.env.APPINSIGHTS_CONNECTION_STRING || "";
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -23,18 +22,11 @@ export default defineConfig(({ mode }) => {
         console.warn("[Vite] Make sure .env file exists with SUPABASE_URL and SUPABASE_ANON_KEY");
     }
 
-    if (appInsightsConnectionString) {
-        console.log("[Vite] Application Insights connection string loaded successfully");
-    } else {
-        console.log("[Vite] Application Insights connection string not provided (telemetry will be disabled)");
-    }
-
     // Define environment variables for the build
     // These will be replaced at build time, not exposed in the bundle
     const envDefines = {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
-        "process.env.APPINSIGHTS_CONNECTION_STRING": JSON.stringify(appInsightsConnectionString),
     };
 
     return {
@@ -50,14 +42,6 @@ export default defineConfig(({ mode }) => {
                             sourcemap: enableSourceMap,
                             outDir: "dist/main",
                             rollupOptions: {
-                                // Externalize applicationinsights and all its dependencies to avoid bundling issues
-                                // These will be loaded at runtime via Node.js require()
-                                external: [
-                                    "applicationinsights",
-                                    /^@opentelemetry\//,  // Externalize all @opentelemetry/* packages
-                                    /^@azure\//,          // Externalize all @azure/* packages (core-client, monitor-opentelemetry-exporter, etc.)
-                                    /^@typespec\//,       // Externalize all @typespec/* packages (ts-http-runtime, etc.)
-                                ],
                                 output: {
                                     entryFileNames: "index.js",
                                 },
