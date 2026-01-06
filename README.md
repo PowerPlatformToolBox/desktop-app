@@ -92,8 +92,6 @@
   - [Enabling Auto-Updates](#enabling-auto-updates)
   - [Manual Update Check](#manual-update-check)
   - [Update Process](#update-process)
-- [Telemetry and Monitoring](#telemetry-and-monitoring)
-  - [Key Features](#key-features)
 - [Documentation](#documentation)
   - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
 - [Discussions](#discussions)
@@ -213,25 +211,11 @@ The application supports automatic updates to keep your ToolBox up to date:
 -   Updates are published via GitHub releases
 -   The application checks for updates on startup (if auto-update is enabled)
 
-## Telemetry and Monitoring
-
-Power Platform ToolBox includes telemetry and monitoring using [Azure Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview). This helps track application health, usage patterns, and errors to improve the application quality and user experience.
-
-### Key Features
-
--   **Application lifecycle tracking** - Monitor app start, ready, quit events
--   **Tool usage analytics** - Track tool installations and usage patterns
--   **Connection monitoring** - Monitor authentication and connection health
--   **Error tracking** - Automatically capture unhandled exceptions and errors
--   **Performance metrics** - Track operation durations and custom metrics
--   **Privacy-first** - Uses anonymous machine IDs, no PII collected
-
 ## Documentation
 
 -   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
 -   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
 -   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
--   **[TELEMETRY.md](docs/TELEMETRY.md)** - Application Insights telemetry and monitoring guide
 -   **[ICON_GUIDELINES.md](docs/ICON_GUIDELINES.md)** - Application icon requirements and best practices
 -   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
 

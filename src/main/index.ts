@@ -22,7 +22,6 @@ import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
-import { TelemetryEvent, TelemetryManager } from "./managers/telemetryManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
@@ -32,7 +31,6 @@ class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
     private machineIdManager: MachineIdManager;
-    private telemetryManager: TelemetryManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
@@ -51,8 +49,6 @@ class ToolBoxApp {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.machineIdManager = new MachineIdManager(this.settingsManager);
-        // Initialize telemetry with Application Insights connection string from environment
-        this.telemetryManager = new TelemetryManager(this.machineIdManager, process.env.APPINSIGHTS_CONNECTION_STRING);
         this.connectionsManager = new ConnectionsManager();
         this.api = new ToolBoxUtilityManager();
         // Pass Supabase credentials from environment variables or use defaults from constants
@@ -61,7 +57,7 @@ class ToolBoxApp {
         this.autoUpdateManager = new AutoUpdateManager();
         this.authManager = new AuthManager();
         this.terminalManager = new TerminalManager();
-        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager, this.telemetryManager);
+        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
 
         this.setupEventListeners();
         this.setupIpcHandlers();
@@ -74,21 +70,10 @@ class ToolBoxApp {
         // Listen to tool manager events
         this.toolManager.on("tool:loaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
-            // Track tool loaded event
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_LOADED, {
-                toolId: tool.id,
-                toolName: tool.name,
-                toolVersion: tool.version || "unknown",
-            });
         });
 
         this.toolManager.on("tool:unloaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
-            // Track tool unloaded event
-            this.telemetryManager.trackEvent(TelemetryEvent.TOOL_UNLOADED, {
-                toolId: tool.id,
-                toolName: tool.name,
-            });
         });
 
         // Forward ALL ToolBox events to renderer process
@@ -123,19 +108,10 @@ class ToolBoxApp {
         // Listen to terminal manager events
         this.terminalManager.on("terminal:created", (terminal) => {
             this.api.emitEvent(ToolBoxEvent.TERMINAL_CREATED, terminal);
-            // Track terminal created event
-            this.telemetryManager.trackEvent(TelemetryEvent.TERMINAL_CREATED, {
-                terminalId: terminal.id,
-                shell: terminal.shell,
-            });
         });
 
         this.terminalManager.on("terminal:closed", (data) => {
             this.api.emitEvent(ToolBoxEvent.TERMINAL_CLOSED, data);
-            // Track terminal closed event
-            this.telemetryManager.trackEvent(TelemetryEvent.TERMINAL_CLOSED, {
-                terminalId: data.id,
-            });
         });
 
         this.terminalManager.on("terminal:output", (data) => {
@@ -157,11 +133,6 @@ class ToolBoxApp {
                 body: `Version ${info.version} is available for download.`,
                 type: "info",
             });
-            // Track update available event
-            this.telemetryManager.trackEvent(TelemetryEvent.UPDATE_AVAILABLE, {
-                newVersion: info.version,
-                currentVersion: app.getVersion(),
-            });
         });
 
         this.autoUpdateManager.on("update-downloaded", (info) => {
@@ -170,10 +141,6 @@ class ToolBoxApp {
                 body: `Version ${info.version} has been downloaded and will be installed on restart.`,
                 type: "success",
             });
-            // Track update downloaded event
-            this.telemetryManager.trackEvent(TelemetryEvent.UPDATE_DOWNLOADED, {
-                version: info.version,
-            });
         });
 
         this.autoUpdateManager.on("update-error", (error) => {
@@ -181,10 +148,6 @@ class ToolBoxApp {
                 title: "Update Error",
                 body: `Failed to check for updates: ${error.message}`,
                 type: "error",
-            });
-            // Track update error
-            this.telemetryManager.trackException(error, {
-                event: TelemetryEvent.UPDATE_ERROR,
             });
         });
     }
@@ -199,22 +162,8 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
-            const oldSettings = this.settingsManager.getUserSettings();
             this.settingsManager.updateUserSettings(settings);
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
-
-            // Track settings update
-            this.telemetryManager.trackEvent(TelemetryEvent.SETTINGS_UPDATED, {
-                settingsKeys: Object.keys(settings).join(","),
-            });
-
-            // Track theme change specifically if theme was updated
-            if (settings.theme && settings.theme !== oldSettings.theme) {
-                this.telemetryManager.trackEvent(TelemetryEvent.THEME_CHANGED, {
-                    oldTheme: oldSettings.theme || "system",
-                    newTheme: settings.theme,
-                });
-            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (_, key) => {
@@ -250,30 +199,16 @@ class ToolBoxApp {
         ipcMain.handle(CONNECTION_CHANNELS.ADD_CONNECTION, (_, connection) => {
             this.connectionsManager.addConnection(connection);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_CREATED, connection);
-            // Track connection created
-            this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_CREATED, {
-                connectionId: connection.id,
-                authenticationType: connection.authenticationType,
-                environmentType: connection.environmentType || "unknown",
-            });
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.UPDATE_CONNECTION, (_, id, updates) => {
             this.connectionsManager.updateConnection(id, updates);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, updates });
-            // Track connection updated
-            this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_UPDATED, {
-                connectionId: id,
-            });
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.DELETE_CONNECTION, (_, id) => {
             this.connectionsManager.deleteConnection(id);
             this.api.emitEvent(ToolBoxEvent.CONNECTION_DELETED, { id });
-            // Track connection deleted
-            this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_DELETED, {
-                connectionId: id,
-            });
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTIONS, () => {
@@ -319,19 +254,7 @@ class ToolBoxApp {
                 this.notifiedExpiredTokens.clear();
 
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
-
-                // Track successful authentication
-                this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_AUTHENTICATED, {
-                    connectionId: id,
-                    authenticationType: connection.authenticationType,
-                });
             } catch (error) {
-                // Track authentication error
-                this.telemetryManager.trackException(error as Error, {
-                    event: "connection_authentication_failed",
-                    connectionId: id,
-                    authenticationType: connection.authenticationType,
-                });
                 throw new Error(`Authentication failed: ${(error as Error).message}`);
             }
         });
@@ -340,17 +263,8 @@ class ToolBoxApp {
         ipcMain.handle(CONNECTION_CHANNELS.TEST_CONNECTION, async (_, connection) => {
             try {
                 await this.authManager.testConnection(connection, this.mainWindow || undefined);
-                // Track successful test
-                this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_TEST_SUCCESS, {
-                    authenticationType: connection.authenticationType,
-                });
                 return { success: true };
             } catch (error) {
-                // Track failed test
-                this.telemetryManager.trackEvent(TelemetryEvent.CONNECTION_TEST_FAILED, {
-                    authenticationType: connection.authenticationType,
-                    error: (error as Error).message,
-                });
                 return { success: false, error: (error as Error).message };
             }
         });
@@ -385,18 +299,8 @@ class ToolBoxApp {
 
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
 
-                // Track successful token refresh
-                this.telemetryManager.trackEvent(TelemetryEvent.TOKEN_REFRESHED, {
-                    connectionId: connectionId,
-                });
-
                 return { success: true };
             } catch (error) {
-                // Track token refresh failure
-                this.telemetryManager.trackException(error as Error, {
-                    event: TelemetryEvent.TOKEN_REFRESH_FAILED,
-                    connectionId: connectionId,
-                });
                 console.error("Token refresh failed:", error);
                 throw error;
             }
@@ -421,26 +325,10 @@ class ToolBoxApp {
 
         // Registry-based tool installation (new primary method)
         ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, async (_, toolId) => {
-            try {
-                const manifest = await this.toolManager.installToolFromRegistry(toolId);
-                const tool = await this.toolManager.loadTool(toolId);
-                this.settingsManager.addInstalledTool(toolId);
-                // Track successful tool installation
-                this.telemetryManager.trackEvent(TelemetryEvent.TOOL_INSTALLED, {
-                    toolId: toolId,
-                    source: "registry",
-                    toolVersion: manifest.version || "unknown",
-                });
-                return { manifest, tool };
-            } catch (error) {
-                // Track installation error
-                this.telemetryManager.trackException(error as Error, {
-                    event: "tool_installation_failed",
-                    toolId: toolId,
-                    source: "registry",
-                });
-                throw error;
-            }
+            const manifest = await this.toolManager.installToolFromRegistry(toolId);
+            const tool = await this.toolManager.loadTool(toolId);
+            this.settingsManager.addInstalledTool(toolId);
+            return { manifest, tool };
         });
 
         // Fetch available tools from registry
@@ -460,47 +348,17 @@ class ToolBoxApp {
 
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (_, packageName) => {
-            try {
-                await this.toolManager.installToolForDebug(packageName);
-                // Load the npm tool after installation
-                const tool = await this.toolManager.loadNpmTool(packageName);
-                this.settingsManager.addInstalledTool(packageName);
-                // Track successful tool installation
-                this.telemetryManager.trackEvent(TelemetryEvent.TOOL_INSTALLED, {
-                    packageName: packageName,
-                    source: "npm",
-                });
-                return tool;
-            } catch (error) {
-                // Track installation error
-                this.telemetryManager.trackException(error as Error, {
-                    event: "tool_installation_failed",
-                    packageName: packageName,
-                    source: "npm",
-                });
-                throw error;
-            }
+            await this.toolManager.installToolForDebug(packageName);
+            // Load the npm tool after installation
+            const tool = await this.toolManager.loadNpmTool(packageName);
+            this.settingsManager.addInstalledTool(packageName);
+            return tool;
         });
 
         ipcMain.handle(TOOL_CHANNELS.UNINSTALL_TOOL, async (_, packageName, toolId) => {
-            try {
-                this.toolManager.unloadTool(toolId);
-                await this.toolManager.uninstallTool(packageName);
-                this.settingsManager.removeInstalledTool(packageName);
-                // Track successful tool uninstallation
-                this.telemetryManager.trackEvent(TelemetryEvent.TOOL_UNINSTALLED, {
-                    packageName: packageName,
-                    toolId: toolId,
-                });
-            } catch (error) {
-                // Track uninstallation error
-                this.telemetryManager.trackException(error as Error, {
-                    event: "tool_uninstallation_failed",
-                    packageName: packageName,
-                    toolId: toolId,
-                });
-                throw error;
-            }
+            this.toolManager.unloadTool(toolId);
+            await this.toolManager.uninstallTool(packageName);
+            this.settingsManager.removeInstalledTool(packageName);
         });
 
         // Local tool development - load tool from local directory
@@ -1237,7 +1095,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.telemetryManager, this.toolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
@@ -1272,15 +1130,11 @@ class ToolBoxApp {
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const machineId = this.machineIdManager.getMachineId();
-            const sessionId = this.telemetryManager.getSessionId();
             const message = `Version ${appVersion}
-                Electron: ${process.versions.electron}
-                Node.js: ${process.versions.node}
-                Chromium: ${process.versions.chrome}
-                OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}
-                Machine ID: ${machineId}
-                Session ID: ${sessionId}`;
+Electron: ${process.versions.electron}
+Node.js: ${process.versions.node}
+Chromium: ${process.versions.chrome}
+OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
@@ -1292,9 +1146,6 @@ class ToolBoxApp {
      * Initialize the application
      */
     async initialize(): Promise<void> {
-        // Track app start
-        this.telemetryManager.trackAppStart();
-
         // Set app user model ID for Windows notifications
         if (process.platform === "win32") {
             app.setAppUserModelId("com.powerplatform.toolbox");
@@ -1304,9 +1155,6 @@ class ToolBoxApp {
         this.browserviewProtocolManager.registerScheme();
 
         await app.whenReady();
-
-        // Track app ready
-        this.telemetryManager.trackAppReady();
 
         // Register protocol handler after app is ready
         this.browserviewProtocolManager.registerHandler();
@@ -1339,8 +1187,6 @@ class ToolBoxApp {
         });
 
         app.on("before-quit", () => {
-            // Track app quit
-            this.telemetryManager.trackAppQuit();
             // Clean up update checks
             this.autoUpdateManager.disableAutoUpdateChecks();
             // Clean up token expiry checks
