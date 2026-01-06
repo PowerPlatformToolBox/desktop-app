@@ -67,6 +67,8 @@ interface SupabaseTool {
     features?: unknown; // JSON column for tool features
     license?: string;
     status?: string; // Tool lifecycle status: active, deprecated, archived
+    repository?: string;
+    website?: string;
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -177,6 +179,8 @@ export class ToolRegistryManager extends EventEmitter {
                 "csp_exceptions",
                 "features",
                 "status",
+                "repository",
+                "website",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
@@ -220,6 +224,8 @@ export class ToolRegistryManager extends EventEmitter {
                     iconUrl: tool.iconurl,
                     downloadUrl: tool.downloadurl,
                     readmeUrl: tool.readmeurl,
+                    repository: tool.repository,
+                    website: tool.website,
                     publishedAt: tool.published_at || new Date().toISOString(),
                     checksum: tool.checksum,
                     size: tool.size ? Number(tool.size) || undefined : undefined,
@@ -277,6 +283,8 @@ export class ToolRegistryManager extends EventEmitter {
                     publishedAt: tool.publishedAt || new Date().toISOString(),
                     tags: tool.tags,
                     readme: tool.readme,
+                    repository: tool.repository,
+                    website: tool.homepage,
                     cspExceptions: tool.cspExceptions,
                     features: tool.features,
                     license: tool.license,

@@ -23,6 +23,8 @@ const TOOL_DETAIL_MODAL_CHANNELS = {
     install: "tool-detail:install",
     installResult: "tool-detail:install:result",
     review: "tool-detail:review",
+    repository: "tool-detail:repository",
+    website: "tool-detail:website",
 } as const;
 
 const TOOL_DETAIL_MODAL_DIMENSIONS = {
@@ -69,6 +71,8 @@ export async function loadToolsLibrary(): Promise<void> {
                     mau: tool.mau,
                     readmeUrl: tool.readmeUrl,
                     status: tool.status,
+                    repository: tool.repository,
+                    website: tool.website,
                 } as ToolDetail),
         );
 
@@ -325,6 +329,28 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
             });
             break;
         }
+        case TOOL_DETAIL_MODAL_CHANNELS.repository: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open repository link", error);
+            });
+            break;
+        }
+        case TOOL_DETAIL_MODAL_CHANNELS.website: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open website link", error);
+            });
+            break;
+        }
         default:
             break;
     }
@@ -386,9 +412,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
     const metaBadges: string[] = [];
     if (tool.version) metaBadges.push(`v${tool.version}`);
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
-    if (tool.rating !== undefined) metaBadges.push(`${tool.rating.toFixed(1)} rating`);
     const categories = tool.categories && tool.categories.length ? tool.categories.map((category) => escapeHtml(category)) : [];
-
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
     const { styles, body } = getToolDetailModalView({
@@ -402,6 +426,9 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         isInstalled,
         readmeUrl: tool.readmeUrl,
         isDarkTheme,
+        repository: tool.repository,
+        website: tool.website,
+        rating: tool.rating,
     });
 
     const script = getToolDetailModalControllerScript({
@@ -412,6 +439,8 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
             isInstalled,
             readmeUrl: tool.readmeUrl || null,
             reviewUrl: `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`,
+            repositoryUrl: tool.repository || null,
+            websiteUrl: tool.website || null,
         },
     });
 
