@@ -12,7 +12,7 @@
         A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform
     </h3>
     <p align="center">
-        This repo is an open-source project that provides a code for a Power Platform Tool Box (PPTB)
+        This repo is an open-source project for the Power Platform Tool Box (PPTB)
     </p>
 </p>
 
@@ -44,13 +44,13 @@
 </p>
 
 <p align="center">
-  <a href="docs/TOOL_DEV.md">
+  <a href="https://docs.powerplatformtoolbox.com/tool-development">
     <img src="https://img.shields.io/badge/build_your_own_tool-getting_started-a541ff?style=for-the-badge&logo=npm&labelColor=0354a3" alt="Download for Windows" />
   </a>
 </p>
 
 <p align="center">
-  <span style="font-size:large;font-weight:bold">Downloads</span><br /><br />
+  <span style="font-size:large;font-weight:bold">Download</span><br /><br />
   <a href="https://github.com/PowerPlatformToolBox/desktop-app/releases/latest/download/Power-Platform-Tool-Box-Setup.exe">
     <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
   </a>
@@ -61,13 +61,23 @@
 </p>
 
 <h3 align="center">
+  <a href="https://docs.powerplatformtoolbox.com/quickstart">Quick Start</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://docs.powerplatformtoolbox.com/">Support</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://docs.powerplatformtoolbox.com/authentication">Authentication</a>
+  <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+  <a href="https://discord.gg/7ZQzVTngcN">Discord</a>
+</h3>
+
+<h3 align="center">
   <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issues-form-feature-request.yaml">Feature request</a>
   <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
   <a href="https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issue-form-bug.yml">Report a bug</a>
   <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-  <a href="https://github.com/PowerPlatformToolBox/pptb-web/issues/new?template=tool-submission.yml">Tool Submission</a>
+  <a href="https://www.powerplatformtoolbox.com/dashboard">Tool Submission</a>
   <span>&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-  <a href="https://github.com/PowerPlatformToolBox/desktop-app/discussions/categories/q-a">Support</a>
+  <a href="https://www.powerplatformtoolbox.com/tools">Tool List</a>
 </h3>
 
 <hr />
@@ -76,28 +86,28 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
-- [Known Issues](#known-issues)
-- [Features Overview](#features-overview)
-- [Architecture](#architecture)
-- [Security Model](#security-model)
-- [Tool Development](#tool-development)
-  - [Sample Tools Repository](#sample-tools-repository)
-- [ToolBox development](#toolbox-development)
-  - [Installing Tools](#installing-tools)
-  - [Tool Security](#tool-security)
-- [Dataverse Connections](#dataverse-connections)
-- [Releases \& Downloads](#releases--downloads)
-  - [Download Latest Release](#download-latest-release)
-- [Auto-Updates](#auto-updates)
-  - [Enabling Auto-Updates](#enabling-auto-updates)
-  - [Manual Update Check](#manual-update-check)
-  - [Update Process](#update-process)
-- [Documentation](#documentation)
-  - [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
-- [Discussions](#discussions)
-- [License](#license)
-- [Team](#team)
-- [Contributors](#contributors)
+-   [Known Issues](#known-issues)
+-   [Features Overview](#features-overview)
+-   [Architecture](#architecture)
+-   [Security Model](#security-model)
+-   [Tool Development](#tool-development)
+    -   [Sample Tools Repository](#sample-tools-repository)
+-   [ToolBox development](#toolbox-development)
+    -   [Installing Tools](#installing-tools)
+    -   [Tool Security](#tool-security)
+-   [Dataverse Connections](#dataverse-connections)
+-   [Releases \& Downloads](#releases--downloads)
+    -   [Download Latest Release](#download-latest-release)
+-   [Auto-Updates](#auto-updates)
+    -   [Enabling Auto-Updates](#enabling-auto-updates)
+    -   [Manual Update Check](#manual-update-check)
+    -   [Update Process](#update-process)
+-   [Documentation](#documentation)
+    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
+-   [Discussions](#discussions)
+-   [License](#license)
+-   [Team](#team)
+-   [Contributors](#contributors)
 
 ## Known Issues
 
@@ -117,61 +127,8 @@
 -   **🔔 Notifications**: Built-in notification system to keep users informed
 -   **🔄 Auto-Updates**: Automatic application updates with user control
 
-## Architecture
-
-The application uses a **robust Tool Host architecture** inspired by VS Code's Extension Host.
-
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more information.
-
-## Security Model
-
--   **Process Isolation**: Each tool runs in a separate Node.js process
--   **Structured IPC**: All communication via validated message protocol
--   **Limited API Surface**: Tools only access specific ToolBox APIs
--   **No Direct Access**: Tools cannot access file system, Electron APIs, or other tools
--   **Per-Tool CSP**: Tools request specific Content Security Policy exceptions with user consent (see [CSP Configuration](docs/CSP_CONFIGURATION.md))
-
-## Tool Development
-
-Power Platform Tool Box uses a secure, extensible Tool Host architecture that allows developers to create custom tools as npm packages. Tools run in isolated processes and communicate with the ToolBox through a secure API.
-
-See **[TOOL_DEV.md](docs/TOOL_DEV.md)** for the complete guide on creating tools.
-
-### Sample Tools Repository
-
-Check out the **[sample-tools repository](https://github.com/PowerPlatformToolBox/sample-tools)** for complete, ready-to-use examples demonstrating different frameworks:
-
--   **[HTML/TypeScript Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/html-sample)** - Basic HTML with TypeScript
--   **[React Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/react-sample)** - React 18 with Vite and TypeScript
--   **[Vue Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/vue-sample)** - Vue 3 with Composition API
--   **[Svelte Sample](https://github.com/PowerPlatformToolBox/sample-tools/tree/main/sample/svelte-sample)** - Svelte 5 with TypeScript
-
-## ToolBox development
-
-See **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** for the complete guide on creating tools.
-
-### Installing Tools
-
-Users can install tools directly from the application:
-
-1. Navigate to the Tool Marketplace within the app
-2. Search for the tool and click on `Install` button on the tool
-3. The tool will be installed, loaded, and activated automatically
-
-### Tool Security
-
--   Each tool runs in an isolated Node.js process
--   Tools communicate with ToolBox via secure IPC protocol
--   Tools only have access to the `Power Platform Tool Box` API
--   No direct access to file system, Electron, or Node.js APIs
-
-## Dataverse Connections
-
-Create connections to Dataverse environments:
-
-1. Navigate to "Connections" tab
-2. Click "Add Connection"
-3. Follow the prompt
+> [!IMPORTANT]
+> Full documentation of the toolbox including How tos, FAQs, architecture, design & security principles is available on our main website [https://docs.powerplatformtoolbox.com/](https://docs.powerplatformtoolbox.com/)
 
 ## Releases & Downloads
 
@@ -187,49 +144,9 @@ Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/re
 -   **Windows**: `.exe` installer
 -   **macOS**: `.dmg` installer
 
-## Auto-Updates
-
-The application supports automatic updates to keep your ToolBox up to date:
-
-### Enabling Auto-Updates
-
-1. Navigate to "Settings" tab
-2. Check the "Auto Update" checkbox
-3. The application will automatically check for updates every 6 hours
-
-### Manual Update Check
-
-1. Navigate to "Settings" tab
-2. Click "Check for Updates" button
-3. If an update is available, you'll be prompted to download it
-4. Once downloaded, restart the application to install the update
-
-### Update Process
-
--   Updates are downloaded in the background
--   You control when to install updates
--   Updates are published via GitHub releases
--   The application checks for updates on startup (if auto-update is enabled)
-
-## Documentation
-
--   **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Application architecture overview
--   **[TOOLBOX_DEV.md](docs/TOOLBOX_DEV.md)** - Getting started with Tool Box development process
--   **[TOOL_DEV.md](docs/TOOL_DEV.md)** - Complete guide for tool developers
--   **[ICON_GUIDELINES.md](docs/ICON_GUIDELINES.md)** - Application icon requirements and best practices
--   **[Sample Tools Repository](https://github.com/PowerPlatformToolBox/sample-tools)** - Working examples of tools using different frameworks
-
-### Porting XrmToolBox Tools
-
--   **[PORTING_XTB_TOOLS.md](docs/porting/PORTING_XTB_TOOLS.md)** - Comprehensive guide for porting XrmToolBox tools to PPTB (recommended approach)
--   **[PORTING_DLL_TO_WASM.md](docs/porting/PORTING_DLL_TO_WASM.md)** - Minimal-effort porting using WebAssembly/Blazor to reuse .NET DLLs
--   **[PORTING_QUICK_START.md](docs/porting/PORTING_QUICK_START.md)** - Quick reference for XTB tool porting
--   **[ADR_PORTING_STRATEGY.md](docs/porting/ADR_PORTING_STRATEGY.md)** - Technical rationale for porting strategy decision
--   **[FetchXML Builder Sample](https://github.com/PowerPlatformToolBox/sample-tools/ported-tools/fetchxmlbuilder-sample/)** - Example of a ported XTB tool
-
 ## Discussions
 
-If you want to have any discussions on any feature, please use the [Discussion Board](https://github.com/PowerPlatformToolBox/desktop-app/discussions).
+If you want to have any discussions on any feature, tool or ideas for a tool, please join us on [Discord](https://discord.gg/7ZQzVTngcN).
 
 ## License
 
@@ -254,7 +171,7 @@ Supporting Team:
 -   **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
      Generates ideas and relentlessly pushes the team forward.
 
-> If you wish to offical be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
+> If you wish to offically be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
 ## Contributors
 
