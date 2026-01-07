@@ -1119,6 +1119,10 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            this.toolWindowManager?.destroy();
+            this.toolWindowManager = null;
+            this.notificationWindowManager = null;
+            this.loadingOverlayWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
