@@ -464,9 +464,6 @@ export class ToolRegistryManager extends EventEmitter {
             features: tool.features || packageJson.features, // Include features from registry or package.json
             categories: tool.categories,
             license: tool.license || packageJson.license,
-            downloads: tool.downloads,
-            rating: tool.rating,
-            mau: tool.mau,
             status: tool.status,
         };
 
@@ -525,7 +522,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau, status } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status } = t as any;
                 return {
                     id,
                     name,
@@ -542,12 +539,42 @@ export class ToolRegistryManager extends EventEmitter {
                     features,
                     categories,
                     license,
-                    downloads,
-                    rating,
-                    mau,
                     status,
                 } as ToolManifest;
             });
+
+            // Refresh analytics from Supabase so installed tools match marketplace metrics
+            if (!this.useLocalFallback && this.supabase && normalized.length) {
+                try {
+                    const toolIds = normalized.map((t) => t.id);
+                    const { data: analyticsRows, error: analyticsError } = await this.supabase
+                        .from("tools")
+                        .select("id, tool_analytics(downloads,rating,mau)")
+                        .in("id", toolIds);
+
+                    if (analyticsError) {
+                        console.error(`[ToolRegistry] Failed to refresh analytics for installed tools:`, analyticsError);
+                    } else if (analyticsRows && analyticsRows.length) {
+                        const analyticsMap = new Map(
+                            analyticsRows.map((row: any) => {
+                                const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
+                                return [row.id as string, analytics as SupabaseAnalyticsRow | undefined];
+                            }),
+                        );
+
+                        normalized.forEach((tool) => {
+                            const analytics = analyticsMap.get(tool.id);
+                            if (analytics) {
+                                tool.downloads = analytics.downloads;
+                                tool.rating = analytics.rating;
+                                tool.mau = analytics.mau;
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error(`[ToolRegistry] Error refreshing installed tool analytics:`, error);
+                }
+            }
             return normalized;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
@@ -571,7 +598,13 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Remove existing entry if present
         const filtered = tools.filter((t) => t.id !== toolManifest.id);
-        filtered.push(toolManifest);
+        // Do not persist transient analytics fields
+        const sanitizedManifest = { ...toolManifest } as Partial<ToolManifest>;
+        delete (sanitizedManifest as any).downloads;
+        delete (sanitizedManifest as any).rating;
+        delete (sanitizedManifest as any).mau;
+
+        filtered.push(sanitizedManifest as ToolManifest);
 
         const manifest = {
             version: "1.0",
