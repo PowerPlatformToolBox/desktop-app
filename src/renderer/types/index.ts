@@ -75,7 +75,6 @@ export interface ToolDetail {
     id: string;
     name: string;
     version: string;
-    icon?: string;
     description?: string;
     hasUpdate?: boolean;
     latestVersion?: string;
@@ -84,6 +83,9 @@ export interface ToolDetail {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
+    iconUrl?: string;
     readmeUrl?: string;
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
+    repository?: string;
+    website?: string;
 }

@@ -30,6 +30,7 @@ export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
+    private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
 
     constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, machineIdManager?: MachineIdManager) {
         super();
@@ -66,7 +67,14 @@ export class ToolManager extends EventEmitter {
             if (!manifest) {
                 throw new Error(`Tool ${toolId} not found in registry`);
             }
-            return this.loadToolFromManifest(manifest);
+            const tool = this.loadToolFromManifest(manifest);
+
+            // Refresh analytics for this tool only (non-blocking)
+            this.refreshAnalyticsForTools([toolId]).catch((error) => {
+                console.error(`[ToolManager] Failed to refresh analytics for ${toolId}:`, error);
+            });
+
+            return tool;
         } catch (error) {
             throw new Error(`Failed to load tool ${toolId}: ${(error as Error).message}`);
         }
@@ -93,6 +101,13 @@ export class ToolManager extends EventEmitter {
             status: manifest.status,
         };
 
+        const cached = this.analyticsCache.get(tool.id);
+        if (cached) {
+            tool.downloads = cached.downloads;
+            tool.rating = cached.rating;
+            tool.mau = cached.mau;
+        }
+
         this.tools.set(tool.id, tool);
         this.emit("tool:loaded", tool);
 
@@ -105,13 +120,18 @@ export class ToolManager extends EventEmitter {
     async loadAllInstalledTools(): Promise<void> {
         // Load registry-based tools
         const registryTools = await this.registryManager.getInstalledTools();
+        const toolIds: string[] = [];
+
         for (const manifest of registryTools) {
             try {
                 await this.loadTool(manifest.id);
+                toolIds.push(manifest.id);
             } catch (error) {
                 console.error(`Failed to load registry tool ${manifest.id}:`, error);
             }
         }
+
+        await this.refreshAnalyticsForTools(toolIds);
     }
 
     /**
@@ -168,6 +188,21 @@ export class ToolManager extends EventEmitter {
      */
     async checkForUpdates(toolId: string) {
         return await this.registryManager.checkForUpdates(toolId);
+    }
+
+    private async refreshAnalyticsForTools(toolIds: string[]): Promise<void> {
+        if (!toolIds.length || !this.registryManager.canFetchRemoteAnalytics()) return;
+
+        const analyticsMap = await this.registryManager.fetchAnalytics(toolIds);
+        analyticsMap.forEach((analytics, id) => {
+            this.analyticsCache.set(id, analytics);
+            const tool = this.tools.get(id);
+            if (tool) {
+                tool.downloads = analytics.downloads;
+                tool.rating = analytics.rating;
+                tool.mau = analytics.mau;
+            }
+        });
     }
 
     /**

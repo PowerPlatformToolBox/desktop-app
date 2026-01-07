@@ -16,6 +16,9 @@ export interface ToolDetailModalViewModel {
     isInstalled: boolean;
     readmeUrl?: string;
     isDarkTheme: boolean;
+    repository?: string;
+    website?: string;
+    rating?: number;
 }
 
 export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalViewTemplate {
@@ -137,6 +140,27 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         margin-right: 6px;
     }
 
+    .tool-detail-links {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        font-size: 13px;
+    }
+
+    .tool-detail-link {
+        color: ${model.isDarkTheme ? "#a6c8ff" : "#004578"};
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+    }
+
+    .tool-detail-link:hover {
+        text-decoration: underline;
+    }
+
     .tool-detail-icon-shell {
         width: 96px;
         height: 96px;
@@ -229,6 +253,23 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
 
     const readmePlaceholder = model.readmeUrl ? "Loading README..." : "README is not available for this tool.";
 
+    // Add rating badge with reviews link
+    let ratingsHtml = "";
+    if (model.rating !== undefined) {
+        ratingsHtml = `<span>${model.rating.toFixed(1)} rating</span>`;
+    }
+
+    const linkItems: string[] = [];
+    linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-link" href="#" role="button">Leave a review</a>`);
+    if (model.repository) {
+        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-link" href="#" role="button">Repository</a>`);
+    }
+    if (model.website) {
+        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-link" href="#" role="button">Website</a>`);
+    }
+
+    const linksMarkup = linkItems.length ? `<div class="tool-detail-links">${linkItems.join("<span>•</span>")}</div>` : "";
+
     const body = `
 <div class="tool-detail-modal-panel" data-tool-id="${model.toolId}">
     <div class="tool-detail-modal-header">
@@ -241,11 +282,12 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
                 <h2 class="tool-detail-name">${model.name}</h2>
                 <p class="tool-detail-description">${model.description}</p>
                 <p class="tool-detail-authors">By ${model.authors}</p>
-                ${badgeMarkup ? `<div class="tool-detail-meta-list">${badgeMarkup}</div>` : ""}
+                ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                 <div class="tool-detail-actions">
                     <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""}>Install</button>
                     <span id="tool-detail-installed-badge" class="tool-installed-badge" ${model.isInstalled ? "" : 'style="display:none"'}>Installed</span>
                 </div>
+                ${linksMarkup}
             </div>
         </div>
         <button id="tool-detail-close-btn" class="icon-button" aria-label="Close">&times;</button>

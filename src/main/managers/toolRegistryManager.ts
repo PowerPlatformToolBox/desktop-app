@@ -67,6 +67,8 @@ interface SupabaseTool {
     features?: unknown; // JSON column for tool features
     license?: string;
     status?: string; // Tool lifecycle status: active, deprecated, archived
+    repository?: string;
+    website?: string;
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -177,6 +179,8 @@ export class ToolRegistryManager extends EventEmitter {
                 "csp_exceptions",
                 "features",
                 "status",
+                "repository",
+                "website",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
@@ -220,6 +224,8 @@ export class ToolRegistryManager extends EventEmitter {
                     iconUrl: tool.iconurl,
                     downloadUrl: tool.downloadurl,
                     readmeUrl: tool.readmeurl,
+                    repository: tool.repository,
+                    website: tool.website,
                     publishedAt: tool.published_at || new Date().toISOString(),
                     checksum: tool.checksum,
                     size: tool.size ? Number(tool.size) || undefined : undefined,
@@ -277,6 +283,8 @@ export class ToolRegistryManager extends EventEmitter {
                     publishedAt: tool.publishedAt || new Date().toISOString(),
                     tags: tool.tags,
                     readme: tool.readme,
+                    repository: tool.repository,
+                    website: tool.homepage,
                     cspExceptions: tool.cspExceptions,
                     features: tool.features,
                     license: tool.license,
@@ -456,9 +464,6 @@ export class ToolRegistryManager extends EventEmitter {
             features: tool.features || packageJson.features, // Include features from registry or package.json
             categories: tool.categories,
             license: tool.license || packageJson.license,
-            downloads: tool.downloads,
-            rating: tool.rating,
-            mau: tool.mau,
             status: tool.status,
         };
 
@@ -517,7 +522,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, downloads, rating, mau, status } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status } = t as any;
                 return {
                     id,
                     name,
@@ -534,9 +539,6 @@ export class ToolRegistryManager extends EventEmitter {
                     features,
                     categories,
                     license,
-                    downloads,
-                    rating,
-                    mau,
                     status,
                 } as ToolManifest;
             });
@@ -545,6 +547,37 @@ export class ToolRegistryManager extends EventEmitter {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
             return [];
         }
+    }
+
+    canFetchRemoteAnalytics(): boolean {
+        return !this.useLocalFallback && !!this.supabase;
+    }
+
+    async fetchAnalytics(toolIds: string[]): Promise<Map<string, SupabaseAnalyticsRow>> {
+        const map = new Map<string, SupabaseAnalyticsRow>();
+        if (!this.canFetchRemoteAnalytics() || !toolIds.length) {
+            return map;
+        }
+
+        try {
+            const { data, error } = await this.supabase!.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
+
+            if (error) {
+                console.error(`[ToolRegistry] Failed to fetch analytics:`, error);
+                return map;
+            }
+
+            (data || []).forEach((row: any) => {
+                const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
+                if (analytics) {
+                    map.set(row.id as string, analytics as SupabaseAnalyticsRow);
+                }
+            });
+        } catch (error) {
+            console.error(`[ToolRegistry] Error fetching analytics:`, error);
+        }
+
+        return map;
     }
 
     /**
@@ -563,7 +596,13 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Remove existing entry if present
         const filtered = tools.filter((t) => t.id !== toolManifest.id);
-        filtered.push(toolManifest);
+        // Do not persist transient analytics fields
+        const sanitizedManifest = { ...toolManifest } as Partial<ToolManifest>;
+        delete (sanitizedManifest as any).downloads;
+        delete (sanitizedManifest as any).rating;
+        delete (sanitizedManifest as any).mau;
+
+        filtered.push(sanitizedManifest as ToolManifest);
 
         const manifest = {
             version: "1.0",

@@ -1595,17 +1595,51 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* Sidebar filters */
+.sidebar-filters {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+}
+
+.filter-select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.filter-select:hover {
+    border-color: var(--accent-color);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
 /* VSCode-style tools list */
 .tools-list-pptb {
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
 
 .tool-item-pptb {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .tool-item-pptb-local {
@@ -1617,7 +1651,9 @@ body {
 }
 
 .tool-item-pptb:hover {
-    background: rgba(0, 120, 212, 0.1);
+    background: rgba(0, 120, 212, 0.06);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 120, 212, 0.4);
 }
 
 .tool-item-header-pptb {
@@ -1642,13 +1678,15 @@ body {
 
 .tool-item-icon-pptb {
     font-size: 16px;
-    width: 20px;
-    height: 20px;
+    width: 30px;
+    height: 30px;
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    background: var(--card-background);
+    border-radius: 5px;
 }
 
 .tool-item-icon-img {
@@ -1809,16 +1847,22 @@ body {
 .marketplace-tools-list-pptb {
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
 
 .marketplace-item-pptb {
-    padding: 12px;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .marketplace-item-pptb:hover {
-    background: rgba(0, 120, 212, 0.05);
+    background: rgba(0, 120, 212, 0.06);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 120, 212, 0.4);
 }
 
 .marketplace-item-header-pptb {
@@ -1830,13 +1874,15 @@ body {
 
 .marketplace-item-icon-pptb {
     font-size: 16px;
-    width: 20px;
-    height: 20px;
+    width: 30px;
+    height: 30px;
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    background: var(--card-background);
+    border-radius: 5px;
 }
 
 .marketplace-item-icon-img {
@@ -3669,13 +3715,32 @@ body.dark-theme .csp-warning ul {
 
 /* Context Menu for Tool Tabs */
 .context-menu {
-    background: var(--background-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--bg-color, #ffffff);
+    border: none !important;
+    outline: none;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     min-width: 200px;
     padding: 8px 0;
     font-size: 14px;
+    pointer-events: auto;
+}
+
+.tool-more-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.tool-more-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .context-menu-header {
@@ -3698,7 +3763,18 @@ body.dark-theme .csp-warning ul {
 }
 
 .context-menu-item:hover:not(.disabled) {
-    background: var(--background-hover);
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+}
+
+.dark-theme .context-menu-item:hover:not(.disabled) {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.context-menu-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
 }
 
 .context-menu-item.active {

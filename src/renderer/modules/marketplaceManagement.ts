@@ -22,6 +22,9 @@ let toolLibrary: ToolDetail[] = [];
 const TOOL_DETAIL_MODAL_CHANNELS = {
     install: "tool-detail:install",
     installResult: "tool-detail:install:result",
+    review: "tool-detail:review",
+    repository: "tool-detail:repository",
+    website: "tool-detail:website",
 } as const;
 
 const TOOL_DETAIL_MODAL_DIMENSIONS = {
@@ -50,7 +53,6 @@ export async function loadToolsLibrary(): Promise<void> {
     try {
         // Fetch tools from registry
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
-        console.log(registryTools);
 
         // Map registry tools to the format expected by the UI
         toolLibrary = (registryTools as Tool[]).map(
@@ -62,12 +64,14 @@ export async function loadToolsLibrary(): Promise<void> {
                     authors: tool.authors,
                     categories: tool.categories,
                     version: tool.version,
-                    icon: tool.iconUrl,
+                    iconUrl: tool.iconUrl,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     mau: tool.mau,
                     readmeUrl: tool.readmeUrl,
                     status: tool.status,
+                    repository: tool.repository,
+                    website: tool.website,
                 } as ToolDetail),
         );
 
@@ -101,18 +105,42 @@ export async function loadMarketplace(): Promise<void> {
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
 
-    // Filter based on search
-    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null; // Fluent UI text field
-    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+    // Get filter values
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
 
-    const filteredTools = !searchTerm
-        ? toolLibrary
-        : toolLibrary.filter((t) => {
-              const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
-              if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
-              if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
-              return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
-          });
+    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+    const selectedCategory = categoryFilter?.value || "";
+    const selectedAuthor = authorFilter?.value || "";
+
+    // Populate filter dropdowns
+    populateMarketplaceFilters();
+
+    // Apply filters
+    const filteredTools = toolLibrary.filter((t) => {
+        // Search filter
+        if (searchTerm) {
+            const haystacks: string[] = [t.name || "", t.description || ""];
+            if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+            if (t.categories && t.categories.length) haystacks.push(t.categories.join(", "));
+            if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
+                return false;
+            }
+        }
+
+        // Category filter
+        if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
+            return false;
+        }
+
+        // Author filter
+        if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+            return false;
+        }
+
+        return true;
+    });
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
@@ -127,13 +155,11 @@ export async function loadMarketplace(): Promise<void> {
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
-            console.log(tool);
-
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
-            const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+            // Show all categories for this tool
+            const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const isDeprecated = tool.status === "deprecated";
             const deprecatedBadgeHtml = isDeprecated ? '<span class="marketplace-item-deprecated-badge">Deprecated</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
@@ -146,11 +172,11 @@ export async function loadMarketplace(): Promise<void> {
             // Icon handling (retain improved fallback logic)
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
-            if (tool.icon) {
-                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+            if (tool.iconUrl) {
+                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
                 } else {
-                    toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
+                    toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
                 }
             } else {
                 toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
@@ -270,12 +296,68 @@ export async function loadMarketplace(): Promise<void> {
             loadMarketplace();
         });
     }
+
+    // Setup filter event listeners
+    if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+        (categoryFilter as any)._pptbBound = true;
+        categoryFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    if (authorFilter && !(authorFilter as any)._pptbBound) {
+        (authorFilter as any)._pptbBound = true;
+        authorFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+}
+
+/**
+ * Populate marketplace filter dropdowns with unique values
+ */
+function populateMarketplaceFilters(): void {
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+
+    if (!categoryFilter || !authorFilter) return;
+
+    // Get current selections
+    const selectedCategory = categoryFilter.value;
+    const selectedAuthor = authorFilter.value;
+
+    // Extract unique categories and authors
+    const categories = new Set<string>();
+    const authors = new Set<string>();
+
+    toolLibrary.forEach((tool) => {
+        if (tool.categories) {
+            tool.categories.forEach((cat) => categories.add(cat));
+        }
+        if (tool.authors) {
+            tool.authors.forEach((author) => authors.add(author));
+        }
+    });
+
+    // Populate category filter
+    const sortedCategories = Array.from(categories).sort();
+    categoryFilter.innerHTML = '<option value="">All Categories</option>' + sortedCategories.map((cat) => `<option value="${cat}">${cat}</option>`).join("");
+    if (selectedCategory && sortedCategories.includes(selectedCategory)) {
+        categoryFilter.value = selectedCategory;
+    }
+
+    // Populate author filter
+    const sortedAuthors = Array.from(authors).sort();
+    authorFilter.innerHTML = '<option value="">All Authors</option>' + sortedAuthors.map((author) => `<option value="${author}">${author}</option>`).join("");
+    if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
+        authorFilter.value = selectedAuthor;
+    }
 }
 
 /**
  * Open tool detail modal (BrowserWindow-based)
  */
-async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
+export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
     initializeToolDetailModalBridge();
     activeToolDetailModal = { tool, isInstalled };
 
@@ -313,6 +395,39 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
         case TOOL_DETAIL_MODAL_CHANNELS.install:
             void handleToolDetailInstallRequest();
             break;
+        case TOOL_DETAIL_MODAL_CHANNELS.review: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open review link", error);
+            });
+            break;
+        }
+        case TOOL_DETAIL_MODAL_CHANNELS.repository: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open repository link", error);
+            });
+            break;
+        }
+        case TOOL_DETAIL_MODAL_CHANNELS.website: {
+            const data = (payload.data ?? {}) as { url?: unknown };
+            const url = typeof data.url === "string" ? data.url : undefined;
+            if (!url) {
+                return;
+            }
+            void window.toolboxAPI.openExternal(url).catch((error) => {
+                console.error("Failed to open website link", error);
+            });
+            break;
+        }
         default:
             break;
     }
@@ -374,9 +489,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
     const metaBadges: string[] = [];
     if (tool.version) metaBadges.push(`v${tool.version}`);
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
-    if (tool.rating !== undefined) metaBadges.push(`${tool.rating.toFixed(1)} rating`);
     const categories = tool.categories && tool.categories.length ? tool.categories.map((category) => escapeHtml(category)) : [];
-
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
     const { styles, body } = getToolDetailModalView({
@@ -390,6 +503,9 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         isInstalled,
         readmeUrl: tool.readmeUrl,
         isDarkTheme,
+        repository: tool.repository,
+        website: tool.website,
+        rating: tool.rating,
     });
 
     const script = getToolDetailModalControllerScript({
@@ -399,6 +515,9 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
             toolName: tool.name,
             isInstalled,
             readmeUrl: tool.readmeUrl || null,
+            reviewUrl: `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`,
+            repositoryUrl: tool.repository || null,
+            websiteUrl: tool.website || null,
         },
     });
 
@@ -407,7 +526,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 
 function buildToolIconHtml(tool: ToolDetail): string {
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
-    const iconUrl = tool.icon;
+    const iconUrl = tool.iconUrl;
 
     if (!iconUrl) {
         return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
