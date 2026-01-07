@@ -3,8 +3,6 @@
  * This file provides initialization logic for both main and renderer processes
  */
 
-import { app } from "electron";
-
 /**
  * Sentry initialization options
  */
@@ -29,15 +27,43 @@ export function getSentryConfig(): SentryConfig | null {
     }
 
     // Determine environment (production, development, etc.)
-    const environment = process.env.NODE_ENV || (app?.isPackaged ? "production" : "development");
+    // In Electron main process, we check if app is packaged
+    // In renderer process, we check NODE_ENV
+    let environment = "development";
+    let release = "unknown";
 
-    // Get app version for release tracking
-    const release = app?.getVersion() || "unknown";
+    // Try to detect if we're in main process by checking for electron module availability
+    // and attempting to access main process APIs
+    try {
+        // This will only work in main process
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { app } = require("electron");
+        if (app && typeof app.isPackaged !== "undefined") {
+            // Successfully accessed main process app - we're in main process
+            environment = app.isPackaged ? "production" : "development";
+            release = `powerplatform-toolbox@${app.getVersion()}`;
+        } else {
+            // app exists but isPackaged is undefined - fall back to NODE_ENV
+            environment = process.env.NODE_ENV || "development";
+        }
+    } catch (error) {
+        // Failed to access electron.app - likely in renderer process or other context
+        environment = process.env.NODE_ENV || "development";
+        // Try to get version from package.json if available
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const pkg = require("../../package.json");
+            release = `powerplatform-toolbox@${pkg.version}`;
+        } catch (pkgError) {
+            // If package.json is not available, use default
+            release = "powerplatform-toolbox@unknown";
+        }
+    }
 
     return {
         dsn,
         environment,
-        release: `powerplatform-toolbox@${release}`,
+        release,
         enableTracing: true,
         tracesSampleRate: environment === "production" ? 0.1 : 1.0, // 10% in production, 100% in development
     };

@@ -129,8 +129,40 @@ export async function initializeApplication(): Promise<void> {
         if (sentryConfig) {
             Sentry.captureException(error);
         }
-        // Show error to user
-        alert(`Failed to initialize application: ${(error as Error).message}`);
+        // Show error to user using the notification system
+        const errorMessage = (error as Error).message || "Unknown error occurred";
+        const errorElement = document.createElement("div");
+        errorElement.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--error-bg, #d13438);
+            color: var(--error-fg, #ffffff);
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 500px;
+            text-align: center;
+        `;
+        errorElement.innerHTML = `
+            <h3 style="margin: 0 0 12px 0; font-size: 18px;">Application Initialization Failed</h3>
+            <p style="margin: 0 0 16px 0;">${errorMessage}</p>
+            <button id="reload-btn" style="
+                background: #ffffff;
+                color: #d13438;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+            ">Reload Application</button>
+        `;
+        document.body.appendChild(errorElement);
+        document.getElementById("reload-btn")?.addEventListener("click", () => {
+            window.location.reload();
+        });
     }
 }
 
