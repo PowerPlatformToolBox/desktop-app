@@ -4,6 +4,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, loadEnv } from "vite";
 import electron from "vite-plugin-electron/simple";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import packageJson from "./package.json";
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === "production";
@@ -191,11 +192,11 @@ export default defineConfig(({ mode }) => {
                           project: sentryProject,
                           authToken: sentryAuthToken,
                           sourcemaps: {
-                              assets: ["./dist/main/**/*.js", "./dist/main/**/*.js.map", "./dist/renderer/**/*.js", "./dist/renderer/**/*.js.map"],
-                              filesToDeleteAfterUpload: ["./dist/main/**/*.js.map", "./dist/renderer/**/*.js.map"],
+                              assets: ["./dist/**/*.js", "./dist/**/*.js.map"],
+                              filesToDeleteAfterUpload: ["./dist/**/*.js.map"],
                           },
                           release: {
-                              name: `powerplatform-toolbox@${require("./package.json").version}`,
+                              name: `powerplatform-toolbox@${packageJson.version}`,
                           },
                           telemetry: false,
                       }),
