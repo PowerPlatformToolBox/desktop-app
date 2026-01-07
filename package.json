@@ -51,7 +51,6 @@
     "@supabase/supabase-js": "^2.84.0",
     "@types/uuid": "^10.0.0",
     "ansi-to-html": "^0.7.2",
-    "applicationinsights": "^3.12.1",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "uuid": "^13.0.0"
