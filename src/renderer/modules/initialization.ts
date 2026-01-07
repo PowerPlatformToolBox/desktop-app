@@ -14,12 +14,18 @@ if (sentryConfig) {
         environment: sentryConfig.environment,
         release: sentryConfig.release,
         tracesSampleRate: sentryConfig.tracesSampleRate,
+        replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
+        replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
                 levels: ["error", "warn"],
             }),
             Sentry.browserTracingIntegration(),
+            Sentry.replayIntegration({
+                maskAllText: true,
+                blockAllMedia: true,
+            }),
         ],
     });
     console.log("[Sentry] Initialized in renderer process");

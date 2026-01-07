@@ -29,6 +29,7 @@
   "author": "Power Platform Tool Box",
   "license": "GPL-3.0",
   "devDependencies": {
+    "@sentry/vite-plugin": "^4.6.1",
     "@types/node": "^20.19.21",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",

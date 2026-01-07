@@ -163,11 +163,22 @@ Power Platform Tool Box uses [Sentry.io](https://sentry.io) for error tracking a
 ```bash
 # Optional: Enable Sentry telemetry
 SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
+
+# Optional: For production builds with source map upload
+SENTRY_AUTH_TOKEN=your-auth-token
+SENTRY_ORG=your-org-slug
+SENTRY_PROJECT=your-project-slug
 ```
 
 5. Build the project with `pnpm run build`
 
-**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled. Sentry is only used in production builds to track errors and improve the application.
+**Features enabled with Sentry:**
+- Error tracking in both main and renderer processes
+- Session replay (captures user interactions before errors)
+- Performance monitoring with browser tracing
+- Automatic source map upload in production builds (requires auth token)
+
+**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled. Source map upload requires `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` environment variables for production builds.
 
 ### Environment Variables
 
@@ -176,6 +187,9 @@ The application supports the following environment variables in a `.env` file:
 -   `SUPABASE_URL` - Your Supabase project URL (required for tool registry)
 -   `SUPABASE_ANON_KEY` - Your Supabase anonymous key (required for tool registry)
 -   `SENTRY_DSN` - Your Sentry DSN for error tracking (optional)
+-   `SENTRY_AUTH_TOKEN` - Your Sentry auth token for source map upload (optional, production only)
+-   `SENTRY_ORG` - Your Sentry organization slug (optional, production only)
+-   `SENTRY_PROJECT` - Your Sentry project slug (optional, production only)
 
 All environment variables are injected at build time and not exposed in the final bundle.
 

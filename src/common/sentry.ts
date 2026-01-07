@@ -12,6 +12,8 @@ export interface SentryConfig {
     release?: string;
     enableTracing?: boolean;
     tracesSampleRate?: number;
+    replaysSessionSampleRate?: number;
+    replaysOnErrorSampleRate?: number;
 }
 
 /**
@@ -66,6 +68,8 @@ export function getSentryConfig(): SentryConfig | null {
         release,
         enableTracing: true,
         tracesSampleRate: environment === "production" ? 0.1 : 1.0, // 10% in production, 100% in development
+        replaysSessionSampleRate: environment === "production" ? 0.1 : 1.0, // 10% in production, 100% in development
+        replaysOnErrorSampleRate: 1.0, // Always capture replays on error
     };
 }
 
