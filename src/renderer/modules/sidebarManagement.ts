@@ -37,6 +37,7 @@ export function switchSidebar(sidebarId: string): void {
             }
             currentSidebarId = sidebarId;
         }
+        window.api?.send("sidebar-layout-changed");
         return;
     }
 
@@ -61,4 +62,6 @@ export function switchSidebar(sidebarId: string): void {
     if (targetContent) {
         targetContent.classList.add("active");
     }
+
+    window.api?.send("sidebar-layout-changed");
 }

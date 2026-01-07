@@ -63,7 +63,12 @@ export class ToolWindowManager {
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
-                this.applyToolViewBounds(bounds);
+                this.applyToolViewBounds({
+                    x: Math.round(bounds.x),
+                    y: Math.round(bounds.y),
+                    width: Math.round(bounds.width),
+                    height: Math.round(bounds.height),
+                });
             } else {
                 this.boundsUpdatePending = false;
             }
@@ -83,7 +88,8 @@ export class ToolWindowManager {
         };
         this.sidebarLayoutListener = () => {
             this.scheduleBoundsUpdate();
-            setTimeout(() => this.scheduleBoundsUpdate(), 120);
+            setTimeout(() => this.scheduleBoundsUpdate(), 140);
+            setTimeout(() => this.scheduleBoundsUpdate(), 280);
         };
         this.setupIpcHandlers();
     }

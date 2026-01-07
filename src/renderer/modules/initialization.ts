@@ -582,7 +582,6 @@ function setupToolPanelBoundsListener(): void {
 
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
-
             const bounds = {
                 x: Math.round(rect.left),
                 y: Math.round(rect.top),
