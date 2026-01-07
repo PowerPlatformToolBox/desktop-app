@@ -16,7 +16,6 @@ let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: ()
 export async function loadSidebarTools(): Promise<void> {
     const toolsList = document.getElementById("sidebar-tools-list");
     if (!toolsList) return;
-    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
 
     try {
         const tools = await window.toolboxAPI.getAllTools();
@@ -45,16 +44,42 @@ export async function loadSidebarTools(): Promise<void> {
             }),
         );
 
-        // Apply search filter
+        // Get filter values
+        const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
+        const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+        const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
-        const filteredTools = !searchTerm
-            ? toolsWithUpdateInfo
-            : toolsWithUpdateInfo.filter((t) => {
-                  const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
-                  if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
-                  if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
-                  return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
-              });
+        const selectedCategory = categoryFilter?.value || "";
+        const selectedAuthor = authorFilter?.value || "";
+
+        // Populate filter dropdowns
+        populateInstalledToolsFilters(toolsWithUpdateInfo);
+
+        // Apply filters
+        const filteredTools = toolsWithUpdateInfo.filter((t) => {
+            // Search filter
+            if (searchTerm) {
+                const haystacks: string[] = [t.name || "", t.description || ""];
+                if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+                if (t.categories && t.categories.length) haystacks.push(t.categories.join(", "));
+                if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
+                    return false;
+                }
+            }
+
+            // Category filter
+            if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
+                return false;
+            }
+
+            // Author filter
+            if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+                return false;
+            }
+
+            return true;
+        });
 
         // Sort tools: favorites first, then by name
         const sortedTools = [...filteredTools].sort((a, b) => {
@@ -225,11 +250,71 @@ export async function loadSidebarTools(): Promise<void> {
     }
 
     // Wire up live search without replacing the input (to avoid cursor loss)
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
+    const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+
     if (searchInput && !(searchInput as any)._pptbBound) {
         (searchInput as any)._pptbBound = true;
         searchInput.addEventListener("input", () => {
             loadSidebarTools();
         });
+    }
+
+    // Setup filter event listeners
+    if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+        (categoryFilter as any)._pptbBound = true;
+        categoryFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    if (authorFilter && !(authorFilter as any)._pptbBound) {
+        (authorFilter as any)._pptbBound = true;
+        authorFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+}
+
+/**
+ * Populate installed tools filter dropdowns with unique values
+ */
+function populateInstalledToolsFilters(tools: ToolDetail[]): void {
+    const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+
+    if (!categoryFilter || !authorFilter) return;
+
+    // Get current selections
+    const selectedCategory = categoryFilter.value;
+    const selectedAuthor = authorFilter.value;
+
+    // Extract unique categories and authors
+    const categories = new Set<string>();
+    const authors = new Set<string>();
+
+    tools.forEach((tool) => {
+        if (tool.categories) {
+            tool.categories.forEach((cat) => categories.add(cat));
+        }
+        if (tool.authors) {
+            tool.authors.forEach((author) => authors.add(author));
+        }
+    });
+
+    // Populate category filter
+    const sortedCategories = Array.from(categories).sort();
+    categoryFilter.innerHTML = '<option value="">All Categories</option>' + sortedCategories.map((cat) => `<option value="${cat}">${cat}</option>`).join("");
+    if (selectedCategory && sortedCategories.includes(selectedCategory)) {
+        categoryFilter.value = selectedCategory;
+    }
+
+    // Populate author filter
+    const sortedAuthors = Array.from(authors).sort();
+    authorFilter.innerHTML = '<option value="">All Authors</option>' + sortedAuthors.map((author) => `<option value="${author}">${author}</option>`).join("");
+    if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
+        authorFilter.value = selectedAuthor;
     }
 }
 

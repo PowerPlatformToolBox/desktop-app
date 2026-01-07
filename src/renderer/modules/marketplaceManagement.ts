@@ -105,18 +105,42 @@ export async function loadMarketplace(): Promise<void> {
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
 
-    // Filter based on search
-    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null; // Fluent UI text field
-    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+    // Get filter values
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
 
-    const filteredTools = !searchTerm
-        ? toolLibrary
-        : toolLibrary.filter((t) => {
-              const haystacks: string[] = [t.name || "", t.description || ""]; // name + description
-              if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
-              if ((t as any).categories && (t as any).categories.length) haystacks.push((t as any).categories.join(", "));
-              return haystacks.some((h) => h.toLowerCase().includes(searchTerm));
-          });
+    const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+    const selectedCategory = categoryFilter?.value || "";
+    const selectedAuthor = authorFilter?.value || "";
+
+    // Populate filter dropdowns
+    populateMarketplaceFilters();
+
+    // Apply filters
+    const filteredTools = toolLibrary.filter((t) => {
+        // Search filter
+        if (searchTerm) {
+            const haystacks: string[] = [t.name || "", t.description || ""];
+            if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
+            if (t.categories && t.categories.length) haystacks.push(t.categories.join(", "));
+            if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
+                return false;
+            }
+        }
+
+        // Category filter
+        if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
+            return false;
+        }
+
+        // Author filter
+        if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+            return false;
+        }
+
+        return true;
+    });
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
@@ -271,6 +295,62 @@ export async function loadMarketplace(): Promise<void> {
         searchInput.addEventListener("input", () => {
             loadMarketplace();
         });
+    }
+
+    // Setup filter event listeners
+    if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+        (categoryFilter as any)._pptbBound = true;
+        categoryFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    if (authorFilter && !(authorFilter as any)._pptbBound) {
+        (authorFilter as any)._pptbBound = true;
+        authorFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+}
+
+/**
+ * Populate marketplace filter dropdowns with unique values
+ */
+function populateMarketplaceFilters(): void {
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+
+    if (!categoryFilter || !authorFilter) return;
+
+    // Get current selections
+    const selectedCategory = categoryFilter.value;
+    const selectedAuthor = authorFilter.value;
+
+    // Extract unique categories and authors
+    const categories = new Set<string>();
+    const authors = new Set<string>();
+
+    toolLibrary.forEach((tool) => {
+        if (tool.categories) {
+            tool.categories.forEach((cat) => categories.add(cat));
+        }
+        if (tool.authors) {
+            tool.authors.forEach((author) => authors.add(author));
+        }
+    });
+
+    // Populate category filter
+    const sortedCategories = Array.from(categories).sort();
+    categoryFilter.innerHTML = '<option value="">All Categories</option>' + sortedCategories.map((cat) => `<option value="${cat}">${cat}</option>`).join("");
+    if (selectedCategory && sortedCategories.includes(selectedCategory)) {
+        categoryFilter.value = selectedCategory;
+    }
+
+    // Populate author filter
+    const sortedAuthors = Array.from(authors).sort();
+    authorFilter.innerHTML = '<option value="">All Authors</option>' + sortedAuthors.map((author) => `<option value="${author}">${author}</option>`).join("");
+    if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
+        authorFilter.value = selectedAuthor;
     }
 }
 

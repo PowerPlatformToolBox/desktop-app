@@ -1595,6 +1595,36 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+/* Sidebar filters */
+.sidebar-filters {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+}
+
+.filter-select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.filter-select:hover {
+    border-color: var(--accent-color);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
 /* VSCode-style tools list */
 .tools-list-pptb {
     display: flex;
