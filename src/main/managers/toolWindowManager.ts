@@ -47,6 +47,12 @@ export class ToolWindowManager {
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
+    private boundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
+    private terminalVisibilityListener: () => void;
+    private sidebarLayoutListener: () => void;
+    private refreshBoundsListener: () => void;
+    private focusListener: () => void;
+    private showListener: () => void;
 
     constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
         this.mainWindow = mainWindow;
@@ -54,6 +60,31 @@ export class ToolWindowManager {
         this.connectionsManager = connectionsManager;
         this.settingsManager = settingsManager;
         this.toolManager = toolManager;
+
+        this.boundsResponseListener = (event, bounds) => {
+            if (bounds && bounds.width > 0 && bounds.height > 0) {
+                this.applyToolViewBounds(bounds);
+            } else {
+                this.boundsUpdatePending = false;
+            }
+        };
+
+        this.refreshBoundsListener = () => this.scheduleBoundsUpdate();
+        this.focusListener = () => {
+            this.refreshBoundsListener();
+            setTimeout(() => this.refreshBoundsListener(), 120);
+        };
+        this.showListener = () => {
+            this.refreshBoundsListener();
+            setTimeout(() => this.refreshBoundsListener(), 120);
+        };
+        this.terminalVisibilityListener = () => {
+            this.scheduleBoundsUpdate();
+        };
+        this.sidebarLayoutListener = () => {
+            this.scheduleBoundsUpdate();
+            setTimeout(() => this.scheduleBoundsUpdate(), 120);
+        };
         this.setupIpcHandlers();
     }
 
@@ -93,44 +124,23 @@ export class ToolWindowManager {
         });
 
         // Restore renderer-provided bounds flow
-        ipcMain.on("get-tool-panel-bounds-response", (event, bounds) => {
-            if (bounds && bounds.width > 0 && bounds.height > 0) {
-                this.applyToolViewBounds(bounds);
-            } else {
-                this.boundsUpdatePending = false;
-            }
-        });
+        ipcMain.on("get-tool-panel-bounds-response", this.boundsResponseListener);
 
         // Update tool window bounds on common window state changes
-        const refresh = () => this.scheduleBoundsUpdate();
-        this.mainWindow.on("resize", refresh);
-        this.mainWindow.on("move", refresh);
-        this.mainWindow.on("maximize", refresh);
-        this.mainWindow.on("unmaximize", refresh);
-        this.mainWindow.on("enter-full-screen", refresh);
-        this.mainWindow.on("leave-full-screen", refresh);
+        this.mainWindow.on("resize", this.refreshBoundsListener);
+        this.mainWindow.on("move", this.refreshBoundsListener);
+        this.mainWindow.on("maximize", this.refreshBoundsListener);
+        this.mainWindow.on("unmaximize", this.refreshBoundsListener);
+        this.mainWindow.on("enter-full-screen", this.refreshBoundsListener);
+        this.mainWindow.on("leave-full-screen", this.refreshBoundsListener);
         // macOS app switching restores correct render; emulate by refreshing on focus/show
-        this.mainWindow.on("focus", () => {
-            // Immediate refresh, plus a small follow-up to catch post-focus layout
-            refresh();
-            setTimeout(() => refresh(), 120);
-        });
-        this.mainWindow.on("show", () => {
-            refresh();
-            setTimeout(() => refresh(), 120);
-        });
+        this.mainWindow.on("focus", this.focusListener);
+        this.mainWindow.on("show", this.showListener);
 
         // Handle terminal panel visibility changes
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
-        ipcMain.on("terminal-visibility-changed", () => {
-            this.scheduleBoundsUpdate();
-        });
-        ipcMain.on("sidebar-layout-changed", () => {
-            // Sidebar animations can change bounds over a short period.
-            // Burst a couple of requests to capture final geometry.
-            this.scheduleBoundsUpdate();
-            setTimeout(() => this.scheduleBoundsUpdate(), 120);
-        });
+        ipcMain.on("terminal-visibility-changed", this.terminalVisibilityListener);
+        ipcMain.on("sidebar-layout-changed", this.sidebarLayoutListener);
 
         // Periodic frame scheduling helper
         // Ensures multiple rapid events coalesce into one bounds request per frame
@@ -526,6 +536,33 @@ export class ToolWindowManager {
      * Cleanup all tool views
      */
     destroy(): void {
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
+
+        if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
+        if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
+        if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);
+
+        if (this.refreshBoundsListener) {
+            this.mainWindow.removeListener("resize", this.refreshBoundsListener);
+            this.mainWindow.removeListener("move", this.refreshBoundsListener);
+            this.mainWindow.removeListener("maximize", this.refreshBoundsListener);
+            this.mainWindow.removeListener("unmaximize", this.refreshBoundsListener);
+            this.mainWindow.removeListener("enter-full-screen", this.refreshBoundsListener);
+            this.mainWindow.removeListener("leave-full-screen", this.refreshBoundsListener);
+        }
+
+        if (this.focusListener) {
+            this.mainWindow.removeListener("focus", this.focusListener);
+        }
+        if (this.showListener) {
+            this.mainWindow.removeListener("show", this.showListener);
+        }
+
         for (const [toolId, toolView] of this.toolViews) {
             try {
                 if (toolView.webContents && !toolView.webContents.isDestroyed()) {
@@ -537,6 +574,7 @@ export class ToolWindowManager {
             }
         }
         this.toolViews.clear();
+        this.toolConnectionInfo.clear();
         this.activeToolId = null;
     }
 
