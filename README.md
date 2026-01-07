@@ -86,31 +86,18 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
--   [Known Issues](#known-issues)
--   [Features Overview](#features-overview)
--   [Architecture](#architecture)
--   [Security Model](#security-model)
--   [Tool Development](#tool-development)
-    -   [Sample Tools Repository](#sample-tools-repository)
--   [ToolBox development](#toolbox-development)
-    -   [Installing Tools](#installing-tools)
-    -   [Tool Security](#tool-security)
--   [Dataverse Connections](#dataverse-connections)
--   [Releases \& Downloads](#releases--downloads)
-    -   [Download Latest Release](#download-latest-release)
--   [Development Configuration](#development-configuration)
-    -   [Telemetry and Error Tracking](#telemetry-and-error-tracking)
-    -   [Environment Variables](#environment-variables)
--   [Auto-Updates](#auto-updates)
-    -   [Enabling Auto-Updates](#enabling-auto-updates)
-    -   [Manual Update Check](#manual-update-check)
-    -   [Update Process](#update-process)
--   [Documentation](#documentation)
-    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
--   [Discussions](#discussions)
--   [License](#license)
--   [Team](#team)
--   [Contributors](#contributors)
+- [Known Issues](#known-issues)
+- [Features Overview](#features-overview)
+- [Releases \& Downloads](#releases--downloads)
+  - [Download Latest Release](#download-latest-release)
+- [Development Configuration](#development-configuration)
+  - [Telemetry and Error Tracking](#telemetry-and-error-tracking)
+    - [Setting up Sentry (Optional)](#setting-up-sentry-optional)
+  - [Environment Variables](#environment-variables)
+- [Discussions](#discussions)
+- [License](#license)
+- [Team](#team)
+- [Contributors](#contributors)
 
 ## Known Issues
 
@@ -151,14 +138,11 @@ Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/re
 
 ### Telemetry and Error Tracking
 
-Power Platform Tool Box uses [Sentry.io](https://sentry.io) for error tracking and telemetry. This is **optional** and disabled by default.
+Power Platform ToolBox uses [Sentry.io](https://sentry.io) for error tracking and telemetry.
 
 #### Setting up Sentry (Optional)
 
-1. Create a free account at [sentry.io](https://sentry.io)
-2. Create a new Electron project in Sentry
-3. Copy your DSN (Data Source Name) from the project settings
-4. Create a `.env` file in the project root (copy from `.env.example`):
+1. Create a `.env` file in the project root (copy from `.env.example`):
 
 ```bash
 # Optional: Enable Sentry telemetry
@@ -170,15 +154,16 @@ SENTRY_ORG=your-org-slug
 SENTRY_PROJECT=your-project-slug
 ```
 
-5. Build the project with `pnpm run build`
+2. Build the project with `pnpm run build`
 
 **Features enabled with Sentry:**
-- Error tracking in both main and renderer processes
-- Session replay (captures user interactions before errors)
-- Performance monitoring with browser tracing
-- Automatic source map upload in production builds (requires auth token)
 
-**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled. Source map upload requires `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` environment variables for production builds.
+-   Error tracking in both main and renderer processes
+-   Session replay (captures user interactions before errors)
+-   Performance monitoring with browser tracing
+-   Automatic source map upload in production builds (requires auth token)
+
+**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled.
 
 ### Environment Variables
 
