@@ -82,7 +82,6 @@ export async function loadSidebarTools(): Promise<void> {
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
             .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
-                const isFavorite = !!tool.isFavorite;
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 
                 // Icon handling (retain improved fallback logic)
@@ -99,8 +98,6 @@ export async function loadSidebarTools(): Promise<void> {
                 }
 
                 // Asset paths
-                const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-                const starIconPath = isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
                 const infoIconPath = "icons/light/info_filled.svg";
                 const moreIcon = `
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -113,7 +110,6 @@ export async function loadSidebarTools(): Promise<void> {
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
-                const favoriteTitle = isFavorite ? "Remove from favorites" : "Add to favorites";
                 const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
                 const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
                 const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
