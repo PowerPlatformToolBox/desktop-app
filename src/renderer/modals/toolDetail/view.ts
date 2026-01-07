@@ -262,7 +262,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     const linkItems: string[] = [];
     linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-link" href="#" role="button">Leave a review</a>`);
     if (model.repository) {
-        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-link" href="#" role="button">GitHub repo</a>`);
+        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-link" href="#" role="button">Repository</a>`);
     }
     if (model.website) {
         linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-link" href="#" role="button">Website</a>`);
