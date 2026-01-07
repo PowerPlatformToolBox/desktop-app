@@ -542,41 +542,42 @@ export class ToolRegistryManager extends EventEmitter {
                     status,
                 } as ToolManifest;
             });
-
-            // Refresh analytics from Supabase so installed tools match marketplace metrics
-            if (!this.useLocalFallback && this.supabase && normalized.length) {
-                try {
-                    const toolIds = normalized.map((t) => t.id);
-                    const { data: analyticsRows, error: analyticsError } = await this.supabase.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
-
-                    if (analyticsError) {
-                        console.error(`[ToolRegistry] Failed to refresh analytics for installed tools:`, analyticsError);
-                    } else if (analyticsRows && analyticsRows.length) {
-                        const analyticsMap = new Map(
-                            analyticsRows.map((row: any) => {
-                                const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
-                                return [row.id as string, analytics as SupabaseAnalyticsRow | undefined];
-                            }),
-                        );
-
-                        normalized.forEach((tool) => {
-                            const analytics = analyticsMap.get(tool.id);
-                            if (analytics) {
-                                tool.downloads = analytics.downloads;
-                                tool.rating = analytics.rating;
-                                tool.mau = analytics.mau;
-                            }
-                        });
-                    }
-                } catch (error) {
-                    console.error(`[ToolRegistry] Error refreshing installed tool analytics:`, error);
-                }
-            }
             return normalized;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
             return [];
         }
+    }
+
+    canFetchRemoteAnalytics(): boolean {
+        return !this.useLocalFallback && !!this.supabase;
+    }
+
+    async fetchAnalytics(toolIds: string[]): Promise<Map<string, SupabaseAnalyticsRow>> {
+        const map = new Map<string, SupabaseAnalyticsRow>();
+        if (!this.canFetchRemoteAnalytics() || !toolIds.length) {
+            return map;
+        }
+
+        try {
+            const { data, error } = await this.supabase!.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
+
+            if (error) {
+                console.error(`[ToolRegistry] Failed to fetch analytics:`, error);
+                return map;
+            }
+
+            (data || []).forEach((row: any) => {
+                const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
+                if (analytics) {
+                    map.set(row.id as string, analytics as SupabaseAnalyticsRow);
+                }
+            });
+        } catch (error) {
+            console.error(`[ToolRegistry] Error fetching analytics:`, error);
+        }
+
+        return map;
     }
 
     /**
