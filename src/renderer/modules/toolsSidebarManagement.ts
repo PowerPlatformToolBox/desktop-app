@@ -153,9 +153,6 @@ export async function loadSidebarTools(): Promise<void> {
                                 <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                     tool.id
                                 }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                <button class="tool-favorite-btn" data-action="favorite" data-tool-id="${tool.id}" title="${favoriteTitle}">
-                                    <img src="${starIconPath}" alt="${isFavorite ? "Favorited" : "Not favorite"}" />
-                                </button>
                             </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
@@ -170,11 +167,6 @@ export async function loadSidebarTools(): Promise<void> {
                         }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
-                            <div class="tool-item-actions-right">
-                                <button class="tool-item-delete-btn" data-action="delete" data-tool-id="${tool.id}" title="Uninstall tool">
-                                    <img src="${trashIconPath}" alt="Delete" />
-                                </button>
-                            </div>
                         </div>
                         ${
                             hasUpdate && latestVersion
