@@ -79,6 +79,8 @@ export async function loadSidebarTools(): Promise<void> {
         // Create lookup for menu actions
         const toolLookup = new Map(sortedTools.map((t) => [t.id, t]));
 
+        console.log(`Loaded ${sortedTools.length} installed tools`);
+
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
             .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
@@ -99,12 +101,8 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Asset paths
                 const infoIconPath = "icons/light/info_filled.svg";
-                const moreIcon = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="5" r="2" fill="currentColor" />
-                        <circle cx="12" cy="12" r="2" fill="currentColor" />
-                        <circle cx="12" cy="19" r="2" fill="currentColor" />
-                    </svg>`;
+                const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
+                const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
 
                 const hasUpdate = !!tool.hasUpdate;
                 const latestVersion = tool.latestVersion;

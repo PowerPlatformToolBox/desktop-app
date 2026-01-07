@@ -131,8 +131,6 @@ export async function loadMarketplace(): Promise<void> {
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
-            console.log(tool);
-
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
