@@ -98,6 +98,9 @@
 -   [Dataverse Connections](#dataverse-connections)
 -   [Releases \& Downloads](#releases--downloads)
     -   [Download Latest Release](#download-latest-release)
+-   [Development Configuration](#development-configuration)
+    -   [Telemetry and Error Tracking](#telemetry-and-error-tracking)
+    -   [Environment Variables](#environment-variables)
 -   [Auto-Updates](#auto-updates)
     -   [Enabling Auto-Updates](#enabling-auto-updates)
     -   [Manual Update Check](#manual-update-check)
@@ -143,6 +146,38 @@ Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/re
 
 -   **Windows**: `.exe` installer
 -   **macOS**: `.dmg` installer
+
+## Development Configuration
+
+### Telemetry and Error Tracking
+
+Power Platform Tool Box uses [Sentry.io](https://sentry.io) for error tracking and telemetry. This is **optional** and disabled by default.
+
+#### Setting up Sentry (Optional)
+
+1. Create a free account at [sentry.io](https://sentry.io)
+2. Create a new Electron project in Sentry
+3. Copy your DSN (Data Source Name) from the project settings
+4. Create a `.env` file in the project root (copy from `.env.example`):
+
+```bash
+# Optional: Enable Sentry telemetry
+SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
+```
+
+5. Build the project with `pnpm run build`
+
+**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled. Sentry is only used in production builds to track errors and improve the application.
+
+### Environment Variables
+
+The application supports the following environment variables in a `.env` file:
+
+-   `SUPABASE_URL` - Your Supabase project URL (required for tool registry)
+-   `SUPABASE_ANON_KEY` - Your Supabase anonymous key (required for tool registry)
+-   `SENTRY_DSN` - Your Sentry DSN for error tracking (optional)
+
+All environment variables are injected at build time and not exposed in the final bundle.
 
 ## Discussions
 
