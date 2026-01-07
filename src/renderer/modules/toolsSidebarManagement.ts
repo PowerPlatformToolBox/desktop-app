@@ -88,11 +88,11 @@ export async function loadSidebarTools(): Promise<void> {
                 // Icon handling (retain improved fallback logic)
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
                 let toolIconHtml = "";
-                if (tool.icon) {
-                    if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
-                        toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+                if (tool.iconUrl) {
+                    if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
+                        toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
                     } else {
-                        toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
+                        toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
                     }
                 } else {
                     toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;

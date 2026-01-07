@@ -53,7 +53,6 @@ export async function loadToolsLibrary(): Promise<void> {
     try {
         // Fetch tools from registry
         const registryTools = await window.toolboxAPI.fetchRegistryTools();
-        console.log(registryTools);
 
         // Map registry tools to the format expected by the UI
         toolLibrary = (registryTools as Tool[]).map(
@@ -65,7 +64,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     authors: tool.authors,
                     categories: tool.categories,
                     version: tool.version,
-                    icon: tool.iconUrl,
+                    iconUrl: tool.iconUrl,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     mau: tool.mau,
@@ -151,11 +150,11 @@ export async function loadMarketplace(): Promise<void> {
             // Icon handling (retain improved fallback logic)
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
             let toolIconHtml = "";
-            if (tool.icon) {
-                if (tool.icon.startsWith("http://") || tool.icon.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.icon}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
+            if (tool.iconUrl) {
+                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
+                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
                 } else {
-                    toolIconHtml = `<span class="tool-item-icon-text">${tool.icon}</span>`;
+                    toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
                 }
             } else {
                 toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
@@ -449,7 +448,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 
 function buildToolIconHtml(tool: ToolDetail): string {
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
-    const iconUrl = tool.icon;
+    const iconUrl = tool.iconUrl;
 
     if (!iconUrl) {
         return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
