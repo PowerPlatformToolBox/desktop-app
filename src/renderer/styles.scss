@@ -3669,13 +3669,32 @@ body.dark-theme .csp-warning ul {
 
 /* Context Menu for Tool Tabs */
 .context-menu {
-    background: var(--background-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--bg-color, #ffffff);
+    border: none !important;
+    outline: none;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     min-width: 200px;
     padding: 8px 0;
     font-size: 14px;
+    pointer-events: auto;
+}
+
+.tool-more-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.tool-more-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .context-menu-header {
@@ -3698,7 +3717,18 @@ body.dark-theme .csp-warning ul {
 }
 
 .context-menu-item:hover:not(.disabled) {
-    background: var(--background-hover);
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+}
+
+.dark-theme .context-menu-item:hover:not(.disabled) {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.context-menu-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
 }
 
 .context-menu-item.active {

@@ -280,7 +280,7 @@ export async function loadMarketplace(): Promise<void> {
 /**
  * Open tool detail modal (BrowserWindow-based)
  */
-async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
+export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
     initializeToolDetailModalBridge();
     activeToolDetailModal = { tool, isInstalled };
 
