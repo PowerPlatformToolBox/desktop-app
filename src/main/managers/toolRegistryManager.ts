@@ -547,10 +547,7 @@ export class ToolRegistryManager extends EventEmitter {
             if (!this.useLocalFallback && this.supabase && normalized.length) {
                 try {
                     const toolIds = normalized.map((t) => t.id);
-                    const { data: analyticsRows, error: analyticsError } = await this.supabase
-                        .from("tools")
-                        .select("id, tool_analytics(downloads,rating,mau)")
-                        .in("id", toolIds);
+                    const { data: analyticsRows, error: analyticsError } = await this.supabase.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
 
                     if (analyticsError) {
                         console.error(`[ToolRegistry] Failed to refresh analytics for installed tools:`, analyticsError);
