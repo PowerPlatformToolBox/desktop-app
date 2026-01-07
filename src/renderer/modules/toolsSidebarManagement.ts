@@ -133,8 +133,8 @@ export async function loadSidebarTools(): Promise<void> {
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
-                const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
-                const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+                // Show all categories for this tool
+                const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
                 const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
 
                 // Get tool source icon

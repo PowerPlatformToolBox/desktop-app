@@ -158,8 +158,8 @@ export async function loadMarketplace(): Promise<void> {
             const installedTool = installedToolsMap.get(tool.id);
             const isInstalled = !!installedTool;
             const isDarkTheme = document.body.classList.contains("dark-theme");
-            const topCategories = tool.categories && tool.categories.length ? tool.categories.slice(0, 2) : [];
-            const categoriesHtml = topCategories.length ? topCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+            // Show all categories for this tool
+            const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const isDeprecated = tool.status === "deprecated";
             const deprecatedBadgeHtml = isDeprecated ? '<span class="marketplace-item-deprecated-badge">Deprecated</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
