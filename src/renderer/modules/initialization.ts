@@ -3,6 +3,30 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
+// Initialize Sentry as early as possible in the renderer process
+import * as Sentry from "@sentry/electron/renderer";
+import { getSentryConfig } from "../../common/sentry";
+
+const sentryConfig = getSentryConfig();
+if (sentryConfig) {
+    Sentry.init({
+        dsn: sentryConfig.dsn,
+        environment: sentryConfig.environment,
+        release: sentryConfig.release,
+        tracesSampleRate: sentryConfig.tracesSampleRate,
+        // Capture unhandled promise rejections and console errors
+        integrations: [
+            Sentry.captureConsoleIntegration({
+                levels: ["error", "warn"],
+            }),
+            Sentry.browserTracingIntegration(),
+        ],
+    });
+    console.log("[Sentry] Initialized in renderer process");
+} else {
+    console.log("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
@@ -24,80 +48,90 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
-    initializeBrowserWindowModals();
-    initializeAddConnectionModalBridge();
+    try {
+        initializeBrowserWindowModals();
+        initializeAddConnectionModalBridge();
 
-    // Set up Activity Bar navigation
-    setupActivityBar();
+        // Set up Activity Bar navigation
+        setupActivityBar();
 
-    // Set up toolbar buttons
-    setupToolbarButtons();
+        // Set up toolbar buttons
+        setupToolbarButtons();
 
-    // Set up sidebar buttons
-    setupSidebarButtons();
+        // Set up sidebar buttons
+        setupSidebarButtons();
 
-    // Set up debug section buttons
-    setupDebugSection();
+        // Set up debug section buttons
+        setupDebugSection();
 
-    // Set up settings change listeners
-    setupSettingsListeners();
+        // Set up settings change listeners
+        setupSettingsListeners();
 
-    // Set up home screen action buttons
-    setupHomeScreenButtons();
+        // Set up home screen action buttons
+        setupHomeScreenButtons();
 
-    // Set up modal close buttons
-    setupModalButtons();
+        // Set up modal close buttons
+        setupModalButtons();
 
-    // Set up auto-update listeners
-    setupAutoUpdateListeners();
+        // Set up auto-update listeners
+        setupAutoUpdateListeners();
 
-    // Set up application event listeners
-    setupApplicationEventListeners();
+        // Set up application event listeners
+        setupApplicationEventListeners();
 
-    // Set up keyboard shortcuts
-    setupKeyboardShortcuts();
+        // Set up keyboard shortcuts
+        setupKeyboardShortcuts();
 
-    // Set up homepage actions
-    setupHomepageActions();
+        // Set up homepage actions
+        setupHomepageActions();
 
-    // Load and apply theme settings on startup
-    await loadInitialSettings();
+        // Load and apply theme settings on startup
+        await loadInitialSettings();
 
-    // Load tools library from registry
-    await loadToolsLibrary();
+        // Load tools library from registry
+        await loadToolsLibrary();
 
-    // Load initial sidebar content (tools by default)
-    await loadSidebarTools();
-    await loadMarketplace();
+        // Load initial sidebar content (tools by default)
+        await loadSidebarTools();
+        await loadMarketplace();
 
-    // Load connections in sidebar immediately (was previously delayed until events)
-    await loadSidebarConnections();
+        // Load connections in sidebar immediately (was previously delayed until events)
+        await loadSidebarConnections();
 
-    // Update footer connection info
-    // Update footer connection status
-    // Note: Footer shows active tool's connection, not a global connection
-    await updateFooterConnection();
+        // Update footer connection info
+        // Update footer connection status
+        // Note: Footer shows active tool's connection, not a global connection
+        await updateFooterConnection();
 
-    // Load homepage data
-    await loadHomepageData();
+        // Load homepage data
+        await loadHomepageData();
 
-    // Restore previous session
-    await restoreSession();
+        // Restore previous session
+        await restoreSession();
 
-    // Set up IPC listeners for authentication dialogs
-    setupAuthenticationListeners();
+        // Set up IPC listeners for authentication dialogs
+        setupAuthenticationListeners();
 
-    // Set up loading screen listeners
-    setupLoadingScreenListeners();
+        // Set up loading screen listeners
+        setupLoadingScreenListeners();
 
-    // Set up toolbox event listeners
-    setupToolboxEventListeners();
+        // Set up toolbox event listeners
+        setupToolboxEventListeners();
 
-    // Handle request for tool panel bounds (for BrowserView positioning)
-    setupToolPanelBoundsListener();
+        // Handle request for tool panel bounds (for BrowserView positioning)
+        setupToolPanelBoundsListener();
 
-    // Set up terminal toggle button
-    setupTerminalPanel();
+        // Set up terminal toggle button
+        setupTerminalPanel();
+    } catch (error) {
+        console.error("Failed to initialize application:", error);
+        // If Sentry is available, capture the error
+        if (sentryConfig) {
+            Sentry.captureException(error);
+        }
+        // Show error to user
+        alert(`Failed to initialize application: ${(error as Error).message}`);
+    }
 }
 
 /**

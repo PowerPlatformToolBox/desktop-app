@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     // Debug: Log if Supabase credentials are loaded
     const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+    const sentryDsn = env.SENTRY_DSN || process.env.SENTRY_DSN || "";
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -22,11 +23,18 @@ export default defineConfig(({ mode }) => {
         console.warn("[Vite] Make sure .env file exists with SUPABASE_URL and SUPABASE_ANON_KEY");
     }
 
+    if (sentryDsn) {
+        console.log("[Vite] Sentry DSN loaded successfully");
+    } else {
+        console.log("[Vite] Sentry DSN not found - telemetry will be disabled");
+    }
+
     // Define environment variables for the build
     // These will be replaced at build time, not exposed in the bundle
     const envDefines = {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
+        "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
     };
 
     return {
@@ -165,6 +173,8 @@ export default defineConfig(({ mode }) => {
                 },
             },
         ],
+        // Define environment variables for renderer process as well
+        define: envDefines,
         build: {
             // Renderer process build configuration
             // Only include source maps when not building for production

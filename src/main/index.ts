@@ -1,3 +1,26 @@
+// Initialize Sentry as early as possible in the main process
+import * as Sentry from "@sentry/electron/main";
+import { getSentryConfig } from "../common/sentry";
+
+const sentryConfig = getSentryConfig();
+if (sentryConfig) {
+    Sentry.init({
+        dsn: sentryConfig.dsn,
+        environment: sentryConfig.environment,
+        release: sentryConfig.release,
+        tracesSampleRate: sentryConfig.tracesSampleRate,
+        // Capture unhandled promise rejections and console errors
+        integrations: [
+            Sentry.captureConsoleIntegration({
+                levels: ["error", "warn"],
+            }),
+        ],
+    });
+    console.log("[Sentry] Initialized in main process");
+} else {
+    console.log("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
@@ -1201,4 +1224,10 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
 
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
-toolboxApp.initialize().catch(console.error);
+toolboxApp.initialize().catch((error) => {
+    console.error("Failed to initialize application:", error);
+    // If Sentry is available, capture the error
+    if (sentryConfig) {
+        Sentry.captureException(error);
+    }
+});
