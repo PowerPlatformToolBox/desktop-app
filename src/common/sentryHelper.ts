@@ -19,14 +19,31 @@ export interface SentryTransaction {
     finish(): void;
 }
 
+// Minimal interface for the Sentry module used by this helper
+export interface SentryModule {
+    setUser(user: { id: string; username?: string } & Record<string, unknown>): void;
+    setTag(key: string, value: string): void;
+    addBreadcrumb(breadcrumb: {
+        message: string;
+        category?: string;
+        level?: "debug" | "info" | "warning" | "error";
+        data?: Record<string, unknown>;
+    }): void;
+    startTransaction(context: {
+        name: string;
+        op?: string;
+        data?: Record<string, unknown>;
+    }): SentryTransaction;
+}
+
 let machineId: string | null = null;
-let sentryModule: any = null; // Will be set by initialization
+let sentryModule: SentryModule | null = null; // Will be set by initialization
 
 /**
  * Initialize the Sentry helper with the Sentry module
  * Call this from main or renderer after importing the appropriate Sentry module
  */
-export function initializeSentryHelper(sentry: any): void {
+export function initializeSentryHelper(sentry: SentryModule): void {
     sentryModule = sentry;
 }
 
