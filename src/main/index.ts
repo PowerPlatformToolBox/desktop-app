@@ -1211,15 +1211,34 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
+     * Includes machine ID and other important information for Sentry tracing
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const message = `Version ${appVersion}
+            const machineId = this.machineIdManager.getMachineId();
+            const appPath = app.getPath("userData");
+            const locale = app.getLocale();
+            
+            const message = `Power Platform Tool Box
+
+Version: ${appVersion}
+Machine ID: ${machineId}
+
+Environment:
 Electron: ${process.versions.electron}
 Node.js: ${process.versions.node}
 Chromium: ${process.versions.chrome}
-OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+
+System:
+OS: ${process.platform} ${process.arch}
+OS Version: ${process.getSystemVersion()}
+Locale: ${locale}
+
+Paths:
+User Data: ${appPath}
+
+Note: Machine ID is used for telemetry and error tracking in Sentry.`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
