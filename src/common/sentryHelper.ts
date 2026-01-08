@@ -109,6 +109,21 @@ export function captureException(error: Error, context?: {
 }): void {
     if (!sentryModule) return;
     
+    // Log the error using the appropriate log level
+    const level = context?.level || "error";
+    const errorMessage = `${error.name}: ${error.message}`;
+    const errorData = {
+        ...context?.extra,
+        ...context?.tags,
+        stack: error.stack,
+    };
+    
+    if (level === "fatal") {
+        logFatal(errorMessage, errorData);
+    } else {
+        logError(errorMessage, errorData);
+    }
+    
     sentryModule.withScope((scope: SentryScope) => {
         // Add machine ID to scope
         scope.setTag("machine_id", machineId || "unknown");
@@ -145,6 +160,31 @@ export function captureMessage(message: string, level: string = "info", context?
     extra?: Record<string, unknown>;
 }): void {
     if (!sentryModule) return;
+    
+    // Log using the appropriate structured logger
+    const logData = {
+        ...context?.extra,
+        ...context?.tags,
+    };
+    
+    switch (level) {
+        case "fatal":
+            logFatal(message, logData);
+            break;
+        case "error":
+            logError(message, logData);
+            break;
+        case "warning":
+            logWarn(message, logData);
+            break;
+        case "debug":
+            logDebug(message, logData);
+            break;
+        case "info":
+        default:
+            logInfo(message, logData);
+            break;
+    }
     
     sentryModule.withScope((scope: SentryScope) => {
         // Add machine ID to scope
@@ -195,11 +235,17 @@ export function wrapAsyncOperation<T>(
 ): Promise<T> {
     const transaction = startTransaction(operationName, "function");
     
+    logDebug(`Starting operation: ${operationName}`, context?.extra);
+    
     return operation()
         .then((result) => {
             transaction?.setStatus("ok");
             transaction?.finish();
             addBreadcrumb(`${operationName} completed successfully`, "operation", "info");
+            logInfo(`Operation completed: ${operationName}`, {
+                operation: operationName,
+                ...context?.extra,
+            });
             return result;
         })
         .catch((error) => {
@@ -227,6 +273,10 @@ export function wrapAsyncOperation<T>(
  * Use this at critical points in the application flow
  */
 export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>): void {
+    // Log to Sentry using structured logger
+    logInfo(`Checkpoint: ${checkpoint}`, data);
+    
+    // Add as breadcrumb for context
     addBreadcrumb(checkpoint, "checkpoint", "info", data);
     
     // Also log to console for local debugging
