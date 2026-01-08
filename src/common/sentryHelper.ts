@@ -252,3 +252,86 @@ export function clearScope(): void {
     
     sentryModule.configureScope((scope: SentryScope) => scope.clear());
 }
+
+/**
+ * Sentry Logger API wrappers
+ * These functions use Sentry's structured logging API for better log organization
+ */
+
+/**
+ * Log a trace message to Sentry
+ * Use for detailed diagnostic information
+ */
+export function logTrace(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.trace(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}
+
+/**
+ * Log a debug message to Sentry
+ * Use for debugging information during development
+ */
+export function logDebug(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.debug(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}
+
+/**
+ * Log an info message to Sentry
+ * Use for general informational messages
+ */
+export function logInfo(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.info(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}
+
+/**
+ * Log a warning message to Sentry
+ * Use for warning conditions that should be reviewed
+ */
+export function logWarn(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.warn(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}
+
+/**
+ * Log an error message to Sentry
+ * Use for error conditions that need attention
+ */
+export function logError(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.error(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}
+
+/**
+ * Log a fatal error message to Sentry
+ * Use for critical errors that require immediate attention
+ */
+export function logFatal(message: string, data?: Record<string, unknown>): void {
+    if (!sentryModule || !sentryModule.logger) return;
+    
+    sentryModule.logger.fatal(message, {
+        ...data,
+        machine_id: machineId,
+    });
+}

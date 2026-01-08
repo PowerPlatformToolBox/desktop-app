@@ -17,6 +17,8 @@ if (sentryConfig) {
         tracesSampleRate: sentryConfig.tracesSampleRate,
         replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
         replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
+        // Enable Sentry logger for structured logging
+        enableLogs: true,
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({

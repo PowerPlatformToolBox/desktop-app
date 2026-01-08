@@ -162,17 +162,32 @@ SENTRY_PROJECT=your-project-slug
 -   **Session replay** (captures user interactions before errors)
 -   **Performance monitoring** with browser tracing in renderer process
 -   **Distributed tracing** for tracking operations across processes
--   **Logs integration** - Console errors and warnings automatically captured
+-   **Structured logging** with Sentry.logger API for trace, debug, info, warn, error, and fatal levels
+-   **Console integration** - Console errors and warnings automatically captured
 -   **HTTP request tracing** - Network requests tracked for debugging in main process
 -   **Context enrichment** - Machine ID, OS info, and breadcrumbs included
 -   **Automatic source map upload** in production builds (requires auth token)
 
 **Logs & Tracing:**
 - Console logs at `error` and `warn` levels are automatically captured
+- Structured logging available via Sentry logger helpers (`logTrace`, `logDebug`, `logInfo`, `logWarn`, `logError`, `logFatal`)
 - HTTP requests in main process are traced for performance monitoring
 - Browser performance metrics (page loads, long tasks) captured in renderer
 - All traces include machine ID for per-installation analysis
 - Breadcrumbs capture sequence of events leading to errors
+
+**Using Sentry Logger in Code:**
+```typescript
+import { logTrace, logDebug, logInfo, logWarn, logError, logFatal } from './common/sentryHelper';
+
+// Structured logging with context
+logTrace("Starting database connection", { database: "users" });
+logDebug("Cache miss for user", { userId: 123 });
+logInfo("Updated profile", { profileId: 345 });
+logWarn("Rate limit reached for endpoint", { endpoint: "/api/results/" });
+logError("Failed to process payment", { orderId: "order_123", amount: 99.99 });
+logFatal("Database connection pool exhausted", { database: "users", activeConnections: 100 });
+```
 
 **Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled.
 
