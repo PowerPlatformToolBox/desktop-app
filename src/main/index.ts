@@ -15,6 +15,13 @@ if (sentryConfig) {
             Sentry.captureConsoleIntegration({
                 levels: ["error", "warn"],
             }),
+            // Add HTTP integration for network request tracing
+            Sentry.httpIntegration(),
+            // Add Node integrations for better context
+            Sentry.nodeContextIntegration(),
+            Sentry.contextLinesIntegration(),
+            Sentry.localVariablesIntegration(),
+            Sentry.modulesIntegration(),
         ],
         // Before sending events, add machine ID and additional context
         beforeSend(event) {
@@ -40,7 +47,7 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
     
-    console.log("[Sentry] Initialized in main process");
+    console.log("[Sentry] Initialized in main process with tracing and logging");
     addBreadcrumb("Main process Sentry initialized", "init", "info");
 } else {
     console.log("[Sentry] Telemetry disabled - no DSN configured");

@@ -22,11 +22,17 @@ if (sentryConfig) {
             Sentry.captureConsoleIntegration({
                 levels: ["error", "warn"],
             }),
-            Sentry.browserTracingIntegration(),
+            Sentry.browserTracingIntegration({
+                // Track navigation and page loads
+                enableLongTask: true,
+                enableInp: true,
+            }),
             Sentry.replayIntegration({
                 maskAllText: true,
                 blockAllMedia: true,
             }),
+            // Context lines integration for better error context
+            Sentry.contextLinesIntegration(),
         ],
         // Before sending events, add machine ID and additional context
         beforeSend(event) {
@@ -51,7 +57,7 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
     
-    console.log("[Sentry] Initialized in renderer process");
+    console.log("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
     
     // Machine ID will be set via IPC from main process after settings are loaded

@@ -158,10 +158,21 @@ SENTRY_PROJECT=your-project-slug
 
 **Features enabled with Sentry:**
 
--   Error tracking in both main and renderer processes
--   Session replay (captures user interactions before errors)
--   Performance monitoring with browser tracing
--   Automatic source map upload in production builds (requires auth token)
+-   **Error tracking** in both main and renderer processes with full stack traces
+-   **Session replay** (captures user interactions before errors)
+-   **Performance monitoring** with browser tracing in renderer process
+-   **Distributed tracing** for tracking operations across processes
+-   **Logs integration** - Console errors and warnings automatically captured
+-   **HTTP request tracing** - Network requests tracked for debugging in main process
+-   **Context enrichment** - Machine ID, OS info, and breadcrumbs included
+-   **Automatic source map upload** in production builds (requires auth token)
+
+**Logs & Tracing:**
+- Console logs at `error` and `warn` levels are automatically captured
+- HTTP requests in main process are traced for performance monitoring
+- Browser performance metrics (page loads, long tasks) captured in renderer
+- All traces include machine ID for per-installation analysis
+- Breadcrumbs capture sequence of events leading to errors
 
 **Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled.
 
