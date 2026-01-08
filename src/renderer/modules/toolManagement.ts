@@ -3,6 +3,7 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
+import { captureException } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -211,7 +212,10 @@ export async function launchTool(toolId: string): Promise<void> {
 
         console.log("Tool launched successfully:", tool.name, "Instance:", instanceNumber);
     } catch (error) {
-        console.error("Error launching tool:", error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "tool_launch", toolId },
+            level: "error",
+        });
         window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,
@@ -329,7 +333,10 @@ export async function switchToTool(instanceId: string): Promise<void> {
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
     window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
-        console.error("Failed to switch tool window:", error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "tool_switch", instanceId },
+            level: "error",
+        });
     });
 
     // Update connection status display based on this tool's connection
@@ -362,7 +369,10 @@ export function closeTool(instanceId: string): void {
     // Close the tool window via IPC
     // The ToolWindowManager will destroy the BrowserView
     window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-        console.error("Failed to close tool window:", error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "tool_close", instanceId },
+            level: "error",
+        });
     });
 
     // Remove from open tools
@@ -528,7 +538,10 @@ export async function restoreSession(): Promise<void> {
             // Note: activeToolId won't match since we have new instanceIds
         }
     } catch (error) {
-        console.error("Failed to restore session:", error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "session_restore" },
+            level: "error",
+        });
     }
 }
 

@@ -379,7 +379,10 @@ class ToolBoxApp {
 
                 return { success: true };
             } catch (error) {
-                console.error("Token refresh failed:", error);
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "token_refresh" },
+                    level: "error",
+                });
                 throw error;
             }
         });
@@ -1261,7 +1264,10 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
                     tags: { phase: "tool_loading" },
                     level: "error",
                 });
-                console.error("Failed to load tools:", error);
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "tools_loading" },
+                    level: "error",
+                });
             }
 
             // Check if auto-update is enabled
@@ -1315,7 +1321,10 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
 toolboxApp.initialize().catch((error) => {
-    console.error("Failed to initialize application:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+        tags: { phase: "main_initialization" },
+        level: "fatal",
+    });
     // If Sentry is available, capture the error
     if (sentryConfig) {
         Sentry.captureException(error);

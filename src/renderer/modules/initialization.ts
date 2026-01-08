@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint } from "../../common/sentryHelper";
+import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -144,70 +144,75 @@ export async function initializeApplication(): Promise<void> {
         addBreadcrumb("UI components initialized", "init", "info");
 
         // Load and apply theme settings on startup
-        await loadInitialSettings();
+        await wrapAsyncOperation("loadInitialSettings", async () => {
+            await loadInitialSettings();
+        }, { tags: { phase: "initialization" } });
         logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
-        try {
+        await wrapAsyncOperation("loadToolsLibrary", async () => {
             await loadToolsLibrary();
-            logCheckpoint("Tools library loaded");
-        } catch (error) {
+        }, { tags: { phase: "tools_library_loading" } }).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "tools_library_loading" },
                 level: "warning",
             });
-            console.error("Failed to load tools library:", error);
-        }
+        });
+        logCheckpoint("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
-        await loadSidebarTools();
-        await loadMarketplace();
+        await wrapAsyncOperation("loadSidebarTools", async () => {
+            await loadSidebarTools();
+        }, { tags: { phase: "sidebar_loading" } });
+        
+        await wrapAsyncOperation("loadMarketplace", async () => {
+            await loadMarketplace();
+        }, { tags: { phase: "marketplace_loading" } });
         addBreadcrumb("Sidebar content loaded", "init", "info");
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        try {
+        await wrapAsyncOperation("loadSidebarConnections", async () => {
             await loadSidebarConnections();
-            logCheckpoint("Connections loaded");
-        } catch (error) {
+        }, { tags: { phase: "connections_loading" } }).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "connections_loading" },
                 level: "warning",
             });
-            console.error("Failed to load connections:", error);
-        }
+        });
+        logCheckpoint("Connections loaded");
 
         // Update footer connection info
         // Update footer connection status
         // Note: Footer shows active tool's connection, not a global connection
-        await updateFooterConnection();
+        await wrapAsyncOperation("updateFooterConnection", async () => {
+            await updateFooterConnection();
+        }, { tags: { phase: "footer_update" } });
 
         // Load homepage data
-        try {
+        await wrapAsyncOperation("loadHomepageData", async () => {
             await loadHomepageData();
-            logCheckpoint("Homepage data loaded");
-        } catch (error) {
+        }, { tags: { phase: "homepage_loading" } }).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "homepage_loading" },
                 level: "warning",
             });
-            console.error("Failed to load homepage data:", error);
-        }
+        });
+        logCheckpoint("Homepage data loaded");
 
         // Restore previous session
-        try {
+        await wrapAsyncOperation("restoreSession", async () => {
             await restoreSession();
-            logCheckpoint("Session restored");
-        } catch (error) {
+        }, { tags: { phase: "session_restore" } }).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "session_restore" },
                 level: "warning",
             });
-            console.error("Failed to restore session:", error);
-        }
+        });
+        logCheckpoint("Session restored");
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
@@ -227,7 +232,6 @@ export async function initializeApplication(): Promise<void> {
         addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
-        console.error("Failed to initialize application:", error);
         // If Sentry is available, capture the error
         if (sentryConfig) {
             const err = error instanceof Error ? error : new Error(String(error));
@@ -326,7 +330,12 @@ function setupSidebarButtons(): void {
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
-            openAddConnectionModal().catch((error) => console.error("Failed to open add connection modal", error));
+            openAddConnectionModal().catch((error) => {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "modal_opening" },
+                    level: "error",
+                });
+            });
         });
     }
 
@@ -736,14 +745,29 @@ function setupToolboxEventListeners(): void {
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
-            loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
-            updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
+            loadSidebarConnections().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "connection_reload" },
+                    level: "warning",
+                });
+            });
+            updateFooterConnection().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "footer_update" },
+                    level: "warning",
+                });
+            });
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             console.log("Tool event detected, reloading tools...");
-            loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
+            loadSidebarTools().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "tools_reload" },
+                    level: "warning",
+                });
+            });
         }
 
         // Handle terminal events
