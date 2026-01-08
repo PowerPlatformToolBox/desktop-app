@@ -1,139 +1,149 @@
 name: Bundle Size Tracking
 
 on:
-  pull_request:
-    branches: [main, develop]
-  push:
-    branches: [main, develop]
+    pull_request:
+        branches: [main, dev]
+    push:
+        branches: [main, dev]
 
 permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+    contents: read
+    pull-requests: write
+    issues: write
 
 jobs:
-  bundle-size:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    bundle-size:
+        runs-on: ubuntu-latest
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Install pnpm globally
-        run: npm install -g pnpm@10.18.3
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
 
-      - name: Install dependencies
-        run: pnpm install
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
 
-      - name: Build project
-        run: pnpm run build
+            - name: Install dependencies
+              run: pnpm install
 
-      - name: Analyze bundle sizes
-        id: analyze
-        run: |
-          echo "## Bundle Size Report 📦" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Main Process Bundle" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          ls -lh dist/main/index.js >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Renderer Process Bundles" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          ls -lh dist/renderer/assets/*.js dist/renderer/assets/*.css 2>/dev/null || echo "No assets found" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Calculate total size
-          MAIN_SIZE=$(stat -f%z dist/main/index.js 2>/dev/null || stat -c%s dist/main/index.js)
-          RENDERER_JS_SIZE=$(find dist/renderer/assets -name "*.js" -exec stat -f%z {} + 2>/dev/null || find dist/renderer/assets -name "*.js" -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
-          RENDERER_CSS_SIZE=$(find dist/renderer/assets -name "*.css" -exec stat -f%z {} + 2>/dev/null || find dist/renderer/assets -name "*.css" -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
-          
-          echo "### Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Bundle | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Main Process | $(numfmt --to=iec-i --suffix=B $MAIN_SIZE 2>/dev/null || echo ${MAIN_SIZE}B) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Renderer JS | $(numfmt --to=iec-i --suffix=B ${RENDERER_JS_SIZE:-0} 2>/dev/null || echo ${RENDERER_JS_SIZE:-0}B) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Renderer CSS | $(numfmt --to=iec-i --suffix=B ${RENDERER_CSS_SIZE:-0} 2>/dev/null || echo ${RENDERER_CSS_SIZE:-0}B) |" >> $GITHUB_STEP_SUMMARY
-          
-          # Store sizes for comparison
-          echo "main_size=$MAIN_SIZE" >> $GITHUB_OUTPUT
-          echo "renderer_js_size=${RENDERER_JS_SIZE:-0}" >> $GITHUB_OUTPUT
-          echo "renderer_css_size=${RENDERER_CSS_SIZE:-0}" >> $GITHUB_OUTPUT
+            - name: Build application
+              env:
+                  # Inject Supabase credentials from repository secrets
+                  # These are replaced at build time and not exposed in the bundle
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
+                  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+              run: pnpm run build
 
-      - name: Upload bundle stats
-        uses: actions/upload-artifact@v4
-        with:
-          name: bundle-stats
-          path: |
-            dist/stats-main.html
-            dist/stats-renderer.html
-          retention-days: 30
+            - name: Analyze bundle sizes
+              id: analyze
+              run: |
+                  echo "## Bundle Size Report 📦" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Main Process Bundle" >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  ls -lh dist/main/index.js >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "### Renderer Process Bundles" >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  ls -lh dist/renderer/assets/*.js dist/renderer/assets/*.css 2>/dev/null || echo "No assets found" >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Check bundle size limits
-        run: |
-          MAIN_SIZE=${{ steps.analyze.outputs.main_size }}
-          MAIN_LIMIT=1048576  # 1 MB limit for main process
-          
-          echo "Checking bundle size limits..."
-          echo "Main process size: $MAIN_SIZE bytes (limit: $MAIN_LIMIT bytes)"
-          
-          if [ "$MAIN_SIZE" -gt "$MAIN_LIMIT" ]; then
-            echo "::warning::Main process bundle exceeds 1 MB limit!"
-          fi
+                  # Calculate total size
+                  MAIN_SIZE=$(stat -f%z dist/main/index.js 2>/dev/null || stat -c%s dist/main/index.js)
+                  RENDERER_JS_SIZE=$(find dist/renderer/assets -name "*.js" -exec stat -f%z {} + 2>/dev/null || find dist/renderer/assets -name "*.js" -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
+                  RENDERER_CSS_SIZE=$(find dist/renderer/assets -name "*.css" -exec stat -f%z {} + 2>/dev/null || find dist/renderer/assets -name "*.css" -exec stat -c%s {} + | awk '{sum+=$1} END {print sum}')
 
-      - name: Comment PR with bundle size
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            
-            // Read bundle sizes
-            const mainSize = ${{ steps.analyze.outputs.main_size }};
-            const rendererJsSize = ${{ steps.analyze.outputs.renderer_js_size }};
-            const rendererCssSize = ${{ steps.analyze.outputs.renderer_css_size }};
-            
-            // Format sizes
-            const formatSize = (bytes) => {
-              if (bytes === 0) return '0 B';
-              const k = 1024;
-              const sizes = ['B', 'KB', 'MB'];
-              const i = Math.floor(Math.log(bytes) / Math.log(k));
-              return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-            };
-            
-            const body = `## Bundle Size Report 📦
-            
-            | Bundle | Size |
-            |--------|------|
-            | Main Process | ${formatSize(mainSize)} |
-            | Renderer JS | ${formatSize(rendererJsSize)} |
-            | Renderer CSS | ${formatSize(rendererCssSize)} |
-            | **Total** | **${formatSize(mainSize + rendererJsSize + rendererCssSize)}** |
-            
-            ### Bundle Analysis Reports
-            
-            The detailed bundle analysis reports are available in the workflow artifacts:
-            - 📊 Main Process: \`stats-main.html\`
-            - 📊 Renderer Process: \`stats-renderer.html\`
-            
-            Download the artifacts from the workflow run to view interactive visualizations.
-            
-            ---
-            *Bundle size tracking is now active! This helps prevent bundle bloat.*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+                  echo "### Summary" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "| Bundle | Size |" >> $GITHUB_STEP_SUMMARY
+                  echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Main Process | $(numfmt --to=iec-i --suffix=B $MAIN_SIZE 2>/dev/null || echo ${MAIN_SIZE}B) |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Renderer JS | $(numfmt --to=iec-i --suffix=B ${RENDERER_JS_SIZE:-0} 2>/dev/null || echo ${RENDERER_JS_SIZE:-0}B) |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Renderer CSS | $(numfmt --to=iec-i --suffix=B ${RENDERER_CSS_SIZE:-0} 2>/dev/null || echo ${RENDERER_CSS_SIZE:-0}B) |" >> $GITHUB_STEP_SUMMARY
+
+                  # Store sizes for comparison
+                  echo "main_size=$MAIN_SIZE" >> $GITHUB_OUTPUT
+                  echo "renderer_js_size=${RENDERER_JS_SIZE:-0}" >> $GITHUB_OUTPUT
+                  echo "renderer_css_size=${RENDERER_CSS_SIZE:-0}" >> $GITHUB_OUTPUT
+
+            - name: Upload bundle stats
+              uses: actions/upload-artifact@v4
+              with:
+                  name: bundle-stats
+                  path: |
+                      dist/stats-main.html
+                      dist/stats-renderer.html
+                  retention-days: 30
+
+            - name: Check bundle size limits
+              run: |
+                  MAIN_SIZE=${{ steps.analyze.outputs.main_size }}
+                  MAIN_LIMIT=1048576  # 1 MB limit for main process
+
+                  echo "Checking bundle size limits..."
+                  echo "Main process size: $MAIN_SIZE bytes (limit: $MAIN_LIMIT bytes)"
+
+                  if [ "$MAIN_SIZE" -gt "$MAIN_LIMIT" ]; then
+                    echo "::warning::Main process bundle exceeds 1 MB limit!"
+                  fi
+
+            - name: Comment PR with bundle size
+              if: github.event_name == 'pull_request'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const fs = require('fs');
+
+                      // Read bundle sizes
+                      const mainSize = ${{ steps.analyze.outputs.main_size }};
+                      const rendererJsSize = ${{ steps.analyze.outputs.renderer_js_size }};
+                      const rendererCssSize = ${{ steps.analyze.outputs.renderer_css_size }};
+
+                      // Format sizes
+                      const formatSize = (bytes) => {
+                        if (bytes === 0) return '0 B';
+                        const k = 1024;
+                        const sizes = ['B', 'KB', 'MB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+                      };
+
+                      const body = `## Bundle Size Report 📦
+
+                      | Bundle | Size |
+                      |--------|------|
+                      | Main Process | ${formatSize(mainSize)} |
+                      | Renderer JS | ${formatSize(rendererJsSize)} |
+                      | Renderer CSS | ${formatSize(rendererCssSize)} |
+                      | **Total** | **${formatSize(mainSize + rendererJsSize + rendererCssSize)}** |
+
+                      ### Bundle Analysis Reports
+
+                      The detailed bundle analysis reports are available in the workflow artifacts:
+                      - 📊 Main Process: \`stats-main.html\`
+                      - 📊 Renderer Process: \`stats-renderer.html\`
+
+                      Download the artifacts from the workflow run to view interactive visualizations.
+
+                      ---
+                      *Bundle size tracking is now active! This helps prevent bundle bloat.*`;
+
+                      github.rest.issues.createComment({
+                        issue_number: context.issue.number,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: body
+                      });
