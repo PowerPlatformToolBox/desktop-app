@@ -1,7 +1,7 @@
 /**
  * Sentry helper utilities for enhanced logging and tracing
  * Provides utility functions to add context, breadcrumbs, and machine ID to all Sentry events
- * 
+ *
  * NOTE: This helper can be used in both main and renderer processes, but must import
  * Sentry from the appropriate subpath in the calling code
  */
@@ -39,18 +39,18 @@ export function initializeSentryHelper(sentry: any): void {
  */
 export function setSentryMachineId(id: string): void {
     machineId = id;
-    
+
     if (!sentryModule) return;
-    
+
     // Set as user context so it appears in all events
     sentryModule.setUser({
         id: id,
         username: `machine-${id}`,
     });
-    
+
     // Also set as a tag for easier filtering
     sentryModule.setTag("machine_id", id);
-    
+
     console.log(`[Sentry] Machine ID set: ${id}`);
 }
 
@@ -67,7 +67,7 @@ export function getSentryMachineId(): string | null {
  */
 export function addBreadcrumb(message: string, category: string, level: "debug" | "info" | "warning" | "error" = "info", data?: Record<string, unknown>): void {
     if (!sentryModule) return;
-    
+
     sentryModule.addBreadcrumb({
         message,
         category,
@@ -86,7 +86,7 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
  */
 export function startTransaction(name: string, op: string, data?: Record<string, unknown>): SentryTransaction | undefined {
     if (!sentryModule) return undefined;
-    
+
     const transaction = sentryModule.startTransaction({
         name,
         op,
@@ -95,20 +95,23 @@ export function startTransaction(name: string, op: string, data?: Record<string,
             machine_id: machineId,
         },
     });
-    
+
     return transaction;
 }
 
 /**
  * Capture an exception with enhanced context
  */
-export function captureException(error: Error, context?: {
-    tags?: Record<string, string>;
-    extra?: Record<string, unknown>;
-    level?: string;
-}): void {
+export function captureException(
+    error: Error,
+    context?: {
+        tags?: Record<string, string>;
+        extra?: Record<string, unknown>;
+        level?: string;
+    },
+): void {
     if (!sentryModule) return;
-    
+
     // Log the error using the appropriate log level
     const level = context?.level || "error";
     const errorMessage = `${error.name}: ${error.message}`;
@@ -117,36 +120,36 @@ export function captureException(error: Error, context?: {
         ...context?.tags,
         stack: error.stack,
     };
-    
+
     if (level === "fatal") {
         logFatal(errorMessage, errorData);
     } else {
         logError(errorMessage, errorData);
     }
-    
+
     sentryModule.withScope((scope: SentryScope) => {
         // Add machine ID to scope
         scope.setTag("machine_id", machineId || "unknown");
-        
+
         // Add any custom tags
         if (context?.tags) {
             Object.entries(context.tags).forEach(([key, value]) => {
                 scope.setTag(key, value);
             });
         }
-        
+
         // Add any custom extra data
         if (context?.extra) {
             Object.entries(context.extra).forEach(([key, value]) => {
                 scope.setExtra(key, value);
             });
         }
-        
+
         // Set level if provided
         if (context?.level) {
             scope.setLevel(context.level);
         }
-        
+
         sentryModule.captureException(error);
     });
 }
@@ -155,18 +158,24 @@ export function captureException(error: Error, context?: {
  * Capture a message with enhanced context
  * Use this for important informational messages or warnings
  */
-export function captureMessage(message: string, level: string = "info", context?: {
-    tags?: Record<string, string>;
-    extra?: Record<string, unknown>;
-}): void {
+export function captureMessage(
+    message: string,
+    level: "fatal" | "error" | "warning" | "info" | "debug" = "info",
+    context?: {
+        tags?: Record<string, string>;
+        extra?: Record<string, unknown>;
+    },
+): void {
     if (!sentryModule) return;
-    
+
     // Log using the appropriate structured logger
     const logData = {
         ...context?.extra,
         ...context?.tags,
     };
-    
+
+    console.log(message, logData);
+
     switch (level) {
         case "fatal":
             logFatal(message, logData);
@@ -185,25 +194,25 @@ export function captureMessage(message: string, level: string = "info", context?
             logInfo(message, logData);
             break;
     }
-    
+
     sentryModule.withScope((scope: SentryScope) => {
         // Add machine ID to scope
         scope.setTag("machine_id", machineId || "unknown");
-        
+
         // Add any custom tags
         if (context?.tags) {
             Object.entries(context.tags).forEach(([key, value]) => {
                 scope.setTag(key, value);
             });
         }
-        
+
         // Add any custom extra data
         if (context?.extra) {
             Object.entries(context.extra).forEach(([key, value]) => {
                 scope.setExtra(key, value);
             });
         }
-        
+
         sentryModule.captureMessage(message, level);
     });
 }
@@ -214,7 +223,7 @@ export function captureMessage(message: string, level: string = "info", context?
  */
 export function setContext(key: string, value: Record<string, unknown>): void {
     if (!sentryModule) return;
-    
+
     sentryModule.setContext(key, {
         ...value,
         machine_id: machineId,
@@ -231,12 +240,12 @@ export function wrapAsyncOperation<T>(
     context?: {
         tags?: Record<string, string>;
         extra?: Record<string, unknown>;
-    }
+    },
 ): Promise<T> {
     const transaction = startTransaction(operationName, "function");
-    
+
     logDebug(`Starting operation: ${operationName}`, context?.extra);
-    
+
     return operation()
         .then((result) => {
             transaction?.setStatus("ok");
@@ -251,7 +260,7 @@ export function wrapAsyncOperation<T>(
         .catch((error) => {
             transaction?.setStatus("internal_error");
             transaction?.finish();
-            
+
             captureException(error instanceof Error ? error : new Error(String(error)), {
                 tags: {
                     operation: operationName,
@@ -262,7 +271,7 @@ export function wrapAsyncOperation<T>(
                 },
                 level: "error",
             });
-            
+
             addBreadcrumb(`${operationName} failed: ${error}`, "operation", "error");
             throw error;
         });
@@ -275,10 +284,10 @@ export function wrapAsyncOperation<T>(
 export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>): void {
     // Log to Sentry using structured logger
     logInfo(`Checkpoint: ${checkpoint}`, data);
-    
+
     // Add as breadcrumb for context
     addBreadcrumb(checkpoint, "checkpoint", "info", data);
-    
+
     // Also log to console for local debugging
     console.log(`[Checkpoint] ${checkpoint}`, data ? JSON.stringify(data, null, 2) : "");
 }
@@ -288,7 +297,7 @@ export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>
  */
 export function setTags(tags: Record<string, string>): void {
     if (!sentryModule) return;
-    
+
     Object.entries(tags).forEach(([key, value]) => {
         sentryModule.setTag(key, value);
     });
@@ -299,7 +308,7 @@ export function setTags(tags: Record<string, string>): void {
  */
 export function clearScope(): void {
     if (!sentryModule) return;
-    
+
     sentryModule.configureScope((scope: SentryScope) => scope.clear());
 }
 
@@ -314,7 +323,7 @@ export function clearScope(): void {
  */
 export function logTrace(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.trace(message, {
         ...data,
         machine_id: machineId,
@@ -327,7 +336,7 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
  */
 export function logDebug(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.debug(message, {
         ...data,
         machine_id: machineId,
@@ -340,7 +349,7 @@ export function logDebug(message: string, data?: Record<string, unknown>): void 
  */
 export function logInfo(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.info(message, {
         ...data,
         machine_id: machineId,
@@ -353,7 +362,7 @@ export function logInfo(message: string, data?: Record<string, unknown>): void {
  */
 export function logWarn(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.warn(message, {
         ...data,
         machine_id: machineId,
@@ -366,7 +375,7 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
  */
 export function logError(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.error(message, {
         ...data,
         machine_id: machineId,
@@ -379,7 +388,7 @@ export function logError(message: string, data?: Record<string, unknown>): void 
  */
 export function logFatal(message: string, data?: Record<string, unknown>): void {
     if (!sentryModule || !sentryModule.logger) return;
-    
+
     sentryModule.logger.fatal(message, {
         ...data,
         machine_id: machineId,

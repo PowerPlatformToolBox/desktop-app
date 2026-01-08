@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, setSentryMachineId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -32,7 +32,7 @@ if (sentryConfig) {
                 event.tags = {};
             }
             event.tags.process = "main";
-            
+
             // Add platform information
             if (!event.contexts) {
                 event.contexts = {};
@@ -41,18 +41,18 @@ if (sentryConfig) {
                 name: process.platform,
                 version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
             };
-            
+
             return event;
         },
     });
-    
+
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
-    
-    console.log("[Sentry] Initialized in main process with tracing and logging");
+
+    captureMessage("[Sentry] Initialized in main process with tracing and logging");
     addBreadcrumb("Main process Sentry initialized", "init", "info");
 } else {
-    console.log("[Sentry] Telemetry disabled - no DSN configured");
+    captureMessage("[Sentry] Telemetry disabled - no DSN configured");
 }
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
@@ -105,18 +105,18 @@ class ToolBoxApp {
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
-        
+
         try {
             this.settingsManager = new SettingsManager();
             this.machineIdManager = new MachineIdManager(this.settingsManager);
-            
+
             // Initialize Sentry with machine ID as early as possible
             if (sentryConfig) {
                 const machineId = this.machineIdManager.getMachineId();
                 setSentryMachineId(machineId);
                 logCheckpoint("Sentry machine ID configured", { machineId });
             }
-            
+
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials from environment variables or use defaults from constants
@@ -129,7 +129,7 @@ class ToolBoxApp {
 
             this.setupEventListeners();
             this.setupIpcHandlers();
-            
+
             logCheckpoint("ToolBoxApp constructor completed");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
@@ -1229,7 +1229,7 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
      */
     async initialize(): Promise<void> {
         logCheckpoint("Application initialization started");
-        
+
         try {
             // Set app user model ID for Windows notifications
             if (process.platform === "win32") {
@@ -1298,7 +1298,7 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
                 this.stopTokenExpiryChecks();
                 addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
-            
+
             logCheckpoint("Application initialization completed successfully");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
