@@ -6,6 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
+import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -27,8 +28,33 @@ if (sentryConfig) {
                 blockAllMedia: true,
             }),
         ],
+        // Before sending events, add machine ID and additional context
+        beforeSend(event) {
+            // Ensure machine ID is in tags
+            if (!event.tags) {
+                event.tags = {};
+            }
+            event.tags.process = "renderer";
+            
+            // Add user agent for browser context
+            if (!event.request) {
+                event.request = {};
+            }
+            event.request.headers = {
+                "User-Agent": navigator.userAgent,
+            };
+            
+            return event;
+        },
     });
+    
+    // Initialize the helper with the Sentry module
+    initializeSentryHelper(Sentry);
+    
     console.log("[Sentry] Initialized in renderer process");
+    addBreadcrumb("Renderer process Sentry initialized", "init", "info");
+    
+    // Machine ID will be set via IPC from main process after settings are loaded
 } else {
     console.log("[Sentry] Telemetry disabled - no DSN configured");
 }
@@ -54,9 +80,25 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
+    logCheckpoint("Renderer initialization started");
+    
     try {
+        // Get machine ID from main process and set it in Sentry
+        if (sentryConfig) {
+            try {
+                const settings = await window.toolboxAPI.getUserSettings();
+                if (settings.machineId) {
+                    setSentryMachineId(settings.machineId);
+                    logCheckpoint("Machine ID set in renderer Sentry", { machineId: settings.machineId });
+                }
+            } catch (error) {
+                console.warn("Failed to get machine ID for Sentry:", error);
+            }
+        }
+        
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
+        addBreadcrumb("Modal bridges initialized", "init", "info");
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -90,19 +132,43 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up homepage actions
         setupHomepageActions();
+        
+        addBreadcrumb("UI components initialized", "init", "info");
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
+        logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
-        await loadToolsLibrary();
+        try {
+            await loadToolsLibrary();
+            logCheckpoint("Tools library loaded");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "tools_library_loading" },
+                level: "warning",
+            });
+            console.error("Failed to load tools library:", error);
+        }
 
         // Load initial sidebar content (tools by default)
         await loadSidebarTools();
         await loadMarketplace();
+        addBreadcrumb("Sidebar content loaded", "init", "info");
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        await loadSidebarConnections();
+        try {
+            await loadSidebarConnections();
+            logCheckpoint("Connections loaded");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "connections_loading" },
+                level: "warning",
+            });
+            console.error("Failed to load connections:", error);
+        }
 
         // Update footer connection info
         // Update footer connection status
@@ -110,10 +176,30 @@ export async function initializeApplication(): Promise<void> {
         await updateFooterConnection();
 
         // Load homepage data
-        await loadHomepageData();
+        try {
+            await loadHomepageData();
+            logCheckpoint("Homepage data loaded");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "homepage_loading" },
+                level: "warning",
+            });
+            console.error("Failed to load homepage data:", error);
+        }
 
         // Restore previous session
-        await restoreSession();
+        try {
+            await restoreSession();
+            logCheckpoint("Session restored");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "session_restore" },
+                level: "warning",
+            });
+            console.error("Failed to restore session:", error);
+        }
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
@@ -129,11 +215,18 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up terminal toggle button
         setupTerminalPanel();
+        
+        addBreadcrumb("All listeners set up", "init", "info");
+        logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
         console.error("Failed to initialize application:", error);
         // If Sentry is available, capture the error
         if (sentryConfig) {
-            Sentry.captureException(error);
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "renderer_initialization" },
+                level: "fatal",
+            });
         }
         // Show error to user using the notification system
         const errorMessage = (error as Error).message || "Unknown error occurred";
