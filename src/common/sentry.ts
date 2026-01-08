@@ -31,7 +31,7 @@ export function getSentryConfig(): SentryConfig | null {
     // Determine environment (production, development, etc.)
     // In Electron main process, we check if app is packaged
     // In renderer process, we check NODE_ENV
-    let environment = "development";
+    let environment: string;
     let release = "unknown";
 
     // Try to detect if we're in main process by checking for electron module availability

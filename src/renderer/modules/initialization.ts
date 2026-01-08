@@ -228,7 +228,7 @@ export async function initializeApplication(): Promise<void> {
                 level: "fatal",
             });
         }
-        // Show error to user using the notification system
+        // Show error to user using a proper error modal
         const errorMessage = (error as Error).message || "Unknown error occurred";
         const errorElement = document.createElement("div");
         errorElement.style.cssText = `
@@ -245,23 +245,38 @@ export async function initializeApplication(): Promise<void> {
             max-width: 500px;
             text-align: center;
         `;
-        errorElement.innerHTML = `
-            <h3 style="margin: 0 0 12px 0; font-size: 18px;">Application Initialization Failed</h3>
-            <p style="margin: 0 0 16px 0;">${errorMessage}</p>
-            <button id="reload-btn" style="
-                background: #ffffff;
-                color: #d13438;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-            ">Reload Application</button>
+        
+        // Create title
+        const title = document.createElement("h3");
+        title.style.cssText = "margin: 0 0 12px 0; font-size: 18px;";
+        title.textContent = "Application Initialization Failed";
+        
+        // Create message paragraph
+        const messagePara = document.createElement("p");
+        messagePara.style.cssText = "margin: 0 0 16px 0;";
+        messagePara.textContent = errorMessage;
+        
+        // Create reload button
+        const reloadBtn = document.createElement("button");
+        reloadBtn.id = "reload-btn";
+        reloadBtn.style.cssText = `
+            background: #ffffff;
+            color: #d13438;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
         `;
-        document.body.appendChild(errorElement);
-        document.getElementById("reload-btn")?.addEventListener("click", () => {
+        reloadBtn.textContent = "Reload Application";
+        reloadBtn.addEventListener("click", () => {
             window.location.reload();
         });
+        
+        errorElement.appendChild(title);
+        errorElement.appendChild(messagePara);
+        errorElement.appendChild(reloadBtn);
+        document.body.appendChild(errorElement);
     }
 }
 
