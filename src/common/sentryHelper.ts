@@ -81,22 +81,54 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
 }
 
 /**
- * Start a new Sentry transaction for performance monitoring
+ * Start a new Sentry span for performance monitoring
  * Use this for important operations like tool loading, connection testing, etc.
+ * 
+ * Note: Returns a simple transaction-like object that's compatible with both old and new Sentry APIs
  */
 export function startTransaction(name: string, op: string, data?: Record<string, unknown>): SentryTransaction | undefined {
     if (!sentryModule) return undefined;
 
-    const transaction = sentryModule.startTransaction({
-        name,
-        op,
-        data: {
-            ...data,
-            machine_id: machineId,
+    // Create a simple wrapper that's compatible with our needs
+    // For newer Sentry versions, we just track timing in breadcrumbs instead of full transactions
+    const startTime = Date.now();
+    let finished = false;
+    let status = "ok";
+
+    const transactionWrapper: SentryTransaction = {
+        setStatus: (newStatus: string) => {
+            status = newStatus;
         },
+        finish: () => {
+            if (!finished) {
+                finished = true;
+                const duration = Date.now() - startTime;
+                
+                // Add breadcrumb with timing information
+                addBreadcrumb(
+                    `Operation ${name} finished`,
+                    "performance",
+                    status === "ok" ? "info" : "error",
+                    {
+                        operation: name,
+                        op,
+                        duration_ms: duration,
+                        status,
+                        ...data,
+                    }
+                );
+            }
+        },
+    };
+
+    // Add breadcrumb for operation start
+    addBreadcrumb(`Operation ${name} started`, "performance", "debug", {
+        operation: name,
+        op,
+        ...data,
     });
 
-    return transaction;
+    return transactionWrapper;
 }
 
 /**
