@@ -57,7 +57,8 @@ export class EncryptionManager {
 
     /**
      * Encrypt an object's sensitive fields
-     * Returns a new object with sensitive fields encrypted
+     * Returns a new object with sensitive fields encrypted.
+     * Undefined and null values are preserved unchanged to allow clearing fields during updates.
      */
     encryptFields<T extends Record<string, any>>(obj: T, fields: (keyof T)[]): T {
         const result = { ...obj };
@@ -66,7 +67,7 @@ export class EncryptionManager {
             if (result[field] !== undefined && result[field] !== null && typeof result[field] === "string") {
                 result[field] = this.encrypt(result[field] as string) as T[keyof T];
             }
-            // Preserve undefined and null values explicitly to allow clearing fields during updates
+            // Note: undefined and null values are passed through unchanged
         }
 
         return result;
