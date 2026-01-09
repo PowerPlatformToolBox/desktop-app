@@ -1217,28 +1217,23 @@ class ToolBoxApp {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
             const machineId = this.machineIdManager.getMachineId();
-            const appPath = app.getPath("userData");
             const locale = app.getLocale();
-            
+
             const message = `Power Platform Tool Box
+            Version: ${appVersion}
+            Machine ID: ${machineId}
 
-Version: ${appVersion}
-Machine ID: ${machineId}
+            Environment:
+            Electron: ${process.versions.electron}
+            Node.js: ${process.versions.node}
+            Chromium: ${process.versions.chrome}
 
-Environment:
-Electron: ${process.versions.electron}
-Node.js: ${process.versions.node}
-Chromium: ${process.versions.chrome}
+            System:
+            OS: ${process.platform} ${process.arch}
+            OS Version: ${process.getSystemVersion()}
+            Locale: ${locale}
 
-System:
-OS: ${process.platform} ${process.arch}
-OS Version: ${process.getSystemVersion()}
-Locale: ${locale}
-
-Paths:
-User Data: ${appPath}
-
-Note: Machine ID is used for telemetry and error tracking in Sentry.`;
+            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
