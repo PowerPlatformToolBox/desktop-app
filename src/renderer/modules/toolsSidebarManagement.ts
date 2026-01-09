@@ -148,6 +148,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Asset paths
                 const infoIconPath = "icons/light/info_filled.svg";
+                const favoriteIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
                 const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
 
@@ -208,6 +209,15 @@ export async function loadSidebarTools(): Promise<void> {
                         }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
+                            ${
+                                tool.isFavorite
+                                    ? `
+                            <div class="tool-item-actions-right">
+                                <img width="16" height="16" src="${favoriteIconPath}" alt="Favorite" class="tool-favorite-icon" />
+                            </div>
+                            `
+                                    : ""
+                            }
                         </div>
                         ${
                             hasUpdate && latestVersion
