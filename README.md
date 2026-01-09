@@ -169,16 +169,18 @@ SENTRY_PROJECT=your-project-slug
 -   **Automatic source map upload** in production builds (requires auth token)
 
 **Logs & Tracing:**
-- Console logs at `error` and `warn` levels are automatically captured
-- Structured logging available via Sentry logger helpers (`logTrace`, `logDebug`, `logInfo`, `logWarn`, `logError`, `logFatal`)
-- HTTP requests in main process are traced for performance monitoring
-- Browser performance metrics (page loads, long tasks) captured in renderer
-- All traces include machine ID for per-installation analysis
-- Breadcrumbs capture sequence of events leading to errors
+
+-   Console logs at `error` and `warn` levels are automatically captured
+-   Structured logging available via Sentry logger helpers (`logTrace`, `logDebug`, `logInfo`, `logWarn`, `logError`, `logFatal`)
+-   HTTP requests in main process are traced for performance monitoring
+-   Browser performance metrics (page loads, long tasks) captured in renderer
+-   All traces include machine ID for per-installation analysis
+-   Breadcrumbs capture sequence of events leading to errors
 
 **Using Sentry Logger in Code:**
+
 ```typescript
-import { logTrace, logDebug, logInfo, logWarn, logError, logFatal } from './common/sentryHelper';
+import { logTrace, logDebug, logInfo, logWarn, logError, logFatal } from "./common/sentryHelper";
 
 // Structured logging with context
 logTrace("Starting database connection", { database: "users" });
@@ -230,8 +232,10 @@ Supporting Team:
     Focused on refining the toolbox UI and elevating the overall experience.
 -   **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
      Generates ideas and relentlessly pushes the team forward.
+-   **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
+     Constantly brainstorming new features and improvements to keep the toolbox evolving.
 
-> If you wish to offically be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
+> If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
 ## Contributors
 
