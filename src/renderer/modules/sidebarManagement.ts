@@ -4,6 +4,7 @@
  */
 
 import { loadSidebarSettings } from "./settingsManagement";
+import { captureException } from "../../common/sentryHelper";
 
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
@@ -41,7 +42,12 @@ export function switchSidebar(sidebarId: string): void {
             
             // Load settings when re-expanding settings sidebar
             if (sidebarId === "settings") {
-                loadSidebarSettings().catch((err) => console.error("Failed to load sidebar settings:", err));
+                loadSidebarSettings().catch((err) => {
+                    captureException(err instanceof Error ? err : new Error(String(err)), {
+                        tags: { context: "sidebar_settings_load", action: "re-expand" },
+                        level: "warning",
+                    });
+                });
             }
         }
         window.api?.send("sidebar-layout-changed");
@@ -72,7 +78,12 @@ export function switchSidebar(sidebarId: string): void {
 
     // Load settings when switching to settings sidebar
     if (sidebarId === "settings") {
-        loadSidebarSettings().catch((err) => console.error("Failed to load sidebar settings:", err));
+        loadSidebarSettings().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { context: "sidebar_settings_load", action: "switch" },
+                level: "warning",
+            });
+        });
     }
 
     window.api?.send("sidebar-layout-changed");
