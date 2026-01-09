@@ -1,7 +1,8 @@
-import { EventEmitter } from "events";
-import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { Terminal, TerminalOptions, TerminalCommandResult } from "../../common/types";
+import { EventEmitter } from "events";
+import { captureMessage } from "../../common/sentryHelper";
+import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 
 /**
  * Manages terminal instances for tools
@@ -47,7 +48,7 @@ export class TerminalManager extends EventEmitter {
 
         // Verify shell exists, fallback to default if not
         if (options.shell && !(await this.shellExists(options.shell))) {
-            console.warn(`Shell ${options.shell} not found, using default shell ${this.defaultShell}`);
+            captureMessage(`Shell ${options.shell} not found, using default shell ${this.defaultShell}`, "warning");
             shell = this.defaultShell;
         }
 
@@ -199,21 +200,21 @@ class TerminalInstance extends EventEmitter {
      */
     private startShellProcess(env?: Record<string, string>): void {
         const shellArgs = this.getShellArgs();
-        
+
         // Ensure critical environment variables are set for proper shell initialization
-        const processEnv = { 
-            ...process.env, 
+        const processEnv = {
+            ...process.env,
             ...env,
             // Ensure TERM is set for proper terminal emulation (needed for Oh-My-Posh and colors)
-            TERM: process.env.TERM || 'xterm-256color',
+            TERM: process.env.TERM || "xterm-256color",
             // Ensure COLORTERM is set to indicate true color support
-            COLORTERM: process.env.COLORTERM || 'truecolor',
+            COLORTERM: process.env.COLORTERM || "truecolor",
         };
 
         // Log shell startup for debugging (can be removed in production)
-        console.log(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(' ')}`);
-        console.log(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
-        console.log(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
+        captureMessage(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(" ")}`);
+        captureMessage(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
+        captureMessage(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
 
         this.process = spawn(this.terminal.shell, shellArgs, {
             cwd: this.terminal.cwd,

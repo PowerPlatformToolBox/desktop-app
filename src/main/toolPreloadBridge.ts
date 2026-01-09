@@ -12,6 +12,7 @@ import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
 import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { captureMessage } from "../common/sentryHelper";
 
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;
@@ -30,7 +31,7 @@ const toolContextReady = new Promise<void>((resolve) => {
 ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge new context with existing to preserve all fields
     toolContext = { ...toolContext, ...context };
-    console.log("[ToolPreloadBridge] Received tool context update:", context);
+    captureMessage("[ToolPreloadBridge] Received tool context update:", context);
     // Resolve the promise so any pending API calls can proceed (only once)
     if (resolveToolContext) {
         resolveToolContext();
@@ -162,7 +163,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
         getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
-        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
@@ -253,9 +255,11 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
     getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
     queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
-    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
-    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
+    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
     getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
 });
 
-console.log("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
+captureMessage("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");

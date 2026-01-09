@@ -3,6 +3,70 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
+// Initialize Sentry as early as possible in the renderer process
+import * as Sentry from "@sentry/electron/renderer";
+import { getSentryConfig } from "../../common/sentry";
+import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint, wrapAsyncOperation } from "../../common/sentryHelper";
+
+const sentryConfig = getSentryConfig();
+if (sentryConfig) {
+    Sentry.init({
+        dsn: sentryConfig.dsn,
+        environment: sentryConfig.environment,
+        release: sentryConfig.release,
+        tracesSampleRate: sentryConfig.tracesSampleRate,
+        replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
+        replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
+        // Enable Sentry logger for structured logging
+        enableLogs: true,
+        // Capture unhandled promise rejections and console errors
+        integrations: [
+            Sentry.captureConsoleIntegration({
+                levels: ["error", "warn"],
+            }),
+            Sentry.browserTracingIntegration({
+                // Track navigation and page loads
+                enableLongTask: true,
+                enableInp: true,
+            }),
+            Sentry.replayIntegration({
+                maskAllText: true,
+                blockAllMedia: true,
+            }),
+            // Context lines integration for better error context
+            Sentry.contextLinesIntegration(),
+        ],
+        // Before sending events, add machine ID and additional context
+        beforeSend(event) {
+            // Ensure machine ID is in tags
+            if (!event.tags) {
+                event.tags = {};
+            }
+            event.tags.process = "renderer";
+            
+            // Add user agent for browser context
+            if (!event.request) {
+                event.request = {};
+            }
+            event.request.headers = {
+                "User-Agent": navigator.userAgent,
+            };
+            
+            return event;
+        },
+    });
+    
+    // Initialize the helper with the Sentry module
+    initializeSentryHelper(Sentry);
+    
+    console.log("[Sentry] Initialized in renderer process with tracing and logging");
+    addBreadcrumb("Renderer process Sentry initialized", "init", "info");
+    
+    // Machine ID will be set via IPC from main process after settings are loaded
+} else {
+    console.log("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
@@ -24,80 +88,208 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
-    initializeBrowserWindowModals();
-    initializeAddConnectionModalBridge();
+    logCheckpoint("Renderer initialization started");
+    
+    try {
+        // Get machine ID from main process and set it in Sentry
+        if (sentryConfig) {
+            try {
+                const settings = await window.toolboxAPI.getUserSettings();
+                if (settings.machineId) {
+                    setSentryMachineId(settings.machineId);
+                    logCheckpoint("Machine ID set in renderer Sentry", { machineId: settings.machineId });
+                }
+            } catch (error) {
+                console.warn("Failed to get machine ID for Sentry:", error);
+            }
+        }
+        
+        initializeBrowserWindowModals();
+        initializeAddConnectionModalBridge();
+        addBreadcrumb("Modal bridges initialized", "init", "info");
 
-    // Set up Activity Bar navigation
-    setupActivityBar();
+        // Set up Activity Bar navigation
+        setupActivityBar();
 
-    // Set up toolbar buttons
-    setupToolbarButtons();
+        // Set up toolbar buttons
+        setupToolbarButtons();
 
-    // Set up sidebar buttons
-    setupSidebarButtons();
+        // Set up sidebar buttons
+        setupSidebarButtons();
 
-    // Set up debug section buttons
-    setupDebugSection();
+        // Set up debug section buttons
+        setupDebugSection();
 
-    // Set up settings change listeners
-    setupSettingsListeners();
+        // Set up settings change listeners
+        setupSettingsListeners();
 
-    // Set up home screen action buttons
-    setupHomeScreenButtons();
+        // Set up home screen action buttons
+        setupHomeScreenButtons();
 
-    // Set up modal close buttons
-    setupModalButtons();
+        // Set up modal close buttons
+        setupModalButtons();
 
-    // Set up auto-update listeners
-    setupAutoUpdateListeners();
+        // Set up auto-update listeners
+        setupAutoUpdateListeners();
 
-    // Set up application event listeners
-    setupApplicationEventListeners();
+        // Set up application event listeners
+        setupApplicationEventListeners();
 
-    // Set up keyboard shortcuts
-    setupKeyboardShortcuts();
+        // Set up keyboard shortcuts
+        setupKeyboardShortcuts();
 
-    // Set up homepage actions
-    setupHomepageActions();
+        // Set up homepage actions
+        setupHomepageActions();
+        
+        addBreadcrumb("UI components initialized", "init", "info");
 
-    // Load and apply theme settings on startup
-    await loadInitialSettings();
+        // Load and apply theme settings on startup
+        await wrapAsyncOperation("loadInitialSettings", async () => {
+            await loadInitialSettings();
+        }, { tags: { phase: "initialization" } });
+        logCheckpoint("Initial settings loaded");
 
-    // Load tools library from registry
-    await loadToolsLibrary();
+        // Load tools library from registry
+        await wrapAsyncOperation("loadToolsLibrary", async () => {
+            await loadToolsLibrary();
+        }, { tags: { phase: "tools_library_loading" } }).catch((error) => {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "tools_library_loading" },
+                level: "warning",
+            });
+        });
+        logCheckpoint("Tools library loaded");
 
-    // Load initial sidebar content (tools by default)
-    await loadSidebarTools();
-    await loadMarketplace();
+        // Load initial sidebar content (tools by default)
+        await wrapAsyncOperation("loadSidebarTools", async () => {
+            await loadSidebarTools();
+        }, { tags: { phase: "sidebar_loading" } });
+        
+        await wrapAsyncOperation("loadMarketplace", async () => {
+            await loadMarketplace();
+        }, { tags: { phase: "marketplace_loading" } });
+        addBreadcrumb("Sidebar content loaded", "init", "info");
 
-    // Load connections in sidebar immediately (was previously delayed until events)
-    await loadSidebarConnections();
+        // Load connections in sidebar immediately (was previously delayed until events)
+        await wrapAsyncOperation("loadSidebarConnections", async () => {
+            await loadSidebarConnections();
+        }, { tags: { phase: "connections_loading" } }).catch((error) => {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "connections_loading" },
+                level: "warning",
+            });
+        });
+        logCheckpoint("Connections loaded");
 
-    // Update footer connection info
-    // Update footer connection status
-    // Note: Footer shows active tool's connection, not a global connection
-    await updateFooterConnection();
+        // Update footer connection info
+        // Update footer connection status
+        // Note: Footer shows active tool's connection, not a global connection
+        await wrapAsyncOperation("updateFooterConnection", async () => {
+            await updateFooterConnection();
+        }, { tags: { phase: "footer_update" } });
 
-    // Load homepage data
-    await loadHomepageData();
+        // Load homepage data
+        await wrapAsyncOperation("loadHomepageData", async () => {
+            await loadHomepageData();
+        }, { tags: { phase: "homepage_loading" } }).catch((error) => {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "homepage_loading" },
+                level: "warning",
+            });
+        });
+        logCheckpoint("Homepage data loaded");
 
-    // Restore previous session
-    await restoreSession();
+        // Restore previous session
+        await wrapAsyncOperation("restoreSession", async () => {
+            await restoreSession();
+        }, { tags: { phase: "session_restore" } }).catch((error) => {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "session_restore" },
+                level: "warning",
+            });
+        });
+        logCheckpoint("Session restored");
 
-    // Set up IPC listeners for authentication dialogs
-    setupAuthenticationListeners();
+        // Set up IPC listeners for authentication dialogs
+        setupAuthenticationListeners();
 
-    // Set up loading screen listeners
-    setupLoadingScreenListeners();
+        // Set up loading screen listeners
+        setupLoadingScreenListeners();
 
-    // Set up toolbox event listeners
-    setupToolboxEventListeners();
+        // Set up toolbox event listeners
+        setupToolboxEventListeners();
 
-    // Handle request for tool panel bounds (for BrowserView positioning)
-    setupToolPanelBoundsListener();
+        // Handle request for tool panel bounds (for BrowserView positioning)
+        setupToolPanelBoundsListener();
 
-    // Set up terminal toggle button
-    setupTerminalPanel();
+        // Set up terminal toggle button
+        setupTerminalPanel();
+        
+        addBreadcrumb("All listeners set up", "init", "info");
+        logCheckpoint("Renderer initialization completed successfully");
+    } catch (error) {
+        // If Sentry is available, capture the error
+        if (sentryConfig) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "renderer_initialization" },
+                level: "fatal",
+            });
+        }
+        // Show error to user using a proper error modal
+        const errorMessage = (error as Error).message || "Unknown error occurred";
+        const errorElement = document.createElement("div");
+        errorElement.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--error-bg, #d13438);
+            color: var(--error-fg, #ffffff);
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 500px;
+            text-align: center;
+        `;
+        
+        // Create title
+        const title = document.createElement("h3");
+        title.style.cssText = "margin: 0 0 12px 0; font-size: 18px;";
+        title.textContent = "Application Initialization Failed";
+        
+        // Create message paragraph
+        const messagePara = document.createElement("p");
+        messagePara.style.cssText = "margin: 0 0 16px 0;";
+        messagePara.textContent = errorMessage;
+        
+        // Create reload button
+        const reloadBtn = document.createElement("button");
+        reloadBtn.id = "reload-btn";
+        reloadBtn.style.cssText = `
+            background: #ffffff;
+            color: #d13438;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        `;
+        reloadBtn.textContent = "Reload Application";
+        reloadBtn.addEventListener("click", () => {
+            window.location.reload();
+        });
+        
+        errorElement.appendChild(title);
+        errorElement.appendChild(messagePara);
+        errorElement.appendChild(reloadBtn);
+        document.body.appendChild(errorElement);
+    }
 }
 
 /**
@@ -138,7 +330,12 @@ function setupSidebarButtons(): void {
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
-            openAddConnectionModal().catch((error) => console.error("Failed to open add connection modal", error));
+            openAddConnectionModal().catch((error) => {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "modal_opening" },
+                    level: "error",
+                });
+            });
         });
     }
 
@@ -548,14 +745,29 @@ function setupToolboxEventListeners(): void {
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             console.log("Connection event detected, reloading connections...");
-            loadSidebarConnections().catch((err) => console.error("Failed to reload sidebar connections:", err));
-            updateFooterConnection().catch((err) => console.error("Failed to update footer connection:", err));
+            loadSidebarConnections().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "connection_reload" },
+                    level: "warning",
+                });
+            });
+            updateFooterConnection().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "footer_update" },
+                    level: "warning",
+                });
+            });
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             console.log("Tool event detected, reloading tools...");
-            loadSidebarTools().catch((err) => console.error("Failed to reload sidebar tools:", err));
+            loadSidebarTools().catch((err) => {
+                captureException(err instanceof Error ? err : new Error(String(err)), {
+                    tags: { phase: "tools_reload" },
+                    level: "warning",
+                });
+            });
         }
 
         // Handle terminal events

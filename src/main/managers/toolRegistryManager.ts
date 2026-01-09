@@ -6,6 +6,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
+import { captureMessage } from "../../common/sentryHelper";
 import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { MachineIdManager } from "./machineIdManager";
@@ -131,11 +132,11 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Validate Supabase credentials and create client
         if (!url || !key || url === "" || key === "") {
-            console.warn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
-            console.warn("[ToolRegistry] Falling back to local registry.json file.");
+            captureMessage("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.", "warning");
+            captureMessage("[ToolRegistry] Falling back to local registry.json file.", "warning");
             this.useLocalFallback = true;
         } else {
-            console.log("[ToolRegistry] Initializing Supabase client with URL:", url.substring(0, 30) + "...");
+            captureMessage("[ToolRegistry] Initializing Supabase client");
             this.supabase = createClient(url, key);
         }
 
@@ -161,7 +162,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         try {
-            console.log(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
+            captureMessage(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
             const selectColumns = [
                 "id",
@@ -197,7 +198,7 @@ export class ToolRegistryManager extends EventEmitter {
             }
 
             if (!toolsData || toolsData.length === 0) {
-                console.log(`[ToolRegistry] No tools found in registry`);
+                captureMessage(`[ToolRegistry] No tools found in registry`);
                 return [];
             }
 
@@ -240,7 +241,7 @@ export class ToolRegistryManager extends EventEmitter {
                 } as ToolRegistryEntry;
             });
 
-            console.log(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
+            captureMessage(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
@@ -253,10 +254,10 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async fetchLocalRegistry(): Promise<ToolRegistryEntry[]> {
         try {
-            console.log(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
+            captureMessage(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
 
             if (!fs.existsSync(this.localRegistryPath)) {
-                console.warn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
+                captureMessage(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`, "warning");
                 return [];
             }
 
@@ -264,7 +265,7 @@ export class ToolRegistryManager extends EventEmitter {
             const registryData: LocalRegistryFile = JSON.parse(data);
 
             if (!registryData.tools || registryData.tools.length === 0) {
-                console.log(`[ToolRegistry] No tools found in local registry`);
+                captureMessage(`[ToolRegistry] No tools found in local registry`);
                 return [];
             }
 
@@ -291,7 +292,7 @@ export class ToolRegistryManager extends EventEmitter {
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 }));
 
-            console.log(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
+            captureMessage(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
         } catch (error) {
             console.error(`[ToolRegistry] Failed to fetch local registry:`, error);
@@ -306,7 +307,7 @@ export class ToolRegistryManager extends EventEmitter {
         const toolPath = path.join(this.toolsDirectory, tool.id);
         const downloadPath = path.join(this.toolsDirectory, `${tool.id}.tar.gz`);
 
-        console.log(`[ToolRegistry] Downloading tool ${tool.id} from ${tool.downloadUrl}`);
+        captureMessage(`[ToolRegistry] Downloading tool ${tool.id} from ${tool.downloadUrl}`);
 
         return new Promise((resolve, reject) => {
             const protocol = tool.downloadUrl.startsWith("https") ? https : http;
@@ -317,7 +318,7 @@ export class ToolRegistryManager extends EventEmitter {
                         // Handle redirects
                         const redirectUrl = res.headers.location;
                         if (redirectUrl) {
-                            console.log(`[ToolRegistry] Following redirect to ${redirectUrl}`);
+                            captureMessage(`[ToolRegistry] Following redirect to ${redirectUrl}`);
                             const redirectProtocol = redirectUrl.startsWith("https") ? https : http;
                             redirectProtocol
                                 .get(redirectUrl, (redirectRes) => {
@@ -351,7 +352,7 @@ export class ToolRegistryManager extends EventEmitter {
 
             pipeline(res, fileStream)
                 .then(() => {
-                    console.log(`[ToolRegistry] Download complete, extracting to ${toolPath}`);
+                    captureMessage(`[ToolRegistry] Download complete, extracting to ${toolPath}`);
                     this.extractTool(downloadPath, toolPath)
                         .then(() => {
                             // Clean up download file
@@ -406,7 +407,7 @@ export class ToolRegistryManager extends EventEmitter {
                 });
             });
 
-            console.log(`[ToolRegistry] Tool extracted successfully to ${targetPath}`);
+            captureMessage(`[ToolRegistry] Tool extracted successfully to ${targetPath}`);
         } catch (error) {
             throw new Error(`Failed to extract tool: ${error}`);
         }
@@ -470,7 +471,7 @@ export class ToolRegistryManager extends EventEmitter {
         // Save to manifest file
         await this.saveManifest(manifest);
 
-        console.log(`[ToolRegistry] Tool ${toolId} installed successfully`);
+        captureMessage(`[ToolRegistry] Tool ${toolId} installed successfully`);
         this.emit("tool:installed", manifest);
 
         // Track the download (async, don't wait for completion)
@@ -498,7 +499,7 @@ export class ToolRegistryManager extends EventEmitter {
         // Remove from manifest
         await this.removeFromManifest(toolId);
 
-        console.log(`[ToolRegistry] Tool ${toolId} uninstalled successfully`);
+        captureMessage(`[ToolRegistry] Tool ${toolId} uninstalled successfully`);
         this.emit("tool:uninstalled", toolId);
     }
 
@@ -656,7 +657,7 @@ export class ToolRegistryManager extends EventEmitter {
     updateSupabaseClient(url: string, key: string): void {
         this.supabase = createClient(url, key);
         this.useLocalFallback = false;
-        console.log(`[ToolRegistry] Supabase client updated`);
+        captureMessage(`[ToolRegistry] Supabase client updated`);
     }
 
     /**
@@ -667,12 +668,12 @@ export class ToolRegistryManager extends EventEmitter {
     async trackToolDownload(toolId: string): Promise<void> {
         // Skip tracking if using local fallback (no Supabase)
         if (this.useLocalFallback || !this.supabase) {
-            console.log(`[ToolRegistry] Skipping download tracking (no Supabase connection)`);
+            captureMessage(`[ToolRegistry] Skipping download tracking (no Supabase connection)`);
             return;
         }
 
         try {
-            console.log(`[ToolRegistry] Tracking download for tool: ${toolId}`);
+            captureMessage(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
             // Fetch current analytics
             const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
@@ -700,7 +701,7 @@ export class ToolRegistryManager extends EventEmitter {
                 throw upsertError;
             }
 
-            console.log(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
+            captureMessage(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
             console.error(`[ToolRegistry] Failed to track download for ${toolId}:`, error);
@@ -715,18 +716,18 @@ export class ToolRegistryManager extends EventEmitter {
     async trackToolUsage(toolId: string): Promise<void> {
         // Skip tracking if using local fallback (no Supabase)
         if (this.useLocalFallback || !this.supabase) {
-            console.log(`[ToolRegistry] Skipping usage tracking (no Supabase connection)`);
+            captureMessage(`[ToolRegistry] Skipping usage tracking (no Supabase connection)`);
             return;
         }
 
         // Skip if no machine ID manager available
         if (!this.machineIdManager) {
-            console.warn(`[ToolRegistry] Skipping usage tracking (no MachineIdManager)`);
+            captureMessage(`[ToolRegistry] Skipping usage tracking (no MachineIdManager)`, "warning");
             return;
         }
 
         try {
-            console.log(`[ToolRegistry] Tracking usage for tool: ${toolId}`);
+            captureMessage(`[ToolRegistry] Tracking usage for tool: ${toolId}`);
 
             // Get the machine ID
             const machineId = this.machineIdManager.getMachineId();
@@ -776,7 +777,7 @@ export class ToolRegistryManager extends EventEmitter {
                 throw analyticsError;
             }
 
-            console.log(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
+            captureMessage(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             console.error(`[ToolRegistry] Failed to track usage for ${toolId}:`, error);

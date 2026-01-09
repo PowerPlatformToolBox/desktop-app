@@ -3,6 +3,7 @@ import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
+import { captureMessage } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
@@ -14,10 +15,10 @@ export class AuthManager {
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
     private activePort: number | null = null;
-    
+
     // Authentication timeout duration (5 minutes)
     private static readonly AUTH_TIMEOUT_MS = 5 * 60 * 1000;
-    
+
     private static readonly HTML_ESCAPE_MAP: { [key: string]: string } = {
         "&": "&amp;",
         "<": "&lt;",
@@ -43,7 +44,7 @@ export class AuthManager {
             system: {
                 loggerOptions: {
                     loggerCallback(loglevel: LogLevel, message: string) {
-                        console.log(message);
+                        captureMessage(message);
                     },
                     piiLoggingEnabled: false,
                     logLevel: LogLevel.Warning,
@@ -108,7 +109,7 @@ export class AuthManager {
     private findAvailablePort(): Promise<number> {
         return new Promise((resolve, reject) => {
             const server = http.createServer();
-            
+
             const cleanup = (callback: () => void) => {
                 server.removeAllListeners();
                 server.close(() => {
@@ -149,7 +150,7 @@ export class AuthManager {
                 // Force close any remaining connections after graceful shutdown attempt
                 server.closeAllConnections();
                 if (logMessage) {
-                    console.log(logMessage);
+                    captureMessage(logMessage);
                 }
             });
         }
@@ -170,12 +171,12 @@ export class AuthManager {
                 const server = this.activeServer;
                 this.activeServer = null;
                 this.activePort = null;
-                
+
                 // Close the server and wait for it to fully release the port
                 server.close(() => {
                     // Force close any remaining connections after graceful shutdown attempt
                     server.closeAllConnections();
-                    console.log("Authentication server closed and port released");
+                    captureMessage("Authentication server closed and port released");
                     resolve();
                 });
             } else {
@@ -264,7 +265,7 @@ export class AuthManager {
             }, AuthManager.AUTH_TIMEOUT_MS);
 
             server.listen(port, "localhost", () => {
-                console.log(`Listening for OAuth redirect on ${redirectUri}`);
+                captureMessage(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser
                 shell.openExternal(authCodeUrl).catch((err) => {
                     cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));

@@ -1,4 +1,5 @@
 import { safeStorage } from "electron";
+import { captureMessage } from "../../common/sentryHelper";
 
 /**
  * Manages encryption and decryption of sensitive data using Electron's safeStorage API
@@ -22,7 +23,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            console.warn("Encryption not available, storing data in plain text");
+            captureMessage("Encryption not available, storing data in plain text", "warning");
             return plaintext;
         }
 
@@ -39,7 +40,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            console.warn("Encryption not available, returning data as-is");
+            captureMessage("Encryption not available, returning data as-is", "warning");
             return encrypted;
         }
 

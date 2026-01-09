@@ -86,28 +86,18 @@
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
 > `xattr -cr "/Applications/Power Platform Tool Box.app"`
 
--   [Known Issues](#known-issues)
--   [Features Overview](#features-overview)
--   [Architecture](#architecture)
--   [Security Model](#security-model)
--   [Tool Development](#tool-development)
-    -   [Sample Tools Repository](#sample-tools-repository)
--   [ToolBox development](#toolbox-development)
-    -   [Installing Tools](#installing-tools)
-    -   [Tool Security](#tool-security)
--   [Dataverse Connections](#dataverse-connections)
--   [Releases \& Downloads](#releases--downloads)
-    -   [Download Latest Release](#download-latest-release)
--   [Auto-Updates](#auto-updates)
-    -   [Enabling Auto-Updates](#enabling-auto-updates)
-    -   [Manual Update Check](#manual-update-check)
-    -   [Update Process](#update-process)
--   [Documentation](#documentation)
-    -   [Porting XrmToolBox Tools](#porting-xrmtoolbox-tools)
--   [Discussions](#discussions)
--   [License](#license)
--   [Team](#team)
--   [Contributors](#contributors)
+- [Known Issues](#known-issues)
+- [Features Overview](#features-overview)
+- [Releases \& Downloads](#releases--downloads)
+  - [Download Latest Release](#download-latest-release)
+- [Development Configuration](#development-configuration)
+  - [Telemetry and Error Tracking](#telemetry-and-error-tracking)
+    - [Setting up Sentry (Optional)](#setting-up-sentry-optional)
+  - [Environment Variables](#environment-variables)
+- [Discussions](#discussions)
+- [License](#license)
+- [Team](#team)
+- [Contributors](#contributors)
 
 ## Known Issues
 
@@ -143,6 +133,76 @@ Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/re
 
 -   **Windows**: `.exe` installer
 -   **macOS**: `.dmg` installer
+
+## Development Configuration
+
+### Telemetry and Error Tracking
+
+Power Platform ToolBox uses [Sentry.io](https://sentry.io) for error tracking and telemetry.
+
+#### Setting up Sentry (Optional)
+
+1. Create a `.env` file in the project root (copy from `.env.example`):
+
+```bash
+# Optional: Enable Sentry telemetry
+SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
+
+# Optional: For production builds with source map upload
+SENTRY_AUTH_TOKEN=your-auth-token
+SENTRY_ORG=your-org-slug
+SENTRY_PROJECT=your-project-slug
+```
+
+2. Build the project with `pnpm run build`
+
+**Features enabled with Sentry:**
+
+-   **Error tracking** in both main and renderer processes with full stack traces
+-   **Session replay** (captures user interactions before errors)
+-   **Performance monitoring** with browser tracing in renderer process
+-   **Distributed tracing** for tracking operations across processes
+-   **Structured logging** with Sentry.logger API for trace, debug, info, warn, error, and fatal levels
+-   **Console integration** - Console errors and warnings automatically captured
+-   **HTTP request tracing** - Network requests tracked for debugging in main process
+-   **Context enrichment** - Machine ID, OS info, and breadcrumbs included
+-   **Automatic source map upload** in production builds (requires auth token)
+
+**Logs & Tracing:**
+- Console logs at `error` and `warn` levels are automatically captured
+- Structured logging available via Sentry logger helpers (`logTrace`, `logDebug`, `logInfo`, `logWarn`, `logError`, `logFatal`)
+- HTTP requests in main process are traced for performance monitoring
+- Browser performance metrics (page loads, long tasks) captured in renderer
+- All traces include machine ID for per-installation analysis
+- Breadcrumbs capture sequence of events leading to errors
+
+**Using Sentry Logger in Code:**
+```typescript
+import { logTrace, logDebug, logInfo, logWarn, logError, logFatal } from './common/sentryHelper';
+
+// Structured logging with context
+logTrace("Starting database connection", { database: "users" });
+logDebug("Cache miss for user", { userId: 123 });
+logInfo("Updated profile", { profileId: 345 });
+logWarn("Rate limit reached for endpoint", { endpoint: "/api/results/" });
+logError("Failed to process payment", { orderId: "order_123", amount: 99.99 });
+logFatal("Database connection pool exhausted", { database: "users", activeConnections: 100 });
+```
+
+**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled.
+
+### Environment Variables
+
+The application supports the following environment variables in a `.env` file:
+
+-   `SUPABASE_URL` - Your Supabase project URL (required for tool registry)
+-   `SUPABASE_ANON_KEY` - Your Supabase anonymous key (required for tool registry)
+-   `SENTRY_DSN` - Your Sentry DSN for error tracking (optional)
+-   `SENTRY_AUTH_TOKEN` - Your Sentry auth token for source map upload (optional, production only)
+-   `SENTRY_ORG` - Your Sentry organization slug (optional, production only)
+-   `SENTRY_PROJECT` - Your Sentry project slug (optional, production only)
+
+All environment variables are injected at build time and not exposed in the final bundle.
 
 ## Discussions
 
