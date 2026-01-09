@@ -94,6 +94,11 @@ export async function loadSidebarTools(): Promise<void> {
         // Sort tools based on selected option
         const sortedTools = [...filteredTools].sort((a, b) => {
             switch (sortOption) {
+                case "favorite":
+                    // Sort by favorite status - favorites first, then by name
+                    if (a.isFavorite && !b.isFavorite) return -1;
+                    if (!a.isFavorite && b.isFavorite) return 1;
+                    return a.name.localeCompare(b.name);
                 case "name-asc":
                     return a.name.localeCompare(b.name);
                 case "name-desc":

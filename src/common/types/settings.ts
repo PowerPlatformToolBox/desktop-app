@@ -8,7 +8,7 @@ import { Theme } from "./common";
 /**
  * Sort options for installed tools
  */
-export type InstalledToolsSortOption = "name-asc" | "name-desc" | "popularity" | "rating" | "downloads";
+export type InstalledToolsSortOption = "name-asc" | "name-desc" | "popularity" | "rating" | "downloads" | "favorite";
 
 /**
  * Sort options for connections
