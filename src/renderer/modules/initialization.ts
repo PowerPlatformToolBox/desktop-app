@@ -226,6 +226,9 @@ export async function initializeApplication(): Promise<void> {
         // Handle request for tool panel bounds (for BrowserView positioning)
         setupToolPanelBoundsListener();
 
+        // Set up filter dropdown toggles for VSCode-style UI
+        setupFilterDropdownToggles();
+
         // Set up terminal toggle button
         setupTerminalPanel();
         
@@ -805,5 +808,93 @@ function setupToolPanelBoundsListener(): void {
         } else {
             console.warn("[Renderer] Tool panel content element not found");
         }
+    });
+}
+
+/**
+ * Setup filter dropdown toggle buttons for VSCode-style UI
+ */
+function setupFilterDropdownToggles(): void {
+    // Tools filter dropdown
+    const toolsFilterBtn = document.getElementById("tools-filter-btn");
+    const toolsFilterDropdown = document.getElementById("tools-filter-dropdown");
+
+    if (toolsFilterBtn && toolsFilterDropdown) {
+        toolsFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isVisible = toolsFilterDropdown.style.display === "block";
+            // Close all other dropdowns
+            document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
+                (dropdown as HTMLElement).style.display = "none";
+            });
+            document.querySelectorAll(".search-filter-btn").forEach((btn) => {
+                btn.classList.remove("active");
+            });
+            // Toggle current dropdown
+            toolsFilterDropdown.style.display = isVisible ? "none" : "block";
+            toolsFilterBtn.classList.toggle("active", !isVisible);
+        });
+    }
+
+    // Connections filter dropdown
+    const connectionsFilterBtn = document.getElementById("connections-filter-btn");
+    const connectionsFilterDropdown = document.getElementById("connections-filter-dropdown");
+
+    if (connectionsFilterBtn && connectionsFilterDropdown) {
+        connectionsFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isVisible = connectionsFilterDropdown.style.display === "block";
+            // Close all other dropdowns
+            document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
+                (dropdown as HTMLElement).style.display = "none";
+            });
+            document.querySelectorAll(".search-filter-btn").forEach((btn) => {
+                btn.classList.remove("active");
+            });
+            // Toggle current dropdown
+            connectionsFilterDropdown.style.display = isVisible ? "none" : "block";
+            connectionsFilterBtn.classList.toggle("active", !isVisible);
+        });
+    }
+
+    // Marketplace filter dropdown
+    const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
+    const marketplaceFilterDropdown = document.getElementById("marketplace-filter-dropdown");
+
+    if (marketplaceFilterBtn && marketplaceFilterDropdown) {
+        marketplaceFilterBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isVisible = marketplaceFilterDropdown.style.display === "block";
+            // Close all other dropdowns
+            document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
+                (dropdown as HTMLElement).style.display = "none";
+            });
+            document.querySelectorAll(".search-filter-btn").forEach((btn) => {
+                btn.classList.remove("active");
+            });
+            // Toggle current dropdown
+            marketplaceFilterDropdown.style.display = isVisible ? "none" : "block";
+            marketplaceFilterBtn.classList.toggle("active", !isVisible);
+        });
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener("click", (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest(".filter-dropdown") && !target.closest(".search-filter-btn")) {
+            document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
+                (dropdown as HTMLElement).style.display = "none";
+            });
+            document.querySelectorAll(".search-filter-btn").forEach((btn) => {
+                btn.classList.remove("active");
+            });
+        }
+    });
+
+    // Prevent dropdown from closing when clicking inside
+    document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
+        dropdown.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
     });
 }

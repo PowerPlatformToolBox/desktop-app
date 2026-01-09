@@ -47,25 +47,39 @@
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">INSTALLED</h2>
                     </div>
-                    <div class="sidebar-search">
-                        <input type="text" id="tools-search-input" class="fluent-input" placeholder="Search installed tools..." />
+                    <div class="sidebar-search-bar">
+                        <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                        <button class="search-filter-btn" id="tools-filter-btn" title="Filters and Sort">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M6 12h4v-1H6v1zm-2-5h8V6H4v1zm10-4H2v1h12V3z"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="sidebar-filters">
-                        <select id="tools-category-filter" class="fluent-select filter-select">
-                            <option value="">All Categories</option>
-                        </select>
-                        <select id="tools-author-filter" class="fluent-select filter-select">
-                            <option value="">All Authors</option>
-                        </select>
-                    </div>
-                    <div class="sidebar-sort">
-                        <select id="tools-sort-select" class="fluent-select filter-select">
-                            <option value="name-asc">Name (A-Z)</option>
-                            <option value="name-desc">Name (Z-A)</option>
-                            <option value="popularity">Popularity</option>
-                            <option value="rating">Highly Rated</option>
-                            <option value="downloads">Most Downloaded</option>
-                        </select>
+                    <div class="filter-dropdown" id="tools-filter-dropdown" style="display: none;">
+                        <div class="filter-section">
+                            <div class="filter-section-title">Sort By</div>
+                            <select id="tools-sort-select" class="filter-dropdown-select">
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                                <option value="popularity">Popularity</option>
+                                <option value="rating">Highly Rated</option>
+                                <option value="downloads">Most Downloaded</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Category</div>
+                            <select id="tools-category-filter" class="filter-dropdown-select">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Author</div>
+                            <select id="tools-author-filter" class="filter-dropdown-select">
+                                <option value="">All Authors</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="sidebar-body">
                         <div class="tools-list-pptb" id="sidebar-tools-list">
@@ -80,30 +94,44 @@
                         <h2 class="sidebar-title">CONNECTIONS</h2>
                         <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
                     </div>
-                    <div class="sidebar-search">
-                        <input type="text" id="connections-search-input" class="fluent-input" placeholder="Search connections..." />
+                    <div class="sidebar-search-bar">
+                        <input type="text" id="connections-search-input" class="search-input" placeholder="Search connections..." />
+                        <button class="search-filter-btn" id="connections-filter-btn" title="Filters and Sort">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M6 12h4v-1H6v1zm-2-5h8V6H4v1zm10-4H2v1h12V3z"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="sidebar-filters">
-                        <select id="connections-environment-filter" class="fluent-select filter-select">
-                            <option value="">All Environments</option>
-                            <option value="Dev">Dev</option>
-                            <option value="Test">Test</option>
-                            <option value="UAT">UAT</option>
-                            <option value="Production">Production</option>
-                        </select>
-                        <select id="connections-auth-filter" class="fluent-select filter-select">
-                            <option value="">All Auth Types</option>
-                            <option value="interactive">Microsoft Login</option>
-                            <option value="clientSecret">Client Secret</option>
-                            <option value="usernamePassword">Username/Password</option>
-                        </select>
-                    </div>
-                    <div class="sidebar-sort">
-                        <select id="connections-sort-select" class="fluent-select filter-select">
-                            <option value="name-asc">Name (A-Z)</option>
-                            <option value="name-desc">Name (Z-A)</option>
-                            <option value="environment">Environment Type</option>
-                        </select>
+                    <div class="filter-dropdown" id="connections-filter-dropdown" style="display: none;">
+                        <div class="filter-section">
+                            <div class="filter-section-title">Sort By</div>
+                            <select id="connections-sort-select" class="filter-dropdown-select">
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                                <option value="environment">Environment Type</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Environment</div>
+                            <select id="connections-environment-filter" class="filter-dropdown-select">
+                                <option value="">All Environments</option>
+                                <option value="Dev">Dev</option>
+                                <option value="Test">Test</option>
+                                <option value="UAT">UAT</option>
+                                <option value="Production">Production</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Authentication Type</div>
+                            <select id="connections-auth-filter" class="filter-dropdown-select">
+                                <option value="">All Auth Types</option>
+                                <option value="interactive">Microsoft Login</option>
+                                <option value="clientSecret">Client Secret</option>
+                                <option value="usernamePassword">Username/Password</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="sidebar-body">
                         <div class="connections-list-sidebar" id="sidebar-connections-list">
@@ -117,25 +145,39 @@
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">MARKETPLACE</h2>
                     </div>
-                    <div class="sidebar-search">
-                        <input type="text" id="marketplace-search-input" class="fluent-input" placeholder="Search tools..." />
+                    <div class="sidebar-search-bar">
+                        <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                        <button class="search-filter-btn" id="marketplace-filter-btn" title="Filters and Sort">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M6 12h4v-1H6v1zm-2-5h8V6H4v1zm10-4H2v1h12V3z"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="sidebar-filters">
-                        <select id="marketplace-category-filter" class="fluent-select filter-select">
-                            <option value="">All Categories</option>
-                        </select>
-                        <select id="marketplace-author-filter" class="fluent-select filter-select">
-                            <option value="">All Authors</option>
-                        </select>
-                    </div>
-                    <div class="sidebar-sort">
-                        <select id="marketplace-sort-select" class="fluent-select filter-select">
-                            <option value="name-asc">Name (A-Z)</option>
-                            <option value="name-desc">Name (Z-A)</option>
-                            <option value="popularity">Popularity</option>
-                            <option value="rating">Highly Rated</option>
-                            <option value="downloads">Most Downloaded</option>
-                        </select>
+                    <div class="filter-dropdown" id="marketplace-filter-dropdown" style="display: none;">
+                        <div class="filter-section">
+                            <div class="filter-section-title">Sort By</div>
+                            <select id="marketplace-sort-select" class="filter-dropdown-select">
+                                <option value="name-asc">Name (A-Z)</option>
+                                <option value="name-desc">Name (Z-A)</option>
+                                <option value="popularity">Popularity</option>
+                                <option value="rating">Highly Rated</option>
+                                <option value="downloads">Most Downloaded</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Category</div>
+                            <select id="marketplace-category-filter" class="filter-dropdown-select">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Author</div>
+                            <select id="marketplace-author-filter" class="filter-dropdown-select">
+                                <option value="">All Authors</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
