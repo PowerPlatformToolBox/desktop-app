@@ -118,7 +118,7 @@ export async function loadMarketplace(): Promise<void> {
     populateMarketplaceFilters();
 
     // Apply filters
-    const filteredTools = toolLibrary.filter((t) => {
+    let filteredTools = toolLibrary.filter((t) => {
         // Search filter
         if (searchTerm) {
             const haystacks: string[] = [t.name || "", t.description || ""];
@@ -141,6 +141,9 @@ export async function loadMarketplace(): Promise<void> {
 
         return true;
     });
+
+    // Sort tools alphabetically by name
+    filteredTools = filteredTools.sort((a, b) => a.name.localeCompare(b.name));
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
