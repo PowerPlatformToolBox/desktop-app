@@ -1118,19 +1118,65 @@ export async function loadSidebarConnections(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
 
-        if (connections.length === 0) {
-            connectionsList.innerHTML = `
-                <div class="empty-state">
-                    <p>No connections configured yet.</p>
-                    <p class="empty-state-hint">Add a connection to get started.</p>
-                </div>
-            `;
+        // Get filter values
+        const searchInput = document.getElementById("connections-search-input") as HTMLInputElement | null;
+        const environmentFilter = document.getElementById("connections-environment-filter") as HTMLSelectElement | null;
+        const authFilter = document.getElementById("connections-auth-filter") as HTMLSelectElement | null;
+
+        const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+        const selectedEnvironment = environmentFilter?.value || "";
+        const selectedAuthType = authFilter?.value || "";
+
+        // Apply filters
+        let filteredConnections = connections.filter((conn: DataverseConnection) => {
+            // Search filter (name or URL)
+            if (searchTerm) {
+                const haystacks: string[] = [conn.name || "", conn.url || ""];
+                if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
+                    return false;
+                }
+            }
+
+            // Environment filter
+            if (selectedEnvironment && conn.environment !== selectedEnvironment) {
+                return false;
+            }
+
+            // Authentication type filter
+            if (selectedAuthType && conn.authenticationType !== selectedAuthType) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Sort alphabetically by name
+        filteredConnections = filteredConnections.sort((a: DataverseConnection, b: DataverseConnection) => {
+            return a.name.localeCompare(b.name);
+        });
+
+        if (filteredConnections.length === 0) {
+            if (connections.length === 0) {
+                connectionsList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No connections configured yet.</p>
+                        <p class="empty-state-hint">Add a connection to get started.</p>
+                    </div>
+                `;
+            } else {
+                connectionsList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No matching connections</p>
+                        <p class="empty-state-hint">${searchTerm ? "Try a different search term." : "Adjust your filters."}</p>
+                    </div>
+                `;
+            }
             updateFooterConnectionStatus(null);
             return;
         }
 
-        connectionsList.innerHTML = connections
-            .map((conn: any) => {
+        connectionsList.innerHTML = filteredConnections
+            .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
                 const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
@@ -1180,6 +1226,29 @@ export async function loadSidebarConnections(): Promise<void> {
                 }
             });
         });
+
+        // Setup search without replacing the input (to avoid cursor loss)
+        if (searchInput && !(searchInput as any)._pptbBound) {
+            (searchInput as any)._pptbBound = true;
+            searchInput.addEventListener("input", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup filter event listeners
+        if (environmentFilter && !(environmentFilter as any)._pptbBound) {
+            (environmentFilter as any)._pptbBound = true;
+            environmentFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        if (authFilter && !(authFilter as any)._pptbBound) {
+            (authFilter as any)._pptbBound = true;
+            authFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
     } catch (error) {
         console.error("Failed to load connections:", error);
     }

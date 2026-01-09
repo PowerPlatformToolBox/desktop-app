@@ -71,6 +71,24 @@
                         <h2 class="sidebar-title">CONNECTIONS</h2>
                         <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
                     </div>
+                    <div class="sidebar-search">
+                        <input type="text" id="connections-search-input" class="fluent-input" placeholder="Search connections..." />
+                    </div>
+                    <div class="sidebar-filters">
+                        <select id="connections-environment-filter" class="fluent-select filter-select">
+                            <option value="">All Environments</option>
+                            <option value="Dev">Dev</option>
+                            <option value="Test">Test</option>
+                            <option value="UAT">UAT</option>
+                            <option value="Production">Production</option>
+                        </select>
+                        <select id="connections-auth-filter" class="fluent-select filter-select">
+                            <option value="">All Auth Types</option>
+                            <option value="interactive">Microsoft Login</option>
+                            <option value="clientSecret">Client Secret</option>
+                            <option value="usernamePassword">Username/Password</option>
+                        </select>
+                    </div>
                     <div class="sidebar-body">
                         <div class="connections-list-sidebar" id="sidebar-connections-list">
                             <!-- Connections will be populated here -->
