@@ -98,6 +98,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         } else if (connection.authenticationType === "usernamePassword") {
             setInputValue("connection-username", connection.username);
             setInputValue("connection-password", connection.password);
+            setInputValue("connection-optional-client-id", connection.clientId);
         } else if (connection.authenticationType === "interactive") {
             setInputValue("connection-optional-client-id", connection.clientId);
         }

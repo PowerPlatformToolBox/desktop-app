@@ -63,9 +63,10 @@ export class EncryptionManager {
         const result = { ...obj };
 
         for (const field of fields) {
-            if (result[field] && typeof result[field] === "string") {
+            if (result[field] !== undefined && result[field] !== null && typeof result[field] === "string") {
                 result[field] = this.encrypt(result[field] as string) as T[keyof T];
             }
+            // Preserve undefined and null values explicitly to allow clearing fields
         }
 
         return result;
