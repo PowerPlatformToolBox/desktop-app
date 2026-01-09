@@ -41,6 +41,9 @@ export function applyTheme(theme: string): void {
 
     // Update homepage icon when theme changes
     updateHomepageIconForTheme();
+
+    // Update filter icons when theme changes
+    updateFilterIconsForTheme();
 }
 
 /**
@@ -178,6 +181,38 @@ function updateHomepageIconForTheme(): void {
     const homepageIcon = document.getElementById("homepage-app-icon") as HTMLImageElement;
     if (homepageIcon) {
         homepageIcon.src = isDarkTheme ? "icons/dark/app-icon.svg" : "icons/light/app-icon.svg";
+    }
+}
+
+/**
+ * Update filter icons to match current theme
+ */
+export function updateFilterIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const filterIconPath = isDarkTheme ? "icons/dark/filter.svg" : "icons/light/filter.svg";
+
+    const toolsFilterButton = document.getElementById("tools-filter-btn");
+    if (toolsFilterButton) {
+        const filterImg = toolsFilterButton.querySelector("img") as HTMLImageElement | null;
+        if (filterImg) {
+            filterImg.src = filterIconPath;
+        }
+    }
+
+    const connectionsFilterButton = document.getElementById("connections-filter-btn");
+    if (connectionsFilterButton) {
+        const filterImg = connectionsFilterButton.querySelector("img") as HTMLImageElement | null;
+        if (filterImg) {
+            filterImg.src = filterIconPath;
+        }
+    }
+
+    const marketplaceFilterButton = document.getElementById("marketplace-filter-btn");
+    if (marketplaceFilterButton) {
+        const filterImg = marketplaceFilterButton.querySelector("img") as HTMLImageElement | null;
+        if (filterImg) {
+            filterImg.src = filterIconPath;
+        }
     }
 }
 
