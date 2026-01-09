@@ -1118,14 +1118,24 @@ export async function loadSidebarConnections(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
 
-        // Get filter values
+        // Get filter and sort values
         const searchInput = document.getElementById("connections-search-input") as HTMLInputElement | null;
         const environmentFilter = document.getElementById("connections-environment-filter") as HTMLSelectElement | null;
         const authFilter = document.getElementById("connections-auth-filter") as HTMLSelectElement | null;
+        const sortSelect = document.getElementById("connections-sort-select") as HTMLSelectElement | null;
 
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedEnvironment = environmentFilter?.value || "";
         const selectedAuthType = authFilter?.value || "";
+
+        // Get saved sort preference or default
+        const savedSort = await window.toolboxAPI.getSetting("connectionsSort");
+        const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
+
+        // Set the dropdown value if we have a saved preference
+        if (sortSelect && savedSort && !sortSelect.value) {
+            sortSelect.value = savedSort as string;
+        }
 
         // Apply filters
         let filteredConnections = connections.filter((conn: DataverseConnection) => {
@@ -1150,9 +1160,25 @@ export async function loadSidebarConnections(): Promise<void> {
             return true;
         });
 
-        // Sort alphabetically by name
+        // Sort connections based on selected option
         filteredConnections = filteredConnections.sort((a: DataverseConnection, b: DataverseConnection) => {
-            return a.name.localeCompare(b.name);
+            switch (sortOption) {
+                case "name-asc":
+                    return a.name.localeCompare(b.name);
+                case "name-desc":
+                    return b.name.localeCompare(a.name);
+                case "environment": {
+                    // Sort by environment type: Dev -> Test -> UAT -> Production
+                    const envOrder = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
+                    const aOrder = envOrder[a.environment] || 999;
+                    const bOrder = envOrder[b.environment] || 999;
+                    if (aOrder !== bOrder) return aOrder - bOrder;
+                    // Secondary sort by name if same environment
+                    return a.name.localeCompare(b.name);
+                }
+                default:
+                    return a.name.localeCompare(b.name);
+            }
         });
 
         if (filteredConnections.length === 0) {
@@ -1246,6 +1272,16 @@ export async function loadSidebarConnections(): Promise<void> {
         if (authFilter && !(authFilter as any)._pptbBound) {
             (authFilter as any)._pptbBound = true;
             authFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup sort event listener
+        if (sortSelect && !(sortSelect as any)._pptbBound) {
+            (sortSelect as any)._pptbBound = true;
+            sortSelect.addEventListener("change", async () => {
+                // Save sort preference
+                await window.toolboxAPI.setSetting("connectionsSort", sortSelect.value);
                 loadSidebarConnections();
             });
         }

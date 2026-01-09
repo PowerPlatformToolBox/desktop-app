@@ -105,14 +105,24 @@ export async function loadMarketplace(): Promise<void> {
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
 
-    // Get filter values
+    // Get filter and sort values
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+    const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
 
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
+
+    // Get saved sort preference or default
+    const savedSort = await window.toolboxAPI.getSetting("marketplaceSort");
+    const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
+
+    // Set the dropdown value if we have a saved preference
+    if (sortSelect && savedSort && !sortSelect.value) {
+        sortSelect.value = savedSort as string;
+    }
 
     // Populate filter dropdowns
     populateMarketplaceFilters();
@@ -142,8 +152,26 @@ export async function loadMarketplace(): Promise<void> {
         return true;
     });
 
-    // Sort tools alphabetically by name
-    filteredTools = filteredTools.sort((a, b) => a.name.localeCompare(b.name));
+    // Sort tools based on selected option
+    filteredTools = filteredTools.sort((a, b) => {
+        switch (sortOption) {
+            case "name-asc":
+                return a.name.localeCompare(b.name);
+            case "name-desc":
+                return b.name.localeCompare(a.name);
+            case "popularity":
+                // Sort by MAU (Monthly Active Users) - higher is better
+                return (b.mau || 0) - (a.mau || 0);
+            case "rating":
+                // Sort by rating - higher is better
+                return (b.rating || 0) - (a.rating || 0);
+            case "downloads":
+                // Sort by downloads - higher is better
+                return (b.downloads || 0) - (a.downloads || 0);
+            default:
+                return a.name.localeCompare(b.name);
+        }
+    });
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
@@ -311,6 +339,16 @@ export async function loadMarketplace(): Promise<void> {
     if (authorFilter && !(authorFilter as any)._pptbBound) {
         (authorFilter as any)._pptbBound = true;
         authorFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    // Setup sort event listener
+    if (sortSelect && !(sortSelect as any)._pptbBound) {
+        (sortSelect as any)._pptbBound = true;
+        sortSelect.addEventListener("change", async () => {
+            // Save sort preference
+            await window.toolboxAPI.setSetting("marketplaceSort", sortSelect.value);
             loadMarketplace();
         });
     }

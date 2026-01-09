@@ -1625,6 +1625,49 @@ body {
     border-color: var(--accent-color);
 }
 
+.sidebar-sort {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sidebar-sort::before {
+    content: "Sort:";
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.sidebar-sort select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.sidebar-sort select:hover {
+    border-color: var(--accent-color);
+    background-color: var(--card-background);
+}
+
+.sidebar-sort select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(106, 0, 255, 0.1);
+}
+
 /* VSCode-style tools list */
 .tools-list-pptb {
     display: flex;
