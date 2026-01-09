@@ -30,10 +30,13 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     const confirmButton = document.getElementById("confirm-multi-connection-btn");
     const cancelButton = document.getElementById("cancel-select-multi-connection-btn");
     const closeButton = document.getElementById("close-select-multi-connection-modal");
+    const searchInput = document.getElementById("multi-connection-search");
+    const envFilter = document.getElementById("multi-connection-env-filter");
+    const authFilter = document.getElementById("multi-connection-auth-filter");
     
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
-    let connections = [];
+    let allConnections = [];
 
     const formatAuthType = (authType) => {
         const labels = {
@@ -44,14 +47,64 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         return labels[authType] || authType;
     };
 
+    const getFilteredConnections = () => {
+        const searchTerm = searchInput?.value?.toLowerCase() || "";
+        const selectedEnv = envFilter?.value || "";
+        const selectedAuth = authFilter?.value || "";
+
+        let filtered = allConnections.filter(conn => {
+            // Search filter
+            if (searchTerm) {
+                const haystacks = [conn.name || "", conn.url || ""];
+                if (!haystacks.some(h => h.toLowerCase().includes(searchTerm))) {
+                    return false;
+                }
+            }
+
+            // Environment filter
+            if (selectedEnv && conn.environment !== selectedEnv) {
+                return false;
+            }
+
+            // Auth type filter
+            if (selectedAuth && conn.authenticationType !== selectedAuth) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Sort alphabetically by name
+        filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+        return filtered;
+    };
+
     const renderConnections = (connectionsData) => {
-        connections = connectionsData || [];
+        allConnections = connectionsData || [];
+        const connections = getFilteredConnections();
         
-        if (connections.length === 0) {
+        if (allConnections.length === 0) {
             const emptyState = \`
                 <div class="empty-state">
                     <p>No connections configured yet.</p>
                     <p>Please add connections first from the Connections page.</p>
+                </div>
+            \`;
+            if (primaryConnectionsListContainer) {
+                primaryConnectionsListContainer.innerHTML = emptyState;
+            }
+            if (secondaryConnectionsListContainer) {
+                secondaryConnectionsListContainer.innerHTML = emptyState;
+            }
+            return;
+        }
+
+        if (connections.length === 0) {
+            const emptyState = \`
+                <div class="empty-state">
+                    <p>No matching connections</p>
+                    <p>Try adjusting your search or filters.</p>
                 </div>
             \`;
             if (primaryConnectionsListContainer) {
@@ -176,6 +229,11 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     cancelButton?.addEventListener('click', closeModal);
     closeButton?.addEventListener('click', closeModal);
 
+    // Setup filter event listeners
+    searchInput?.addEventListener('input', () => renderConnections(allConnections));
+    envFilter?.addEventListener('change', () => renderConnections(allConnections));
+    authFilter?.addEventListener('change', () => renderConnections(allConnections));
+
     // Listen for messages from main process
     if (modalBridge?.onMessage) {
         modalBridge.onMessage((payload) => {
@@ -191,7 +249,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                         authenticatedSecondaryConnectionId = payload.data.connectionId;
                     }
                     // Re-render to show authenticated state
-                    renderConnections(connections);
+                    renderConnections(allConnections);
                 } else if (payload.data?.success === false) {
                     // Authentication failed - restore the connect button
                     const button = document.querySelector(\`.connect-button[data-connection-id="\${payload.data.connectionId}"][data-list="\${payload.data.listType}"]\`);

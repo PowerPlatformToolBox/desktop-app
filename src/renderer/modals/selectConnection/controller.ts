@@ -29,9 +29,12 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const connectButton = document.getElementById("connect-selected-connection-btn");
     const cancelButton = document.getElementById("cancel-select-connection-btn");
     const closeButton = document.getElementById("close-select-connection-modal");
+    const searchInput = document.getElementById("select-connection-search");
+    const envFilter = document.getElementById("select-connection-env-filter");
+    const authFilter = document.getElementById("select-connection-auth-filter");
     
     let selectedConnectionId = null;
-    let connections = [];
+    let allConnections = [];
 
     const formatAuthType = (authType) => {
         const labels = {
@@ -42,16 +45,60 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
         return labels[authType] || authType;
     };
 
+    const getFilteredConnections = () => {
+        const searchTerm = searchInput?.value?.toLowerCase() || "";
+        const selectedEnv = envFilter?.value || "";
+        const selectedAuth = authFilter?.value || "";
+
+        let filtered = allConnections.filter(conn => {
+            // Search filter
+            if (searchTerm) {
+                const haystacks = [conn.name || "", conn.url || ""];
+                if (!haystacks.some(h => h.toLowerCase().includes(searchTerm))) {
+                    return false;
+                }
+            }
+
+            // Environment filter
+            if (selectedEnv && conn.environment !== selectedEnv) {
+                return false;
+            }
+
+            // Auth type filter
+            if (selectedAuth && conn.authenticationType !== selectedAuth) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Sort alphabetically by name
+        filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+        return filtered;
+    };
+
     const renderConnections = (connectionsData) => {
         if (!connectionsListContainer) return;
         
-        connections = connectionsData || [];
+        allConnections = connectionsData || [];
+        const connections = getFilteredConnections();
         
-        if (connections.length === 0) {
+        if (allConnections.length === 0) {
             connectionsListContainer.innerHTML = \`
                 <div class="empty-state">
                     <p>No connections configured yet.</p>
                     <p>Please add a connection first from the Connections page.</p>
+                </div>
+            \`;
+            return;
+        }
+
+        if (connections.length === 0) {
+            connectionsListContainer.innerHTML = \`
+                <div class="empty-state">
+                    <p>No matching connections</p>
+                    <p>Try adjusting your search or filters.</p>
                 </div>
             \`;
             return;
@@ -82,7 +129,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
             });
         });
 
-        // Auto-select active connection if it exists
+        // Auto-select active connection if it exists and is in filtered results
         const activeConnection = connections.find(conn => conn.isActive);
         if (activeConnection) {
             selectConnection(activeConnection.id);
@@ -132,6 +179,11 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const closeModal = () => modalBridge.close();
     cancelButton?.addEventListener('click', closeModal);
     closeButton?.addEventListener('click', closeModal);
+
+    // Setup filter event listeners
+    searchInput?.addEventListener('input', () => renderConnections(allConnections));
+    envFilter?.addEventListener('change', () => renderConnections(allConnections));
+    authFilter?.addEventListener('change', () => renderConnections(allConnections));
 
     // Listen for messages from main process
     if (modalBridge?.onMessage) {
