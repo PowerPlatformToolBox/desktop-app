@@ -72,6 +72,9 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <input type="password" id="connection-password" class="modal-input" placeholder="password" />
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
             </div>
+            <label for="connection-optional-client-id">Optional Client ID (override)</label>
+            <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="client-id" />
+            <p class="helper-text">Provide when you need to override the default Azure AD application ID.</p>
         </div>
     </div>
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>
