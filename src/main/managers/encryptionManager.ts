@@ -66,7 +66,7 @@ export class EncryptionManager {
             if (result[field] !== undefined && result[field] !== null && typeof result[field] === "string") {
                 result[field] = this.encrypt(result[field] as string) as T[keyof T];
             }
-            // Preserve undefined and null values explicitly to allow clearing fields
+            // Preserve undefined and null values explicitly to allow clearing fields during updates
         }
 
         return result;

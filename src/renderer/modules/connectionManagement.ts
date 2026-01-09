@@ -1051,12 +1051,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         connection.username = sanitizeInput(formPayload.username);
         connection.password = sanitizeInput(formPayload.password);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        // Explicitly set clientId to undefined if empty to ensure it gets cleared in updates
-        connection.clientId = optionalClientId || undefined;
+        // Explicitly set clientId to undefined when empty (sanitizeInput returns empty string for falsy values)
+        // This ensures the field gets cleared in partial updates
+        connection.clientId = optionalClientId ? optionalClientId : undefined;
     } else if (authenticationType === "interactive") {
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        // Explicitly set clientId to undefined if empty to ensure it gets cleared in updates
-        connection.clientId = optionalClientId || undefined;
+        // Explicitly set clientId to undefined when empty (sanitizeInput returns empty string for falsy values)
+        // This ensures the field gets cleared in partial updates
+        connection.clientId = optionalClientId ? optionalClientId : undefined;
     }
 
     return connection;
