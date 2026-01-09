@@ -235,7 +235,7 @@ Supporting Team:
 -   **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
      Constantly brainstorming new features and improvements to keep the toolbox evolving.
 
-> If you wish to offically be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
+> If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
 ## Contributors
 
