@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { captureMessage } from "../../common/sentryHelper";
 import { SettingsManager } from "./settingsManager";
 
 /**
@@ -27,14 +28,14 @@ export class MachineIdManager {
 
         if (stored) {
             this.machineId = stored;
-            console.log("[MachineId] Retrieved existing machine ID");
+            captureMessage("[MachineId] Retrieved existing machine ID");
             return this.machineId;
         }
 
         // Generate new machine ID using randomUUID from crypto module (Node 18+)
         this.machineId = randomUUID();
         this.settingsManager.setSetting("machineId", this.machineId);
-        console.log("[MachineId] Generated new machine ID");
+        captureMessage("[MachineId] Generated new machine ID");
 
         return this.machineId;
     }

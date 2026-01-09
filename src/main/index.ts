@@ -1,3 +1,60 @@
+// Initialize Sentry as early as possible in the main process
+import * as Sentry from "@sentry/electron/main";
+import { getSentryConfig } from "../common/sentry";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, setSentryMachineId } from "../common/sentryHelper";
+
+const sentryConfig = getSentryConfig();
+if (sentryConfig) {
+    Sentry.init({
+        dsn: sentryConfig.dsn,
+        environment: sentryConfig.environment,
+        release: sentryConfig.release,
+        tracesSampleRate: sentryConfig.tracesSampleRate,
+        // Enable Sentry logger for structured logging
+        enableLogs: true,
+        // Capture unhandled promise rejections and console errors
+        integrations: [
+            Sentry.captureConsoleIntegration({
+                levels: ["error", "warn"],
+            }),
+            // Add HTTP integration for network request tracing
+            Sentry.httpIntegration(),
+            // Add Node integrations for better context
+            Sentry.nodeContextIntegration(),
+            Sentry.contextLinesIntegration(),
+            Sentry.localVariablesIntegration(),
+            Sentry.modulesIntegration(),
+        ],
+        // Before sending events, add machine ID and additional context
+        beforeSend(event) {
+            // Ensure machine ID is in tags
+            if (!event.tags) {
+                event.tags = {};
+            }
+            event.tags.process = "main";
+
+            // Add platform information
+            if (!event.contexts) {
+                event.contexts = {};
+            }
+            event.contexts.os = {
+                name: process.platform,
+                version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
+            };
+
+            return event;
+        },
+    });
+
+    // Initialize the helper with the Sentry module
+    initializeSentryHelper(Sentry);
+
+    captureMessage("[Sentry] Initialized in main process with tracing and logging");
+    addBreadcrumb("Main process Sentry initialized", "init", "info");
+} else {
+    captureMessage("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
@@ -47,20 +104,41 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
 
     constructor() {
-        this.settingsManager = new SettingsManager();
-        this.machineIdManager = new MachineIdManager(this.settingsManager);
-        this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxUtilityManager();
-        // Pass Supabase credentials from environment variables or use defaults from constants
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
-        this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
-        this.autoUpdateManager = new AutoUpdateManager();
-        this.authManager = new AuthManager();
-        this.terminalManager = new TerminalManager();
-        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+        logCheckpoint("ToolBoxApp constructor started");
 
-        this.setupEventListeners();
-        this.setupIpcHandlers();
+        try {
+            this.settingsManager = new SettingsManager();
+            this.machineIdManager = new MachineIdManager(this.settingsManager);
+
+            // Initialize Sentry with machine ID as early as possible
+            if (sentryConfig) {
+                const machineId = this.machineIdManager.getMachineId();
+                setSentryMachineId(machineId);
+                logCheckpoint("Sentry machine ID configured", { machineId });
+            }
+
+            this.connectionsManager = new ConnectionsManager();
+            this.api = new ToolBoxUtilityManager();
+            // Pass Supabase credentials from environment variables or use defaults from constants
+            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
+            this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
+            this.autoUpdateManager = new AutoUpdateManager();
+            this.authManager = new AuthManager();
+            this.terminalManager = new TerminalManager();
+            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+
+            this.setupEventListeners();
+            this.setupIpcHandlers();
+
+            logCheckpoint("ToolBoxApp constructor completed");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "construction" },
+                level: "fatal",
+            });
+            throw error;
+        }
     }
 
     /**
@@ -301,7 +379,10 @@ class ToolBoxApp {
 
                 return { success: true };
             } catch (error) {
-                console.error("Token refresh failed:", error);
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "token_refresh" },
+                    level: "error",
+                });
                 throw error;
             }
         });
@@ -1130,15 +1211,29 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
+     * Includes machine ID and other important information for Sentry tracing
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const message = `Version ${appVersion}
-Electron: ${process.versions.electron}
-Node.js: ${process.versions.node}
-Chromium: ${process.versions.chrome}
-OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+            const machineId = this.machineIdManager.getMachineId();
+            const locale = app.getLocale();
+
+            const message = `Power Platform Tool Box
+            Version: ${appVersion}
+            Machine ID: ${machineId}
+
+            Environment:
+            Electron: ${process.versions.electron}
+            Node.js: ${process.versions.node}
+            Chromium: ${process.versions.chrome}
+
+            System:
+            OS: ${process.platform} ${process.arch}
+            OS Version: ${process.getSystemVersion()}
+            Locale: ${locale}
+
+            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
@@ -1150,55 +1245,102 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
      * Initialize the application
      */
     async initialize(): Promise<void> {
-        // Set app user model ID for Windows notifications
-        if (process.platform === "win32") {
-            app.setAppUserModelId("com.powerplatform.toolbox");
-        }
+        logCheckpoint("Application initialization started");
 
-        // Register custom protocol scheme before app is ready
-        this.browserviewProtocolManager.registerScheme();
-
-        await app.whenReady();
-
-        // Register protocol handler after app is ready
-        this.browserviewProtocolManager.registerHandler();
-
-        this.createWindow();
-
-        // Load all installed tools from registry
-        await this.toolManager.loadAllInstalledTools();
-
-        // Check if auto-update is enabled
-        const autoUpdate = this.settingsManager.getSetting("autoUpdate");
-        if (autoUpdate) {
-            // Enable automatic update checks every 6 hours
-            this.autoUpdateManager.enableAutoUpdateChecks(6);
-        }
-
-        // Start token expiry checks
-        this.startTokenExpiryChecks();
-
-        app.on("activate", () => {
-            if (BrowserWindow.getAllWindows().length === 0) {
-                this.createWindow();
+        try {
+            // Set app user model ID for Windows notifications
+            if (process.platform === "win32") {
+                app.setAppUserModelId("com.powerplatform.toolbox");
+                addBreadcrumb("Set Windows app user model ID", "init", "info");
             }
-        });
 
-        app.on("window-all-closed", () => {
-            if (process.platform !== "darwin") {
-                app.quit();
+            // Register custom protocol scheme before app is ready
+            this.browserviewProtocolManager.registerScheme();
+            addBreadcrumb("Registered custom protocol scheme", "init", "info");
+
+            await app.whenReady();
+            logCheckpoint("Electron app ready");
+
+            // Register protocol handler after app is ready
+            this.browserviewProtocolManager.registerHandler();
+            addBreadcrumb("Registered protocol handler", "init", "info");
+
+            this.createWindow();
+            logCheckpoint("Main window created");
+
+            // Load all installed tools from registry
+            try {
+                await this.toolManager.loadAllInstalledTools();
+                logCheckpoint("Tools loaded from registry");
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                captureException(err, {
+                    tags: { phase: "tool_loading" },
+                    level: "error",
+                });
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "tools_loading" },
+                    level: "error",
+                });
             }
-        });
 
-        app.on("before-quit", () => {
-            // Clean up update checks
-            this.autoUpdateManager.disableAutoUpdateChecks();
-            // Clean up token expiry checks
-            this.stopTokenExpiryChecks();
-        });
+            // Check if auto-update is enabled
+            const autoUpdate = this.settingsManager.getSetting("autoUpdate");
+            if (autoUpdate) {
+                // Enable automatic update checks every 6 hours
+                this.autoUpdateManager.enableAutoUpdateChecks(6);
+                addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
+            }
+
+            // Start token expiry checks
+            this.startTokenExpiryChecks();
+            addBreadcrumb("Token expiry checks started", "auth", "info");
+
+            app.on("activate", () => {
+                if (BrowserWindow.getAllWindows().length === 0) {
+                    this.createWindow();
+                    addBreadcrumb("Window recreated on activate", "window", "info");
+                }
+            });
+
+            app.on("window-all-closed", () => {
+                if (process.platform !== "darwin") {
+                    addBreadcrumb("All windows closed, quitting app", "window", "info");
+                    app.quit();
+                }
+            });
+
+            app.on("before-quit", () => {
+                logCheckpoint("Application shutting down");
+                // Clean up update checks
+                this.autoUpdateManager.disableAutoUpdateChecks();
+                // Clean up token expiry checks
+                this.stopTokenExpiryChecks();
+                addBreadcrumb("Cleanup completed", "shutdown", "info");
+            });
+
+            logCheckpoint("Application initialization completed successfully");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "initialization" },
+                level: "fatal",
+            });
+            logCheckpoint("Application initialization failed", { error: err.message });
+            throw error;
+        }
     }
 }
 
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
-toolboxApp.initialize().catch(console.error);
+toolboxApp.initialize().catch((error) => {
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+        tags: { phase: "main_initialization" },
+        level: "fatal",
+    });
+    // If Sentry is available, capture the error
+    if (sentryConfig) {
+        Sentry.captureException(error);
+    }
+});
