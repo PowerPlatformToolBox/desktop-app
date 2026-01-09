@@ -271,23 +271,23 @@ export function getModalStyles(isDarkTheme: boolean): string {
     }
 
     .env-dev {
-        background: rgba(46, 125, 50, 0.2);
-        color: #2e7d32;
+        background: ${isDarkTheme ? "rgba(76, 175, 80, 0.25)" : "rgba(76, 175, 80, 0.2)"};
+        color: ${isDarkTheme ? "#81c784" : "#2e7d32"};
     }
 
     .env-test {
-        background: ${isDarkTheme ? "rgba(255, 179, 0, 0.2)" : "rgba(245, 124, 0, 0.2)"};
-        color: ${isDarkTheme ? "#ffb300" : "#f57c00"};
+        background: ${isDarkTheme ? "rgba(255, 167, 38, 0.25)" : "rgba(255, 152, 0, 0.2)"};
+        color: ${isDarkTheme ? "#ffb74d" : "#e65100"};
     }
 
     .env-uat {
-        background: ${isDarkTheme ? "rgba(2, 136, 209, 0.2)" : "rgba(2, 119, 189, 0.2)"};
-        color: ${isDarkTheme ? "#0288d1" : "#0277bd"};
+        background: ${isDarkTheme ? "rgba(33, 150, 243, 0.25)" : "rgba(33, 150, 243, 0.2)"};
+        color: ${isDarkTheme ? "#64b5f6" : "#0d47a1"};
     }
 
     .env-production {
-        background: rgba(198, 40, 40, 0.2);
-        color: #c62828;
+        background: ${isDarkTheme ? "rgba(244, 67, 54, 0.25)" : "rgba(244, 67, 54, 0.2)"};
+        color: ${isDarkTheme ? "#ef9a9a" : "#b71c1c"};
     }
 
     .env-sandbox {
