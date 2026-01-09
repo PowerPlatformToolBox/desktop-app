@@ -96,9 +96,26 @@ export class ToolWindowManager {
     }
 
     /**
+     * Remove IPC handlers to allow clean re-registration
+     * This is called before setupIpcHandlers to prevent duplicate registration errors
+     */
+    private removeIpcHandlers(): void {
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
+    }
+
+    /**
      * Setup IPC handlers for tool window management
      */
     private setupIpcHandlers(): void {
+        // Remove existing handlers first to prevent duplicate registration errors
+        // This is necessary on macOS where the app doesn't quit when windows are closed
+        this.removeIpcHandlers();
+
         // Launch tool (create BrowserView and load tool)
         // Now accepts instanceId instead of toolId, plus connection IDs
         ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
