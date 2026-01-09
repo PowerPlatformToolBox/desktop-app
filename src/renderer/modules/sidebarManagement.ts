@@ -3,6 +3,9 @@
  * Handles sidebar switching and activity bar navigation
  */
 
+import { loadSidebarSettings } from "./settingsManagement";
+import { captureException } from "../../common/sentryHelper";
+
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
 
@@ -36,6 +39,16 @@ export function switchSidebar(sidebarId: string): void {
                 activeActivity.classList.add("active");
             }
             currentSidebarId = sidebarId;
+            
+            // Load settings when re-expanding settings sidebar
+            if (sidebarId === "settings") {
+                loadSidebarSettings().catch((err) => {
+                    captureException(err instanceof Error ? err : new Error(String(err)), {
+                        tags: { context: "sidebar_settings_load", action: "re-expand" },
+                        level: "warning",
+                    });
+                });
+            }
         }
         window.api?.send("sidebar-layout-changed");
         return;
@@ -61,6 +74,16 @@ export function switchSidebar(sidebarId: string): void {
     const targetContent = document.getElementById(`sidebar-${sidebarId}`);
     if (targetContent) {
         targetContent.classList.add("active");
+    }
+
+    // Load settings when switching to settings sidebar
+    if (sidebarId === "settings") {
+        loadSidebarSettings().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { context: "sidebar_settings_load", action: "switch" },
+                level: "warning",
+            });
+        });
     }
 
     window.api?.send("sidebar-layout-changed");
