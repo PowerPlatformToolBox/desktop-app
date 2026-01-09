@@ -231,9 +231,138 @@ class ToolBoxApp {
     }
 
     /**
+     * Remove all IPC handlers to allow clean re-registration
+     * This is called before setupIpcHandlers to prevent duplicate registration errors
+     */
+    private removeIpcHandlers(): void {
+        // Settings handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_USER_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_SETTING);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_SETTING);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
+
+        // Connection handlers
+        ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.UPDATE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.DELETE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
+
+        // Tool handlers
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.LOAD_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
+        ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
+        ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.UNINSTALL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.LOAD_LOCAL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
+
+        // Tool settings handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.UPDATE_TOOL_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_GET);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_SET);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL);
+
+        // CSP consent handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.HAS_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GRANT_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_CSP_CONSENTS);
+
+        // Tool-Connection mapping handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS);
+
+        // Recently used tools
+        ipcMain.removeHandler(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS);
+
+        // Webview protocol handler
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL);
+
+        // Notification and utility handlers
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
+        ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
+        ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
+        ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
+        ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
+        ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
+        ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
+        ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
+        ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+
+        // Modal window internal channels
+        ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
+
+        // Terminal handlers
+        ipcMain.removeHandler(TERMINAL_CHANNELS.CREATE_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.EXECUTE_COMMAND);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.CLOSE_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_TOOL_TERMINALS);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_ALL_TERMINALS);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.SET_VISIBILITY);
+
+        // Auto-update handlers
+        ipcMain.removeHandler(UPDATE_CHANNELS.CHECK_FOR_UPDATES);
+        ipcMain.removeHandler(UPDATE_CHANNELS.DOWNLOAD_UPDATE);
+        ipcMain.removeHandler(UPDATE_CHANNELS.QUIT_AND_INSTALL);
+        ipcMain.removeHandler(UPDATE_CHANNELS.GET_APP_VERSION);
+
+        // Dataverse handlers
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.RETRIEVE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.EXECUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.FETCH_XML_QUERY);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_SOLUTIONS);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.QUERY_DATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
+    }
+
+    /**
      * Set up IPC handlers for communication with renderer
      */
     private setupIpcHandlers(): void {
+        // Remove existing handlers first to prevent duplicate registration errors
+        // This is necessary on macOS where the app doesn't quit when windows are closed
+        this.removeIpcHandlers();
+
         // Settings handlers
         ipcMain.handle(SETTINGS_CHANNELS.GET_USER_SETTINGS, () => {
             return this.settingsManager.getUserSettings();

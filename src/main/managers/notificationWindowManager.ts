@@ -123,6 +123,10 @@ export class NotificationWindowManager {
      * Setup IPC handlers for notifications
      */
     private setupIpcHandlers(): void {
+        // Remove existing handlers first to prevent duplicate registration errors
+        // This is necessary on macOS where the app doesn't quit when windows are closed
+        this.removeIpcHandlers();
+
         ipcMain.handle("notification:show", async (event, options: NotificationOptions) => {
             this.showNotification(options);
         });
@@ -143,6 +147,15 @@ export class NotificationWindowManager {
             }
             this.dismissNotification(index);
         });
+    }
+
+    /**
+     * Remove IPC handlers to allow clean re-registration
+     */
+    private removeIpcHandlers(): void {
+        ipcMain.removeHandler("notification:show");
+        ipcMain.removeAllListeners("notification:dismiss");
+        ipcMain.removeAllListeners("notification:action");
     }
 
     /**
@@ -384,6 +397,7 @@ export class NotificationWindowManager {
      * Cleanup
      */
     destroy(): void {
+        this.removeIpcHandlers();
         this.notificationWindow = null;
         this.notifications = [];
     }
