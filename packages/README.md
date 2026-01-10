@@ -109,14 +109,14 @@ console.log("Current theme:", theme); // "light" or "dark"
 
 // Execute multiple operations in parallel
 const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-    dataverseAPI.retrieve('account', accountId, ['name']),
-    dataverseAPI.retrieve('contact', contactId, ['fullname']),
-    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+    dataverseAPI.retrieve("account", accountId, ["name"]),
+    dataverseAPI.retrieve("contact", contactId, ["fullname"]),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml),
 );
-console.log('All data fetched:', account, contact, opportunities);
+console.log("All data fetched:", account, contact, opportunities);
 
 // Show loading screen during operations
-await toolboxAPI.utils.showLoading('Processing data...');
+await toolboxAPI.utils.showLoading("Processing data...");
 try {
     // Perform operations
     await processData();
@@ -300,9 +300,9 @@ Core platform features organized into namespaces:
     -   Example:
         ```typescript
         const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-            dataverseAPI.retrieve('account', id1),
-            dataverseAPI.retrieve('contact', id2),
-            dataverseAPI.fetchXmlQuery(fetchXml)
+            dataverseAPI.retrieve("account", id1),
+            dataverseAPI.retrieve("contact", id2),
+            dataverseAPI.fetchXmlQuery(fetchXml),
         );
         ```
 

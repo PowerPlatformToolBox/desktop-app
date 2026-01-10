@@ -516,7 +516,9 @@ export class DataverseManager {
         // Validate that each record has the required @odata.type property
         const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
         if (recordsWithoutODataType.length > 0) {
-            throw new Error(`All records must contain the "@odata.type" property for create operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+            throw new Error(
+                `All records must contain the "@odata.type" property for create operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`,
+            );
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
@@ -543,7 +545,9 @@ export class DataverseManager {
         // Validate that each record has the required @odata.type property
         const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
         if (recordsWithoutODataType.length > 0) {
-            throw new Error(`All records must contain the "@odata.type" property for update operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+            throw new Error(
+                `All records must contain the "@odata.type" property for update operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`,
+            );
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);

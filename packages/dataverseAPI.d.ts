@@ -381,7 +381,6 @@ declare namespace DataverseAPI {
          */
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
 
-        
         /**
          * Publish customizations for the current environment.
          *
