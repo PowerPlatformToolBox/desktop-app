@@ -1,6 +1,6 @@
 # @pptb/types
 
-TypeScript type definitions for Power Platform Tool Box APIs.
+TypeScript type definitions for Power Platform ToolBox APIs.
 
 -   [@pptb/types](#pptbtypes)
     -   [Installation](#installation)
@@ -109,14 +109,14 @@ console.log("Current theme:", theme); // "light" or "dark"
 
 // Execute multiple operations in parallel
 const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-    dataverseAPI.retrieve('account', accountId, ['name']),
-    dataverseAPI.retrieve('contact', contactId, ['fullname']),
-    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+    dataverseAPI.retrieve("account", accountId, ["name"]),
+    dataverseAPI.retrieve("contact", contactId, ["fullname"]),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml),
 );
-console.log('All data fetched:', account, contact, opportunities);
+console.log("All data fetched:", account, contact, opportunities);
 
 // Show loading screen during operations
-await toolboxAPI.utils.showLoading('Processing data...');
+await toolboxAPI.utils.showLoading("Processing data...");
 try {
     // Perform operations
     await processData();
@@ -257,7 +257,7 @@ const result = await dataverseAPI.execute({
 
 ## API Reference
 
-The Power Platform Tool Box exposes two main APIs to tools:
+The Power Platform ToolBox exposes two main APIs to tools:
 
 ### ToolBox API (`window.toolboxAPI`)
 
@@ -294,9 +294,9 @@ Core platform features organized into namespaces:
     -   Example:
         ```typescript
         const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-            dataverseAPI.retrieve('account', id1),
-            dataverseAPI.retrieve('contact', id2),
-            dataverseAPI.fetchXmlQuery(fetchXml)
+            dataverseAPI.retrieve("account", id1),
+            dataverseAPI.retrieve("contact", id2),
+            dataverseAPI.fetchXmlQuery(fetchXml),
         );
         ```
 

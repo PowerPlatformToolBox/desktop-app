@@ -1300,7 +1300,7 @@ class ToolBoxApp {
                 preload: path.join(__dirname, "preload.js"),
                 // No longer need webviewTag - using BrowserView instead
             },
-            title: "Power Platform Tool Box",
+            title: "Power Platform ToolBox",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
 
@@ -1348,7 +1348,7 @@ class ToolBoxApp {
             const machineId = this.machineIdManager.getMachineId();
             const locale = app.getLocale();
 
-            const message = `Power Platform Tool Box
+            const message = `Power Platform ToolBox
             Version: ${appVersion}
             Machine ID: ${machineId}
 
@@ -1364,7 +1364,7 @@ class ToolBoxApp {
 
             Note: Machine ID is used for telemetry and error tracking in Sentry.`;
 
-            if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
+            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
             }
         }

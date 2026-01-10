@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box - Dataverse API Type Definitions
+ * Power Platform ToolBox - Dataverse API Type Definitions
  *
  * Dataverse Web API exposed to tools via window.dataverseAPI
  */
@@ -410,6 +410,8 @@ declare namespace DataverseAPI {
          * ]);
          */
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
          * Gets the Dataverse entity set (collection) name for the specified table.
          *
          * This is typically used when building OData queries where the collection name
