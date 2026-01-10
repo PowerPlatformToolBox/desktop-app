@@ -481,6 +481,32 @@ export class DataverseManager {
         return match ? match[1] : url;
     }
 
+    /**
+     * Publish customizations for the current environment.
+     * When tableLogicalName is provided, publishes only that table via PublishXml.
+     * Otherwise, runs PublishAllXml to publish all pending customizations.
+     */
+    async publishCustomizations(connectionId: string, tableLogicalName?: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const trimmedName = tableLogicalName?.trim();
+        const publishSingleTable = Boolean(trimmedName);
+        const actionName = publishSingleTable ? "PublishXml" : "PublishAllXml";
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${actionName}`;
+        const body = publishSingleTable ? { ParameterXml: this.buildEntityPublishXml(trimmedName!) } : undefined;
+
+        await this.makeHttpRequest(url, "POST", accessToken, body);
+    }
+
+    /** Build the PublishXml payload for a single table */
+    private buildEntityPublishXml(entityLogicalName: string): string {
+        const safeName = entityLogicalName.trim();
+        if (!safeName) {
+            throw new Error("tableName parameter cannot be empty");
+        }
+
+        return `<importexportxml><entities><entity>${safeName}</entity></entities></importexportxml>`;
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {

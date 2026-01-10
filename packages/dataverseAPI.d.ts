@@ -381,6 +381,26 @@ declare namespace DataverseAPI {
          */
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
 
+        
+        /**
+         * Publish customizations for the current environment.
+         *
+         * When `tableLogicalName` is provided, this method publishes only that table by executing the PublishXml action with a generated payload.
+         * When no table name is provided, it runs PublishAllXml (equivalent to "Publish All Customizations").
+         *
+         * @param tableLogicalName - Optional table (entity) logical name to publish. If omitted, all pending customizations are published.
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Publish all customizations
+         * await dataverseAPI.publishCustomizations();
+         *
+         * @example
+         * // Publish only the account table
+         * await dataverseAPI.publishCustomizations('account');
+         */
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
         /**
          * Create multiple records in Dataverse
          *
@@ -410,6 +430,8 @@ declare namespace DataverseAPI {
          * ]);
          */
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
          * Gets the Dataverse entity set (collection) name for the specified table.
          *
          * This is typically used when building OData queries where the collection name

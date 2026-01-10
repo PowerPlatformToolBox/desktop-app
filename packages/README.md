@@ -253,6 +253,12 @@ const result = await dataverseAPI.execute({
         FieldName: "total_revenue",
     },
 });
+
+// Publish customizations for the active environment
+await dataverseAPI.publishCustomizations();
+
+// Publish only a specific table (in this case, the account table)
+await dataverseAPI.publishCustomizations("account");
 ```
 
 ## API Reference
@@ -407,6 +413,8 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 -   **execute(request: ExecuteRequest)**: Promise<Record<string, unknown>>
     -   Executes a Dataverse Web API action or function
     -   Supports both bound and unbound operations
+-   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
+    -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
 
 ### Security Notes
 
