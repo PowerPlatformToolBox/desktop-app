@@ -1056,9 +1056,8 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         }
     } else if (authenticationType === "interactive") {
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        if (optionalClientId) {
-            connection.clientId = optionalClientId;
-        }
+        // Explicitly set clientId to undefined when empty to ensure it gets cleared in updates
+        connection.clientId = optionalClientId ? optionalClientId : undefined;
     }
 
     return connection;

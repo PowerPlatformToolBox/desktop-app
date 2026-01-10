@@ -62,10 +62,14 @@ async function loadHeroStats(): Promise<void> {
         const availableTools = await window.toolboxAPI.fetchRegistryTools();
         const availableCount = availableTools.length;
 
+        // Get connections count
+        const connections = await window.toolboxAPI.connections.getAll();
+        const connectionsCount = connections.length;
+
         // Update stats in the UI
         const installedCountEl = document.getElementById("stat-installed-count");
         const availableCountEl = document.getElementById("stat-available-count");
-        const activeUsersEl = document.getElementById("stat-active-users");
+        const connectionsCountEl = document.getElementById("stat-connections-count");
 
         if (installedCountEl) {
             installedCountEl.textContent = installedCount.toString();
@@ -75,10 +79,8 @@ async function loadHeroStats(): Promise<void> {
             availableCountEl.textContent = availableCount.toString();
         }
 
-        // TODO: Active users is a placeholder for now
-        if (activeUsersEl) {
-            activeUsersEl.textContent = "Coming soon";
-            activeUsersEl.setAttribute("aria-label", "Active users statistic coming soon");
+        if (connectionsCountEl) {
+            connectionsCountEl.textContent = connectionsCount.toString();
         }
     } catch (error) {
         console.error("Failed to load hero stats:", error);
