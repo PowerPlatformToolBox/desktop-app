@@ -1589,13 +1589,120 @@ body {
     color: var(--text-color);
 }
 
-/* VSCode-style sidebar search */
-.sidebar-search {
+/* VSCode-style sidebar search bar with integrated filter button */
+.sidebar-search-bar {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
 }
 
-/* Sidebar filters */
+.search-input {
+    flex: 1;
+    padding: 6px 12px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--input-background);
+    color: var(--text-color);
+    transition: all 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.search-filter-btn {
+    padding: 6px 8px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-filter-btn:hover {
+    background-color: var(--card-background);
+    border-color: var(--accent-color);
+}
+
+.search-filter-btn:active,
+.search-filter-btn.active {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+/* Filter dropdown - VSCode style */
+.filter-dropdown {
+    position: absolute;
+    top: 12%;
+    left: 12px;
+    width: 280px;
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    margin-top: 4px;
+    padding: 8px 0;
+}
+
+.filter-section {
+    padding: 8px 12px;
+}
+
+.filter-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.filter-dropdown-select {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background-color: var(--input-background);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-dropdown-select:hover {
+    border-color: var(--accent-color);
+}
+
+.filter-dropdown-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.filter-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 4px 0;
+}
+
+/* Sidebar filters - deprecated, kept for backwards compatibility */
 .sidebar-filters {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-color);
@@ -1623,6 +1730,50 @@ body {
 .filter-select:focus {
     outline: none;
     border-color: var(--accent-color);
+}
+
+/* Sidebar sort - deprecated */
+.sidebar-sort {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sidebar-sort::before {
+    content: "Sort:";
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.sidebar-sort select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.sidebar-sort select:hover {
+    border-color: var(--accent-color);
+    background-color: var(--card-background);
+}
+
+.sidebar-sort select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(106, 0, 255, 0.1);
 }
 
 /* VSCode-style tools list */

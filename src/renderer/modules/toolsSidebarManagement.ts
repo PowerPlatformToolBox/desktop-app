@@ -44,14 +44,24 @@ export async function loadSidebarTools(): Promise<void> {
             }),
         );
 
-        // Get filter values
+        // Get filter and sort values
         const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
         const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
         const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+        const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
 
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
+
+        // Get saved sort preference or default
+        const savedSort = await window.toolboxAPI.getSetting("installedToolsSort");
+        const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
+
+        // Set the dropdown value if we have a saved preference
+        if (sortSelect && savedSort && !sortSelect.value) {
+            sortSelect.value = savedSort as string;
+        }
 
         // Populate filter dropdowns
         populateInstalledToolsFilters(toolsWithUpdateInfo);
@@ -81,13 +91,30 @@ export async function loadSidebarTools(): Promise<void> {
             return true;
         });
 
-        // Sort tools: favorites first, then by name
+        // Sort tools based on selected option
         const sortedTools = [...filteredTools].sort((a, b) => {
-            const aFav = a.isFavorite;
-            const bFav = b.isFavorite;
-            if (aFav && !bFav) return -1;
-            if (!aFav && bFav) return 1;
-            return a.name.localeCompare(b.name);
+            switch (sortOption) {
+                case "favorite":
+                    // Sort by favorite status - favorites first, then by name
+                    if (a.isFavorite && !b.isFavorite) return -1;
+                    if (!a.isFavorite && b.isFavorite) return 1;
+                    return a.name.localeCompare(b.name);
+                case "name-asc":
+                    return a.name.localeCompare(b.name);
+                case "name-desc":
+                    return b.name.localeCompare(a.name);
+                case "popularity":
+                    // Sort by MAU (Monthly Active Users) - higher is better
+                    return (b.mau || 0) - (a.mau || 0);
+                case "rating":
+                    // Sort by rating - higher is better
+                    return (b.rating || 0) - (a.rating || 0);
+                case "downloads":
+                    // Sort by downloads - higher is better
+                    return (b.downloads || 0) - (a.downloads || 0);
+                default:
+                    return a.name.localeCompare(b.name);
+            }
         });
 
         // Empty state when no matches after filtering
@@ -126,6 +153,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Asset paths
                 const infoIconPath = "icons/light/info_filled.svg";
+                const favoriteIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
                 const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
 
@@ -186,6 +214,15 @@ export async function loadSidebarTools(): Promise<void> {
                         }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
+                            ${
+                                tool.isFavorite
+                                    ? `
+                            <div class="tool-item-actions-right">
+                                <img width="16" height="16" src="${favoriteIconPath}" alt="Favorite" class="tool-favorite-icon" />
+                            </div>
+                            `
+                                    : ""
+                            }
                         </div>
                         ${
                             hasUpdate && latestVersion
@@ -272,6 +309,17 @@ export async function loadSidebarTools(): Promise<void> {
     if (authorFilter && !(authorFilter as any)._pptbBound) {
         (authorFilter as any)._pptbBound = true;
         authorFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    // Setup sort event listener
+    const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
+    if (sortSelect && !(sortSelect as any)._pptbBound) {
+        (sortSelect as any)._pptbBound = true;
+        sortSelect.addEventListener("change", async () => {
+            // Save sort preference
+            await window.toolboxAPI.setSetting("installedToolsSort", sortSelect.value);
             loadSidebarTools();
         });
     }

@@ -6,6 +6,21 @@ import { DataverseConnection } from "./connection";
 import { Theme } from "./common";
 
 /**
+ * Sort options for installed tools
+ */
+export type InstalledToolsSortOption = "name-asc" | "name-desc" | "popularity" | "rating" | "downloads" | "favorite";
+
+/**
+ * Sort options for connections
+ */
+export type ConnectionsSortOption = "name-asc" | "name-desc" | "environment";
+
+/**
+ * Sort options for marketplace
+ */
+export type MarketplaceSortOption = "name-asc" | "name-desc" | "popularity" | "rating" | "downloads";
+
+/**
  * User settings for the ToolBox application
  */
 export interface UserSettings {
@@ -22,4 +37,8 @@ export interface UserSettings {
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     machineId?: string; // Unique machine identifier for analytics
+    // Sort preferences
+    installedToolsSort?: InstalledToolsSortOption;
+    connectionsSort?: ConnectionsSortOption;
+    marketplaceSort?: MarketplaceSortOption;
 }

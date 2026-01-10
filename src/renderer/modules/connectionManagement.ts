@@ -1117,19 +1117,91 @@ export async function loadSidebarConnections(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
 
-        if (connections.length === 0) {
-            connectionsList.innerHTML = `
-                <div class="empty-state">
-                    <p>No connections configured yet.</p>
-                    <p class="empty-state-hint">Add a connection to get started.</p>
-                </div>
-            `;
+        // Get filter and sort values
+        const searchInput = document.getElementById("connections-search-input") as HTMLInputElement | null;
+        const environmentFilter = document.getElementById("connections-environment-filter") as HTMLSelectElement | null;
+        const authFilter = document.getElementById("connections-auth-filter") as HTMLSelectElement | null;
+        const sortSelect = document.getElementById("connections-sort-select") as HTMLSelectElement | null;
+
+        const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
+        const selectedEnvironment = environmentFilter?.value || "";
+        const selectedAuthType = authFilter?.value || "";
+
+        // Get saved sort preference or default
+        const savedSort = await window.toolboxAPI.getSetting("connectionsSort");
+        const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
+
+        // Set the dropdown value if we have a saved preference
+        if (sortSelect && savedSort && !sortSelect.value) {
+            sortSelect.value = savedSort as string;
+        }
+
+        // Apply filters
+        let filteredConnections = connections.filter((conn: DataverseConnection) => {
+            // Search filter (name or URL)
+            if (searchTerm) {
+                const haystacks: string[] = [conn.name || "", conn.url || ""];
+                if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
+                    return false;
+                }
+            }
+
+            // Environment filter
+            if (selectedEnvironment && conn.environment !== selectedEnvironment) {
+                return false;
+            }
+
+            // Authentication type filter
+            if (selectedAuthType && conn.authenticationType !== selectedAuthType) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Sort connections based on selected option
+        filteredConnections = filteredConnections.sort((a: DataverseConnection, b: DataverseConnection) => {
+            switch (sortOption) {
+                case "name-asc":
+                    return a.name.localeCompare(b.name);
+                case "name-desc":
+                    return b.name.localeCompare(a.name);
+                case "environment": {
+                    // Sort by environment type: Dev -> Test -> UAT -> Production
+                    const envOrder = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
+                    const aOrder = envOrder[a.environment] || 999;
+                    const bOrder = envOrder[b.environment] || 999;
+                    if (aOrder !== bOrder) return aOrder - bOrder;
+                    // Secondary sort by name if same environment
+                    return a.name.localeCompare(b.name);
+                }
+                default:
+                    return a.name.localeCompare(b.name);
+            }
+        });
+
+        if (filteredConnections.length === 0) {
+            if (connections.length === 0) {
+                connectionsList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No connections configured yet.</p>
+                        <p class="empty-state-hint">Add a connection to get started.</p>
+                    </div>
+                `;
+            } else {
+                connectionsList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No matching connections</p>
+                        <p class="empty-state-hint">${searchTerm ? "Try a different search term." : "Adjust your filters."}</p>
+                    </div>
+                `;
+            }
             updateFooterConnectionStatus(null);
             return;
         }
 
-        connectionsList.innerHTML = connections
-            .map((conn: any) => {
+        connectionsList.innerHTML = filteredConnections
+            .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
                 const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
@@ -1179,6 +1251,39 @@ export async function loadSidebarConnections(): Promise<void> {
                 }
             });
         });
+
+        // Setup search without replacing the input (to avoid cursor loss)
+        if (searchInput && !(searchInput as any)._pptbBound) {
+            (searchInput as any)._pptbBound = true;
+            searchInput.addEventListener("input", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup filter event listeners
+        if (environmentFilter && !(environmentFilter as any)._pptbBound) {
+            (environmentFilter as any)._pptbBound = true;
+            environmentFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        if (authFilter && !(authFilter as any)._pptbBound) {
+            (authFilter as any)._pptbBound = true;
+            authFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup sort event listener
+        if (sortSelect && !(sortSelect as any)._pptbBound) {
+            (sortSelect as any)._pptbBound = true;
+            sortSelect.addEventListener("change", async () => {
+                // Save sort preference
+                await window.toolboxAPI.setSetting("connectionsSort", sortSelect.value);
+                loadSidebarConnections();
+            });
+        }
     } catch (error) {
         console.error("Failed to load connections:", error);
     }

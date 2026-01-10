@@ -93,6 +93,25 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     .connected-badge {
         background: rgba(16, 124, 16, 0.2);
     }
+
+    .filter-section {
+        margin-bottom: 12px;
+    }
+
+    .filter-section input,
+    .filter-section select {
+        width: 100%;
+    }
+
+    .filter-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .filter-row select {
+        flex: 1;
+    }
 </style>`;
 
     const body = `
@@ -107,6 +126,25 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     <div class="modal-body">
         <div class="info-message">
             This tool requires two connections: a primary connection and a secondary connection. Please select both connections to continue.
+        </div>
+        
+        <div class="filter-section">
+            <input type="text" id="multi-connection-search" class="fluent-input" placeholder="Search connections..." />
+            <div class="filter-row">
+                <select id="multi-connection-env-filter" class="fluent-select">
+                    <option value="">All Environments</option>
+                    <option value="Dev">Dev</option>
+                    <option value="Test">Test</option>
+                    <option value="UAT">UAT</option>
+                    <option value="Production">Production</option>
+                </select>
+                <select id="multi-connection-auth-filter" class="fluent-select">
+                    <option value="">All Auth Types</option>
+                    <option value="interactive">Microsoft Login</option>
+                    <option value="clientSecret">Client Secret</option>
+                    <option value="usernamePassword">Username/Password</option>
+                </select>
+            </div>
         </div>
         
         <div class="connections-container">
