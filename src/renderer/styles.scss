@@ -517,21 +517,18 @@ body.dark-theme .settings-section-card {
 .debug-container-sidebar {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
     padding: 8px 0;
 }
 
-.debug-section {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+.debug-section-card .settings-section-body {
+    gap: 16px;
 }
 
-.debug-section-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-color);
-    margin: 0;
+.debug-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .debug-section-description {
@@ -570,7 +567,6 @@ body.dark-theme .settings-section-card {
 .debug-hint {
     font-size: 11px;
     color: var(--text-secondary-color);
-    font-style: italic;
 }
 
 .debug-actions {
@@ -589,7 +585,7 @@ body.dark-theme .settings-section-card {
     font-size: 13px;
     color: var(--text-secondary-color);
     line-height: 1.6;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     padding-left: 4px;
 }
 

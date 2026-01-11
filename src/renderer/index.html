@@ -188,43 +188,57 @@
                     </div>
                     <div class="sidebar-body">
                         <div class="debug-container-sidebar">
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">Load Local Tool</h3>
-                                <p class="debug-section-description">Load a tool directly from your local file system for development and testing.</p>
-                                <div class="debug-input-group">
-                                    <label class="debug-label" for="sidebar-local-tool-path">Tool Directory Path</label>
-                                    <div class="debug-path-input-group">
-                                        <input type="text" id="sidebar-local-tool-path" class="fluent-input" placeholder="Select tool directory..." readonly />
-                                        <button id="sidebar-browse-local-tool-btn" class="fluent-button fluent-button-secondary">Browse</button>
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Local Development</p>
+                                    <p class="settings-section-description">Load a tool directly from your local file system for rapid iteration.</p>
+                                </div>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="debug-label" for="sidebar-local-tool-path">Tool Directory Path</label>
+                                        <div class="debug-path-input-group">
+                                            <input type="text" id="sidebar-local-tool-path" class="fluent-input" placeholder="Select tool directory..." readonly />
+                                            <button id="sidebar-browse-local-tool-btn" class="fluent-button fluent-button-secondary">Browse</button>
+                                        </div>
+                                        <span class="debug-hint">Select the root directory containing your tool's package.json</span>
                                     </div>
-                                    <span class="debug-hint">Select the root directory containing your tool's package.json</span>
+                                    <div class="debug-card-actions">
+                                        <button id="sidebar-load-local-tool-btn" class="fluent-button fluent-button-primary">Load Tool</button>
+                                    </div>
                                 </div>
-                                <div class="debug-actions">
-                                    <button id="sidebar-load-local-tool-btn" class="fluent-button fluent-button-primary">Load Tool</button>
+                            </section>
+
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Registry Install</p>
+                                    <p class="settings-section-description">Install a custom tool straight from npm for staging or private builds.</p>
                                 </div>
-                            </div>
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">Install Tool by Package Name</h3>
-                                <p class="debug-section-description">Enter an npm package name to install a custom tool directly from the npm registry.</p>
-                                <div class="debug-input-group">
-                                    <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
-                                    <input type="text" id="sidebar-package-name-input" class="fluent-input" placeholder="e.g., @powerplatform/tool-example" />
-                                    <span class="debug-hint">Enter the full npm package name including scope (if applicable)</span>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
+                                        <input type="text" id="sidebar-package-name-input" class="fluent-input" placeholder="e.g., @powerplatform/tool-example" />
+                                        <span class="debug-hint">Enter the full npm package name including scope.</span>
+                                    </div>
+                                    <div class="debug-card-actions">
+                                        <button id="sidebar-install-package-btn" class="fluent-button fluent-button-primary">Install Package</button>
+                                    </div>
                                 </div>
-                                <div class="debug-actions">
-                                    <button id="sidebar-install-package-btn" class="fluent-button fluent-button-primary">Install Package</button>
+                            </section>
+
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Guidance</p>
+                                    <p class="settings-section-description">Quick reminders to keep testing safe and efficient.</p>
                                 </div>
-                            </div>
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">About These Features</h3>
-                                <p class="debug-section-description">These features are designed for tool developers to quickly test and install their tools without publishing to the marketplace.</p>
-                                <ul class="debug-info-list">
-                                    <li>📂 <strong>Local Tool:</strong> Load tools from your filesystem - no publishing needed</li>
-                                    <li>🔄 <strong>Watch Mode:</strong> Build your tool with watch mode, then reload in ToolBox to see changes</li>
-                                    <li>📦 <strong>npm Package:</strong> Install published packages for testing or private use</li>
-                                    <li>⚠️ <strong>Security:</strong> Only load/install tools you trust</li>
-                                </ul>
-                            </div>
+                                <div class="settings-section-body">
+                                    <ul class="debug-info-list">
+                                        <li>📂 Local Tool: Load directly from your filesystem—no publishing required.</li>
+                                        <li>🔄 Watch Mode: Build with watch mode, then reload ToolBox to see changes.</li>
+                                        <li>📦 npm Package: Install published packages for testing or private use.</li>
+                                        <li>⚠️ Security: Only load or install tools you trust.</li>
+                                    </ul>
+                                </div>
+                            </section>
                         </div>
                     </div>
                 </div>
