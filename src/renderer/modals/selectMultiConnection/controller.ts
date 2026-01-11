@@ -151,12 +151,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                  data-connection-id="\${conn.id}" 
                  data-list="\${idPrefix}">
                 <div class="connection-header">
-                    <div style="flex: 1;">
-                        <div class="connection-title-row">
-                            <div class="connection-name">\${conn.name}</div>
-                            <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
-                        </div>
-                    </div>
+                    <div class="connection-name">\${conn.name}</div>
                     <div class="connection-actions">
                         \${isAuthenticated 
                             ? '<div class="connected-badge"><svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>Connected</div>' 
@@ -165,8 +160,9 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                     </div>
                 </div>
                 <div class="connection-url">\${conn.url}</div>
-                <div class="connection-meta">
-                    <div class="connection-meta-item">
+                <div class="connection-item-footer">
+                    <div class="connection-item-meta-left">
+                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                     </div>
                 </div>

@@ -227,7 +227,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
     .connection-list {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
     }
 
     .connection-card {
@@ -263,8 +263,8 @@ export function getModalStyles(isDarkTheme: boolean): string {
 
     .connection-env-badge {
         display: inline-block;
-        padding: 4px 10px;
-        border-radius: 6px;
+        padding: 2px 8px;
+        border-radius: 4px;
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -301,39 +301,75 @@ export function getModalStyles(isDarkTheme: boolean): string {
     }
 
     .connection-item {
-        padding: 16px;
-        border-radius: 12px;
+        padding: 12px;
+        border-radius: 8px;
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
         cursor: pointer;
         transition: all 0.2s ease;
+        margin-bottom: 10px;
     }
 
     .connection-item:hover {
-        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.06)"};
-        border-color: ${isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
+        background: rgba(0, 120, 212, 0.06);
+        border-color: rgba(0, 120, 212, 0.4);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
     }
 
     .connection-item.active {
-        background: rgba(14, 99, 156, 0.15);
-        border-color: #0e639c;
+        background: rgba(0, 120, 212, 0.1);
+        border-left: 3px solid #0e639c;
     }
 
     .connection-item.selected {
         background: rgba(14, 99, 156, 0.25);
         border-color: #1177bb;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+    }
+
+    .connection-item-top-tags {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
     }
 
     .connection-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
+    }
+
+    .connection-name {
+        font-weight: 500;
+        font-size: 13px;
+    }
+
+    .connection-url {
+        font-size: 11px;
+        color: #8a8886;
+        margin-bottom: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .connection-item-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .connection-item-meta-left {
+        display: flex;
+        gap: 8px;
+        align-items: center;
     }
 
     .connection-meta {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         font-size: 12px;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.5)"};
     }

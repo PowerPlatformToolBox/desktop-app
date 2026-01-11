@@ -134,14 +134,14 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
             <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${conn.id}">
                 <div class="connection-header">
                     <div class="connection-name">\${conn.name}</div>
-                    <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                 </div>
                 <div class="connection-url">\${conn.url}</div>
-                <div class="connection-meta">
-                    <div class="connection-meta-item">
+                <div class="connection-item-footer">
+                    <div class="connection-item-meta-left">
+                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
-                    \${conn.isActive ? '<div class="connection-meta-item">✓ Currently Active</div>' : ''}
                 </div>
             </div>
         \`).join('');
