@@ -16,9 +16,9 @@ Produce sections with this structure:
 - 3–6 bullets for dev-facing or pipeline changes (telemetry, build, APIs, tooling).
 
 ## Install
-- Windows: Power-Platform-Tool-Box-<new version>-Setup.exe
-- macOS: Power-Platform-Tool-Box-<new version>.dmg (drag to Applications)
-- Linux: Power-Platform-Tool-Box-<new version>.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-<new version>-Setup.exe
+- macOS: Power-Platform-ToolBox-<new version>.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-<new version>.AppImage (chmod +x, then run)
 
 ## Notes
 - 1–2 bullets on migrations or expectations; state “No manual migration needed” if true.
