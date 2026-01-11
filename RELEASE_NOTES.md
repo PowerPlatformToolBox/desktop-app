@@ -27,9 +27,9 @@
 
 ## Install
 
--   Windows: Power-Platform-Tool-Box-1.1.0-Setup.exe
--   macOS: Power-Platform-Tool-Box-1.1.0.dmg (drag to Applications)
--   Linux: Power-Platform-Tool-Box-1.1.0.AppImage (make executable, then run)
+-   Windows: Power-Platform-ToolBox-1.1.0-Setup.exe
+-   macOS: Power-Platform-ToolBox-1.1.0.dmg (drag to Applications)
+-   Linux: Power-Platform-ToolBox-1.1.0.AppImage (make executable, then run)
 
 ## Notes
 
