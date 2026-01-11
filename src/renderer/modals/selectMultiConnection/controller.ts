@@ -33,6 +33,9 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     const searchInput = document.getElementById("multi-connection-search");
     const envFilter = document.getElementById("multi-connection-env-filter");
     const authFilter = document.getElementById("multi-connection-auth-filter");
+    const sortSelect = document.getElementById("multi-connection-sort");
+    const filterButton = document.getElementById("multi-connection-filter-btn");
+    const filterDropdown = document.getElementById("multi-connection-filter-dropdown");
     
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
@@ -47,10 +50,34 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         return labels[authType] || authType;
     };
 
+    const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
+
+    const sortConnections = (a, b, sortOption) => {
+        const nameA = (a.name || "");
+        const nameB = (b.name || "");
+
+        switch (sortOption) {
+            case "name-desc":
+                return nameB.localeCompare(nameA);
+            case "environment": {
+                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || 999;
+                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || 999;
+                if (aOrder !== bOrder) {
+                    return aOrder - bOrder;
+                }
+                return nameA.localeCompare(nameB);
+            }
+            case "name-asc":
+            default:
+                return nameA.localeCompare(nameB);
+        }
+    };
+
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
         const selectedAuth = authFilter?.value || "";
+        const selectedSort = sortSelect?.value || "name-asc";
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -74,8 +101,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             return true;
         });
 
-        // Sort alphabetically by name
-        filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
+        filtered = filtered.sort((a, b) => sortConnections(a, b, selectedSort));
 
         return filtered;
     };
@@ -229,10 +255,59 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     cancelButton?.addEventListener('click', closeModal);
     closeButton?.addEventListener('click', closeModal);
 
+    const closeFilterDropdown = () => {
+        if (filterDropdown) {
+            filterDropdown.style.display = "none";
+        }
+        if (filterButton) {
+            filterButton.classList.remove("active");
+            filterButton.setAttribute("aria-expanded", "false");
+        }
+    };
+
+    const openFilterDropdown = () => {
+        if (filterDropdown) {
+            filterDropdown.style.display = "block";
+        }
+        if (filterButton) {
+            filterButton.classList.add("active");
+            filterButton.setAttribute("aria-expanded", "true");
+        }
+    };
+
+    if (filterButton && filterDropdown) {
+        filterButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const isVisible = filterDropdown.style.display === "block";
+            if (isVisible) {
+                closeFilterDropdown();
+            } else {
+                openFilterDropdown();
+            }
+        });
+
+        filterDropdown.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!filterDropdown.contains(event.target) && !filterButton.contains(event.target)) {
+                closeFilterDropdown();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeFilterDropdown();
+            }
+        });
+    }
+
     // Setup filter event listeners
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
     envFilter?.addEventListener('change', () => renderConnections(allConnections));
     authFilter?.addEventListener('change', () => renderConnections(allConnections));
+    sortSelect?.addEventListener('change', () => renderConnections(allConnections));
 
     // Listen for messages from main process
     if (modalBridge?.onMessage) {

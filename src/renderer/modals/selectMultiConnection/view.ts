@@ -93,25 +93,6 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     .connected-badge {
         background: rgba(16, 124, 16, 0.2);
     }
-
-    .filter-section {
-        margin-bottom: 12px;
-    }
-
-    .filter-section input,
-    .filter-section select {
-        width: 100%;
-    }
-
-    .filter-row {
-        display: flex;
-        gap: 8px;
-        margin-top: 8px;
-    }
-
-    .filter-row select {
-        flex: 1;
-    }
 </style>`;
 
     const body = `
@@ -128,22 +109,45 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
             This tool requires two connections: a primary connection and a secondary connection. Please select both connections to continue.
         </div>
         
-        <div class="filter-section">
-            <input type="text" id="multi-connection-search" class="fluent-input" placeholder="Search connections..." />
-            <div class="filter-row">
-                <select id="multi-connection-env-filter" class="fluent-select">
-                    <option value="">All Environments</option>
-                    <option value="Dev">Dev</option>
-                    <option value="Test">Test</option>
-                    <option value="UAT">UAT</option>
-                    <option value="Production">Production</option>
-                </select>
-                <select id="multi-connection-auth-filter" class="fluent-select">
-                    <option value="">All Auth Types</option>
-                    <option value="interactive">Microsoft Login</option>
-                    <option value="clientSecret">Client Secret</option>
-                    <option value="usernamePassword">Username/Password</option>
-                </select>
+        <div class="modal-search-container">
+            <div class="modal-search-bar">
+                <input type="text" id="multi-connection-search" class="modal-search-input" placeholder="Search connections..." />
+                <button type="button" id="multi-connection-filter-btn" class="modal-search-filter-btn" aria-label="Filters and sorting" aria-haspopup="true" aria-expanded="false" aria-controls="multi-connection-filter-dropdown">
+                    <svg class="modal-filter-icon" viewBox="0 0 24 24" focusable="false">
+                        <path d="M4 5h16l-6 7v5l-4 2v-7z" stroke-linejoin="round"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-filter-dropdown" id="multi-connection-filter-dropdown" style="display: none;">
+                <div class="modal-filter-section">
+                    <div class="modal-filter-title">Sort By</div>
+                    <select id="multi-connection-sort" class="modal-filter-select">
+                        <option value="name-asc">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="environment">Environment Type</option>
+                    </select>
+                </div>
+                <div class="modal-filter-divider"></div>
+                <div class="modal-filter-section">
+                    <div class="modal-filter-title">Environment</div>
+                    <select id="multi-connection-env-filter" class="modal-filter-select">
+                        <option value="">All Environments</option>
+                        <option value="Dev">Dev</option>
+                        <option value="Test">Test</option>
+                        <option value="UAT">UAT</option>
+                        <option value="Production">Production</option>
+                    </select>
+                </div>
+                <div class="modal-filter-divider"></div>
+                <div class="modal-filter-section">
+                    <div class="modal-filter-title">Authentication</div>
+                    <select id="multi-connection-auth-filter" class="modal-filter-select">
+                        <option value="">All Auth Types</option>
+                        <option value="interactive">Microsoft Login</option>
+                        <option value="clientSecret">Client Secret</option>
+                        <option value="usernamePassword">Username/Password</option>
+                    </select>
+                </div>
             </div>
         </div>
         
