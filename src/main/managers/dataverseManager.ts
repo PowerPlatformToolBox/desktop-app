@@ -501,7 +501,7 @@ export class DataverseManager {
     private buildEntityPublishXml(entityLogicalName: string): string {
         const safeName = entityLogicalName.trim();
         if (!safeName) {
-            throw new Error("tableName parameter cannot be empty");
+            throw new Error("entityLogicalName parameter cannot be empty");
         }
 
         return `<importexportxml><entities><entity>${safeName}</entity></entities></importexportxml>`;
