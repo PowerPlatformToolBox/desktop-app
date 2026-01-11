@@ -215,6 +215,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    max-height: 57px;
+    min-height: 57px;
 }
 
 .sidebar-title {
@@ -370,11 +372,11 @@ body {
     font-size: 12px;
 }
 
-/* Connections List in Sidebar */
+/* Connections List in Sidebar - matching tools list style */
 .connections-list-sidebar {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0;
 }
 
 .connection-list-item {
@@ -675,8 +677,8 @@ body {
 
 .connection-env-badge {
     display: inline-block;
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -2114,28 +2116,78 @@ body {
     font-size: 11px;
 }
 
-/* Connection list item with environment pill */
+/* Connection list item with environment pill - matching tool card style */
 .connection-item-pptb {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-background);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    margin-bottom: 10px;
 }
 
 .connection-item-pptb:hover {
-    background: rgba(0, 120, 212, 0.05);
+    background: rgba(0, 120, 212, 0.06);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 120, 212, 0.4);
 }
 
 .connection-item-pptb.active {
     background: rgba(0, 120, 212, 0.1);
-    border-left: 2px solid var(--primary-color);
+    border-left: 3px solid var(--primary-color);
+}
+
+.connection-item-top-tags {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
 }
 
 .connection-item-header-pptb {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 8px;
     margin-bottom: 4px;
+}
+
+.connection-item-header-left-pptb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.connection-item-header-right-pptb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.connection-item-icon-pptb {
+    font-size: 16px;
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--accent-color);
+    color: white;
+    border-radius: 5px;
+    font-weight: 600;
+}
+
+.connection-item-icon-text {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.connection-item-info-pptb {
+    flex: 1;
+    min-width: 0;
 }
 
 .connection-item-name-pptb {
@@ -2147,6 +2199,21 @@ body {
     font-size: 11px;
     color: #8a8886;
     margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.connection-item-footer-pptb {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.connection-item-meta-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .connection-item-actions-pptb {

@@ -1107,6 +1107,116 @@ async function setAddConnectionTestFeedback(message?: string): Promise<void> {
     await sendBrowserWindowModalMessage({ channel: ADD_CONNECTION_MODAL_CHANNELS.testFeedback, data: message ?? "" });
 }
 
+let activeConnectionContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
+
+/**
+ * Close active connection context menu
+ */
+function closeActiveConnectionContextMenu(): void {
+    if (!activeConnectionContextMenu) return;
+    activeConnectionContextMenu.cleanup();
+    activeConnectionContextMenu = null;
+}
+
+/**
+ * Show context menu for connection
+ */
+function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElement): void {
+    // Toggle: if clicking the same anchor, close existing menu
+    if (activeConnectionContextMenu && activeConnectionContextMenu.anchor === anchor) {
+        closeActiveConnectionContextMenu();
+        return;
+    }
+
+    closeActiveConnectionContextMenu();
+
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const editIconPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
+    const deleteIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+
+    const menu = document.createElement("div");
+    menu.className = "context-menu";
+    menu.style.position = "fixed";
+    menu.style.zIndex = "50000";
+    menu.style.userSelect = "none";
+    menu.innerHTML = `
+        <div class="context-menu-item" data-menu-action="edit">
+            <img src="${editIconPath}" class="context-menu-icon" alt="" />
+            <span>Edit Connection</span>
+        </div>
+        <div class="context-menu-item context-menu-item-danger" data-menu-action="delete">
+            <img src="${deleteIconPath}" class="context-menu-icon" alt="" />
+            <span>Delete Connection</span>
+        </div>
+    `;
+
+    document.body.appendChild(menu);
+
+    // Position menu near the anchor
+    const anchorRect = anchor.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    let top = anchorRect.bottom + 4;
+    let left = anchorRect.left;
+
+    // Adjust if menu goes off-screen
+    if (left + menuRect.width > window.innerWidth) {
+        left = window.innerWidth - menuRect.width - 8;
+    }
+    if (top + menuRect.height > window.innerHeight) {
+        top = anchorRect.top - menuRect.height - 4;
+    }
+
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+
+    // Add event listeners
+    menu.querySelectorAll(".context-menu-item").forEach((item) => {
+        item.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const action = (item as HTMLElement).getAttribute("data-menu-action");
+
+            if (action === "edit") {
+                await editConnection(conn.id);
+            } else if (action === "delete") {
+                if (confirm(`Are you sure you want to delete the connection "${conn.name}"?`)) {
+                    await window.toolboxAPI.connections.delete(conn.id);
+                    loadSidebarConnections();
+                    // Import and call updateActiveToolConnectionStatus from toolManagement
+                    const { updateActiveToolConnectionStatus } = await import("./toolManagement");
+                    await updateActiveToolConnectionStatus();
+                }
+            }
+
+            closeActiveConnectionContextMenu();
+        });
+    });
+
+    const cleanup = () => {
+        menu.remove();
+        document.removeEventListener("click", outsideClickHandler);
+        document.removeEventListener("keydown", escapeHandler);
+    };
+
+    const outsideClickHandler = (e: MouseEvent) => {
+        if (!menu.contains(e.target as Node) && !anchor.contains(e.target as Node)) {
+            closeActiveConnectionContextMenu();
+        }
+    };
+
+    const escapeHandler = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+            closeActiveConnectionContextMenu();
+        }
+    };
+
+    setTimeout(() => {
+        document.addEventListener("click", outsideClickHandler);
+        document.addEventListener("keydown", escapeHandler);
+    }, 0);
+
+    activeConnectionContextMenu = { menu, anchor, cleanup };
+}
+
 /**
  * Load connections in the sidebar
  */
@@ -1203,36 +1313,51 @@ export async function loadSidebarConnections(): Promise<void> {
         connectionsList.innerHTML = filteredConnections
             .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
-                const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-                const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
+                const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
 
                 return `
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
-                        <div class="connection-item-name-pptb">${conn.name}</div>
-                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
-                    </div>
-                    <div class="connection-item-url-pptb">${conn.url}</div>
-                    <div class="connection-meta">
-                        <div class="connection-meta-item">
-                            <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                        <div class="connection-item-header-left-pptb">
+                            <div class="connection-item-info-pptb">
+                                <div class="connection-item-name-pptb">${conn.name}</div>
+                            </div>
+                        </div>
+                        <div class="connection-item-header-right-pptb">
+                            <button class="icon-button tool-more-btn" data-action="more" data-connection-id="${conn.id}" title="More options" aria-haspopup="true" aria-expanded="false">
+                                <img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />
+                            </button>
                         </div>
                     </div>
-                    <div class="connection-item-actions-pptb" style="display: flex; justify-content: flex-end; align-items: center;">
-                        <button class="btn btn-icon" data-action="edit" data-connection-id="${conn.id}" style="color: #d83b01;" title="Edit connection">
-                            <img src="${iconEditPath}" alt="Edit" style="width:16px; height:16px;" />
-                        </button>
-                    <button class="btn btn-icon" data-action="delete" data-connection-id="${conn.id}" style="color: #d83b01;" title="Delete connection">
-                            <img src="${iconPath}" alt="Delete" style="width:16px; height:16px;" />
-                        </button>
+                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-footer-pptb">
+                        <div class="connection-item-meta-left">
+                            <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                            <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                        </div>
                     </div>
                 </div>
             `;
             })
             .join("");
 
-        // Add event listeners
-        connectionsList.querySelectorAll("button").forEach((button) => {
+        // Add event listeners for more buttons and context menu
+        connectionsList.querySelectorAll(".tool-more-btn").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLButtonElement;
+                const connectionId = target.getAttribute("data-connection-id");
+                if (!connectionId) return;
+
+                const conn = filteredConnections.find((c: DataverseConnection) => c.id === connectionId);
+                if (!conn) return;
+
+                showConnectionContextMenu(conn, target);
+            });
+        });
+
+        // Keep legacy event listener for any remaining action buttons (fallback)
+        connectionsList.querySelectorAll("button[data-action]").forEach((button) => {
             button.addEventListener("click", async (e) => {
                 const target = e.currentTarget as HTMLButtonElement;
                 const action = target.getAttribute("data-action");
