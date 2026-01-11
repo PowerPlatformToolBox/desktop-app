@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box - Dataverse API Type Definitions
+ * Power Platform ToolBox - Dataverse API Type Definitions
  *
  * Dataverse Web API exposed to tools via window.dataverseAPI
  */

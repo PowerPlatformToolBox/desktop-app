@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box - ToolBox API Type Definitions
+ * Power Platform ToolBox - ToolBox API Type Definitions
  *
  * Core ToolBox API exposed to tools via window.toolboxAPI
  */

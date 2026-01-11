@@ -1,8 +1,8 @@
-# Power Platform Tool Box - Copilot Instructions
+# Power Platform ToolBox - Copilot Instructions
 
 ## Repository Overview
 
-**Power Platform Tool Box** is an Electron-based desktop application (v28) that provides a universal platform for Power Platform development tools. It features a VS Code Extension Host-inspired architecture for secure, isolated tool execution. The app is built with TypeScript targeting ES2022 and requires Node.js 18+.
+**Power Platform ToolBox** is an Electron-based desktop application (v28) that provides a universal platform for Power Platform development tools. It features a VS Code Extension Host-inspired architecture for secure, isolated tool execution. The app is built with TypeScript targeting ES2022 and requires Node.js 18+.
 
 **Size**: ~10,000+ lines of code across TypeScript source files
 **Primary Language**: TypeScript (strict mode enabled)

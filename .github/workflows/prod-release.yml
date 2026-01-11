@@ -27,6 +27,28 @@ jobs:
                   ref: main
                   fetch-depth: 0
 
+            - name: Validate version bump and release notes
+              shell: bash
+              run: |
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+                  if [ -n "$LAST_TAG" ]; then
+                      if [ "v$CURRENT_VERSION" = "$LAST_TAG" ]; then
+                          echo "Error: package.json version $CURRENT_VERSION has not been incremented beyond $LAST_TAG."
+                          exit 1
+                      fi
+                  else
+                      echo "Warning: no previous tag found; skipping version increment check."
+                  fi
+
+                  if ! grep -q "Power Platform ToolBox v$CURRENT_VERSION" RELEASE_NOTES.md; then
+                      echo "Error: RELEASE_NOTES.md does not contain entry for Power Platform ToolBox v$CURRENT_VERSION."
+                      exit 1
+                  fi
+
+                  echo "Version and release notes validation passed for v$CURRENT_VERSION."
+
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
@@ -169,7 +191,7 @@ jobs:
               run: |
                   VERSION=$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
-                  echo "release_name=Power Platform Tool Box v$VERSION" >> $GITHUB_OUTPUT
+                  echo "release_name=Power Platform ToolBox v$VERSION" >> $GITHUB_OUTPUT
 
                   # Get PR title and body
                   PR_TITLE="${{ github.event.pull_request.title }}"
@@ -202,88 +224,12 @@ jobs:
                   ls -lh release-files/
               shell: bash
 
-            - name: Generate release notes
-              id: notes
-              run: |
-                  # Get commits since last release
-                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-                  if [ -z "$LAST_TAG" ]; then
-                    echo "No previous tag found, showing last 20 commits"
-                    COMMITS=$(git log --oneline --no-merges | head -20)
-                  else
-                    echo "Generating commits since $LAST_TAG"
-                    COMMITS=$(git log --oneline --no-merges $LAST_TAG..HEAD)
-                  fi
-
-                  # Format commits for markdown and save to output
-                  if [ -z "$COMMITS" ]; then
-                    NOTES="No new commits since last release."
-                  else
-                    NOTES=$(echo "$COMMITS" | sed 's/^/- /')
-                  fi
-
-                  # Use multiline output syntax for GitHub Actions
-                  echo "commits<<EOF" >> $GITHUB_OUTPUT
-                  echo "$NOTES" >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
-              shell: bash
-
             - name: Create stable release
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.info.outputs.version }}
                   name: ${{ steps.info.outputs.release_name }}
-                  body: |
-                      # 🚀 Power Platform Tool Box v${{ steps.info.outputs.version }}
-
-                      **Release Date:** ${{ github.event.pull_request.merged_at }}
-                      **Merged PR:** [#${{ steps.info.outputs.pr_number }} - ${{ steps.info.outputs.pr_title }}](${{ steps.info.outputs.pr_url }})
-
-                      ## 📦 Installation
-
-                      Choose the appropriate installer for your platform:
-
-                      ### Windows
-                      - Download the `.exe` file
-                      - Run the installer and follow the prompts
-
-                      ### macOS
-                      - Download the `.dmg` file
-                      - Open the DMG and drag the app to Applications
-                      - ⚠️ **Important**: This build is not notarized or signed with an Apple Developer certificate
-                      - **If you see a "damaged" or "unidentified developer" warning:**
-                        1. Right-click (or Control+click) the app in Applications and select "Open"
-                        2. Click "Open" in the confirmation dialog
-                        3. Or use Terminal: `xattr -cr "/Applications/Power Platform Tool Box.app"`
-
-                      ### Linux
-                      - Download the `.AppImage` file
-                      - Make it executable: `chmod +x *.AppImage`
-                      - Run it: `./*.AppImage`
-
-                      ## ✨ What's Changed
-
-                      ${{ steps.notes.outputs.commits }}
-
-                      See the [full changelog](${{ github.server_url }}/${{ github.repository }}/compare/v${{ steps.info.outputs.version }}...dev) for all changes.
-
-                      ## 🔄 Auto-Update
-
-                      The application includes automatic update functionality. If you have a previous version installed, you will be notified when this update is available.
-
-                      ## 🐛 Found a Bug?
-
-                      Please report issues at: ${{ github.server_url }}/${{ github.repository }}/issues/new
-
-                      ## 🔗 Links
-
-                      - [Documentation](https://github.com/PowerPlatformToolBox/desktop-app#readme)
-                      - [Changelog](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CHANGELOG.md)
-                      - [Contributing Guide](https://github.com/PowerPlatformToolBox/desktop-app/blob/main/CONTRIBUTING.md)
-
-                      ---
-                      *This release was automatically generated from PR merge to main.*
+                  body_path: RELEASE_NOTES.md
                   files: |
                       release-files/*
                   prerelease: false

@@ -1,6 +1,6 @@
 # @pptb/types
 
-TypeScript type definitions for Power Platform Tool Box APIs.
+TypeScript type definitions for Power Platform ToolBox APIs.
 
 -   [@pptb/types](#pptbtypes)
     -   [Installation](#installation)
@@ -273,7 +273,7 @@ await dataverseAPI.publishCustomizations("account");
 
 ## API Reference
 
-The Power Platform Tool Box exposes two main APIs to tools:
+The Power Platform ToolBox exposes two main APIs to tools:
 
 ### ToolBox API (`window.toolboxAPI`)
 

@@ -219,6 +219,26 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Generate what's new
+              id: whatsnew
+              run: |
+                  # Get last 5-10 commits since last tag
+                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+                  if [ -n "$LAST_TAG" ]; then
+                    COMMITS=$(git log --oneline --no-merges "$LAST_TAG"..HEAD | head -10)
+                  else
+                    COMMITS=$(git log --oneline --no-merges -10)
+                  fi
+
+                  # Format commits as markdown bullets
+                  WHATSNEW=$(echo "$COMMITS" | sed 's/^/- /')
+
+                  # Use multiline output syntax for GitHub Actions
+                  echo "commits<<EOF" >> $GITHUB_OUTPUT
+                  echo "$WHATSNEW" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+              shell: bash
+
             - name: Create pre-release
               uses: softprops/action-gh-release@v2
               with:
@@ -226,6 +246,10 @@ jobs:
                   name: ${{ steps.version.outputs.release_name }}
                   body: |
                       # 👀 Insider Pre-Release
+
+                      ## 📋 What's New
+
+                      ${{ steps.whatsnew.outputs.commits }}
 
                       ## TESTING PURPOSES ONLY - NOT FOR PRODUCTION USE
 
@@ -251,7 +275,7 @@ jobs:
                         - ⚠️ **Important for macOS users**: This build is not notarized or signed with an Apple Developer certificate
                         - After mounting the DMG, you may see a "damaged" or "unidentified developer" warning
                         - **To install**: Right-click (or Control+click) the app and select "Open", then click "Open" in the dialog
-                        - Or use Terminal: `xattr -cr "/Applications/Power Platform Tool Box.app"`
+                        - Or use Terminal: `xattr -cr "/Applications/Power Platform ToolBox.app"`
                       - **Linux**: Download the `.AppImage` file
 
                       ## 🔗 Links
