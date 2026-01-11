@@ -98,6 +98,7 @@ export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     SAVE_FILE: "save-file",
+    SELECT_PATH: "select-path",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
     HIDE_LOADING: "hide-loading",
@@ -132,6 +133,7 @@ export const DATAVERSE_CHANNELS = {
     QUERY_DATA: "dataverse.queryData",
     CREATE_MULTIPLE: "dataverse.createMultiple",
     UPDATE_MULTIPLE: "dataverse.updateMultiple",
+    PUBLISH_CUSTOMIZATIONS: "dataverse.publishCustomizations",
     GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
 } as const;
 

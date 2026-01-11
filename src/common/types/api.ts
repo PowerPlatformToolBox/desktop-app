@@ -3,7 +3,7 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { ModalWindowMessagePayload, ModalWindowOptions, Theme } from "./common";
+import { ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { UserSettings } from "./settings";
@@ -32,6 +32,7 @@ export interface UtilsAPI {
     showNotification: (options: { title: string; body: string; type?: "info" | "success" | "warning" | "error"; duration?: number }) => Promise<void>;
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: string | Buffer) => Promise<string | null>;
+    selectPath: (options?: SelectPathOptions) => Promise<string | null>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
     showLoading: (message?: string) => Promise<void>;

@@ -1,7 +1,7 @@
 import { clipboard, dialog } from "electron";
 import { EventEmitter } from "events";
 import * as fs from "fs";
-import { NotificationOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../common/types";
+import { NotificationOptions, SelectPathOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../common/types";
 
 /**
  * ToolBox API that provides events and functionality to tools
@@ -54,6 +54,29 @@ export class ToolBoxUtilityManager extends EventEmitter {
         } catch (error) {
             throw new Error(`Failed to save file: ${(error as Error).message}`);
         }
+    }
+
+    /**
+     * Open a system dialog to select a file or folder
+     */
+    async selectPath(options?: SelectPathOptions): Promise<string | null> {
+        const selectionType = options?.type ?? "file";
+        const properties: Array<"openFile" | "openDirectory" | "promptToCreate" | "createDirectory"> = selectionType === "folder" ? ["openDirectory", "createDirectory"] : ["openFile"];
+
+        const result = await dialog.showOpenDialog({
+            title: options?.title,
+            message: options?.message,
+            buttonLabel: options?.buttonLabel,
+            defaultPath: options?.defaultPath,
+            filters: selectionType === "file" ? options?.filters : undefined,
+            properties,
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+
+        return result.filePaths[0];
     }
 
     /**

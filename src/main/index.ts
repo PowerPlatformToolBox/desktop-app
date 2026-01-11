@@ -313,6 +313,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
         ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(UTIL_CHANNELS.SELECT_PATH);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
@@ -352,6 +353,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.QUERY_DATA);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_MULTIPLE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
     }
 
@@ -733,6 +735,10 @@ class ToolBoxApp {
             return await this.api.saveFile(defaultPath, content);
         });
 
+        ipcMain.handle(UTIL_CHANNELS.SELECT_PATH, async (_, options) => {
+            return await this.api.selectPath(options);
+        });
+
         // Show loading handler (overlay window above BrowserViews)
         ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
             if (this.loadingOverlayWindowManager) {
@@ -1059,6 +1065,24 @@ class ToolBoxApp {
                 return await this.dataverseManager.queryData(connectionId, odataQuery);
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, async (event, tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.publishCustomizations(connectionId, tableLogicalName);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse publishCustomizations failed: ${(error as Error).message}`);
             }
         });
 

@@ -103,6 +103,16 @@ if (filePath) {
     console.log("File saved to:", filePath);
 }
 
+// Select a folder for exporting assets
+const targetFolder = await toolboxAPI.utils.selectPath({
+    type: "folder",
+    title: "Choose export directory",
+    defaultPath: "/Users/me/Downloads",
+});
+if (!targetFolder) {
+    console.log("User canceled folder selection");
+}
+
 // Get current theme
 const theme = await toolboxAPI.utils.getCurrentTheme();
 console.log("Current theme:", theme); // "light" or "dark"
@@ -253,6 +263,12 @@ const result = await dataverseAPI.execute({
         FieldName: "total_revenue",
     },
 });
+
+// Publish customizations for the active environment
+await dataverseAPI.publishCustomizations();
+
+// Publish only a specific table (in this case, the account table)
+await dataverseAPI.publishCustomizations("account");
 ```
 
 ## API Reference
@@ -281,6 +297,12 @@ Core platform features organized into namespaces:
 -   **saveFile(defaultPath: string, content: any)**: Promise<string | null>
 
     -   Opens a save dialog and writes the content. Returns the saved file path or null if canceled
+
+-   **selectPath(options?: SelectPathOptions)**: Promise<string | null>
+
+    -   Opens a native dialog to select either a file or folder (defaults to file)
+    -   Supports custom titles, button labels, default paths, and filters when selecting files
+    -   Returns the selected path or null if the user cancels
 
 -   **getCurrentTheme()**: Promise<"light" | "dark">
 
@@ -407,6 +429,8 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 -   **execute(request: ExecuteRequest)**: Promise<Record<string, unknown>>
     -   Executes a Dataverse Web API action or function
     -   Supports both bound and unbound operations
+-   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
+    -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
 
 ### Security Notes
 

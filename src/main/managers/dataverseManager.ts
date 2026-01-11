@@ -481,6 +481,42 @@ export class DataverseManager {
         return match ? match[1] : url;
     }
 
+    /**
+     * Publish customizations for the current environment.
+     * When tableLogicalName is provided, publishes only that table via PublishXml.
+     * Otherwise, runs PublishAllXml to publish all pending customizations.
+     */
+    async publishCustomizations(connectionId: string, tableLogicalName?: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const trimmedName = tableLogicalName?.trim();
+        const publishSingleTable = Boolean(trimmedName);
+        const actionName = publishSingleTable ? "PublishXml" : "PublishAllXml";
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${actionName}`;
+        const body = publishSingleTable ? { ParameterXml: this.buildEntityPublishXml(trimmedName!) } : undefined;
+
+        await this.makeHttpRequest(url, "POST", accessToken, body);
+    }
+
+    /** Build the PublishXml payload for a single table */
+    private escapeXml(value: string): string {
+        return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+    }
+
+    private buildEntityPublishXml(entityLogicalName: string): string {
+        const safeName = entityLogicalName.trim();
+        if (!safeName) {
+            throw new Error("tableName parameter cannot be empty");
+        }
+
+        const escapedName = this.escapeXml(safeName);
+        return `<importexportxml><entities><entity>${escapedName}</entity></entities></importexportxml>`;
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {
@@ -490,7 +526,9 @@ export class DataverseManager {
         // Validate that each record has the required @odata.type property
         const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
         if (recordsWithoutODataType.length > 0) {
-            throw new Error(`All records must contain the "@odata.type" property for create operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+            throw new Error(
+                `All records must contain the "@odata.type" property for create operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`,
+            );
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
@@ -517,7 +555,9 @@ export class DataverseManager {
         // Validate that each record has the required @odata.type property
         const recordsWithoutODataType = records.filter((record) => !record["@odata.type"]);
         if (recordsWithoutODataType.length > 0) {
-            throw new Error(`All records must contain the "@odata.type" property for update operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`);
+            throw new Error(
+                `All records must contain the "@odata.type" property for update operations. ${recordsWithoutODataType.length} of ${records.length} record(s) are missing this field. Example: "@odata.type": "Microsoft.Dynamics.CRM.${entityLogicalName}"`,
+            );
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);

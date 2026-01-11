@@ -163,6 +163,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
         getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
         createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
@@ -176,6 +177,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         openExternal: (url: string) => ipcInvoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         saveFile: (defaultPath: string, content: unknown) => ipcInvoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         showLoading: (message?: string) => ipcInvoke(UTIL_CHANNELS.SHOW_LOADING, message),
         hideLoading: () => ipcInvoke(UTIL_CHANNELS.HIDE_LOADING),
@@ -255,6 +257,7 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
     getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
     queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+    publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
     createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
     updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
