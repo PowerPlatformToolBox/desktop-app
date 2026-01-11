@@ -114,6 +114,7 @@ export async function loadMarketplace(): Promise<void> {
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
+    const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Get saved sort preference or default
     const savedSort = await window.toolboxAPI.getSetting("marketplaceSort");
@@ -147,6 +148,13 @@ export async function loadMarketplace(): Promise<void> {
         // Author filter
         if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
             return false;
+        }
+
+        // Deprecated filter
+        if (t.status === "deprecated") {
+            if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-installed") {
+                return false;
+            }
         }
 
         return true;

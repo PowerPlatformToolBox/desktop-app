@@ -20,6 +20,7 @@ export async function loadSidebarTools(): Promise<void> {
     try {
         const tools = await window.toolboxAPI.getAllTools();
         const favoriteTools = await window.toolboxAPI.getFavoriteTools();
+        const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
         if (tools.length === 0) {
             toolsList.innerHTML = `
@@ -86,6 +87,13 @@ export async function loadSidebarTools(): Promise<void> {
             // Author filter
             if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
                 return false;
+            }
+
+            // Deprecated filter
+            if (t.status === "deprecated") {
+                if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-marketplace") {
+                    return false;
+                }
             }
 
             return true;

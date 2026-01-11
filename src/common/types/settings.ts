@@ -2,8 +2,8 @@
  * Settings-related type definitions
  */
 
-import { DataverseConnection } from "./connection";
 import { Theme } from "./common";
+import { DataverseConnection } from "./connection";
 
 /**
  * Sort options for installed tools
@@ -21,6 +21,11 @@ export type ConnectionsSortOption = "name-asc" | "name-desc" | "environment";
 export type MarketplaceSortOption = "name-asc" | "name-desc" | "popularity" | "rating" | "downloads";
 
 /**
+ * Deprecated tools visibility options
+ */
+export type DeprecatedToolsVisibility = "hide-all" | "show-all" | "show-installed" | "show-marketplace";
+
+/**
  * User settings for the ToolBox application
  */
 export interface UserSettings {
@@ -29,6 +34,7 @@ export interface UserSettings {
     autoUpdate: boolean;
     terminalFont: string;
     showDebugMenu: boolean;
+    deprecatedToolsVisibility?: DeprecatedToolsVisibility;
     lastUsedTools: string[];
     connections: DataverseConnection[];
     installedTools: string[]; // List of installed tool package names
