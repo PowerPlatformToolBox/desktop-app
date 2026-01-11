@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
             // Convert any functions to promises and execute all in parallel

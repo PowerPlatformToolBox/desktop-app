@@ -313,6 +313,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
         ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(UTIL_CHANNELS.SELECT_PATH);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
@@ -732,6 +733,10 @@ class ToolBoxApp {
         // Save file handler
         ipcMain.handle(UTIL_CHANNELS.SAVE_FILE, async (_, defaultPath, content) => {
             return await this.api.saveFile(defaultPath, content);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SELECT_PATH, async (_, options) => {
+            return await this.api.selectPath(options);
         });
 
         // Show loading handler (overlay window above BrowserViews)

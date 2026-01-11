@@ -28,6 +28,26 @@ declare namespace ToolBoxAPI {
     }
 
     /**
+     * File dialog filter definition
+     */
+    export interface FileDialogFilter {
+        name: string;
+        extensions: string[];
+    }
+
+    /**
+     * Options for selecting a file or folder path
+     */
+    export interface SelectPathOptions {
+        type?: "file" | "folder";
+        title?: string;
+        message?: string;
+        buttonLabel?: string;
+        defaultPath?: string;
+        filters?: FileDialogFilter[];
+    }
+
+    /**
      * Event types that can be emitted by the ToolBox
      */
     export type ToolBoxEvent =
@@ -128,17 +148,17 @@ declare namespace ToolBoxAPI {
          * Get the currently active Dataverse connection
          */
         getActiveConnection: () => Promise<DataverseConnection | null>;
-        
+
         /**
          * Get the secondary connection for multi-connection tools
          */
         getSecondaryConnection: () => Promise<DataverseConnection | null>;
-        
+
         /**
          * Get the secondary connection URL for multi-connection tools
          */
         getSecondaryConnectionUrl: () => Promise<string | null>;
-        
+
         /**
          * Get the secondary connection ID for multi-connection tools
          */
@@ -163,6 +183,11 @@ declare namespace ToolBoxAPI {
          * Open a save file dialog and write content
          */
         saveFile: (defaultPath: string, content: any) => Promise<string | null>;
+
+        /**
+         * Open a native dialog to select either a file or a folder and return the chosen path
+         */
+        selectPath: (options?: SelectPathOptions) => Promise<string | null>;
 
         /**
          * Get the current UI theme (light or dark)

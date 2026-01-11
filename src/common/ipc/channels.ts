@@ -98,6 +98,7 @@ export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     SAVE_FILE: "save-file",
+    SELECT_PATH: "select-path",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
     HIDE_LOADING: "hide-loading",

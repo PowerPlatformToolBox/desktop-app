@@ -27,6 +27,26 @@ export interface NotificationOptions {
 }
 
 /**
+ * File dialog filter definition (mirrors Electron's FileFilter type)
+ */
+export interface FileDialogFilter {
+    name: string;
+    extensions: string[];
+}
+
+/**
+ * Options for selecting a file or folder using the system dialog
+ */
+export interface SelectPathOptions {
+    type?: "file" | "folder";
+    title?: string;
+    message?: string;
+    buttonLabel?: string;
+    defaultPath?: string;
+    filters?: FileDialogFilter[];
+}
+
+/**
  * BrowserWindow-backed modal configuration
  */
 export interface ModalWindowOptions {
