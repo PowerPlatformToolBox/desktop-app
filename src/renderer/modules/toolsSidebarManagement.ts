@@ -20,6 +20,7 @@ export async function loadSidebarTools(): Promise<void> {
     try {
         const tools = await window.toolboxAPI.getAllTools();
         const favoriteTools = await window.toolboxAPI.getFavoriteTools();
+        const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
         if (tools.length === 0) {
             toolsList.innerHTML = `
@@ -86,6 +87,13 @@ export async function loadSidebarTools(): Promise<void> {
             // Author filter
             if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
                 return false;
+            }
+
+            // Deprecated filter
+            if (t.status === "deprecated") {
+                if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-marketplace") {
+                    return false;
+                }
             }
 
             return true;
@@ -161,8 +169,15 @@ export async function loadSidebarTools(): Promise<void> {
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
-                // Show all categories for this tool
-                const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+                // Show up to two categories, with a +N indicator if more remain
+                const categoriesHtml = (() => {
+                    if (!tool.categories || !tool.categories.length) return "";
+                    const visibleCategories = tool.categories.slice(0, 2);
+                    const remainingCount = tool.categories.length - visibleCategories.length;
+                    const visibleHtml = visibleCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("");
+                    const moreHtml = remainingCount > 0 ? `<span class="tool-tag tool-tag-more">+${remainingCount}</span>` : "";
+                    return `${visibleHtml}${moreHtml}`;
+                })();
                 const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
 
                 // Get tool source icon
@@ -185,7 +200,6 @@ export async function loadSidebarTools(): Promise<void> {
 
                 return `
                     <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
-                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
@@ -197,6 +211,13 @@ export async function loadSidebarTools(): Promise<void> {
                                 </div>
                             </div>
                             <div class="tool-item-header-right-pptb">
+                                ${
+                                    tool.isFavorite
+                                        ? `
+                                        <img width="16" height="16" src="${favoriteIconPath}" alt="Favorite" class="tool-favorite-icon" />
+                                    `
+                                        : ""
+                                }
                                 <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                     tool.id
                                 }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
@@ -214,16 +235,8 @@ export async function loadSidebarTools(): Promise<void> {
                         }
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
-                            ${
-                                tool.isFavorite
-                                    ? `
-                            <div class="tool-item-actions-right">
-                                <img width="16" height="16" src="${favoriteIconPath}" alt="Favorite" class="tool-favorite-icon" />
-                            </div>
-                            `
-                                    : ""
-                            }
                         </div>
+                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
                         ${
                             hasUpdate && latestVersion
                                 ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`

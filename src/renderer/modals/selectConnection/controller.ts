@@ -32,6 +32,9 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const searchInput = document.getElementById("select-connection-search");
     const envFilter = document.getElementById("select-connection-env-filter");
     const authFilter = document.getElementById("select-connection-auth-filter");
+    const sortSelect = document.getElementById("select-connection-sort");
+    const filterButton = document.getElementById("select-connection-filter-btn");
+    const filterDropdown = document.getElementById("select-connection-filter-dropdown");
     
     let selectedConnectionId = null;
     let allConnections = [];
@@ -45,10 +48,34 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
         return labels[authType] || authType;
     };
 
+    const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
+
+    const sortConnections = (a, b, sortOption) => {
+        const nameA = (a.name || "");
+        const nameB = (b.name || "");
+
+        switch (sortOption) {
+            case "name-desc":
+                return nameB.localeCompare(nameA);
+            case "environment": {
+                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || 999;
+                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || 999;
+                if (aOrder !== bOrder) {
+                    return aOrder - bOrder;
+                }
+                return nameA.localeCompare(nameB);
+            }
+            case "name-asc":
+            default:
+                return nameA.localeCompare(nameB);
+        }
+    };
+
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
         const selectedAuth = authFilter?.value || "";
+        const selectedSort = sortSelect?.value || "name-asc";
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -72,8 +99,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
             return true;
         });
 
-        // Sort alphabetically by name
-        filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
+        filtered = filtered.sort((a, b) => sortConnections(a, b, selectedSort));
 
         return filtered;
     };
@@ -108,14 +134,14 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
             <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${conn.id}">
                 <div class="connection-header">
                     <div class="connection-name">\${conn.name}</div>
-                    <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                 </div>
                 <div class="connection-url">\${conn.url}</div>
-                <div class="connection-meta">
-                    <div class="connection-meta-item">
+                <div class="connection-item-footer">
+                    <div class="connection-item-meta-left">
+                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
-                    \${conn.isActive ? '<div class="connection-meta-item">✓ Currently Active</div>' : ''}
                 </div>
             </div>
         \`).join('');
@@ -180,10 +206,59 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     cancelButton?.addEventListener('click', closeModal);
     closeButton?.addEventListener('click', closeModal);
 
+    const closeFilterDropdown = () => {
+        if (filterDropdown) {
+            filterDropdown.style.display = "none";
+        }
+        if (filterButton) {
+            filterButton.classList.remove("active");
+            filterButton.setAttribute("aria-expanded", "false");
+        }
+    };
+
+    const openFilterDropdown = () => {
+        if (filterDropdown) {
+            filterDropdown.style.display = "block";
+        }
+        if (filterButton) {
+            filterButton.classList.add("active");
+            filterButton.setAttribute("aria-expanded", "true");
+        }
+    };
+
+    if (filterButton && filterDropdown) {
+        filterButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const isVisible = filterDropdown.style.display === "block";
+            if (isVisible) {
+                closeFilterDropdown();
+            } else {
+                openFilterDropdown();
+            }
+        });
+
+        filterDropdown.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!filterDropdown.contains(event.target) && !filterButton.contains(event.target)) {
+                closeFilterDropdown();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeFilterDropdown();
+            }
+        });
+    }
+
     // Setup filter event listeners
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
     envFilter?.addEventListener('change', () => renderConnections(allConnections));
     authFilter?.addEventListener('change', () => renderConnections(allConnections));
+    sortSelect?.addEventListener('change', () => renderConnections(allConnections));
 
     // Listen for messages from main process
     if (modalBridge?.onMessage) {

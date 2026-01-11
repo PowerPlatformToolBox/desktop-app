@@ -188,43 +188,57 @@
                     </div>
                     <div class="sidebar-body">
                         <div class="debug-container-sidebar">
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">Load Local Tool</h3>
-                                <p class="debug-section-description">Load a tool directly from your local file system for development and testing.</p>
-                                <div class="debug-input-group">
-                                    <label class="debug-label" for="sidebar-local-tool-path">Tool Directory Path</label>
-                                    <div class="debug-path-input-group">
-                                        <input type="text" id="sidebar-local-tool-path" class="fluent-input" placeholder="Select tool directory..." readonly />
-                                        <button id="sidebar-browse-local-tool-btn" class="fluent-button fluent-button-secondary">Browse</button>
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Local Development</p>
+                                    <p class="settings-section-description">Load a tool directly from your local file system for rapid iteration.</p>
+                                </div>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="debug-label" for="sidebar-local-tool-path">Tool Directory Path</label>
+                                        <div class="debug-path-input-group">
+                                            <input type="text" id="sidebar-local-tool-path" class="fluent-input" placeholder="Select tool directory..." readonly />
+                                            <button id="sidebar-browse-local-tool-btn" class="fluent-button fluent-button-secondary">Browse</button>
+                                        </div>
+                                        <span class="debug-hint">Select the root directory containing your tool's package.json</span>
                                     </div>
-                                    <span class="debug-hint">Select the root directory containing your tool's package.json</span>
+                                    <div class="debug-card-actions">
+                                        <button id="sidebar-load-local-tool-btn" class="fluent-button fluent-button-primary">Load Tool</button>
+                                    </div>
                                 </div>
-                                <div class="debug-actions">
-                                    <button id="sidebar-load-local-tool-btn" class="fluent-button fluent-button-primary">Load Tool</button>
+                            </section>
+
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Registry Install</p>
+                                    <p class="settings-section-description">Install a custom tool straight from npm for staging or private builds.</p>
                                 </div>
-                            </div>
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">Install Tool by Package Name</h3>
-                                <p class="debug-section-description">Enter an npm package name to install a custom tool directly from the npm registry.</p>
-                                <div class="debug-input-group">
-                                    <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
-                                    <input type="text" id="sidebar-package-name-input" class="fluent-input" placeholder="e.g., @powerplatform/tool-example" />
-                                    <span class="debug-hint">Enter the full npm package name including scope (if applicable)</span>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="debug-label" for="sidebar-package-name-input">Package Name</label>
+                                        <input type="text" id="sidebar-package-name-input" class="fluent-input" placeholder="e.g., @powerplatform/tool-example" />
+                                        <span class="debug-hint">Enter the full npm package name including scope.</span>
+                                    </div>
+                                    <div class="debug-card-actions">
+                                        <button id="sidebar-install-package-btn" class="fluent-button fluent-button-primary">Install Package</button>
+                                    </div>
                                 </div>
-                                <div class="debug-actions">
-                                    <button id="sidebar-install-package-btn" class="fluent-button fluent-button-primary">Install Package</button>
+                            </section>
+
+                            <section class="settings-section-card debug-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Guidance</p>
+                                    <p class="settings-section-description">Quick reminders to keep testing safe and efficient.</p>
                                 </div>
-                            </div>
-                            <div class="debug-section">
-                                <h3 class="debug-section-title">About These Features</h3>
-                                <p class="debug-section-description">These features are designed for tool developers to quickly test and install their tools without publishing to the marketplace.</p>
-                                <ul class="debug-info-list">
-                                    <li>📂 <strong>Local Tool:</strong> Load tools from your filesystem - no publishing needed</li>
-                                    <li>🔄 <strong>Watch Mode:</strong> Build your tool with watch mode, then reload in ToolBox to see changes</li>
-                                    <li>📦 <strong>npm Package:</strong> Install published packages for testing or private use</li>
-                                    <li>⚠️ <strong>Security:</strong> Only load/install tools you trust</li>
-                                </ul>
-                            </div>
+                                <div class="settings-section-body">
+                                    <ul class="debug-info-list">
+                                        <li>📂 Local Tool: Load directly from your filesystem—no publishing required.</li>
+                                        <li>🔄 Watch Mode: Build with watch mode, then reload ToolBox to see changes.</li>
+                                        <li>📦 npm Package: Install published packages for testing or private use.</li>
+                                        <li>⚠️ Security: Only load or install tools you trust.</li>
+                                    </ul>
+                                </div>
+                            </section>
                         </div>
                     </div>
                 </div>
@@ -236,52 +250,99 @@
                     </div>
                     <div class="sidebar-body">
                         <div class="settings-container-sidebar">
-                            <div class="setting-group">
-                                <label class="setting-label" for="sidebar-theme-select">Theme</label>
-                                <select id="sidebar-theme-select" class="fluent-select">
-                                    <option value="system">System</option>
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                </select>
-                            </div>
-                            <div class="setting-group">
-                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
-                                <div class="setting-checkbox-group">
-                                    <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
-                                    <span class="setting-hint">Automatically check for updates</span>
+                            <section class="settings-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Appearance</p>
+                                    <p class="settings-section-description">Choose how ToolBox matches your OS or lock it to a specific look.</p>
                                 </div>
-                            </div>
-                            <div class="setting-group">
-                                <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
-                                <div class="setting-checkbox-group">
-                                    <input type="checkbox" id="sidebar-show-debug-menu-check" class="fluent-checkbox" />
-                                    <span class="setting-hint">Show the Debug option in the activity bar</span>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-theme-select">Theme</label>
+                                        <select id="sidebar-theme-select" class="fluent-select">
+                                            <option value="system">System</option>
+                                            <option value="light">Light</option>
+                                            <option value="dark">Dark</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="setting-group">
-                                <label class="setting-label" for="sidebar-terminal-font-select">Terminal Font</label>
-                                <select id="sidebar-terminal-font-select" class="fluent-select">
-                                    <option value="'Consolas', 'Monaco', 'Courier New', monospace">Consolas / Monaco (Default)</option>
-                                    <option value="'MesloLGS NF', 'MesloLGS Nerd Font', 'Menlo', 'DejaVu Sans Mono', 'Consolas', monospace">MesloLGS Nerd Font (Recommended)</option>
-                                    <option value="'FiraCode Nerd Font', 'FiraCode NF', 'Fira Code', 'Consolas', monospace">FiraCode Nerd Font</option>
-                                    <option value="'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Consolas', monospace">JetBrains Mono Nerd Font</option>
-                                    <option value="'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code', 'Consolas', monospace">CaskaydiaCove Nerd Font (Cascadia)</option>
-                                    <option value="'Hack Nerd Font', 'Hack NF', 'Hack', 'Consolas', monospace">Hack Nerd Font</option>
-                                    <option value="'UbuntuMono Nerd Font', 'UbuntuMono NF', 'Ubuntu Mono', 'Consolas', monospace">Ubuntu Mono Nerd Font</option>
-                                    <option value="'SourceCodePro Nerd Font', 'SauceCodePro NF', 'Source Code Pro', 'Consolas', monospace">Source Code Pro Nerd Font</option>
-                                    <option value="'JetBrains Mono', 'Consolas', monospace">JetBrains Mono</option>
-                                    <option value="'Fira Code', 'Consolas', monospace">Fira Code</option>
-                                    <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
-                                    <option value="custom">Custom Font...</option>
-                                </select>
-                                <div id="custom-font-input-container" style="display: none; margin-top: 8px">
-                                    <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
-                                    <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
+                            </section>
+
+                            <section class="settings-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Behavior</p>
+                                    <p class="settings-section-description">Fine-tune how ToolBox surfaces menus and deprecated tools.</p>
                                 </div>
-                                <span class="setting-hint">Choose a font for the terminal. Install the font on your system first. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
-                            </div>
-                            <div class="setting-group">
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <div class="settings-field-header">
+                                            <div>
+                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
+                                                <span class="setting-hint">Automatically check for new builds</span>
+                                            </div>
+                                            <div class="setting-checkbox-group">
+                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-field">
+                                        <div class="settings-field-header">
+                                            <div>
+                                                <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
+                                                <span class="setting-hint">Expose the Debug activity to quickly test tools</span>
+                                            </div>
+                                            <div class="setting-checkbox-group">
+                                                <input type="checkbox" id="sidebar-show-debug-menu-check" class="fluent-checkbox" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-deprecated-tools-select">Deprecated Tools</label>
+                                        <select id="sidebar-deprecated-tools-select" class="fluent-select">
+                                            <option value="hide-all">Hide from All</option>
+                                            <option value="show-all">Show in All</option>
+                                            <option value="show-installed">Show in Installed Tools Only</option>
+                                            <option value="show-marketplace">Show in Marketplace Only</option>
+                                        </select>
+                                        <span class="setting-hint">Control when deprecated tools appear across the experience.</span>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="settings-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Terminal</p>
+                                    <p class="settings-section-description">Pick a monospace font that keeps long log output readable.</p>
+                                </div>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-terminal-font-select">Terminal Font</label>
+                                        <select id="sidebar-terminal-font-select" class="fluent-select">
+                                            <option value="'Consolas', 'Monaco', 'Courier New', monospace">Consolas / Monaco (Default)</option>
+                                            <option value="'MesloLGS NF', 'MesloLGS Nerd Font', 'Menlo', 'DejaVu Sans Mono', 'Consolas', monospace">MesloLGS Nerd Font (Recommended)</option>
+                                            <option value="'FiraCode Nerd Font', 'FiraCode NF', 'Fira Code', 'Consolas', monospace">FiraCode Nerd Font</option>
+                                            <option value="'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Consolas', monospace">JetBrains Mono Nerd Font</option>
+                                            <option value="'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code', 'Consolas', monospace">CaskaydiaCove Nerd Font (Cascadia)</option>
+                                            <option value="'Hack Nerd Font', 'Hack NF', 'Hack', 'Consolas', monospace">Hack Nerd Font</option>
+                                            <option value="'UbuntuMono Nerd Font', 'UbuntuMono NF', 'Ubuntu Mono', 'Consolas', monospace">Ubuntu Mono Nerd Font</option>
+                                            <option value="'SourceCodePro Nerd Font', 'SauceCodePro NF', 'Source Code Pro', 'Consolas', monospace">Source Code Pro Nerd Font</option>
+                                            <option value="'JetBrains Mono', 'Consolas', monospace">JetBrains Mono</option>
+                                            <option value="'Fira Code', 'Consolas', monospace">Fira Code</option>
+                                            <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
+                                            <option value="custom">Custom Font...</option>
+                                        </select>
+                                    </div>
+                                    <div id="custom-font-input-container" class="settings-field" style="display: none">
+                                        <label class="setting-label" for="sidebar-terminal-font-custom">Custom Font</label>
+                                        <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
+                                        <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
+                                    </div>
+                                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
+                                </div>
+                            </section>
+
+                            <div class="settings-actions-row">
                                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
+                                <span class="setting-hint">Changes apply instantly after saving.</span>
                             </div>
                         </div>
                     </div>

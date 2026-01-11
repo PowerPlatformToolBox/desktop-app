@@ -51,6 +51,7 @@ export interface SettingsState {
     theme?: string;
     autoUpdate?: boolean;
     showDebugMenu?: boolean;
+    deprecatedToolsVisibility?: string;
     terminalFont?: string;
 }
 
