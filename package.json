@@ -1,6 +1,6 @@
 {
   "name": "powerplatform-toolbox",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
@@ -26,7 +26,7 @@
     "pptb",
     "powerapps"
   ],
-  "author": "Power Platform Tool Box",
+  "author": "Power Platform ToolBox",
   "license": "GPL-3.0",
   "devDependencies": {
     "@sentry/vite-plugin": "^4.6.1",
@@ -59,8 +59,8 @@
   },
   "build": {
     "appId": "com.powerplatform.toolbox",
-    "productName": "Power Platform Tool Box",
-    "artifactName": "Power-Platform-Tool-Box-${version}-${arch}-${os}.${ext}",
+    "productName": "Power Platform ToolBox",
+    "artifactName": "Power-Platform-ToolBox-${version}-${arch}-${os}.${ext}",
     "directories": {
       "output": "build"
     },

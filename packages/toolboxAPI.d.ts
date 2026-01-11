@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box - ToolBox API Type Definitions
+ * Power Platform ToolBox - ToolBox API Type Definitions
  *
  * Core ToolBox API exposed to tools via window.toolboxAPI
  */
@@ -128,17 +128,17 @@ declare namespace ToolBoxAPI {
          * Get the currently active Dataverse connection
          */
         getActiveConnection: () => Promise<DataverseConnection | null>;
-        
+
         /**
          * Get the secondary connection for multi-connection tools
          */
         getSecondaryConnection: () => Promise<DataverseConnection | null>;
-        
+
         /**
          * Get the secondary connection URL for multi-connection tools
          */
         getSecondaryConnectionUrl: () => Promise<string | null>;
-        
+
         /**
          * Get the secondary connection ID for multi-connection tools
          */

@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box API Type Definitions
+ * Power Platform ToolBox API Type Definitions
  *
  * This is the main entry point for TypeScript type definitions.
  * Tools can reference specific APIs they need:
@@ -18,5 +18,5 @@
 /// <reference path="./dataverseAPI.d.ts" />
 
 // Re-export all namespaces for convenience
-export * from "./toolboxAPI";
 export * from "./dataverseAPI";
+export * from "./toolboxAPI";

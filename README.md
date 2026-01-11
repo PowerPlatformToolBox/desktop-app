@@ -6,13 +6,13 @@
 
 <p align="center">
     <h1 align="center">
-        Power Platform Tool Box
+        Power Platform ToolBox
     </h1>
     <h3 align="center">
         A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform
     </h3>
     <p align="center">
-        This repo is an open-source project for the Power Platform Tool Box (PPTB)
+        This repo is an open-source project for the Power Platform ToolBox (PPTB)
     </p>
 </p>
 
@@ -84,7 +84,7 @@
 
 > [!IMPORTANT]
 > macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
-> `xattr -cr "/Applications/Power Platform Tool Box.app"`
+> `xattr -cr "/Applications/Power Platform ToolBox.app"`
 
 - [Known Issues](#known-issues)
 - [Features Overview](#features-overview)
@@ -122,10 +122,10 @@
 
 ## Releases & Downloads
 
-Power Platform Tool Box releases are published on GitHub:
+Power Platform ToolBox releases are published on GitHub:
 
 -   **Stable Releases**: Published when PRs are merged to the `main` branch
--   **Nightly Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
+-   **Insider Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
 
 ### Download Latest Release
 
