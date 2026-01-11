@@ -498,13 +498,23 @@ export class DataverseManager {
     }
 
     /** Build the PublishXml payload for a single table */
+    private escapeXml(value: string): string {
+        return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+    }
+
     private buildEntityPublishXml(entityLogicalName: string): string {
         const safeName = entityLogicalName.trim();
         if (!safeName) {
-            throw new Error("entityLogicalName parameter cannot be empty");
+            throw new Error("tableName parameter cannot be empty");
         }
 
-        return `<importexportxml><entities><entity>${safeName}</entity></entities></importexportxml>`;
+        const escapedName = this.escapeXml(safeName);
+        return `<importexportxml><entities><entity>${escapedName}</entity></entities></importexportxml>`;
     }
 
     /** Create multiple records in Dataverse */
