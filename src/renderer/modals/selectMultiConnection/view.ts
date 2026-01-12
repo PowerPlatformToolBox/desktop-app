@@ -93,7 +93,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     }
 
     .connected-badge {
-        background: rgba(16, 124, 16, 0.2);
+        font-size: 11px;
     }
 </style>`;
 
@@ -108,7 +108,9 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     </div>
     <div class="modal-body">
         <div class="info-message">
-            This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${isSecondaryRequired ? "both connections" : "at least a primary connection"} to continue.
+            This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
+        isSecondaryRequired ? "both connections" : "at least a primary connection"
+    } to continue.
         </div>
         
         <div class="modal-search-container">
