@@ -74,27 +74,36 @@ export async function launchTool(toolId: string): Promise<void> {
             return;
         }
 
-        // Check if tool requires multi-connection
-        const requiresMultiConnection = tool.features && tool.features["multi-connection"] === true;
+        // Determine multi-connection mode
+        const multiConnectionMode = tool.features?.multiConnection || "none";
 
         let primaryConnectionId: string | null = null;
         let secondaryConnectionId: string | null = null;
 
-        if (requiresMultiConnection) {
-            // Tool requires two connections - always show modal for new instance
-            console.log("Tool requires multi-connection. Showing multi-connection modal...");
+        if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
+            // Tool supports multi-connection - show multi-connection modal
+            const isSecondaryRequired = multiConnectionMode === "required";
+            console.log(`Tool supports multi-connection (secondary ${isSecondaryRequired ? "required" : "optional"}). Showing multi-connection modal...`);
             try {
-                // Show the select multi-connection modal and wait for user to select both connections
-                const result = await openSelectMultiConnectionModal();
+                // Show the select multi-connection modal and wait for user to select connections
+                const result = await openSelectMultiConnectionModal(isSecondaryRequired);
                 primaryConnectionId = result.primaryConnectionId;
                 secondaryConnectionId = result.secondaryConnectionId;
                 console.log("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+
+                // Validate that required connections are provided
+                if (isSecondaryRequired && !secondaryConnectionId) {
+                    throw new Error("Secondary connection is required but was not provided");
+                }
             } catch (error) {
                 // User cancelled the multi-connection selection
                 console.log("Multi-connection selection cancelled:", error);
+                const errorMessage = isSecondaryRequired
+                    ? "This tool requires two connections. Please select both connections to continue."
+                    : "This tool requires a primary connection. Please select at least a primary connection to continue.";
                 window.toolboxAPI.utils.showNotification({
                     title: "Tool Launch Cancelled",
-                    body: "This tool requires two connections. Please select both connections to continue.",
+                    body: errorMessage,
                     type: "info",
                 });
                 return;
@@ -648,32 +657,53 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     if (!activeTool) return;
 
     // Check if tool has multi-connection feature
-    const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
+    const multiConnectionMode = activeTool.tool.features?.multiConnection || "none";
+    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
-    if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
-        // Tool has both primary and secondary connections
+    
+    if (hasMultiConnection && toolConnectionId) {
+        // Tool supports multi-connection and has at least primary connection
         const connections = await window.toolboxAPI.connections.getAll();
         const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
-        const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
 
-        if (primaryConnection && secondaryConnection) {
+        if (primaryConnection) {
             // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
             statusElement.className = `connection-status connected ${primaryEnvClass}`;
 
-            // Display secondary connection on the right
+            // Handle secondary connection display
             if (secondaryStatusElement) {
-                const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
-                secondaryStatusElement.textContent = secondaryText;
-                const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
-                secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                if (secondaryConnectionId) {
+                    // Secondary connection is set
+                    const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
+                    if (secondaryConnection) {
+                        const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                        secondaryStatusElement.textContent = secondaryText;
+                        const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
+                        secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                        
+                        // Update tool panel border based on both primary and secondary environment
+                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+                        return;
+                    }
+                } else {
+                    // No secondary connection - show "Not Connected" for optional secondary
+                    if (multiConnectionMode === "optional") {
+                        secondaryStatusElement.textContent = "Secondary: Not Connected (Click to connect)";
+                        secondaryStatusElement.className = "secondary-connection-status not-connected visible";
+                    } else {
+                        // Required but missing - this shouldn't happen during normal operation
+                        secondaryStatusElement.textContent = "Secondary: Not Connected";
+                        secondaryStatusElement.className = "secondary-connection-status not-connected visible";
+                    }
+                }
             }
 
-            // Update tool panel border based on both primary and secondary environment
-            updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+            // Update tool panel border based on primary environment only
+            updateToolPanelBorder(primaryConnection.environment);
             return;
         }
     } else if (toolConnectionId) {
@@ -927,7 +957,8 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
     if (!activeTool) return;
 
     // Check if tool supports multi-connection
-    const hasMultiConnection = activeTool.tool.features?.["multi-connection"] === true;
+    const multiConnectionMode = activeTool.tool.features?.multiConnection || "none";
+    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     if (!hasMultiConnection) {
         window.toolboxAPI.utils.showNotification({
             title: "Not Supported",

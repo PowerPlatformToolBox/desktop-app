@@ -47,7 +47,7 @@ interface AuthenticateConnectionAction {
 interface ConfirmConnectionsAction {
     action: "confirm";
     primaryConnectionId: string;
-    secondaryConnectionId: string;
+    secondaryConnectionId: string | null;
 }
 
 interface LegacyConnectionSelection {
@@ -123,7 +123,7 @@ const selectConnectionModalPromiseHandlers: {
 
 // Store promise handlers for select multi-connection modal
 const selectMultiConnectionModalPromiseHandlers: {
-    resolve: ((result: { primaryConnectionId: string; secondaryConnectionId: string }) => void) | null;
+    resolve: ((result: { primaryConnectionId: string; secondaryConnectionId: string | null }) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -367,8 +367,9 @@ export function initializeSelectMultiConnectionModalBridge(): void {
 /**
  * Open the select multi-connection modal for tools that require two connections
  * Returns a promise that resolves with both connection IDs, or rejects if cancelled
+ * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  */
-export async function openSelectMultiConnectionModal(): Promise<{ primaryConnectionId: string; secondaryConnectionId: string }> {
+export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
 
@@ -392,7 +393,7 @@ export async function openSelectMultiConnectionModal(): Promise<{ primaryConnect
 
         showBrowserWindowModal({
             id: "select-multi-connection-browser-modal",
-            html: buildSelectMultiConnectionModalHtml(),
+            html: buildSelectMultiConnectionModalHtml(isSecondaryRequired),
             width: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.width,
             height: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.height,
         }).catch(reject);
@@ -416,10 +417,10 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
     }
 }
 
-function buildSelectMultiConnectionModalHtml(): string {
+function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme);
-    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS);
+    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired);
+    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired);
     return `${styles}\n${body}\n${script}`.trim();
 }
 

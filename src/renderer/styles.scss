@@ -1091,6 +1091,25 @@ body.dark-theme .settings-section-card {
     color: var(--env-border-prod);
 }
 
+/* Not connected state for secondary connection */
+.secondary-connection-status.not-connected {
+    color: #8a8886;
+    font-style: italic;
+}
+
+.secondary-connection-status.not-connected::before {
+    content: "○";
+    color: #8a8886;
+}
+
+.dark-theme .secondary-connection-status.not-connected {
+    color: #a19f9d;
+}
+
+.dark-theme .secondary-connection-status.not-connected::before {
+    color: #a19f9d;
+}
+
 /* Adjust main content to account for footer */
 .main-content {
     flex: 1;

@@ -12,13 +12,16 @@ export interface ConnectionListData {
 
 /**
  * Returns the controller script that wires up DOM events for the select multi-connection modal.
+ * @param channels - Channel IDs for IPC communication
+ * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  */
-export function getSelectMultiConnectionModalControllerScript(channels: SelectMultiConnectionModalChannelIds): string {
+export function getSelectMultiConnectionModalControllerScript(channels: SelectMultiConnectionModalChannelIds, isSecondaryRequired: boolean = true): string {
     const serializedChannels = JSON.stringify(channels);
     return `
 <script>
 (() => {
     const CHANNELS = ${serializedChannels};
+    const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -154,7 +157,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                     <div class="connection-name">\${conn.name}</div>
                     <div class="connection-actions">
                         \${isAuthenticated 
-                            ? '<div class="connected-badge"><svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>Connected</div>' 
+                            ? '<div class="connected-badge">&#x2705&nbsp;Connected</div>' 
                             : '<button class="connect-button" data-connection-id="' + conn.id + '" data-list="' + idPrefix + '">Connect</button>'
                         }
                     </div>
@@ -230,15 +233,24 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
 
     const updateConfirmButtonState = () => {
         if (confirmButton) {
-            confirmButton.disabled = !(authenticatedPrimaryConnectionId && authenticatedSecondaryConnectionId);
+            // If secondary is required, both must be selected
+            // If secondary is optional, only primary is required
+            if (IS_SECONDARY_REQUIRED) {
+                confirmButton.disabled = !(authenticatedPrimaryConnectionId && authenticatedSecondaryConnectionId);
+            } else {
+                confirmButton.disabled = !authenticatedPrimaryConnectionId;
+            }
         }
     };
 
     // Confirm button handler - just close modal as authentication is already done
     confirmButton?.addEventListener('click', () => {
-        if (!authenticatedPrimaryConnectionId || !authenticatedSecondaryConnectionId) return;
+        // Primary is always required
+        if (!authenticatedPrimaryConnectionId) return;
+        // Secondary is only required if IS_SECONDARY_REQUIRED is true
+        if (IS_SECONDARY_REQUIRED && !authenticatedSecondaryConnectionId) return;
         
-        // Send the authenticated connection IDs to main process
+        // Send the authenticated connection IDs to main process (secondary can be null if optional)
         modalBridge.send(CHANNELS.selectConnections, { 
             primaryConnectionId: authenticatedPrimaryConnectionId,
             secondaryConnectionId: authenticatedSecondaryConnectionId,

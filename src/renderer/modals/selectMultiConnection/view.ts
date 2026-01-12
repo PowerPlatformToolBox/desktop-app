@@ -7,8 +7,10 @@ export interface ModalViewTemplate {
 
 /**
  * Returns the view markup (styles + body) for the select multi-connection modal BrowserWindow.
+ * @param isDarkTheme - Whether dark theme is enabled
+ * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  */
-export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalViewTemplate {
+export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecondaryRequired: boolean = true): ModalViewTemplate {
     const styles =
         getModalStyles(isDarkTheme) +
         `
@@ -91,7 +93,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
     }
 
     .connected-badge {
-        background: rgba(16, 124, 16, 0.2);
+        font-size: 11px;
     }
 </style>`;
 
@@ -99,14 +101,16 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
 <div class="modal-panel">
     <div class="modal-header">
         <div>
-            <p class="modal-eyebrow">Multi-Connection Required</p>
+            <p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>
             <h3>Select Connections</h3>
         </div>
         <button id="close-select-multi-connection-modal" class="icon-button" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
         <div class="info-message">
-            This tool requires two connections: a primary connection and a secondary connection. Please select both connections to continue.
+            This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
+        isSecondaryRequired ? "both connections" : "at least a primary connection"
+    } to continue.
         </div>
         
         <div class="modal-search-container">
@@ -165,7 +169,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean): ModalVi
             <div class="connection-section">
                 <span class="section-label">
                     Secondary Connection
-                    <span class="connection-badge secondary">Required</span>
+                    <span class="connection-badge secondary">${isSecondaryRequired ? "Required" : "Optional"}</span>
                 </span>
                 <div id="secondary-connections-list" class="connection-list">
                     <!-- Secondary connections will be populated here -->

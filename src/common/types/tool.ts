@@ -8,7 +8,13 @@ import { CspExceptions } from "./common";
  * Tool features configuration
  */
 export interface ToolFeatures {
-    "multi-connection"?: boolean;
+    /**
+     * Multi-connection support configuration
+     * - "required": Both primary and secondary connections are required
+     * - "optional": Primary connection is required, secondary is optional
+     * - "none": Single connection only (default behavior)
+     */
+    multiConnection?: "required" | "optional" | "none";
 }
 
 /**
