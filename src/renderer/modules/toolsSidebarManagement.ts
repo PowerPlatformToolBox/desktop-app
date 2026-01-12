@@ -614,15 +614,19 @@ async function navigateToMarketplace(searchTerm: string = ""): Promise<void> {
 
     // If a search term is provided, set it in the marketplace search input
     if (searchTerm) {
-        // Use a small delay to ensure the marketplace sidebar is fully rendered
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        const marketplaceSearchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
-        if (marketplaceSearchInput) {
-            marketplaceSearchInput.value = searchTerm;
-            // Trigger the marketplace to reload with the search term
-            await loadMarketplace();
-        }
+        // Wait for the marketplace sidebar to be rendered using requestAnimationFrame
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                const marketplaceSearchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
+                if (marketplaceSearchInput) {
+                    marketplaceSearchInput.value = searchTerm;
+                    // Trigger the marketplace to reload with the search term
+                    loadMarketplace().then(() => resolve()).catch(() => resolve());
+                } else {
+                    resolve();
+                }
+            });
+        });
     }
 }
 
