@@ -74,27 +74,37 @@ export async function launchTool(toolId: string): Promise<void> {
             return;
         }
 
-        // Check if tool requires multi-connection
-        const requiresMultiConnection = tool.features && tool.features["multi-connection"] === true;
+        // Determine multi-connection mode (support both old and new property names)
+        const multiConnectionMode =
+            tool.features?.multiConnection || (tool.features && tool.features["multi-connection"] === true ? "required" : "none");
 
         let primaryConnectionId: string | null = null;
         let secondaryConnectionId: string | null = null;
 
-        if (requiresMultiConnection) {
-            // Tool requires two connections - always show modal for new instance
-            console.log("Tool requires multi-connection. Showing multi-connection modal...");
+        if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
+            // Tool supports multi-connection - show multi-connection modal
+            const isSecondaryRequired = multiConnectionMode === "required";
+            console.log(`Tool supports multi-connection (secondary ${isSecondaryRequired ? "required" : "optional"}). Showing multi-connection modal...`);
             try {
-                // Show the select multi-connection modal and wait for user to select both connections
-                const result = await openSelectMultiConnectionModal();
+                // Show the select multi-connection modal and wait for user to select connections
+                const result = await openSelectMultiConnectionModal(isSecondaryRequired);
                 primaryConnectionId = result.primaryConnectionId;
                 secondaryConnectionId = result.secondaryConnectionId;
                 console.log("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+
+                // Validate that required connections are provided
+                if (isSecondaryRequired && !secondaryConnectionId) {
+                    throw new Error("Secondary connection is required but was not provided");
+                }
             } catch (error) {
                 // User cancelled the multi-connection selection
                 console.log("Multi-connection selection cancelled:", error);
+                const errorMessage = isSecondaryRequired
+                    ? "This tool requires two connections. Please select both connections to continue."
+                    : "This tool requires a primary connection. Please select at least a primary connection to continue.";
                 window.toolboxAPI.utils.showNotification({
                     title: "Tool Launch Cancelled",
-                    body: "This tool requires two connections. Please select both connections to continue.",
+                    body: errorMessage,
                     type: "info",
                 });
                 return;
@@ -647,8 +657,10 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Check if tool has multi-connection feature
-    const hasMultiConnection = activeTool.tool.features && activeTool.tool.features["multi-connection"] === true;
+    // Check if tool has multi-connection feature (support both old and new property names)
+    const multiConnectionMode =
+        activeTool.tool.features?.multiConnection || (activeTool.tool.features && activeTool.tool.features["multi-connection"] === true ? "required" : "none");
+    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
     if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
@@ -926,8 +938,10 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Check if tool supports multi-connection
-    const hasMultiConnection = activeTool.tool.features?.["multi-connection"] === true;
+    // Check if tool supports multi-connection (support both old and new property names)
+    const multiConnectionMode =
+        activeTool.tool.features?.multiConnection || (activeTool.tool.features && activeTool.tool.features["multi-connection"] === true ? "required" : "none");
+    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     if (!hasMultiConnection) {
         window.toolboxAPI.utils.showNotification({
             title: "Not Supported",
