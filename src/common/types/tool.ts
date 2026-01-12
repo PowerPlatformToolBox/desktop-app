@@ -15,10 +15,6 @@ export interface ToolFeatures {
      * - "none": Single connection only (default behavior)
      */
     multiConnection?: "required" | "optional" | "none";
-    /**
-     * @deprecated Use multiConnection instead
-     */
-    "multi-connection"?: boolean;
 }
 
 /**

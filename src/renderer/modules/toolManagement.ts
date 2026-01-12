@@ -74,9 +74,8 @@ export async function launchTool(toolId: string): Promise<void> {
             return;
         }
 
-        // Determine multi-connection mode (support both old and new property names)
-        const multiConnectionMode =
-            tool.features?.multiConnection || (tool.features && tool.features["multi-connection"] === true ? "required" : "none");
+        // Determine multi-connection mode
+        const multiConnectionMode = tool.features?.multiConnection || "none";
 
         let primaryConnectionId: string | null = null;
         let secondaryConnectionId: string | null = null;
@@ -657,9 +656,8 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Check if tool has multi-connection feature (support both old and new property names)
-    const multiConnectionMode =
-        activeTool.tool.features?.multiConnection || (activeTool.tool.features && activeTool.tool.features["multi-connection"] === true ? "required" : "none");
+    // Check if tool has multi-connection feature
+    const multiConnectionMode = activeTool.tool.features?.multiConnection || "none";
     const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
@@ -938,9 +936,8 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    // Check if tool supports multi-connection (support both old and new property names)
-    const multiConnectionMode =
-        activeTool.tool.features?.multiConnection || (activeTool.tool.features && activeTool.tool.features["multi-connection"] === true ? "required" : "none");
+    // Check if tool supports multi-connection
+    const multiConnectionMode = activeTool.tool.features?.multiConnection || "none";
     const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     if (!hasMultiConnection) {
         window.toolboxAPI.utils.showNotification({
