@@ -28,17 +28,12 @@ export async function loadSidebarTools(): Promise<void> {
                 <div class="empty-state">
                     <p>No tools installed yet.</p>
                     <p class="empty-state-hint">Install tools from the marketplace to get started.</p>
-                    <button class="fluent-button fluent-button-primary" id="go-to-marketplace-btn" style="margin-top: 16px;">Browse Marketplace</button>
+                    <button class="fluent-button fluent-button-primary" id="go-to-marketplace-btn">Browse Marketplace</button>
                 </div>
             `;
-            
+
             // Add event listener for the marketplace button
-            const marketplaceBtn = document.getElementById("go-to-marketplace-btn");
-            if (marketplaceBtn) {
-                marketplaceBtn.addEventListener("click", () => {
-                    navigateToMarketplace();
-                });
-            }
+            attachMarketplaceNavigationButton("go-to-marketplace-btn", "");
             return;
         }
 
@@ -142,17 +137,12 @@ export async function loadSidebarTools(): Promise<void> {
                 <div class="empty-state">
                     <p>No matching tools</p>
                     <p class="empty-state-hint">${hasSearchTerm ? `No installed tools match "${searchTerm}".` : "Try a different search term."}</p>
-                    <button class="fluent-button fluent-button-primary" id="search-marketplace-btn" style="margin-top: 16px;">Search in Marketplace</button>
+                    <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
                 </div>
             `;
-            
+
             // Add event listener for the marketplace search button
-            const searchMarketplaceBtn = document.getElementById("search-marketplace-btn");
-            if (searchMarketplaceBtn) {
-                searchMarketplaceBtn.addEventListener("click", () => {
-                    navigateToMarketplace(searchTerm);
-                });
-            }
+            attachMarketplaceNavigationButton("search-marketplace-btn", searchTerm);
             return;
         }
 
@@ -604,19 +594,34 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
 }
 
 /**
+ * Attach click event listener to a marketplace navigation button
+ */
+function attachMarketplaceNavigationButton(buttonId: string, searchTerm: string): void {
+    const button = document.getElementById(buttonId);
+    if (button) {
+        button.addEventListener("click", () => {
+            navigateToMarketplace(searchTerm);
+        });
+    }
+}
+
+/**
  * Navigate to marketplace sidebar and optionally set a search term
  */
-function navigateToMarketplace(searchTerm: string = ""): void {
+async function navigateToMarketplace(searchTerm: string = ""): Promise<void> {
     // Switch to marketplace sidebar
     switchSidebar("marketplace");
-    
+
     // If a search term is provided, set it in the marketplace search input
     if (searchTerm) {
+        // Use a small delay to ensure the marketplace sidebar is fully rendered
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         const marketplaceSearchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
         if (marketplaceSearchInput) {
             marketplaceSearchInput.value = searchTerm;
             // Trigger the marketplace to reload with the search term
-            loadMarketplace();
+            await loadMarketplace();
         }
     }
 }
