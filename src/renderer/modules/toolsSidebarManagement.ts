@@ -134,10 +134,11 @@ export async function loadSidebarTools(): Promise<void> {
         if (sortedTools.length === 0) {
             const hasSearchTerm = searchTerm.length > 0;
             const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor;
+            const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
                     <p>No matching tools</p>
-                    <p class="empty-state-hint">${hasSearchTerm ? `No installed tools match "${searchTerm}".` : "Try a different search term."}</p>
+                    <p class="empty-state-hint">${emptyMessage}</p>
                     <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
                     ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="clear-filters-link">Clear all filters</a>' : ""}
                 </div>
