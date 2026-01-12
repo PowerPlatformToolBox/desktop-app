@@ -661,29 +661,49 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
-    if (hasMultiConnection && toolConnectionId && secondaryConnectionId) {
-        // Tool has both primary and secondary connections
+    
+    if (hasMultiConnection && toolConnectionId) {
+        // Tool supports multi-connection and has at least primary connection
         const connections = await window.toolboxAPI.connections.getAll();
         const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
-        const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
 
-        if (primaryConnection && secondaryConnection) {
+        if (primaryConnection) {
             // Display primary connection on the left
             const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
             statusElement.className = `connection-status connected ${primaryEnvClass}`;
 
-            // Display secondary connection on the right
+            // Handle secondary connection display
             if (secondaryStatusElement) {
-                const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
-                secondaryStatusElement.textContent = secondaryText;
-                const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
-                secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                if (secondaryConnectionId) {
+                    // Secondary connection is set
+                    const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
+                    if (secondaryConnection) {
+                        const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                        secondaryStatusElement.textContent = secondaryText;
+                        const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
+                        secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                        
+                        // Update tool panel border based on both primary and secondary environment
+                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+                        return;
+                    }
+                } else {
+                    // No secondary connection - show "Not Connected" for optional secondary
+                    if (multiConnectionMode === "optional") {
+                        secondaryStatusElement.textContent = "Secondary: Not Connected (Click to connect)";
+                        secondaryStatusElement.className = "secondary-connection-status not-connected visible";
+                    } else {
+                        // Required but missing - this shouldn't happen during normal operation
+                        secondaryStatusElement.textContent = "Secondary: Not Connected";
+                        secondaryStatusElement.className = "secondary-connection-status not-connected visible";
+                    }
+                }
             }
 
-            // Update tool panel border based on both primary and secondary environment
-            updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+            // Update tool panel border based on primary environment only
+            updateToolPanelBorder(primaryConnection.environment);
             return;
         }
     } else if (toolConnectionId) {
