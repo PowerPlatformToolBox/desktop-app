@@ -110,11 +110,13 @@ export async function loadMarketplace(): Promise<void> {
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+    const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
 
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
+    const showNewOnly = newFilter?.checked || false;
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Get saved sort preference or default
@@ -141,6 +143,8 @@ export async function loadMarketplace(): Promise<void> {
             }
         }
 
+        const toolIsNew = isToolNew(t);
+
         // Category filter
         if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
             return false;
@@ -148,6 +152,11 @@ export async function loadMarketplace(): Promise<void> {
 
         // Author filter
         if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+            return false;
+        }
+
+        // New tools filter
+        if (showNewOnly && !toolIsNew) {
             return false;
         }
 
@@ -200,14 +209,7 @@ export async function loadMarketplace(): Promise<void> {
             const isDarkTheme = document.body.classList.contains("dark-theme");
 
             // Check if tool is new (created within last 7 days)
-            const isNewTool = tool.createdAt
-                ? (() => {
-                      const sevenDaysAgo = new Date();
-                      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                      const createdDate = new Date(tool.createdAt);
-                      return createdDate >= sevenDaysAgo;
-                  })()
-                : false;
+            const isNewTool = isToolNew(tool);
 
             // Show all categories for this tool
             const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
@@ -364,6 +366,13 @@ export async function loadMarketplace(): Promise<void> {
         });
     }
 
+    if (newFilter && !(newFilter as any)._pptbBound) {
+        (newFilter as any)._pptbBound = true;
+        newFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
     // Setup sort event listener
     if (sortSelect && !(sortSelect as any)._pptbBound) {
         (sortSelect as any)._pptbBound = true;
@@ -381,6 +390,7 @@ export async function loadMarketplace(): Promise<void> {
 function populateMarketplaceFilters(): void {
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+    const newFilter = document.getElementById("marketplace-new-filter") as HTMLSelectElement | null;
 
     if (!categoryFilter || !authorFilter) return;
 
@@ -414,6 +424,14 @@ function populateMarketplaceFilters(): void {
     if (selectedAuthor && sortedAuthors.includes(selectedAuthor)) {
         authorFilter.value = selectedAuthor;
     }
+}
+
+function isToolNew(tool: ToolDetail): boolean {
+    if (!tool.createdAt) return false;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const createdDate = new Date(tool.createdAt);
+    return createdDate >= sevenDaysAgo;
 }
 
 /**
