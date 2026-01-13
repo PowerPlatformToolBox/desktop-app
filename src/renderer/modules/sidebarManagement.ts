@@ -3,8 +3,8 @@
  * Handles sidebar switching and activity bar navigation
  */
 
-import { loadSidebarSettings } from "./settingsManagement";
 import { captureException } from "../../common/sentryHelper";
+import { loadSidebarSettings } from "./settingsManagement";
 
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
@@ -39,7 +39,7 @@ export function switchSidebar(sidebarId: string): void {
                 activeActivity.classList.add("active");
             }
             currentSidebarId = sidebarId;
-            
+
             // Load settings when re-expanding settings sidebar
             if (sidebarId === "settings") {
                 loadSidebarSettings().catch((err) => {

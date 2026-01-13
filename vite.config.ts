@@ -1,9 +1,9 @@
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, loadEnv } from "vite";
 import electron from "vite-plugin-electron/simple";
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import packageJson from "./package.json";
 
 export default defineConfig(({ mode }) => {

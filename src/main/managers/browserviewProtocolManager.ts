@@ -247,14 +247,12 @@ export class BrowserviewProtocolManager {
             // Create head tag if missing
             injectedHtml = `<!DOCTYPE html><html><head>\n${cspMetaTag}\n</head><body>${injectedHtml}</body></html>`;
         }
-
         // Inject bridge script before </head> or at start of <body>
         if (injectedHtml.includes("</head>")) {
             injectedHtml = injectedHtml.replace("</head>", `${bridgeScriptTag}\n</head>`);
         } else if (injectedHtml.includes("<body>")) {
             injectedHtml = injectedHtml.replace("<body>", `<body>\n${bridgeScriptTag}`);
         }
-
         return injectedHtml;
     }
 

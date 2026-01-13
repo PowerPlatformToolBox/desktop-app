@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { initializeSentryHelper, setSentryMachineId, addBreadcrumb, captureException, logCheckpoint, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -43,7 +43,7 @@ if (sentryConfig) {
                 event.tags = {};
             }
             event.tags.process = "renderer";
-            
+
             // Add user agent for browser context
             if (!event.request) {
                 event.request = {};
@@ -51,17 +51,17 @@ if (sentryConfig) {
             event.request.headers = {
                 "User-Agent": navigator.userAgent,
             };
-            
+
             return event;
         },
     });
-    
+
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
-    
+
     console.log("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
-    
+
     // Machine ID will be set via IPC from main process after settings are loaded
 } else {
     console.log("[Sentry] Telemetry disabled - no DSN configured");
@@ -89,7 +89,7 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  */
 export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
-    
+
     try {
         // Get machine ID from main process and set it in Sentry
         if (sentryConfig) {
@@ -103,7 +103,7 @@ export async function initializeApplication(): Promise<void> {
                 console.warn("Failed to get machine ID for Sentry:", error);
             }
         }
-        
+
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
         addBreadcrumb("Modal bridges initialized", "init", "info");
@@ -140,19 +140,27 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up homepage actions
         setupHomepageActions();
-        
+
         addBreadcrumb("UI components initialized", "init", "info");
 
         // Load and apply theme settings on startup
-        await wrapAsyncOperation("loadInitialSettings", async () => {
-            await loadInitialSettings();
-        }, { tags: { phase: "initialization" } });
+        await wrapAsyncOperation(
+            "loadInitialSettings",
+            async () => {
+                await loadInitialSettings();
+            },
+            { tags: { phase: "initialization" } },
+        );
         logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
-        await wrapAsyncOperation("loadToolsLibrary", async () => {
-            await loadToolsLibrary();
-        }, { tags: { phase: "tools_library_loading" } }).catch((error) => {
+        await wrapAsyncOperation(
+            "loadToolsLibrary",
+            async () => {
+                await loadToolsLibrary();
+            },
+            { tags: { phase: "tools_library_loading" } },
+        ).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "tools_library_loading" },
@@ -162,19 +170,31 @@ export async function initializeApplication(): Promise<void> {
         logCheckpoint("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
-        await wrapAsyncOperation("loadSidebarTools", async () => {
-            await loadSidebarTools();
-        }, { tags: { phase: "sidebar_loading" } });
-        
-        await wrapAsyncOperation("loadMarketplace", async () => {
-            await loadMarketplace();
-        }, { tags: { phase: "marketplace_loading" } });
+        await wrapAsyncOperation(
+            "loadSidebarTools",
+            async () => {
+                await loadSidebarTools();
+            },
+            { tags: { phase: "sidebar_loading" } },
+        );
+
+        await wrapAsyncOperation(
+            "loadMarketplace",
+            async () => {
+                await loadMarketplace();
+            },
+            { tags: { phase: "marketplace_loading" } },
+        );
         addBreadcrumb("Sidebar content loaded", "init", "info");
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        await wrapAsyncOperation("loadSidebarConnections", async () => {
-            await loadSidebarConnections();
-        }, { tags: { phase: "connections_loading" } }).catch((error) => {
+        await wrapAsyncOperation(
+            "loadSidebarConnections",
+            async () => {
+                await loadSidebarConnections();
+            },
+            { tags: { phase: "connections_loading" } },
+        ).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "connections_loading" },
@@ -186,14 +206,22 @@ export async function initializeApplication(): Promise<void> {
         // Update footer connection info
         // Update footer connection status
         // Note: Footer shows active tool's connection, not a global connection
-        await wrapAsyncOperation("updateFooterConnection", async () => {
-            await updateFooterConnection();
-        }, { tags: { phase: "footer_update" } });
+        await wrapAsyncOperation(
+            "updateFooterConnection",
+            async () => {
+                await updateFooterConnection();
+            },
+            { tags: { phase: "footer_update" } },
+        );
 
         // Load homepage data
-        await wrapAsyncOperation("loadHomepageData", async () => {
-            await loadHomepageData();
-        }, { tags: { phase: "homepage_loading" } }).catch((error) => {
+        await wrapAsyncOperation(
+            "loadHomepageData",
+            async () => {
+                await loadHomepageData();
+            },
+            { tags: { phase: "homepage_loading" } },
+        ).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "homepage_loading" },
@@ -203,9 +231,13 @@ export async function initializeApplication(): Promise<void> {
         logCheckpoint("Homepage data loaded");
 
         // Restore previous session
-        await wrapAsyncOperation("restoreSession", async () => {
-            await restoreSession();
-        }, { tags: { phase: "session_restore" } }).catch((error) => {
+        await wrapAsyncOperation(
+            "restoreSession",
+            async () => {
+                await restoreSession();
+            },
+            { tags: { phase: "session_restore" } },
+        ).catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
             captureException(err, {
                 tags: { phase: "session_restore" },
@@ -231,7 +263,7 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up terminal toggle button
         setupTerminalPanel();
-        
+
         addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
@@ -260,17 +292,17 @@ export async function initializeApplication(): Promise<void> {
             max-width: 500px;
             text-align: center;
         `;
-        
+
         // Create title
         const title = document.createElement("h3");
         title.style.cssText = "margin: 0 0 12px 0; font-size: 18px;";
         title.textContent = "Application Initialization Failed";
-        
+
         // Create message paragraph
         const messagePara = document.createElement("p");
         messagePara.style.cssText = "margin: 0 0 16px 0;";
         messagePara.textContent = errorMessage;
-        
+
         // Create reload button
         const reloadBtn = document.createElement("button");
         reloadBtn.id = "reload-btn";
@@ -287,7 +319,7 @@ export async function initializeApplication(): Promise<void> {
         reloadBtn.addEventListener("click", () => {
             window.location.reload();
         });
-        
+
         errorElement.appendChild(title);
         errorElement.appendChild(messagePara);
         errorElement.appendChild(reloadBtn);

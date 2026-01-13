@@ -661,7 +661,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
     const toolConnectionId = activeTool.connectionId;
     const secondaryConnectionId = activeTool.secondaryConnectionId;
-    
+
     if (hasMultiConnection && toolConnectionId) {
         // Tool supports multi-connection and has at least primary connection
         const connections = await window.toolboxAPI.connections.getAll();
@@ -684,7 +684,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         secondaryStatusElement.textContent = secondaryText;
                         const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
                         secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
-                        
+
                         // Update tool panel border based on both primary and secondary environment
                         updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
                         return;
