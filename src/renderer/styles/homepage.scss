@@ -47,6 +47,73 @@ body.dark-theme .homepage-hero-tagline {
     color: var(--text-secondary, #a19f9d);
 }
 
+/* New Tools Notification Bar */
+.new-tools-notification {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    margin: 0 0 24px 0;
+    background: linear-gradient(135deg, rgba(106, 0, 255, 0.1) 0%, rgba(139, 0, 255, 0.1) 100%);
+    border: 1px solid rgba(106, 0, 255, 0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.new-tools-notification:hover {
+    background: linear-gradient(135deg, rgba(106, 0, 255, 0.15) 0%, rgba(139, 0, 255, 0.15) 100%);
+    border-color: rgba(106, 0, 255, 0.5);
+    transform: translateY(-1px);
+}
+
+body.dark-theme .new-tools-notification {
+    background: linear-gradient(135deg, rgba(106, 0, 255, 0.15) 0%, rgba(139, 0, 255, 0.15) 100%);
+    border-color: rgba(106, 0, 255, 0.4);
+}
+
+body.dark-theme .new-tools-notification:hover {
+    background: linear-gradient(135deg, rgba(106, 0, 255, 0.2) 0%, rgba(139, 0, 255, 0.2) 100%);
+    border-color: rgba(106, 0, 255, 0.6);
+}
+
+.new-tools-icon {
+    width: 16px;
+    height: 16px;
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
+    animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+    0%,
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2) rotate(180deg);
+        opacity: 0.8;
+    }
+}
+
+.new-tools-label {
+    font-weight: 600;
+    color: var(--accent-color, #6a00ff);
+}
+
+body.dark-theme .new-tools-label {
+    color: #a77aff;
+}
+
+.new-tools-message {
+    color: var(--text-primary, var(--text-color));
+}
+
+body.dark-theme .new-tools-message {
+    color: var(--text-primary, #e0e0e0);
+}
+
 /* Hero stats */
 .homepage-hero-stats {
     display: grid;

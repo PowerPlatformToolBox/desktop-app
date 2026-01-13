@@ -173,6 +173,13 @@
                                 <option value="">All Authors</option>
                             </select>
                         </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer">
+                                <input type="checkbox" id="marketplace-new-filter" style="cursor: pointer" />
+                                <span>New (last 7 days)</span>
+                            </label>
+                        </div>
                     </div>
                     <div class="sidebar-body">
                         <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
@@ -305,6 +312,14 @@
                                         </select>
                                         <span class="setting-hint">Control when deprecated tools appear across the experience.</span>
                                     </div>
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-tool-display-mode-select">Tool Display Mode</label>
+                                        <select id="sidebar-tool-display-mode-select" class="fluent-select">
+                                            <option value="standard">Standard</option>
+                                            <option value="compact">Compact</option>
+                                        </select>
+                                        <span class="setting-hint">Choose how tools are displayed in Installed Tools and Marketplace.</span>
+                                    </div>
                                 </div>
                             </section>
 
@@ -409,6 +424,13 @@
                             </div>
                             <h1 class="homepage-hero-headline">Power Platform ToolBox</h1>
                             <p class="homepage-hero-tagline">A universal desktop app for Power Platform development tools. Build, manage, and deploy with ease.</p>
+
+                            <!-- New Tools Notification Bar -->
+                            <div class="new-tools-notification" id="new-tools-notification" style="display: none">
+                                <img class="new-tools-icon" src="icons/dark/star-filled.svg" alt="New tool icon" />
+                                <span class="new-tools-label">New!</span>
+                                <span class="new-tools-message" id="new-tools-message"></span>
+                            </div>
 
                             <div class="homepage-hero-stats">
                                 <div class="hero-stat">

@@ -2109,6 +2109,48 @@ body.dark-theme .settings-section-card {
     }
 }
 
+/* Compact mode styles for tools */
+.tool-item-compact {
+    padding: 8px 12px !important;
+}
+
+.tool-item-compact .tool-item-header-pptb {
+    margin-bottom: 2px !important;
+}
+
+.tool-item-compact .tool-item-description-pptb,
+.tool-item-compact .tool-item-footer-pptb,
+.tool-item-compact .tool-item-top-tags,
+.tool-item-compact .tool-item-updated-version-available-pptb,
+.tool-item-compact .tool-item-update-btn {
+    display: none !important;
+}
+
+.tool-item-compact .tool-item-authors-pptb {
+    font-size: 11px;
+    margin-left: 38px;
+}
+
+/* Compact mode styles for marketplace */
+.marketplace-item-compact {
+    padding: 8px 12px !important;
+}
+
+.marketplace-item-compact .marketplace-item-header-pptb {
+    margin-bottom: 2px !important;
+}
+
+.marketplace-item-compact .marketplace-item-description-pptb,
+.marketplace-item-compact .marketplace-item-footer-pptb,
+.marketplace-item-compact .marketplace-item-top-tags {
+    display: none !important;
+}
+
+.marketplace-item-compact .marketplace-item-author-pptb {
+    font-size: 11px;
+    margin-left: 38px;
+}
+
 /* VSCode-style marketplace list */
 .marketplace-tools-list-pptb {
     display: flex;
@@ -2170,6 +2212,40 @@ body.dark-theme .settings-section-card {
     font-weight: 500;
     font-size: 13px;
     margin-bottom: 2px;
+}
+
+.marketplace-item-header-right-pptb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Install Button Styles */
+.install-button {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 5px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.15s ease-in-out;
+}
+.install-button:hover {
+    background: var(--primary-gradient-hover);
+}
+
+.marketplace-item-installed-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: #107c1026;
+    border-radius: 4px;
+    color: #107c10;
+    font-size: 14px;
 }
 
 .marketplace-item-author-pptb {
@@ -3122,6 +3198,24 @@ body.dark-theme .modern-markdown code {
 
 .marketplace-item-deprecated-badge::before {
     content: "⚠";
+}
+
+/* Marketplace item with NEW badge */
+.marketplace-item-new-badge {
+    background: linear-gradient(135deg, #6a00ff 0%, #8b00ff 100%);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 1px 3px rgba(106, 0, 255, 0.3);
+}
+
+.marketplace-item-new-badge::before {
+    content: "✨";
 }
 
 .marketplace-item-pptb.deprecated {

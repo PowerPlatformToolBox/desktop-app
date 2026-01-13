@@ -52,6 +52,7 @@ export interface SettingsState {
     autoUpdate?: boolean;
     showDebugMenu?: boolean;
     deprecatedToolsVisibility?: string;
+    toolDisplayMode?: string;
     terminalFont?: string;
 }
 
@@ -89,4 +90,5 @@ export interface ToolDetail {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    createdAt?: string; // ISO date string from created_at field
 }

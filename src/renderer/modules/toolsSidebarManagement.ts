@@ -22,6 +22,7 @@ export async function loadSidebarTools(): Promise<void> {
         const tools = await window.toolboxAPI.getAllTools();
         const favoriteTools = await window.toolboxAPI.getFavoriteTools();
         const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
+        const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
 
         if (tools.length === 0) {
             toolsList.innerHTML = `
@@ -222,6 +223,39 @@ export async function loadSidebarTools(): Promise<void> {
                 }</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
+                // Render based on display mode
+                if (displayMode === "compact") {
+                    // Compact mode: icon, name, version, author only
+                    return `
+                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+                        <div class="tool-item-header-pptb">
+                            <div class="tool-item-header-left-pptb">
+                                <span class="tool-item-icon-pptb">${toolIconHtml}</span>
+                                <div class="tool-item-info-pptb">
+                                    <div class="tool-item-name-pptb">
+                                        ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                    </div>
+                                    <div class="tool-item-version-pptb">v${tool.version}</div>
+                                </div>
+                            </div>
+                            <div class="tool-item-header-right-pptb">
+                                ${
+                                    tool.isFavorite
+                                        ? `
+                                        <img width="16" height="16" src="${favoriteIconPath}" alt="Favorite" class="tool-favorite-icon" />
+                                    `
+                                        : ""
+                                }
+                                <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
+                                    tool.id
+                                }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
+                            </div>
+                        </div>
+                        <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                    </div>`;
+                }
+
+                // Standard mode: full details
                 return `
                     <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
                         <div class="tool-item-header-pptb">
@@ -409,7 +443,7 @@ function closeActiveToolContextMenu(): void {
     activeToolContextMenu = null;
 }
 
-function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean }, anchor: HTMLElement, isDarkTheme: boolean): void {
+function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdate?: boolean; latestVersion?: string }, anchor: HTMLElement, isDarkTheme: boolean): void {
     // Toggle: if clicking the same anchor, close existing menu
     if (activeToolContextMenu && activeToolContextMenu.anchor === anchor) {
         closeActiveToolContextMenu();
@@ -420,7 +454,11 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean }, anchor
 
     const favoriteIconPath = tool.isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
     const detailsIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
+    const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+
+    const hasUpdate = !!tool.hasUpdate;
+    const latestVersion = tool.latestVersion;
 
     const menu = document.createElement("div");
     menu.className = "context-menu";
@@ -432,6 +470,14 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean }, anchor
             <img src="${favoriteIconPath}" class="context-menu-icon" alt="" />
             <span>${tool.isFavorite ? "Unmark as Favorite" : "Mark as Favorite"}</span>
         </div>
+        ${
+            hasUpdate && latestVersion
+                ? `<div class="context-menu-item" data-menu-action="update">
+            <img src="${updateIconPath}" class="context-menu-icon" alt="" />
+            <span>Update to v${latestVersion}</span>
+        </div>`
+                : ""
+        }
         <div class="context-menu-item" data-menu-action="details">
             <img src="${detailsIconPath}" class="context-menu-icon" alt="" />
             <span>See Details</span>
@@ -516,6 +562,11 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean }, anchor
         if (action === "favorite") {
             await toggleFavoriteTool(tool.id);
             await loadSidebarTools();
+            return;
+        }
+
+        if (action === "update") {
+            await updateToolFromSidebar(tool.id);
             return;
         }
 
@@ -661,7 +712,9 @@ async function navigateToMarketplace(searchTerm: string = ""): Promise<void> {
                 if (marketplaceSearchInput) {
                     marketplaceSearchInput.value = searchTerm;
                     // Trigger the marketplace to reload with the search term
-                    loadMarketplace().then(() => resolve()).catch(() => resolve());
+                    loadMarketplace()
+                        .then(() => resolve())
+                        .catch(() => resolve());
                 } else {
                     resolve();
                 }

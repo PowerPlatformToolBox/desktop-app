@@ -25,6 +25,8 @@ export interface Tool {
     name: string;
     version: string;
     description: string;
+    publishedAt?: string;
+    createdAt?: string; // ISO date string from created_at field
     authors?: string[];
     iconUrl?: string;
     settings?: ToolSettings;
@@ -58,6 +60,7 @@ export interface ToolRegistryEntry {
     checksum?: string;
     size?: number;
     publishedAt: string;
+    createdAt?: string; // Supabase created_at timestamp
     categories?: string[];
     cspExceptions?: CspExceptions; // CSP exceptions requested by the tool
     license?: string; // SPDX or license name
@@ -95,6 +98,8 @@ export interface ToolManifest {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    publishedAt?: string;
+    createdAt?: string;
 }
 
 /**

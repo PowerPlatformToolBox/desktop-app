@@ -656,4 +656,20 @@ export class ToolWindowManager {
     getActiveToolId(): string | null {
         return this.activeToolId;
     }
+
+    /**
+     * Get the active tool's repository URL
+     * @returns The repository URL of the currently active tool, or null if no tool is active or no repository is defined
+     */
+    getActiveToolRepositoryUrl(): string | null {
+        if (!this.activeToolId) {
+            return null;
+        }
+
+        // Extract toolId from instanceId (format: toolId-timestamp-random)
+        const toolId = this.activeToolId.split("-").slice(0, -2).join("-");
+        const tool = this.toolManager.getTool(toolId);
+
+        return tool?.repository || null;
+    }
 }

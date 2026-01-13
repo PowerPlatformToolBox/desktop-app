@@ -1233,6 +1233,23 @@ class ToolBoxApp {
                     },
                     { type: "separator" },
                     {
+                        label: "Tool Feedback",
+                        accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                        click: async () => {
+                            const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
+                            if (repositoryUrl) {
+                                await shell.openExternal(repositoryUrl);
+                            } else {
+                                dialog.showMessageBox(this.mainWindow!, {
+                                    type: "info",
+                                    title: "Tool Feedback",
+                                    message: "No active tool or repository URL not available for this tool.",
+                                    buttons: ["OK"],
+                                });
+                            }
+                        },
+                    },
+                    {
                         label: "Toggle Tool DevTools",
                         accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
                         click: () => {
@@ -1251,6 +1268,12 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
+                    {
+                        label: "ToolBox Feedback",
+                        click: async () => {
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                        },
+                    },
                     {
                         label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",

@@ -64,6 +64,7 @@ interface SupabaseTool {
     checksum?: string;
     size?: string; // stored as text in schema
     published_at?: string;
+    created_at?: string;
     csp_exceptions?: unknown;
     features?: unknown; // JSON column for tool features
     license?: string;
@@ -176,6 +177,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "checksum",
                 "size",
                 "published_at",
+                "created_at",
                 "license",
                 "csp_exceptions",
                 "features",
@@ -228,6 +230,7 @@ export class ToolRegistryManager extends EventEmitter {
                     repository: tool.repository,
                     website: tool.website,
                     publishedAt: tool.published_at || new Date().toISOString(),
+                    createdAt: tool.created_at || new Date().toISOString(),
                     checksum: tool.checksum,
                     size: tool.size ? Number(tool.size) || undefined : undefined,
                     categories: categories,
@@ -466,6 +469,10 @@ export class ToolRegistryManager extends EventEmitter {
             categories: tool.categories,
             license: tool.license || packageJson.license,
             status: tool.status,
+            repository: tool.repository, // Include repository URL from registry
+            website: tool.website, // Include website URL from registry
+            createdAt: tool.createdAt,
+            publishedAt: tool.publishedAt,
         };
 
         // Save to manifest file
@@ -523,7 +530,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status, repository, website } = t as any;
                 return {
                     id,
                     name,
@@ -541,6 +548,8 @@ export class ToolRegistryManager extends EventEmitter {
                     categories,
                     license,
                     status,
+                    repository,
+                    website,
                 } as ToolManifest;
             });
             return normalized;
