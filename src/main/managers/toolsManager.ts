@@ -20,6 +20,9 @@ interface ToolPackageJson {
     icon?: string;
     cspExceptions?: CspExceptions;
     features?: ToolFeatures;
+    repository?: string | { type: string; url: string };
+    homepage?: string;
+    readme?: string;
 }
 
 /**
@@ -100,6 +103,9 @@ export class ToolManager extends EventEmitter {
             rating: manifest.rating,
             mau: manifest.mau,
             status: manifest.status,
+            repository: manifest.repository,
+            website: manifest.website,
+            readmeUrl: manifest.readme,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -434,6 +440,9 @@ export class ToolManager extends EventEmitter {
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
+            repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
+            website: packageJson.homepage,
+            readmeUrl: packageJson.readme,
         };
 
         this.tools.set(toolId, tool);
@@ -619,6 +628,9 @@ export class ToolManager extends EventEmitter {
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
+            repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
+            website: packageJson.homepage,
+            readmeUrl: packageJson.readme,
         };
 
         this.tools.set(toolId, tool);

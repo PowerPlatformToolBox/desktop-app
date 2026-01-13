@@ -466,6 +466,8 @@ export class ToolRegistryManager extends EventEmitter {
             categories: tool.categories,
             license: tool.license || packageJson.license,
             status: tool.status,
+            repository: tool.repository, // Include repository URL from registry
+            website: tool.website, // Include website URL from registry
         };
 
         // Save to manifest file
@@ -523,7 +525,7 @@ export class ToolRegistryManager extends EventEmitter {
                     if (typeof t.author === "string") authors = [t.author];
                     else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
                 }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status } = t as any;
+                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status, repository, website } = t as any;
                 return {
                     id,
                     name,
@@ -541,6 +543,8 @@ export class ToolRegistryManager extends EventEmitter {
                     categories,
                     license,
                     status,
+                    repository,
+                    website,
                 } as ToolManifest;
             });
             return normalized;
