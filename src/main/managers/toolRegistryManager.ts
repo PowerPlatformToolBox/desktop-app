@@ -471,6 +471,8 @@ export class ToolRegistryManager extends EventEmitter {
             status: tool.status,
             repository: tool.repository, // Include repository URL from registry
             website: tool.website, // Include website URL from registry
+            createdAt: tool.createdAt,
+            publishedAt: tool.publishedAt,
         };
 
         // Save to manifest file
