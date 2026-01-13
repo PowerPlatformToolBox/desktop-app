@@ -422,7 +422,6 @@ export async function loadMarketplace(): Promise<void> {
 function populateMarketplaceFilters(): void {
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
-    const newFilter = document.getElementById("marketplace-new-filter") as HTMLSelectElement | null;
 
     if (!categoryFilter || !authorFilter) return;
 
