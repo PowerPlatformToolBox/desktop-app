@@ -106,6 +106,9 @@ export async function loadMarketplace(): Promise<void> {
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
 
+    // Get display mode setting
+    const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
+
     // Get filter and sort values
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
@@ -253,6 +256,34 @@ export async function loadMarketplace(): Promise<void> {
 
             const defaultInstallIcon = isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg";
 
+            // Render based on display mode
+            if (displayMode === "compact") {
+                // Compact mode: icon, name, version, author only
+                return `
+        <div class="marketplace-item-pptb marketplace-item-compact ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+            <div class="marketplace-item-header-pptb">
+                <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
+                <div class="marketplace-item-info-pptb">
+                    <div class="marketplace-item-name-pptb">
+                        ${tool.name}
+                    </div>
+                    <div class="marketplace-item-version-pptb">v${tool.version}</div>
+                </div>
+                <div class="marketplace-item-header-right-pptb">
+                    ${
+                        isInstalled
+                            ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
+                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                    }
+                </div>
+            </div>
+            <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
+        </div>
+    `;
+            }
+
+            // Standard mode: full details
             return `
         <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">

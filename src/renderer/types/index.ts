@@ -52,6 +52,7 @@ export interface SettingsState {
     autoUpdate?: boolean;
     showDebugMenu?: boolean;
     deprecatedToolsVisibility?: string;
+    toolDisplayMode?: string;
     terminalFont?: string;
 }
 

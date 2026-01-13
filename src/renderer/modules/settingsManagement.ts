@@ -20,11 +20,12 @@ export async function loadSidebarSettings(): Promise<void> {
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
     const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any; // Fluent UI select element
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any; // Fluent UI select element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
-    if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && terminalFontSelect) {
+    if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
 
         // Store original settings for change detection
@@ -33,6 +34,7 @@ export async function loadSidebarSettings(): Promise<void> {
             autoUpdate: settings.autoUpdate,
             showDebugMenu: settings.showDebugMenu ?? false,
             deprecatedToolsVisibility: settings.deprecatedToolsVisibility ?? "hide-all",
+            toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
         };
 
@@ -40,6 +42,7 @@ export async function loadSidebarSettings(): Promise<void> {
         autoUpdateCheck.checked = settings.autoUpdate;
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
         deprecatedToolsSelect.value = settings.deprecatedToolsVisibility ?? "hide-all";
+        toolDisplayModeSelect.value = settings.toolDisplayMode ?? "standard";
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
 
@@ -73,10 +76,11 @@ export async function saveSidebarSettings(): Promise<void> {
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
     const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any; // Fluent UI select element
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any; // Fluent UI select element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
 
-    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !terminalFontSelect) return;
+    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
     let terminalFont = terminalFontSelect.value;
 
@@ -90,6 +94,7 @@ export async function saveSidebarSettings(): Promise<void> {
         autoUpdate: autoUpdateCheck.checked,
         showDebugMenu: showDebugMenuCheck.checked,
         deprecatedToolsVisibility: deprecatedToolsSelect.value,
+        toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
     };
 
@@ -108,6 +113,9 @@ export async function saveSidebarSettings(): Promise<void> {
     if (currentSettings.deprecatedToolsVisibility !== originalSettings.deprecatedToolsVisibility) {
         changedSettings.deprecatedToolsVisibility = currentSettings.deprecatedToolsVisibility;
     }
+    if (currentSettings.toolDisplayMode !== originalSettings.toolDisplayMode) {
+        changedSettings.toolDisplayMode = currentSettings.toolDisplayMode;
+    }
     if (currentSettings.terminalFont !== originalSettings.terminalFont) {
         changedSettings.terminalFont = currentSettings.terminalFont;
     }
@@ -123,6 +131,12 @@ export async function saveSidebarSettings(): Promise<void> {
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {
+            await loadSidebarTools();
+            await loadMarketplace();
+        }
+
+        // Reload tools list if display mode changed
+        if (changedSettings.toolDisplayMode !== undefined) {
             await loadSidebarTools();
             await loadMarketplace();
         }

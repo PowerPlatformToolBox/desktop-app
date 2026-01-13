@@ -2109,6 +2109,48 @@ body.dark-theme .settings-section-card {
     }
 }
 
+/* Compact mode styles for tools */
+.tool-item-compact {
+    padding: 8px 12px !important;
+}
+
+.tool-item-compact .tool-item-header-pptb {
+    margin-bottom: 2px !important;
+}
+
+.tool-item-compact .tool-item-description-pptb,
+.tool-item-compact .tool-item-footer-pptb,
+.tool-item-compact .tool-item-top-tags,
+.tool-item-compact .tool-item-updated-version-available-pptb,
+.tool-item-compact .tool-item-update-btn {
+    display: none !important;
+}
+
+.tool-item-compact .tool-item-authors-pptb {
+    font-size: 11px;
+    margin-left: 38px;
+}
+
+/* Compact mode styles for marketplace */
+.marketplace-item-compact {
+    padding: 8px 12px !important;
+}
+
+.marketplace-item-compact .marketplace-item-header-pptb {
+    margin-bottom: 2px !important;
+}
+
+.marketplace-item-compact .marketplace-item-description-pptb,
+.marketplace-item-compact .marketplace-item-footer-pptb,
+.marketplace-item-compact .marketplace-item-top-tags {
+    display: none !important;
+}
+
+.marketplace-item-compact .marketplace-item-author-pptb {
+    font-size: 11px;
+    margin-left: 38px;
+}
+
 /* VSCode-style marketplace list */
 .marketplace-tools-list-pptb {
     display: flex;

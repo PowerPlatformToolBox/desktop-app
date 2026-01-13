@@ -25,7 +25,7 @@ export interface Tool {
     name: string;
     version: string;
     description: string;
-    publishedAt: string;
+    publishedAt?: string;
     createdAt?: string; // ISO date string from created_at field
     authors?: string[];
     iconUrl?: string;

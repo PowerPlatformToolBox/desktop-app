@@ -26,6 +26,11 @@ export type MarketplaceSortOption = "name-asc" | "name-desc" | "popularity" | "r
 export type DeprecatedToolsVisibility = "hide-all" | "show-all" | "show-installed" | "show-marketplace";
 
 /**
+ * Tool display mode options
+ */
+export type ToolDisplayMode = "standard" | "compact";
+
+/**
  * User settings for the ToolBox application
  */
 export interface UserSettings {
@@ -35,6 +40,7 @@ export interface UserSettings {
     terminalFont: string;
     showDebugMenu: boolean;
     deprecatedToolsVisibility?: DeprecatedToolsVisibility;
+    toolDisplayMode?: ToolDisplayMode;
     lastUsedTools: string[];
     connections: DataverseConnection[];
     installedTools: string[]; // List of installed tool package names
