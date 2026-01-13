@@ -98,6 +98,8 @@ export interface ToolManifest {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    publishedAt?: string;
+    createdAt?: string;
 }
 
 /**
