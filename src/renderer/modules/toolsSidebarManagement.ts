@@ -6,6 +6,7 @@
 import { ToolDetail } from "../types/index";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
+import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
@@ -27,8 +28,12 @@ export async function loadSidebarTools(): Promise<void> {
                 <div class="empty-state">
                     <p>No tools installed yet.</p>
                     <p class="empty-state-hint">Install tools from the marketplace to get started.</p>
+                    <button class="fluent-button fluent-button-primary" id="go-to-marketplace-btn">Browse Marketplace</button>
                 </div>
             `;
+
+            // Add event listener for the marketplace button
+            attachMarketplaceNavigationButton("go-to-marketplace-btn", "");
             return;
         }
 
@@ -127,12 +132,31 @@ export async function loadSidebarTools(): Promise<void> {
 
         // Empty state when no matches after filtering
         if (sortedTools.length === 0) {
+            const hasSearchTerm = searchTerm.length > 0;
+            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor;
+            const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
                     <p>No matching tools</p>
-                    <p class="empty-state-hint">Try a different search term.</p>
+                    <p class="empty-state-hint">${emptyMessage}</p>
+                    <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
+                    ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="clear-filters-link">Clear all filters</a>' : ""}
                 </div>
             `;
+
+            // Add event listener for the marketplace search button
+            attachMarketplaceNavigationButton("search-marketplace-btn", searchTerm);
+
+            // Add event listener for clear filters link
+            if (hasActiveFilters) {
+                const clearFiltersLink = document.getElementById("clear-filters-link");
+                if (clearFiltersLink) {
+                    clearFiltersLink.addEventListener("click", (e) => {
+                        e.preventDefault();
+                        clearAllFilters();
+                    });
+                }
+            }
             return;
         }
 
@@ -579,6 +603,69 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
             title: "Update Failed",
             body: `Failed to update tool: ${(error as Error).message}`,
             type: "error",
+        });
+    }
+}
+
+/**
+ * Clear all filters in the installed tools section
+ */
+function clearAllFilters(): void {
+    // Clear search input
+    const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
+    // Reset category filter
+    const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reset author filter
+    const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+    if (authorFilter) {
+        authorFilter.value = "";
+    }
+
+    // Reload the sidebar tools to reflect the cleared filters
+    loadSidebarTools();
+}
+
+/**
+ * Attach click event listener to a marketplace navigation button
+ */
+function attachMarketplaceNavigationButton(buttonId: string, searchTerm: string): void {
+    const button = document.getElementById(buttonId);
+    if (button) {
+        button.addEventListener("click", () => {
+            navigateToMarketplace(searchTerm);
+        });
+    }
+}
+
+/**
+ * Navigate to marketplace sidebar and optionally set a search term
+ */
+async function navigateToMarketplace(searchTerm: string = ""): Promise<void> {
+    // Switch to marketplace sidebar
+    switchSidebar("marketplace");
+
+    // If a search term is provided, set it in the marketplace search input
+    if (searchTerm) {
+        // Wait for the marketplace sidebar to be rendered using requestAnimationFrame
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                const marketplaceSearchInput = document.getElementById("marketplace-search-input") as HTMLInputElement;
+                if (marketplaceSearchInput) {
+                    marketplaceSearchInput.value = searchTerm;
+                    // Trigger the marketplace to reload with the search term
+                    loadMarketplace().then(() => resolve()).catch(() => resolve());
+                } else {
+                    resolve();
+                }
+            });
         });
     }
 }

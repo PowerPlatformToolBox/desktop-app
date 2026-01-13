@@ -1132,6 +1132,23 @@ body.dark-theme .settings-section-card {
     font-size: 14px;
 }
 
+.empty-state button {
+    margin-top: 16px;
+}
+
+.empty-state-link {
+    display: block;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #0078d4;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.empty-state-link:hover {
+    text-decoration: underline;
+}
+
 /* Modal */
 .modal {
     display: none;

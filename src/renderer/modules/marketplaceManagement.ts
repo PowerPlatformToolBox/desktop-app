@@ -193,12 +193,27 @@ export async function loadMarketplace(): Promise<void> {
 
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
+        const hasSearchTerm = searchTerm.length > 0;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor;
+        const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
                 <p>No matching tools</p>
-                <p class="empty-state-hint">${searchTerm ? "Try a different search term." : "Check back later for new tools."}</p>
+                <p class="empty-state-hint">${emptyMessage}</p>
+                ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="marketplace-clear-filters-link">Clear all filters</a>' : ""}
             </div>
         `;
+
+        // Add event listener for clear filters link
+        if (hasActiveFilters) {
+            const clearFiltersLink = document.getElementById("marketplace-clear-filters-link");
+            if (clearFiltersLink) {
+                clearFiltersLink.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    clearMarketplaceFilters();
+                });
+            }
+        }
         return;
     }
 
@@ -639,4 +654,30 @@ function formatError(error: unknown): string {
     } catch {
         return String(error);
     }
+}
+
+/**
+ * Clear all filters in the marketplace section
+ */
+function clearMarketplaceFilters(): void {
+    // Clear search input
+    const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
+    // Reset category filter
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reset author filter
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+    if (authorFilter) {
+        authorFilter.value = "";
+    }
+
+    // Reload the marketplace to reflect the cleared filters
+    loadMarketplace();
 }
