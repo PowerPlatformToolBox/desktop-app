@@ -206,7 +206,9 @@ export function captureMessage(
         ...context?.tags,
     };
 
-    console.log(message, logData);
+    if (process.env.NODE_ENV !== "production") {
+        console.log(message, logData);
+    }
 
     switch (level) {
         case "fatal":
