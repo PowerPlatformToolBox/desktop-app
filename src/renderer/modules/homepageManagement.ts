@@ -46,7 +46,55 @@ export function hideHomePage(): void {
  * Load all homepage data
  */
 export async function loadHomepageData(): Promise<void> {
-    await Promise.all([loadHeroStats(), loadWhatsNew(), loadSponsorData(), loadQuickAccessTools()]);
+    await Promise.all([loadHeroStats(), loadNewToolsNotification(), loadWhatsNew(), loadSponsorData(), loadQuickAccessTools()]);
+}
+
+/**
+ * Load new tools notification bar
+ * Shows tools published in the last 7 days
+ */
+async function loadNewToolsNotification(): Promise<void> {
+    try {
+        // Get available tools from marketplace
+        const availableTools = await window.toolboxAPI.fetchRegistryTools();
+
+        // Calculate date 7 days ago
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        // Filter tools published in the last 7 days
+        const newTools = availableTools.filter((tool: any) => {
+            if (!tool.createdAt) return false;
+            const createdDate = new Date(tool.createdAt);
+            return createdDate >= sevenDaysAgo;
+        });
+
+        // Show notification if there are new tools
+        const notificationBar = document.getElementById("new-tools-notification");
+        const messageEl = document.getElementById("new-tools-message");
+
+        if (newTools.length > 0 && notificationBar && messageEl) {
+            if (newTools.length === 1) {
+                // Single new tool
+                messageEl.textContent = `${newTools[0].name} is now available in the marketplace!`;
+            } else {
+                // Multiple new tools
+                messageEl.textContent = `${newTools.length} new tools available! Check them out in the marketplace.`;
+            }
+
+            notificationBar.style.display = "flex";
+
+            // Add click handler to navigate to marketplace
+            notificationBar.style.cursor = "pointer";
+            notificationBar.onclick = () => {
+                switchSidebar("marketplace");
+            };
+        } else if (notificationBar) {
+            notificationBar.style.display = "none";
+        }
+    } catch (error) {
+        console.error("Failed to load new tools notification:", error);
+    }
 }
 
 /**

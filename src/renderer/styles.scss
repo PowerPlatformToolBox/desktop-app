@@ -3107,6 +3107,24 @@ body.dark-theme .modern-markdown code {
     content: "⚠";
 }
 
+/* Marketplace item with NEW badge */
+.marketplace-item-new-badge {
+    background: linear-gradient(135deg, #6a00ff 0%, #8b00ff 100%);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 1px 3px rgba(106, 0, 255, 0.3);
+}
+
+.marketplace-item-new-badge::before {
+    content: "✨";
+}
+
 .marketplace-item-pptb.deprecated {
     background: rgba(216, 59, 1, 0.05);
     border-left: 3px solid #d83b01;

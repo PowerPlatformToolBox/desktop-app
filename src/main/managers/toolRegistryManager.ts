@@ -64,6 +64,7 @@ interface SupabaseTool {
     checksum?: string;
     size?: string; // stored as text in schema
     published_at?: string;
+    created_at?: string;
     csp_exceptions?: unknown;
     features?: unknown; // JSON column for tool features
     license?: string;
@@ -176,6 +177,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "checksum",
                 "size",
                 "published_at",
+                "created_at",
                 "license",
                 "csp_exceptions",
                 "features",
@@ -228,6 +230,7 @@ export class ToolRegistryManager extends EventEmitter {
                     repository: tool.repository,
                     website: tool.website,
                     publishedAt: tool.published_at || new Date().toISOString(),
+                    createdAt: tool.created_at || new Date().toISOString(),
                     checksum: tool.checksum,
                     size: tool.size ? Number(tool.size) || undefined : undefined,
                     categories: categories,

@@ -89,4 +89,5 @@ export interface ToolDetail {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    createdAt?: string; // ISO date string from created_at field
 }
