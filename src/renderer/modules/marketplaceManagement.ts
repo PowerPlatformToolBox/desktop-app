@@ -251,9 +251,10 @@ export async function loadMarketplace(): Promise<void> {
                 toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
             }
 
+            const defaultInstallIcon = isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg";
+
             return `
         <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
-            <div class="marketplace-item-top-tags">${newBadgeHtml}${categoriesHtml}${isInstalled ? ' <span class="marketplace-item-installed-badge">Installed</span>' : ""}${deprecatedBadgeHtml}</div>
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -262,15 +263,21 @@ export async function loadMarketplace(): Promise<void> {
                     </div>
                     <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
+                <div class="marketplace-item-header-right-pptb">
+                    ${
+                        isInstalled
+                            ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
+                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                    }
+                </div>
             </div>
             <div class="marketplace-item-description-pptb">${tool.description}</div>
             <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
             <div class="marketplace-item-footer-pptb">
                 ${analyticsHtml}
-                <div class="marketplace-item-actions-right">
-                    ${!isInstalled ? `<button class="fluent-button fluent-button-primary" data-action="install" data-tool-id="${tool.id}">Install</button>` : ""}
-                </div>
             </div>
+            <div class="marketplace-item-top-tags">${newBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}</div>
         </div>
     `;
         })
@@ -294,66 +301,45 @@ export async function loadMarketplace(): Promise<void> {
         });
     });
 
-    // Add event listeners for install and update buttons
-    marketplaceList.querySelectorAll(".marketplace-item-actions-right button").forEach((button) => {
+    // Add event listeners for install buttons in header
+    marketplaceList.querySelectorAll(".install-button").forEach((button) => {
         button.addEventListener("click", async (e) => {
             e.stopPropagation(); // Prevent opening detail modal
-            const target = e.target as HTMLButtonElement;
-            const action = target.getAttribute("data-action");
-            const toolId = target.getAttribute("data-tool-id");
+            const target = e.target as HTMLElement;
+
+            // Handle both button and img clicks
+            const buttonElement = target.tagName === "BUTTON" ? target : target.closest("button");
+            if (!buttonElement) return;
+
+            const toolId = buttonElement.getAttribute("data-tool-id");
             if (!toolId) return;
 
-            if (action === "install") {
-                target.disabled = true;
-                target.textContent = "Installing...";
+            // Disable button and show loading state
+            buttonElement.setAttribute("disabled", "true");
+            const originalHtml = buttonElement.innerHTML;
+            buttonElement.innerHTML = "Installing...";
 
-                try {
-                    // Use registry-based installation
-                    await window.toolboxAPI.installToolFromRegistry(toolId);
+            try {
+                // Use registry-based installation
+                await window.toolboxAPI.installToolFromRegistry(toolId);
 
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Tool Installed",
-                        body: `Tool has been installed successfully`,
-                        type: "success",
-                    });
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Installed",
+                    body: `Tool has been installed successfully`,
+                    type: "success",
+                });
 
-                    // Reload marketplace and tools sidebar
-                    await loadMarketplace();
-                    await loadSidebarTools();
-                } catch (error) {
-                    target.disabled = false;
-                    target.textContent = "Install";
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Installation Failed",
-                        body: `Failed to install tool: ${error}`,
-                        type: "error",
-                    });
-                }
-            } else if (action === "update") {
-                target.disabled = true;
-                target.textContent = "Updating...";
-
-                try {
-                    const updatedTool = await window.toolboxAPI.updateTool(toolId);
-
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Tool Updated",
-                        body: `Tool has been updated to v${updatedTool.version}`,
-                        type: "success",
-                    });
-
-                    // Reload marketplace and tools sidebar
-                    await loadMarketplace();
-                    await loadSidebarTools();
-                } catch (error) {
-                    target.disabled = false;
-                    target.textContent = "Update";
-                    window.toolboxAPI.utils.showNotification({
-                        title: "Update Failed",
-                        body: `Failed to update tool: ${error}`,
-                        type: "error",
-                    });
-                }
+                // Reload marketplace and tools sidebar
+                await loadMarketplace();
+                await loadSidebarTools();
+            } catch (error) {
+                buttonElement.removeAttribute("disabled");
+                buttonElement.innerHTML = originalHtml;
+                window.toolboxAPI.utils.showNotification({
+                    title: "Installation Failed",
+                    body: `Failed to install tool: ${error}`,
+                    type: "error",
+                });
             }
         });
     });
