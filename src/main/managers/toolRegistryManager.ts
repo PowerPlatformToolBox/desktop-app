@@ -64,6 +64,7 @@ interface SupabaseTool {
     published_at?: string;
     csp_exceptions?: unknown;
     license?: string;
+    repository?: string;
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -217,6 +218,7 @@ export class ToolRegistryManager extends EventEmitter {
                     categories: categories,
                     cspExceptions: (tool.csp_exceptions as Record<string, unknown> | undefined) || undefined,
                     license: tool.license,
+                    repository: tool.repository,
                     downloads,
                     rating,
                     aum,
@@ -440,6 +442,7 @@ export class ToolRegistryManager extends EventEmitter {
             cspExceptions: tool.cspExceptions || packageJson.cspExceptions, // Include CSP exceptions
             categories: tool.categories,
             license: tool.license || packageJson.license,
+            repository: tool.repository, // Include repository URL from registry
             downloads: tool.downloads,
             rating: tool.rating,
             aum: tool.aum,

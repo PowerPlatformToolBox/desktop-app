@@ -24,6 +24,7 @@ export interface Tool {
     rating?: number;
     aum?: number;
     readmeUrl?: string;
+    repository?: string; // Repository URL for bug reports and feedback
 }
 
 /**
@@ -47,6 +48,7 @@ export interface ToolRegistryEntry {
     downloads?: number; // analytics - total downloads
     rating?: number; // analytics - average rating
     aum?: number; // analytics - active user months
+    repository?: string; // Repository URL for bug reports and feedback
 }
 
 /**
@@ -70,6 +72,7 @@ export interface ToolManifest {
     downloads?: number;
     rating?: number;
     aum?: number;
+    repository?: string; // Repository URL for bug reports and feedback
 }
 
 /**

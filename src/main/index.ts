@@ -798,6 +798,13 @@ class ToolBoxApp {
                     },
                     { type: "separator" },
                     {
+                        label: "Tool Feedback",
+                        click: async () => {
+                            await this.openToolFeedback();
+                        },
+                    },
+                    { type: "separator" },
+                    {
                         label: "Toggle Tool DevTools",
                         accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
                         click: () => {
@@ -968,6 +975,69 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
             if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
             }
+        }
+    }
+
+    /**
+     * Open Tool Feedback - opens the repository URL for the active tool
+     * or shows a helpful message if no tool is active or no repository URL is available
+     */
+    private async openToolFeedback(): Promise<void> {
+        if (!this.toolWindowManager) {
+            return;
+        }
+
+        // Get the active tool ID
+        const activeToolId = this.toolWindowManager.getActiveToolId();
+        
+        if (!activeToolId) {
+            // No active tool
+            dialog.showMessageBox(this.mainWindow!, {
+                type: "info",
+                title: "Tool Feedback",
+                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                buttons: ["OK"],
+            });
+            return;
+        }
+
+        // Get the tool information
+        const tool = this.toolManager.getTool(activeToolId);
+        
+        if (!tool) {
+            // Tool not found (shouldn't happen, but handle gracefully)
+            dialog.showMessageBox(this.mainWindow!, {
+                type: "info",
+                title: "Tool Feedback",
+                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                buttons: ["OK"],
+            });
+            return;
+        }
+
+        // Check if the tool has a repository URL
+        if (!tool.repository || tool.repository.trim() === "") {
+            // No repository URL available
+            dialog.showMessageBox(this.mainWindow!, {
+                type: "info",
+                title: "Tool Feedback",
+                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                buttons: ["OK"],
+            });
+            return;
+        }
+
+        // Open the repository URL
+        try {
+            await shell.openExternal(tool.repository);
+        } catch (error) {
+            console.error("Failed to open repository URL:", error);
+            dialog.showMessageBox(this.mainWindow!, {
+                type: "error",
+                title: "Tool Feedback",
+                message: `Failed to open repository URL: ${(error as Error).message}`,
+                buttons: ["OK"],
+            });
         }
     }
 
