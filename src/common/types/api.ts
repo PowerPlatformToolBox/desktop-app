@@ -3,7 +3,7 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { ModalWindowMessagePayload, ModalWindowOptions, Theme } from "./common";
+import { ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { UserSettings } from "./settings";
@@ -18,12 +18,11 @@ export interface ConnectionsAPI {
     update: (id: string, updates: Partial<DataverseConnection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
     getAll: () => Promise<DataverseConnection[]>;
-    setActive: (id: string) => Promise<void>;
-    getActiveConnection: () => Promise<DataverseConnection | null>;
-    disconnect: () => Promise<void>;
+    getById: (connectionId: string) => Promise<DataverseConnection | null>;
     test: (connection: DataverseConnection) => Promise<{ success: boolean; error?: string }>;
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
+    authenticate: (connectionId: string) => Promise<void>;
 }
 
 /**
@@ -33,6 +32,7 @@ export interface UtilsAPI {
     showNotification: (options: { title: string; body: string; type?: "info" | "success" | "warning" | "error"; duration?: number }) => Promise<void>;
     copyToClipboard: (text: string) => Promise<void>;
     saveFile: (defaultPath: string, content: string | Buffer) => Promise<string | null>;
+    selectPath: (options?: SelectPathOptions) => Promise<string | null>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
     showLoading: (message?: string) => Promise<void>;
@@ -78,6 +78,9 @@ export interface DataverseAPI {
     getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => Promise<unknown>;
     getAllEntitiesMetadata: () => Promise<unknown>;
     queryData: (odataQuery: string) => Promise<unknown>;
+    createMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<string[]>;
+    updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[]) => Promise<void>;
+    getEntitySetName: (entityLogicalName: string) => Promise<string>;
 }
 
 /**
@@ -115,11 +118,12 @@ export interface ToolboxAPI {
     getToolWebviewUrl: (toolId: string) => Promise<string>;
 
     // Tool Window Management
-    launchToolWindow: (toolId: string, tool: Tool) => Promise<boolean>;
+    launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
+    updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
@@ -127,6 +131,23 @@ export interface ToolboxAPI {
     getFavoriteTools: () => Promise<string[]>;
     isFavoriteTool: (toolId: string) => Promise<boolean>;
     toggleFavoriteTool: (toolId: string) => Promise<boolean>;
+
+    // Tool-specific connection management
+    setToolConnection: (toolId: string, connectionId: string) => Promise<void>;
+    getToolConnection: (toolId: string) => Promise<string | null>;
+    removeToolConnection: (toolId: string) => Promise<void>;
+    getAllToolConnections: () => Promise<Record<string, string>>;
+
+    // Tool-specific secondary connection management (for multi-connection tools)
+    setToolSecondaryConnection: (toolId: string, connectionId: string) => Promise<void>;
+    getToolSecondaryConnection: (toolId: string) => Promise<string | null>;
+    removeToolSecondaryConnection: (toolId: string) => Promise<void>;
+    getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
+
+    // Recently used tools
+    addLastUsedTool: (toolId: string) => Promise<void>;
+    getLastUsedTools: () => Promise<string[]>;
+    clearLastUsedTools: () => Promise<void>;
 
     // Local tool development (DEBUG MODE)
     loadLocalTool: (localPath: string) => Promise<Tool>;

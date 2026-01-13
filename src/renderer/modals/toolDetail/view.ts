@@ -1,3 +1,5 @@
+import { getModalStyles } from "../sharedStyles";
+
 export interface ModalViewTemplate {
     styles: string;
     body: string;
@@ -13,28 +15,18 @@ export interface ToolDetailModalViewModel {
     categories: string[];
     isInstalled: boolean;
     readmeUrl?: string;
+    isDarkTheme: boolean;
+    repository?: string;
+    website?: string;
+    rating?: number;
 }
 
 export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalViewTemplate {
-    const styles = `
+    const styles =
+        getModalStyles(model.isDarkTheme) +
+        `
 <style>
-    :root {
-        color-scheme: dark;
-    }
-
-    * {
-        box-sizing: border-box;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        color: #f3f3f3;
-    }
+    /* Tool detail specific styles */
 
     .tool-detail-modal-panel {
         width: 100%;
@@ -43,10 +35,9 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         flex-direction: column;
         gap: 16px;
         padding: 28px;
-        background: rgba(20, 20, 24, 0.95);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.65);
+        background: ${model.isDarkTheme ? "rgba(20, 20, 24, 0.95)" : "rgba(255, 255, 255, 0.95)"};
+        border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
+        box-shadow: 0 40px 90px rgba(0, 0, 0, ${model.isDarkTheme ? "0.65" : "0.25"});
     }
 
     .tool-detail-modal-header {
@@ -70,7 +61,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         text-transform: uppercase;
         letter-spacing: 0.08em;
         font-size: 11px;
-        color: rgba(255, 255, 255, 0.6);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
         margin: 0;
     }
 
@@ -78,12 +69,12 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         margin: 0;
         font-size: 28px;
         font-weight: 600;
-        color: #fff;
+        color: ${model.isDarkTheme ? "#fff" : "#000"};
     }
 
     .tool-detail-description {
         margin: 0;
-        color: rgba(255, 255, 255, 0.8);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.8)" : "rgba(0, 0, 0, 0.8)"};
         font-size: 15px;
         line-height: 1.5;
     }
@@ -91,7 +82,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     .tool-detail-authors {
         margin: 0;
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.75);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.75)" : "rgba(0, 0, 0, 0.75)"};
     }
 
     .tool-detail-meta-list,
@@ -103,7 +94,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
 
     .tool-detail-meta-list {
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.65);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.65)" : "rgba(0, 0, 0, 0.65)"};
     }
 
     .tool-detail-meta-list span {
@@ -114,16 +105,16 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     .tool-detail-meta-list span + span::before {
         content: "•";
         margin: 0 6px;
-        color: rgba(255, 255, 255, 0.45);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.45)" : "rgba(0, 0, 0, 0.45)"};
     }
 
     .tool-detail-tags span {
         border-radius: 999px;
         padding: 4px 12px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
+        background: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.06)"};
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.85);
+        color: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.85)"};
     }
 
     .tool-detail-actions {
@@ -134,20 +125,48 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     }
 
     .tool-installed-badge {
-        background: rgba(16, 124, 16, 0.2);
         border: 1px solid rgba(16, 124, 16, 0.35);
-        color: #9ff29f;
-        padding: 6px 12px;
-        border-radius: 999px;
+        background: #107c10;
+        color: white;
+        padding: 6px 16px;
+        border-radius: 4px;
         font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .tool-installed-badge::before {
+        content: "✓";
+        margin-right: 6px;
+    }
+
+    .tool-detail-links {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        font-size: 13px;
+    }
+
+    .tool-detail-link {
+        color: ${model.isDarkTheme ? "#a6c8ff" : "#004578"};
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+    }
+
+    .tool-detail-link:hover {
+        text-decoration: underline;
     }
 
     .tool-detail-icon-shell {
         width: 96px;
         height: 96px;
         border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"};
+        background: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
         display: flex;
         align-items: center;
         justify-content: center;
@@ -187,8 +206,8 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     }
 
     .tool-detail-readme-card {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: ${model.isDarkTheme ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.04)"};
+        border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         border-radius: 16px;
         padding: 20px;
         height: 100%;
@@ -206,7 +225,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     .markdown-content {
         line-height: 1.6;
         font-size: 14px;
-        color: #f3f3f3;
+        color: ${model.isDarkTheme ? "#f3f3f3" : "#1f1f1f"};
         flex: 1;
         min-height: 0;
         overflow-y: auto;
@@ -221,53 +240,35 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     }
 
     .markdown-content pre {
-        background: rgba(0, 0, 0, 0.5);
+        background: ${model.isDarkTheme ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.1)"};
         padding: 12px;
         border-radius: 8px;
         overflow-x: auto;
     }
 
-    .tool-detail-close-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: none;
-        color: #fff;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 1;
-    }
-
-    .tool-detail-close-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
-    }
-
-    .fluent-button {
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        padding: 10px 18px;
-        cursor: pointer;
-        transition: background 0.2s ease, color 0.2s ease;
-    }
-
-    .fluent-button-primary {
-        background: #0e639c;
-        color: #fff;
-    }
-
-    .fluent-button-primary[disabled] {
-        opacity: 0.6;
-        cursor: default;
-    }
 </style>`;
 
     const badgeMarkup = model.metaBadges.map((badge) => `<span>${badge}</span>`).join("");
     const tagsMarkup = model.categories.length ? model.categories.map((tag) => `<span>${tag}</span>`).join("") : "";
 
     const readmePlaceholder = model.readmeUrl ? "Loading README..." : "README is not available for this tool.";
+
+    // Add rating badge with reviews link
+    let ratingsHtml = "";
+    if (model.rating !== undefined) {
+        ratingsHtml = `<span>${model.rating.toFixed(1)} rating</span>`;
+    }
+
+    const linkItems: string[] = [];
+    linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-link" href="#" role="button">Leave a review</a>`);
+    if (model.repository) {
+        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-link" href="#" role="button">Repository</a>`);
+    }
+    if (model.website) {
+        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-link" href="#" role="button">Website</a>`);
+    }
+
+    const linksMarkup = linkItems.length ? `<div class="tool-detail-links">${linkItems.join("<span>•</span>")}</div>` : "";
 
     const body = `
 <div class="tool-detail-modal-panel" data-tool-id="${model.toolId}">
@@ -281,14 +282,15 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
                 <h2 class="tool-detail-name">${model.name}</h2>
                 <p class="tool-detail-description">${model.description}</p>
                 <p class="tool-detail-authors">By ${model.authors}</p>
-                ${badgeMarkup ? `<div class="tool-detail-meta-list">${badgeMarkup}</div>` : ""}
+                ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                 <div class="tool-detail-actions">
                     <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""}>Install</button>
                     <span id="tool-detail-installed-badge" class="tool-installed-badge" ${model.isInstalled ? "" : 'style="display:none"'}>Installed</span>
                 </div>
+                ${linksMarkup}
             </div>
         </div>
-        <button id="tool-detail-close-btn" class="tool-detail-close-btn" aria-label="Close">&times;</button>
+        <button id="tool-detail-close-btn" class="icon-button" aria-label="Close">&times;</button>
     </div>
     <div class="tool-detail-body">
         <div class="tool-detail-readme-card">

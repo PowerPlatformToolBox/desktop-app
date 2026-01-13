@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We, as contributors and maintainers, pledge to make participation in the Power Platform Tool Box project and our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, experience level, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
+We, as contributors and maintainers, pledge to make participation in the Power Platform ToolBox project and our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, experience level, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
 
 We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community aligned with the freedoms provided by the GNU General Public License v3.0 (GPLv3) that governs this project.
 

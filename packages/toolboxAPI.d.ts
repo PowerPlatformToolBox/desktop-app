@@ -1,5 +1,5 @@
 /**
- * Power Platform Tool Box - ToolBox API Type Definitions
+ * Power Platform ToolBox - ToolBox API Type Definitions
  *
  * Core ToolBox API exposed to tools via window.toolboxAPI
  */
@@ -12,6 +12,9 @@ declare namespace ToolBoxAPI {
     export interface ToolContext {
         toolId: string | null;
         connectionUrl: string | null;
+        connectionId?: string | null;
+        secondaryConnectionUrl?: string | null;
+        secondaryConnectionId?: string | null;
     }
 
     /**
@@ -22,6 +25,26 @@ declare namespace ToolBoxAPI {
         body: string;
         type?: "info" | "success" | "warning" | "error";
         duration?: number; // Duration in milliseconds, 0 for persistent
+    }
+
+    /**
+     * File dialog filter definition
+     */
+    export interface FileDialogFilter {
+        name: string;
+        extensions: string[];
+    }
+
+    /**
+     * Options for selecting a file or folder path
+     */
+    export interface SelectPathOptions {
+        type?: "file" | "folder";
+        title?: string;
+        message?: string;
+        buttonLabel?: string;
+        defaultPath?: string;
+        filters?: FileDialogFilter[];
     }
 
     /**
@@ -62,6 +85,11 @@ declare namespace ToolBoxAPI {
         tenantId?: string;
         createdAt: string;
         lastUsedAt?: string;
+        /**
+         * @deprecated isActive is a legacy field that is no longer persisted.
+         * It may be present in older tool code but should not be relied upon.
+         * Use the connection context provided by the ToolBox API instead.
+         */
         isActive?: boolean;
     }
 
@@ -120,6 +148,21 @@ declare namespace ToolBoxAPI {
          * Get the currently active Dataverse connection
          */
         getActiveConnection: () => Promise<DataverseConnection | null>;
+
+        /**
+         * Get the secondary connection for multi-connection tools
+         */
+        getSecondaryConnection: () => Promise<DataverseConnection | null>;
+
+        /**
+         * Get the secondary connection URL for multi-connection tools
+         */
+        getSecondaryConnectionUrl: () => Promise<string | null>;
+
+        /**
+         * Get the secondary connection ID for multi-connection tools
+         */
+        getSecondaryConnectionId: () => Promise<string | null>;
     }
 
     /**
@@ -140,6 +183,11 @@ declare namespace ToolBoxAPI {
          * Open a save file dialog and write content
          */
         saveFile: (defaultPath: string, content: any) => Promise<string | null>;
+
+        /**
+         * Open a native dialog to select either a file or a folder and return the chosen path
+         */
+        selectPath: (options?: SelectPathOptions) => Promise<string | null>;
 
         /**
          * Get the current UI theme (light or dark)

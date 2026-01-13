@@ -3,9 +3,11 @@
  * Handles user settings UI and persistence
  */
 
-import { applyTheme, applyTerminalFont, applyDebugMenuVisibility } from "./themeManagement";
-import type { SettingsState } from "../types/index";
 import { DEFAULT_TERMINAL_FONT } from "../constants";
+import type { SettingsState } from "../types/index";
+import { loadMarketplace } from "./marketplaceManagement";
+import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
@@ -17,11 +19,13 @@ export async function loadSidebarSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
+    const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any; // Fluent UI select element
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any; // Fluent UI select element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
-    if (themeSelect && autoUpdateCheck && showDebugMenuCheck && terminalFontSelect) {
+    if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
 
         // Store original settings for change detection
@@ -29,12 +33,16 @@ export async function loadSidebarSettings(): Promise<void> {
             theme: settings.theme,
             autoUpdate: settings.autoUpdate,
             showDebugMenu: settings.showDebugMenu ?? false,
+            deprecatedToolsVisibility: settings.deprecatedToolsVisibility ?? "hide-all",
+            toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
         };
 
         themeSelect.value = settings.theme;
         autoUpdateCheck.checked = settings.autoUpdate;
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
+        deprecatedToolsSelect.value = settings.deprecatedToolsVisibility ?? "hide-all";
+        toolDisplayModeSelect.value = settings.toolDisplayMode ?? "standard";
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
 
@@ -67,10 +75,12 @@ export async function saveSidebarSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
+    const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any; // Fluent UI select element
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any; // Fluent UI select element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
 
-    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !terminalFontSelect) return;
+    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
     let terminalFont = terminalFontSelect.value;
 
@@ -83,6 +93,8 @@ export async function saveSidebarSettings(): Promise<void> {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
         showDebugMenu: showDebugMenuCheck.checked,
+        deprecatedToolsVisibility: deprecatedToolsSelect.value,
+        toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
     };
 
@@ -98,6 +110,12 @@ export async function saveSidebarSettings(): Promise<void> {
     if (currentSettings.showDebugMenu !== originalSettings.showDebugMenu) {
         changedSettings.showDebugMenu = currentSettings.showDebugMenu;
     }
+    if (currentSettings.deprecatedToolsVisibility !== originalSettings.deprecatedToolsVisibility) {
+        changedSettings.deprecatedToolsVisibility = currentSettings.deprecatedToolsVisibility;
+    }
+    if (currentSettings.toolDisplayMode !== originalSettings.toolDisplayMode) {
+        changedSettings.toolDisplayMode = currentSettings.toolDisplayMode;
+    }
     if (currentSettings.terminalFont !== originalSettings.terminalFont) {
         changedSettings.terminalFont = currentSettings.terminalFont;
     }
@@ -110,6 +128,18 @@ export async function saveSidebarSettings(): Promise<void> {
         applyTheme(currentSettings.theme);
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
+
+        // Reload tools list if deprecated tools visibility changed
+        if (changedSettings.deprecatedToolsVisibility !== undefined) {
+            await loadSidebarTools();
+            await loadMarketplace();
+        }
+
+        // Reload tools list if display mode changed
+        if (changedSettings.toolDisplayMode !== undefined) {
+            await loadSidebarTools();
+            await loadMarketplace();
+        }
 
         // Update original settings to reflect new state
         originalSettings = { ...currentSettings };

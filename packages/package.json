@@ -1,6 +1,6 @@
 {
   "name": "@pptb/types",
-  "version": "1.0.9",
+  "version": "1.0.15",
   "description": "TypeScript type definitions for Power Platform Tool Box API",
   "main": "index.d.ts",
   "types": "index.d.ts",
@@ -12,7 +12,7 @@
     "typescript",
     "dataverse"
   ],
-  "author": "Power Platform Tool Box",
+  "author": "Power Platform ToolBox",
   "license": "GPL-3.0",
   "repository": {
     "type": "git",

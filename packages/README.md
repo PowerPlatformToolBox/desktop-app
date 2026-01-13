@@ -1,6 +1,6 @@
 # @pptb/types
 
-TypeScript type definitions for Power Platform Tool Box APIs.
+TypeScript type definitions for Power Platform ToolBox APIs.
 
 -   [@pptb/types](#pptbtypes)
     -   [Installation](#installation)
@@ -103,20 +103,30 @@ if (filePath) {
     console.log("File saved to:", filePath);
 }
 
+// Select a folder for exporting assets
+const targetFolder = await toolboxAPI.utils.selectPath({
+    type: "folder",
+    title: "Choose export directory",
+    defaultPath: "/Users/me/Downloads",
+});
+if (!targetFolder) {
+    console.log("User canceled folder selection");
+}
+
 // Get current theme
 const theme = await toolboxAPI.utils.getCurrentTheme();
 console.log("Current theme:", theme); // "light" or "dark"
 
 // Execute multiple operations in parallel
 const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-    dataverseAPI.retrieve('account', accountId, ['name']),
-    dataverseAPI.retrieve('contact', contactId, ['fullname']),
-    dataverseAPI.fetchXmlQuery(opportunityFetchXml)
+    dataverseAPI.retrieve("account", accountId, ["name"]),
+    dataverseAPI.retrieve("contact", contactId, ["fullname"]),
+    dataverseAPI.fetchXmlQuery(opportunityFetchXml),
 );
-console.log('All data fetched:', account, contact, opportunities);
+console.log("All data fetched:", account, contact, opportunities);
 
 // Show loading screen during operations
-await toolboxAPI.utils.showLoading('Processing data...');
+await toolboxAPI.utils.showLoading("Processing data...");
 try {
     // Perform operations
     await processData();
@@ -253,11 +263,17 @@ const result = await dataverseAPI.execute({
         FieldName: "total_revenue",
     },
 });
+
+// Publish customizations for the active environment
+await dataverseAPI.publishCustomizations();
+
+// Publish only a specific table (in this case, the account table)
+await dataverseAPI.publishCustomizations("account");
 ```
 
 ## API Reference
 
-The Power Platform Tool Box exposes two main APIs to tools:
+The Power Platform ToolBox exposes two main APIs to tools:
 
 ### ToolBox API (`window.toolboxAPI`)
 
@@ -282,6 +298,12 @@ Core platform features organized into namespaces:
 
     -   Opens a save dialog and writes the content. Returns the saved file path or null if canceled
 
+-   **selectPath(options?: SelectPathOptions)**: Promise<string | null>
+
+    -   Opens a native dialog to select either a file or folder (defaults to file)
+    -   Supports custom titles, button labels, default paths, and filters when selecting files
+    -   Returns the selected path or null if the user cancels
+
 -   **getCurrentTheme()**: Promise<"light" | "dark">
 
     -   Returns the current UI theme setting
@@ -294,9 +316,9 @@ Core platform features organized into namespaces:
     -   Example:
         ```typescript
         const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
-            dataverseAPI.retrieve('account', id1),
-            dataverseAPI.retrieve('contact', id2),
-            dataverseAPI.fetchXmlQuery(fetchXml)
+            dataverseAPI.retrieve("account", id1),
+            dataverseAPI.retrieve("contact", id2),
+            dataverseAPI.fetchXmlQuery(fetchXml),
         );
         ```
 
@@ -407,6 +429,8 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 -   **execute(request: ExecuteRequest)**: Promise<Record<string, unknown>>
     -   Executes a Dataverse Web API action or function
     -   Supports both bound and unbound operations
+-   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
+    -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
 
 ### Security Notes
 

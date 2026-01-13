@@ -1,8 +1,9 @@
 import { app, protocol } from "electron";
-import * as path from "path";
 import * as fs from "fs";
-import { ToolManager } from "./toolsManager";
+import * as path from "path";
+import { captureMessage } from "../../common/sentryHelper";
 import { SettingsManager } from "./settingsManager";
+import { ToolManager } from "./toolsManager";
 
 /**
  * BrowserviewProtocolManager
@@ -35,15 +36,15 @@ export class BrowserviewProtocolManager {
     registerScheme(): void {
         protocol.registerSchemesAsPrivileged([
             {
-                scheme: 'pptb-webview',
+                scheme: "pptb-webview",
                 privileges: {
                     standard: true,
                     secure: true,
                     supportFetchAPI: true,
                     corsEnabled: false, // Disable CORS for tool webviews (allows fetch to any domain)
                     bypassCSP: false, // Tools have their own independent CSP
-                }
-            }
+                },
+            },
         ]);
     }
 
@@ -53,7 +54,7 @@ export class BrowserviewProtocolManager {
      * Using registerBufferProtocol to support both file serving and HTML injection
      */
     registerHandler(): void {
-        protocol.registerBufferProtocol('pptb-webview', (request, callback) => {
+        protocol.registerBufferProtocol("pptb-webview", (request, callback) => {
             this.handleProtocolRequest(request, callback);
         });
     }
@@ -62,21 +63,18 @@ export class BrowserviewProtocolManager {
      * Handle protocol requests for pptb-webview://
      * URL format: pptb-webview://toolId/path/to/file
      */
-    private handleProtocolRequest(
-        request: Electron.ProtocolRequest,
-        callback: (response: Buffer | Electron.ProtocolResponse) => void
-    ): void {
+    private handleProtocolRequest(request: Electron.ProtocolRequest, callback: (response: Buffer | Electron.ProtocolResponse) => void): void {
         try {
             // Parse the URL: pptb-webview://toolId/path/to/file
-            const url = request.url.replace('pptb-webview://', '');
-            const [toolId, ...pathParts] = url.split('/');
-            const filePath = pathParts.join('/') || 'index.html';
+            const url = request.url.replace("pptb-webview://", "");
+            const [toolId, ...pathParts] = url.split("/");
+            const filePath = pathParts.join("/") || "index.html";
 
-            console.log(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
+            captureMessage(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
 
             // Get the tool
-            const tool = this.toolManager.getAllTools().find(t => t.id === toolId);
-            
+            const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
+
             if (!tool) {
                 console.error(`[pptb-webview] Tool not found: ${toolId}`);
                 callback({ error: -6 }); // FILE_NOT_FOUND
@@ -92,7 +90,7 @@ export class BrowserviewProtocolManager {
             }
 
             // Build the full file path
-            const fullPath = path.join(toolBaseDir, 'dist', filePath);
+            const fullPath = path.join(toolBaseDir, "dist", filePath);
 
             // Security: Ensure the path is within the tool's directory
             if (!this.isPathSafe(fullPath, toolBaseDir)) {
@@ -113,36 +111,36 @@ export class BrowserviewProtocolManager {
 
             // Special handling for HTML files: Inject CSP meta tag only
             // Bridge script is now handled via preload in BrowserView
-            if (filePath.endsWith('.html')) {
+            if (filePath.endsWith(".html")) {
                 try {
-                    let htmlContent = fs.readFileSync(fullPath, 'utf8');
-                    
+                    let htmlContent = fs.readFileSync(fullPath, "utf8");
+
                     // Build CSP for the tool based on its exceptions
                     const cspString = this.buildToolCsp(tool);
                     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${this.escapeHtml(cspString)}">`;
-                    
-                    console.log(`[pptb-webview] Injecting CSP for ${toolId}:`, cspString);
-                    
+
+                    captureMessage(`[pptb-webview] Injecting CSP for ${toolId}: ${cspString}`);
+
                     // Inject CSP meta tag in <head>
-                    if (htmlContent.includes('</head>')) {
-                        htmlContent = htmlContent.replace('</head>', `  ${cspMetaTag}\n</head>`);
-                    } else if (htmlContent.includes('<head>')) {
-                        htmlContent = htmlContent.replace('<head>', `<head>\n  ${cspMetaTag}`);
-                    } else if (htmlContent.includes('<body>')) {
+                    if (htmlContent.includes("</head>")) {
+                        htmlContent = htmlContent.replace("</head>", `  ${cspMetaTag}\n</head>`);
+                    } else if (htmlContent.includes("<head>")) {
+                        htmlContent = htmlContent.replace("<head>", `<head>\n  ${cspMetaTag}`);
+                    } else if (htmlContent.includes("<body>")) {
                         // No head tag, inject at start of body
-                        htmlContent = htmlContent.replace('<body>', `<body>\n${cspMetaTag}`);
+                        htmlContent = htmlContent.replace("<body>", `<body>\n${cspMetaTag}`);
                     } else {
                         // No head or body tags, prepend CSP
                         htmlContent = `${cspMetaTag}\n${htmlContent}`;
                     }
-                    
-                    console.log(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
-                    console.log(`[pptb-webview] CSP: ${cspString}`);
-                    
+
+                    captureMessage(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
+                    captureMessage(`[pptb-webview] CSP: ${cspString}`);
+
                     // Return the modified HTML content with proper MIME type
                     callback({
-                        mimeType: 'text/html',
-                        data: Buffer.from(htmlContent, 'utf8')
+                        mimeType: "text/html",
+                        data: Buffer.from(htmlContent, "utf8"),
                     });
                     return;
                 } catch (error) {
@@ -153,13 +151,12 @@ export class BrowserviewProtocolManager {
             }
 
             // Read and serve the file
-            console.log(`[pptb-webview] Serving: ${fullPath}`);
+            captureMessage(`[pptb-webview] Serving: ${fullPath}`);
             const content = fs.readFileSync(fullPath);
             callback({
                 mimeType,
-                data: content
+                data: content,
             });
-
         } catch (error) {
             console.error(`[pptb-webview] Error handling protocol request:`, error);
             callback({ error: -2 }); // FAILED
@@ -172,22 +169,22 @@ export class BrowserviewProtocolManager {
     private getMimeType(filePath: string): string {
         const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: { [key: string]: string } = {
-            '.html': 'text/html',
-            '.js': 'application/javascript',
-            '.css': 'text/css',
-            '.json': 'application/json',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.gif': 'image/gif',
-            '.svg': 'image/svg+xml',
-            '.ico': 'image/x-icon',
-            '.woff': 'font/woff',
-            '.woff2': 'font/woff2',
-            '.ttf': 'font/ttf',
-            '.eot': 'application/vnd.ms-fontobject',
+            ".html": "text/html",
+            ".js": "application/javascript",
+            ".css": "text/css",
+            ".json": "application/json",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+            ".ico": "image/x-icon",
+            ".woff": "font/woff",
+            ".woff2": "font/woff2",
+            ".ttf": "font/ttf",
+            ".eot": "application/vnd.ms-fontobject",
         };
-        return mimeTypes[ext] || 'application/octet-stream';
+        return mimeTypes[ext] || "application/octet-stream";
     }
 
     /**
@@ -213,7 +210,7 @@ export class BrowserviewProtocolManager {
      */
     private isPathSafe(requestedPath: string, toolBaseDir: string): boolean {
         const normalizedPath = path.normalize(requestedPath);
-        const normalizedBase = path.normalize(path.join(toolBaseDir, 'dist'));
+        const normalizedBase = path.normalize(path.join(toolBaseDir, "dist"));
         return normalizedPath.startsWith(normalizedBase);
     }
 
@@ -221,7 +218,7 @@ export class BrowserviewProtocolManager {
      * Build the webview URL for a tool
      * Returns: pptb-webview://toolId/index.html
      */
-    buildToolUrl(toolId: string, file: string = 'index.html'): string {
+    buildToolUrl(toolId: string, file: string = "index.html"): string {
         return `pptb-webview://${toolId}/${file}`;
     }
 
@@ -235,12 +232,12 @@ export class BrowserviewProtocolManager {
         // Build CSP for the tool
         const cspString = this.buildToolCsp(tool);
         const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${this.escapeHtml(cspString)}">`;
-        
+
         // Bridge script tag
         const bridgeScriptTag = `<script src="${bridgeScriptUrl}"></script>`;
-        
+
         let injectedHtml = html;
-        
+
         // Inject CSP meta tag in <head>
         if (injectedHtml.includes("</head>")) {
             injectedHtml = injectedHtml.replace("</head>", `${cspMetaTag}\n</head>`);
@@ -250,14 +247,12 @@ export class BrowserviewProtocolManager {
             // Create head tag if missing
             injectedHtml = `<!DOCTYPE html><html><head>\n${cspMetaTag}\n</head><body>${injectedHtml}</body></html>`;
         }
-        
         // Inject bridge script before </head> or at start of <body>
         if (injectedHtml.includes("</head>")) {
             injectedHtml = injectedHtml.replace("</head>", `${bridgeScriptTag}\n</head>`);
         } else if (injectedHtml.includes("<body>")) {
             injectedHtml = injectedHtml.replace("<body>", `<body>\n${bridgeScriptTag}`);
         }
-        
         return injectedHtml;
     }
 
@@ -269,20 +264,20 @@ export class BrowserviewProtocolManager {
     private buildToolCsp(tool: any): string {
         // Check if user has granted CSP consent for this tool
         const hasConsent = this.settingsManager.hasCspConsent(tool.id);
-        
+
         // Only apply CSP exceptions if consent is granted
-        const cspExceptions = hasConsent ? (tool.cspExceptions || {}) : {};
-        
+        const cspExceptions = hasConsent ? tool.cspExceptions || {} : {};
+
         // Default CSP directives for tools
         const directives: { [key: string]: string[] } = {
-            'default-src': ["'self'"],
-            'script-src': ["'self'", "'unsafe-inline'", "pptb-webview:"],
-            'style-src': ["'self'", "'unsafe-inline'"],
-            'img-src': ["'self'", "data:", "https:"],
-            'font-src': ["'self'", "data:"],
-            'connect-src': ["'self'"],
+            "default-src": ["'self'"],
+            "script-src": ["'self'", "'unsafe-inline'", "pptb-webview:"],
+            "style-src": ["'self'", "'unsafe-inline'"],
+            "img-src": ["'self'", "data:", "https:"],
+            "font-src": ["'self'", "data:"],
+            "connect-src": ["'self'"],
         };
-        
+
         // Merge tool's CSP exceptions (only if consent was granted)
         for (const [directive, sources] of Object.entries(cspExceptions)) {
             if (Array.isArray(sources) && sources.length > 0) {
@@ -292,17 +287,17 @@ export class BrowserviewProtocolManager {
                 directives[directive].push(...sources);
             }
         }
-        
+
         // Build CSP string
         return Object.entries(directives)
-            .map(([directive, sources]) => `${directive} ${sources.join(' ')}`)
-            .join('; ');
+            .map(([directive, sources]) => `${directive} ${sources.join(" ")}`)
+            .join("; ");
     }
 
     /**
      * Escape HTML to prevent injection attacks
      */
     private escapeHtml(text: string): string {
-        return text.replace(/"/g, '&quot;');
+        return text.replace(/"/g, "&quot;");
     }
 }

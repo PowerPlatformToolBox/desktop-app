@@ -1,6 +1,6 @@
 # SCSS Styles Organization
 
-This directory contains modular SCSS partials for the Power Platform Tool Box application.
+This directory contains modular SCSS partials for the Power Platform ToolBox application.
 
 ## File Structure
 

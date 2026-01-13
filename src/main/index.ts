@@ -1,3 +1,60 @@
+// Initialize Sentry as early as possible in the main process
+import * as Sentry from "@sentry/electron/main";
+import { getSentryConfig } from "../common/sentry";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, setSentryMachineId } from "../common/sentryHelper";
+
+const sentryConfig = getSentryConfig();
+if (sentryConfig) {
+    Sentry.init({
+        dsn: sentryConfig.dsn,
+        environment: sentryConfig.environment,
+        release: sentryConfig.release,
+        tracesSampleRate: sentryConfig.tracesSampleRate,
+        // Enable Sentry logger for structured logging
+        enableLogs: true,
+        // Capture unhandled promise rejections and console errors
+        integrations: [
+            Sentry.captureConsoleIntegration({
+                levels: ["error", "warn"],
+            }),
+            // Add HTTP integration for network request tracing
+            Sentry.httpIntegration(),
+            // Add Node integrations for better context
+            Sentry.nodeContextIntegration(),
+            Sentry.contextLinesIntegration(),
+            Sentry.localVariablesIntegration(),
+            Sentry.modulesIntegration(),
+        ],
+        // Before sending events, add machine ID and additional context
+        beforeSend(event) {
+            // Ensure machine ID is in tags
+            if (!event.tags) {
+                event.tags = {};
+            }
+            event.tags.process = "main";
+
+            // Add platform information
+            if (!event.contexts) {
+                event.contexts = {};
+            }
+            event.contexts.os = {
+                name: process.platform,
+                version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
+            };
+
+            return event;
+        },
+    });
+
+    // Initialize the helper with the Sentry module
+    initializeSentryHelper(Sentry);
+
+    captureMessage("[Sentry] Initialized in main process with tracing and logging");
+    addBreadcrumb("Main process Sentry initialized", "init", "info");
+} else {
+    captureMessage("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
@@ -18,6 +75,7 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
+import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -29,6 +87,7 @@ import { ToolWindowManager } from "./managers/toolWindowManager";
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private machineIdManager: MachineIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
@@ -45,19 +104,41 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
 
     constructor() {
-        this.settingsManager = new SettingsManager();
-        this.connectionsManager = new ConnectionsManager();
-        this.api = new ToolBoxUtilityManager();
-        // Pass Supabase credentials from environment variables or use defaults from constants
-        this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-        this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
-        this.autoUpdateManager = new AutoUpdateManager();
-        this.authManager = new AuthManager();
-        this.terminalManager = new TerminalManager();
-        this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+        logCheckpoint("ToolBoxApp constructor started");
 
-        this.setupEventListeners();
-        this.setupIpcHandlers();
+        try {
+            this.settingsManager = new SettingsManager();
+            this.machineIdManager = new MachineIdManager(this.settingsManager);
+
+            // Initialize Sentry with machine ID as early as possible
+            if (sentryConfig) {
+                const machineId = this.machineIdManager.getMachineId();
+                setSentryMachineId(machineId);
+                logCheckpoint("Sentry machine ID configured", { machineId });
+            }
+
+            this.connectionsManager = new ConnectionsManager();
+            this.api = new ToolBoxUtilityManager();
+            // Pass Supabase credentials from environment variables or use defaults from constants
+            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
+            this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
+            this.autoUpdateManager = new AutoUpdateManager();
+            this.authManager = new AuthManager();
+            this.terminalManager = new TerminalManager();
+            this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+
+            this.setupEventListeners();
+            this.setupIpcHandlers();
+
+            logCheckpoint("ToolBoxApp constructor completed");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "construction" },
+                level: "fatal",
+            });
+            throw error;
+        }
     }
 
     /**
@@ -150,9 +231,140 @@ class ToolBoxApp {
     }
 
     /**
+     * Remove all IPC handlers to allow clean re-registration
+     * This is called before setupIpcHandlers to prevent duplicate registration errors
+     */
+    private removeIpcHandlers(): void {
+        // Settings handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_USER_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_SETTING);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_SETTING);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
+
+        // Connection handlers
+        ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.UPDATE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.DELETE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
+
+        // Tool handlers
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.LOAD_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
+        ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
+        ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.UNINSTALL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.LOAD_LOCAL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
+
+        // Tool settings handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.UPDATE_TOOL_SETTINGS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_GET_ALL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_GET);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_SET);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL);
+
+        // CSP consent handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.HAS_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GRANT_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_CSP_CONSENTS);
+
+        // Tool-Connection mapping handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS);
+
+        // Recently used tools
+        ipcMain.removeHandler(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS);
+
+        // Webview protocol handler
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL);
+
+        // Notification and utility handlers
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
+        ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
+        ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
+        ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
+        ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(UTIL_CHANNELS.SELECT_PATH);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
+        ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
+        ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
+        ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
+        ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+
+        // Modal window internal channels
+        ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
+
+        // Terminal handlers
+        ipcMain.removeHandler(TERMINAL_CHANNELS.CREATE_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.EXECUTE_COMMAND);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.CLOSE_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_TERMINAL);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_TOOL_TERMINALS);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.GET_ALL_TERMINALS);
+        ipcMain.removeHandler(TERMINAL_CHANNELS.SET_VISIBILITY);
+
+        // Auto-update handlers
+        ipcMain.removeHandler(UPDATE_CHANNELS.CHECK_FOR_UPDATES);
+        ipcMain.removeHandler(UPDATE_CHANNELS.DOWNLOAD_UPDATE);
+        ipcMain.removeHandler(UPDATE_CHANNELS.QUIT_AND_INSTALL);
+        ipcMain.removeHandler(UPDATE_CHANNELS.GET_APP_VERSION);
+
+        // Dataverse handlers
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.RETRIEVE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.EXECUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.FETCH_XML_QUERY);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_SOLUTIONS);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.QUERY_DATA);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
+    }
+
+    /**
      * Set up IPC handlers for communication with renderer
      */
     private setupIpcHandlers(): void {
+        // Remove existing handlers first to prevent duplicate registration errors
+        // This is necessary on macOS where the app doesn't quit when windows are closed
+        this.removeIpcHandlers();
+
         // Settings handlers
         ipcMain.handle(SETTINGS_CHANNELS.GET_USER_SETTINGS, () => {
             return this.settingsManager.getUserSettings();
@@ -212,6 +424,10 @@ class ToolBoxApp {
             return this.connectionsManager.getConnections();
         });
 
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (event, connectionId: string) => {
+            return this.connectionsManager.getConnectionById(connectionId);
+        });
+
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
             const connection = this.connectionsManager.getConnections().find((c) => c.id === id);
             if (!connection) {
@@ -236,8 +452,8 @@ class ToolBoxApp {
                         throw new Error("Invalid authentication type");
                 }
 
-                // Set the connection as active with tokens
-                this.connectionsManager.setActiveConnection(id, {
+                // Set the connection with tokens
+                this.connectionsManager.updateConnectionTokens(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -261,16 +477,6 @@ class ToolBoxApp {
                 return { success: false, error: (error as Error).message };
             }
         });
-
-        ipcMain.handle(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION, () => {
-            return this.connectionsManager.getActiveConnection();
-        });
-
-        ipcMain.handle(CONNECTION_CHANNELS.DISCONNECT_CONNECTION, () => {
-            this.connectionsManager.disconnectActiveConnection();
-            this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { disconnected: true });
-        });
-
         // Check if connection token is expired
         ipcMain.handle(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, (_, connectionId) => {
             return this.connectionsManager.isConnectionTokenExpired(connectionId);
@@ -291,7 +497,7 @@ class ToolBoxApp {
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
                 // Update the connection with new tokens
-                this.connectionsManager.setActiveConnection(connectionId, {
+                this.connectionsManager.updateConnectionTokens(connectionId, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
@@ -304,8 +510,11 @@ class ToolBoxApp {
 
                 return { success: true };
             } catch (error) {
-                console.error("Token refresh failed:", error);
-                throw new Error(`Token refresh failed: ${(error as Error).message}`);
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "token_refresh" },
+                    level: "error",
+                });
+                throw error;
             }
         });
 
@@ -446,6 +655,53 @@ class ToolBoxApp {
             return this.settingsManager.getCspConsents();
         });
 
+        // Tool-Connection mapping handlers
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, (_, toolId, connectionId) => {
+            this.settingsManager.setToolConnection(toolId, connectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_CONNECTION, (_, toolId) => {
+            return this.settingsManager.getToolConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, (_, toolId) => {
+            this.settingsManager.removeToolConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS, () => {
+            return this.settingsManager.getAllToolConnections();
+        });
+
+        // Tool secondary connection management
+        ipcMain.handle(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, (_, toolId: string, connectionId: string) => {
+            this.settingsManager.setToolSecondaryConnection(toolId, connectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            return this.settingsManager.getToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, (_, toolId: string) => {
+            this.settingsManager.removeToolSecondaryConnection(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS, () => {
+            return this.settingsManager.getAllToolSecondaryConnections();
+        });
+
+        // Recently used tools
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, toolId: string) => {
+            this.settingsManager.addLastUsedTool(toolId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS, () => {
+            return this.settingsManager.getLastUsedTools();
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS, () => {
+            this.settingsManager.clearLastUsedTools();
+        });
+
         // Webview protocol handler
         ipcMain.handle(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, (_, toolId) => {
             return this.browserviewProtocolManager.buildToolUrl(toolId);
@@ -477,6 +733,10 @@ class ToolBoxApp {
         // Save file handler
         ipcMain.handle(UTIL_CHANNELS.SAVE_FILE, async (_, defaultPath, content) => {
             return await this.api.saveFile(defaultPath, content);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SELECT_PATH, async (_, options) => {
+            return await this.api.selectPath(options);
         });
 
         // Show loading handler (overlay window above BrowserViews)
@@ -580,43 +840,91 @@ class ToolBoxApp {
         });
 
         // Dataverse API handlers
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (_, entityLogicalName: string, record: Record<string, unknown>) => {
+        // All handlers automatically get the connectionId from the calling tool's WebContents
+        // For multi-connection tools, an optional connectionTarget parameter can be passed to specify "primary" or "secondary"
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE, async (event, entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.create(entityLogicalName, record);
+                // Get the connectionId based on connectionTarget (defaults to primary)
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.create(connectionId, entityLogicalName, record);
             } catch (error) {
                 throw new Error(`Dataverse create failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (_, entityLogicalName: string, id: string, columns?: string[]) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE, async (event, entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.retrieve(entityLogicalName, id, columns);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.retrieve(connectionId, entityLogicalName, id, columns);
             } catch (error) {
                 throw new Error(`Dataverse retrieve failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (_, entityLogicalName: string, id: string, record: Record<string, unknown>) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE, async (event, entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
             try {
-                await this.dataverseManager.update(entityLogicalName, id, record);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.update(connectionId, entityLogicalName, id, record);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse update failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (_, entityLogicalName: string, id: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE, async (event, entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                await this.dataverseManager.delete(entityLogicalName, id);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.delete(connectionId, entityLogicalName, id);
                 return { success: true };
             } catch (error) {
                 throw new Error(`Dataverse delete failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.retrieveMultiple(fetchXml);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.retrieveMultiple(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse retrieveMultiple failed: ${(error as Error).message}`);
             }
@@ -625,7 +933,7 @@ class ToolBoxApp {
         ipcMain.handle(
             DATAVERSE_CHANNELS.EXECUTE,
             async (
-                _,
+                event,
                 request: {
                     entityName?: string;
                     entityId?: string;
@@ -633,64 +941,191 @@ class ToolBoxApp {
                     operationType: "action" | "function";
                     parameters?: Record<string, unknown>;
                 },
+                connectionTarget?: "primary" | "secondary",
             ) => {
                 try {
-                    return await this.dataverseManager.execute(request);
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.execute(connectionId, request);
                 } catch (error) {
                     throw new Error(`Dataverse execute failed: ${(error as Error).message}`);
                 }
             },
         );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (_, fetchXml: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.FETCH_XML_QUERY, async (event, fetchXml: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.fetchXmlQuery(fetchXml);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.fetchXmlQuery(connectionId, fetchXml);
             } catch (error) {
                 throw new Error(`Dataverse fetchXmlQuery failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, async (_, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) => {
-            try {
-                return await this.dataverseManager.getEntityMetadata(entityLogicalName, searchByLogicalName, selectColumns);
-            } catch (error) {
-                throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
-            }
-        });
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.GET_ENTITY_METADATA,
+            async (event, entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async () => {
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.getEntityMetadata(connectionId, entityLogicalName, searchByLogicalName, selectColumns);
+                } catch (error) {
+                    throw new Error(`Dataverse getEntityMetadata failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, async (event, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.getAllEntitiesMetadata();
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getAllEntitiesMetadata(connectionId, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getAllEntitiesMetadata failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, async (_, entityLogicalName: string, relatedPath: string, selectColumns?: string[]) => {
-            try {
-                return await this.dataverseManager.getEntityRelatedMetadata(entityLogicalName, relatedPath, selectColumns);
-            } catch (error) {
-                throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
-            }
-        });
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA,
+            async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
 
-        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (_, selectColumns: string[]) => {
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.getEntityRelatedMetadata(connectionId, entityLogicalName, relatedPath, selectColumns);
+                } catch (error) {
+                    throw new Error(`Dataverse getEntityRelatedMetadata failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_SOLUTIONS, async (event, selectColumns: string[], connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.getSolutions(selectColumns);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getSolutions(connectionId, selectColumns);
             } catch (error) {
                 throw new Error(`Dataverse getSolutions failed: ${(error as Error).message}`);
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (_, odataQuery: string) => {
+        ipcMain.handle(DATAVERSE_CHANNELS.QUERY_DATA, async (event, odataQuery: string, connectionTarget?: "primary" | "secondary") => {
             try {
-                return await this.dataverseManager.queryData(odataQuery);
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.queryData(connectionId, odataQuery);
             } catch (error) {
                 throw new Error(`Dataverse queryData failed: ${(error as Error).message}`);
             }
         });
-    }
 
+        ipcMain.handle(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, async (event, tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.publishCustomizations(connectionId, tableLogicalName);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Dataverse publishCustomizations failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_MULTIPLE, async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.createMultiple(connectionId, entityLogicalName, records);
+            } catch (error) {
+                throw new Error(`Dataverse createMultiple failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, async (event, entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.updateMultiple(connectionId, entityLogicalName, records);
+            } catch (error) {
+                throw new Error(`Dataverse updateMultiple failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, (event, entityLogicalName: string) => {
+            try {
+                return this.dataverseManager.getEntitySetName(entityLogicalName);
+            } catch (error) {
+                throw new Error(`Dataverse getEntitySetName failed: ${(error as Error).message}`);
+            }
+        });
+    }
     /**
      * Create application menu
      */
@@ -787,16 +1222,33 @@ class ToolBoxApp {
                     {
                         label: "Learn More",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal("https://www.powerplatformtoolbox.com/");
                         },
                     },
                     {
                         label: "Documentation",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app#readme");
+                            await shell.openExternal("https://docs.powerplatformtoolbox.com/");
                         },
                     },
                     { type: "separator" },
+                    {
+                        label: "Tool Feedback",
+                        accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                        click: async () => {
+                            const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
+                            if (repositoryUrl) {
+                                await shell.openExternal(repositoryUrl);
+                            } else {
+                                dialog.showMessageBox(this.mainWindow!, {
+                                    type: "info",
+                                    title: "Tool Feedback",
+                                    message: "No active tool or repository URL not available for this tool.",
+                                    buttons: ["OK"],
+                                });
+                            }
+                        },
+                    },
                     {
                         label: "Toggle Tool DevTools",
                         accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
@@ -816,6 +1268,12 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
+                    {
+                        label: "ToolBox Feedback",
+                        click: async () => {
+                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                        },
+                    },
                     {
                         label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
@@ -842,51 +1300,21 @@ class ToolBoxApp {
 
     /**
      * Check for token expiry and notify user
+     * Note: With no global active connection, this method is deprecated
+     * Token expiry checks are now done per-tool when making API calls
      */
     private checkTokenExpiry(): void {
-        const activeConnection = this.connectionsManager.getActiveConnection();
-
-        if (!activeConnection || !activeConnection.tokenExpiry) {
-            // Clear notification tracking if no active connection
-            this.notifiedExpiredTokens.clear();
-            return;
-        }
-
-        const expiryDate = new Date(activeConnection.tokenExpiry);
-        const now = new Date();
-
-        // Check if token has expired
-        if (expiryDate.getTime() <= now.getTime()) {
-            // Only notify if we haven't already notified about this expired token
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-
-            if (!this.notifiedExpiredTokens.has(notificationKey)) {
-                // Token has expired - notify the user
-                if (this.mainWindow) {
-                    this.mainWindow.webContents.send("token-expired", {
-                        connectionId: activeConnection.id,
-                        connectionName: activeConnection.name,
-                    });
-
-                    // Mark this token as notified
-                    this.notifiedExpiredTokens.add(notificationKey);
-                }
-            }
-        } else {
-            // Token is not expired, clear any previous notifications for this connection
-            const notificationKey = `${activeConnection.id}-${activeConnection.tokenExpiry}`;
-            this.notifiedExpiredTokens.delete(notificationKey);
-        }
+        // No-op: Token expiry is now checked per-connection when tools make API calls
+        // Each tool uses its own connection, so we don't need a global check
+        return;
     }
 
     /**
      * Start periodic token expiry checks
      */
     private startTokenExpiryChecks(): void {
-        // Check every minute
-        this.tokenExpiryCheckInterval = setInterval(() => {
-            this.checkTokenExpiry();
-        }, 60 * 1000);
+        // No-op: Token expiry checks are now done per-connection when tools make API calls
+        return;
     }
 
     /**
@@ -919,12 +1347,12 @@ class ToolBoxApp {
                 preload: path.join(__dirname, "preload.js"),
                 // No longer need webviewTag - using BrowserView instead
             },
-            title: "Power Platform Tool Box",
+            title: "Power Platform ToolBox",
             icon: path.join(__dirname, "../../assets/icon.png"),
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
@@ -948,6 +1376,10 @@ class ToolBoxApp {
         }
 
         this.mainWindow.on("closed", () => {
+            this.toolWindowManager?.destroy();
+            this.toolWindowManager = null;
+            this.notificationWindowManager = null;
+            this.loadingOverlayWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
@@ -955,17 +1387,31 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
+     * Includes machine ID and other important information for Sentry tracing
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const message = `Version ${appVersion}
-Electron: ${process.versions.electron}
-Node.js: ${process.versions.node}
-Chromium: ${process.versions.chrome}
-OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
+            const machineId = this.machineIdManager.getMachineId();
+            const locale = app.getLocale();
 
-            if (dialog.showMessageBoxSync({ title: "About Power Platform Tool Box", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
+            const message = `Power Platform ToolBox
+            Version: ${appVersion}
+            Machine ID: ${machineId}
+
+            Environment:
+            Electron: ${process.versions.electron}
+            Node.js: ${process.versions.node}
+            Chromium: ${process.versions.chrome}
+
+            System:
+            OS: ${process.platform} ${process.arch}
+            OS Version: ${process.getSystemVersion()}
+            Locale: ${locale}
+
+            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
+
+            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
             }
         }
@@ -975,55 +1421,102 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
      * Initialize the application
      */
     async initialize(): Promise<void> {
-        // Set app user model ID for Windows notifications
-        if (process.platform === "win32") {
-            app.setAppUserModelId("com.powerplatform.toolbox");
-        }
+        logCheckpoint("Application initialization started");
 
-        // Register custom protocol scheme before app is ready
-        this.browserviewProtocolManager.registerScheme();
-
-        await app.whenReady();
-
-        // Register protocol handler after app is ready
-        this.browserviewProtocolManager.registerHandler();
-
-        this.createWindow();
-
-        // Load all installed tools from registry
-        await this.toolManager.loadAllInstalledTools();
-
-        // Check if auto-update is enabled
-        const autoUpdate = this.settingsManager.getSetting("autoUpdate");
-        if (autoUpdate) {
-            // Enable automatic update checks every 6 hours
-            this.autoUpdateManager.enableAutoUpdateChecks(6);
-        }
-
-        // Start token expiry checks
-        this.startTokenExpiryChecks();
-
-        app.on("activate", () => {
-            if (BrowserWindow.getAllWindows().length === 0) {
-                this.createWindow();
+        try {
+            // Set app user model ID for Windows notifications
+            if (process.platform === "win32") {
+                app.setAppUserModelId("com.powerplatform.toolbox");
+                addBreadcrumb("Set Windows app user model ID", "init", "info");
             }
-        });
 
-        app.on("window-all-closed", () => {
-            if (process.platform !== "darwin") {
-                app.quit();
+            // Register custom protocol scheme before app is ready
+            this.browserviewProtocolManager.registerScheme();
+            addBreadcrumb("Registered custom protocol scheme", "init", "info");
+
+            await app.whenReady();
+            logCheckpoint("Electron app ready");
+
+            // Register protocol handler after app is ready
+            this.browserviewProtocolManager.registerHandler();
+            addBreadcrumb("Registered protocol handler", "init", "info");
+
+            this.createWindow();
+            logCheckpoint("Main window created");
+
+            // Load all installed tools from registry
+            try {
+                await this.toolManager.loadAllInstalledTools();
+                logCheckpoint("Tools loaded from registry");
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                captureException(err, {
+                    tags: { phase: "tool_loading" },
+                    level: "error",
+                });
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "tools_loading" },
+                    level: "error",
+                });
             }
-        });
 
-        app.on("before-quit", () => {
-            // Clean up update checks
-            this.autoUpdateManager.disableAutoUpdateChecks();
-            // Clean up token expiry checks
-            this.stopTokenExpiryChecks();
-        });
+            // Check if auto-update is enabled
+            const autoUpdate = this.settingsManager.getSetting("autoUpdate");
+            if (autoUpdate) {
+                // Enable automatic update checks every 6 hours
+                this.autoUpdateManager.enableAutoUpdateChecks(6);
+                addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
+            }
+
+            // Start token expiry checks
+            this.startTokenExpiryChecks();
+            addBreadcrumb("Token expiry checks started", "auth", "info");
+
+            app.on("activate", () => {
+                if (BrowserWindow.getAllWindows().length === 0) {
+                    this.createWindow();
+                    addBreadcrumb("Window recreated on activate", "window", "info");
+                }
+            });
+
+            app.on("window-all-closed", () => {
+                if (process.platform !== "darwin") {
+                    addBreadcrumb("All windows closed, quitting app", "window", "info");
+                    app.quit();
+                }
+            });
+
+            app.on("before-quit", () => {
+                logCheckpoint("Application shutting down");
+                // Clean up update checks
+                this.autoUpdateManager.disableAutoUpdateChecks();
+                // Clean up token expiry checks
+                this.stopTokenExpiryChecks();
+                addBreadcrumb("Cleanup completed", "shutdown", "info");
+            });
+
+            logCheckpoint("Application initialization completed successfully");
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            captureException(err, {
+                tags: { phase: "initialization" },
+                level: "fatal",
+            });
+            logCheckpoint("Application initialization failed", { error: err.message });
+            throw error;
+        }
     }
 }
 
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
-toolboxApp.initialize().catch(console.error);
+toolboxApp.initialize().catch((error) => {
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+        tags: { phase: "main_initialization" },
+        level: "fatal",
+    });
+    // If Sentry is available, capture the error
+    if (sentryConfig) {
+        Sentry.captureException(error);
+    }
+});

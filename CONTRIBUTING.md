@@ -1,6 +1,6 @@
-# Contributing to Power Platform Tool Box
+# Contributing to Power Platform ToolBox
 
-Thank you for your interest in contributing to Power Platform Tool Box! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Power Platform ToolBox! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 

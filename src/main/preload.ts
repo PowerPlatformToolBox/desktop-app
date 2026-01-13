@@ -28,12 +28,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         update: (id: string, updates: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
         delete: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.DELETE_CONNECTION, id),
         getAll: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
-        setActive: (id: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, id),
-        getActiveConnection: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_ACTIVE_CONNECTION),
-        disconnect: () => ipcRenderer.invoke(CONNECTION_CHANNELS.DISCONNECT_CONNECTION),
+        getById: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, connectionId),
         test: (connection: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
         isTokenExpired: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
         refreshToken: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
+        authenticate: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
     },
 
     // Tools - Only for PPTB UI
@@ -47,11 +46,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getToolContext: (packageName: string, connectionUrl?: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_CONTEXT, packageName, connectionUrl),
 
     // Tool Window Management (NEW - BrowserView based)
-    launchToolWindow: (toolId: string, tool: unknown) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, toolId, tool),
-    switchToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, toolId),
-    closeToolWindow: (toolId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, toolId),
+    launchToolWindow: (instanceId: string, tool: unknown, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, instanceId, tool, primaryConnectionId, secondaryConnectionId),
+    switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
+    closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
+    updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
@@ -81,6 +83,23 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
+    // Tool-Connection mapping - Only for PPTB UI
+    setToolConnection: (toolId: string, connectionId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_TOOL_CONNECTION, toolId, connectionId),
+    getToolConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_CONNECTION, toolId),
+    removeToolConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_CONNECTION, toolId),
+    getAllToolConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_CONNECTIONS),
+
+    // Tool secondary connection management
+    setToolSecondaryConnection: (toolId: string, connectionId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_TOOL_SECONDARY_CONNECTION, toolId, connectionId),
+    getToolSecondaryConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SECONDARY_CONNECTION, toolId),
+    removeToolSecondaryConnection: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_TOOL_SECONDARY_CONNECTION, toolId),
+    getAllToolSecondaryConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS),
+
+    // Recently used tools - Only for PPTB UI
+    addLastUsedTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, toolId),
+    getLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS),
+    clearLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS),
+
     // Webview URL generation - Only for PPTB UI
     getToolWebviewUrl: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_TOOL_WEBVIEW_URL, toolId),
 
@@ -89,6 +108,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
             // Convert any functions to promises and execute all in parallel
@@ -174,21 +194,34 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
-        create: (entityLogicalName: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record),
-        retrieve: (entityLogicalName: string, id: string, columns?: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns),
-        update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record),
-        delete: (entityLogicalName: string, id: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id),
-        retrieveMultiple: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml),
-        execute: (request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> }) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.EXECUTE, request),
-        fetchXmlQuery: (fetchXml: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml),
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[]) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns),
-        getAllEntitiesMetadata: () => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[]) =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns),
-        getSolutions: (selectColumns: string[]) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns),
-        queryData: (odataQuery: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery),
+        create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
+        retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE, entityLogicalName, id, columns, connectionTarget),
+        update: (entityLogicalName: string, id: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE, entityLogicalName, id, record, connectionTarget),
+        delete: (entityLogicalName: string, id: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE, entityLogicalName, id, connectionTarget),
+        retrieveMultiple: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.RETRIEVE_MULTIPLE, fetchXml, connectionTarget),
+        execute: (
+            request: { entityName?: string; entityId?: string; operationName: string; operationType: "action" | "function"; parameters?: Record<string, unknown> },
+            connectionTarget?: "primary" | "secondary",
+        ) => ipcRenderer.invoke(DATAVERSE_CHANNELS.EXECUTE, request, connectionTarget),
+        fetchXmlQuery: (fetchXml: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.FETCH_XML_QUERY, fetchXml, connectionTarget),
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
+        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+        getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
+        queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
+        publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
+        createMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE_MULTIPLE, entityLogicalName, records, connectionTarget),
+        updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
+        getEntitySetName: (entityLogicalName: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
     },
 });
 
