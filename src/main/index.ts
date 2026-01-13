@@ -983,6 +983,9 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
      * or shows a helpful message if no tool is active or no repository URL is available
      */
     private async openToolFeedback(): Promise<void> {
+        // Error message constant for when no repository URL is available
+        const NO_SUPPORT_LINKS_MESSAGE = "The tool creator has not provided support links, please connect with the Discord channel to raise concerns.";
+
         if (!this.toolWindowManager) {
             return;
         }
@@ -995,7 +998,7 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
             dialog.showMessageBox(this.mainWindow!, {
                 type: "info",
                 title: "Tool Feedback",
-                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                message: NO_SUPPORT_LINKS_MESSAGE,
                 buttons: ["OK"],
             });
             return;
@@ -1009,7 +1012,7 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
             dialog.showMessageBox(this.mainWindow!, {
                 type: "info",
                 title: "Tool Feedback",
-                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                message: NO_SUPPORT_LINKS_MESSAGE,
                 buttons: ["OK"],
             });
             return;
@@ -1021,7 +1024,7 @@ OS: ${process.platform} ${process.arch} ${process.getSystemVersion()}`;
             dialog.showMessageBox(this.mainWindow!, {
                 type: "info",
                 title: "Tool Feedback",
-                message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns.",
+                message: NO_SUPPORT_LINKS_MESSAGE,
                 buttons: ["OK"],
             });
             return;
