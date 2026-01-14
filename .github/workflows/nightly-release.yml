@@ -222,10 +222,10 @@ jobs:
             - name: Generate what's new
               id: whatsnew
               run: |
-                  # Get last 5-10 commits since last tag
+                  # Get last 10 commits since last tag (avoid SIGPIPE with direct limit)
                   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
                   if [ -n "$LAST_TAG" ]; then
-                    COMMITS=$(git log --oneline --no-merges "$LAST_TAG"..HEAD | head -10)
+                    COMMITS=$(git log --oneline --no-merges -10 "$LAST_TAG"..HEAD)
                   else
                     COMMITS=$(git log --oneline --no-merges -10)
                   fi
