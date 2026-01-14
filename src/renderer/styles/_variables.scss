@@ -83,6 +83,26 @@ $env-border-test-dark: #ffb300;
 $env-border-uat-dark: #0288d1;
 $env-border-prod-dark: #c62828;
 
+$env-badge-dev-light-bg: rgba(76, 175, 80, 0.2);
+$env-badge-test-light-bg: rgba(255, 152, 0, 0.2);
+$env-badge-uat-light-bg: rgba(33, 150, 243, 0.2);
+$env-badge-prod-light-bg: rgba(244, 67, 54, 0.2);
+
+$env-badge-dev-light: #2e7d32;
+$env-badge-test-light: #e65100;
+$env-badge-uat-light: #0d47a1;
+$env-badge-prod-light: #b71c1c;
+
+$env-badge-dev-dark-bg: rgba(76, 175, 80, 0.25);
+$env-badge-test-dark-bg: rgba(255, 167, 38, 0.25);
+$env-badge-uat-dark-bg: rgba(33, 150, 243, 0.25);
+$env-badge-prod-dark-bg: rgba(244, 67, 54, 0.25);
+
+$env-badge-dev-dark: #81c784;
+$env-badge-test-dark: #ffb74d;
+$env-badge-uat-dark: #64b5f6;
+$env-badge-prod-dark: #ef9a9a;
+
 // Z-Index Layers
 $z-activity-bar: 100;
 $z-sidebar: 50;

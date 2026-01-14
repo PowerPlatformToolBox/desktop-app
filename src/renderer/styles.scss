@@ -37,6 +37,16 @@
     --env-border-test: #{$env-border-test-light};
     --env-border-uat: #{$env-border-uat-light};
     --env-border-prod: #{$env-border-prod-light};
+
+    --env-badge-dev-bg: #{$env-badge-dev-light-bg};
+    --env-badge-test-bg: #{$env-badge-test-light-bg};
+    --env-badge-uat-bg: #{$env-badge-uat-light-bg};
+    --env-badge-prod-bg: #{$env-badge-prod-light-bg};
+
+    --env-badge-dev: #{$env-badge-dev-light};
+    --env-badge-test: #{$env-badge-test-light};
+    --env-badge-uat: #{$env-badge-uat-light};
+    --env-badge-prod: #{$env-badge-prod-light};
 }
 
 /* Dark theme */
@@ -57,6 +67,16 @@ body.dark-theme {
     --env-border-test: #{$env-border-test-dark};
     --env-border-uat: #{$env-border-uat-dark};
     --env-border-prod: #{$env-border-prod-dark};
+
+    --env-badge-dev-bg: #{$env-badge-dev-dark-bg};
+    --env-badge-test-bg: #{$env-badge-test-dark-bg};
+    --env-badge-uat-bg: #{$env-badge-uat-dark-bg};
+    --env-badge-prod-bg: #{$env-badge-prod-dark-bg};
+
+    --env-badge-dev: #{$env-badge-dev-dark};
+    --env-badge-test: #{$env-badge-test-dark};
+    --env-badge-uat: #{$env-badge-uat-dark};
+    --env-badge-prod: #{$env-badge-prod-dark};
 }
 
 * {
@@ -768,23 +788,23 @@ body.dark-theme .settings-section-card {
 }
 
 .connection-env-badge.env-dev {
-    background-color: color-mix(in srgb, var(--env-border-dev) 20%, transparent);
-    color: var(--env-border-dev);
+    background-color: var(--env-badge-dev-bg);
+    color: var(--env-badge-dev);
 }
 
 .connection-env-badge.env-test {
-    background-color: color-mix(in srgb, var(--env-border-test) 20%, transparent);
-    color: var(--env-border-test);
+    background-color: var(--env-badge-test-bg);
+    color: var(--env-badge-test);
 }
 
 .connection-env-badge.env-uat {
-    background-color: color-mix(in srgb, var(--env-border-uat) 20%, transparent);
-    color: var(--env-border-uat);
+    background-color: var(--env-badge-uat-bg);
+    color: var(--env-badge-uat);
 }
 
 .connection-env-badge.env-production {
-    background-color: color-mix(in srgb, var(--env-border-prod) 20%, transparent);
-    color: var(--env-border-prod);
+    background-color: var(--env-badge-prod-bg);
+    color: var(--env-badge-prod);
 }
 
 .connection-env-badge.env-sandbox {
