@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, setSentryMachineId } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -49,10 +49,10 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
 
-    captureMessage("[Sentry] Initialized in main process with tracing and logging");
+    logInfo("[Sentry] Initialized in main process with tracing and logging");
     addBreadcrumb("Main process Sentry initialized", "init", "info");
 } else {
-    captureMessage("[Sentry] Telemetry disabled - no DSN configured");
+    logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";

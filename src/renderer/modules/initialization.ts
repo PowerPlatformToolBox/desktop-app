@@ -29,10 +29,7 @@ if (sentryConfig) {
                 enableLongTask: true,
                 enableInp: true,
             }),
-            Sentry.replayIntegration({
-                maskAllText: true,
-                blockAllMedia: true,
-            }),
+            Sentry.replayIntegration(),
             // Context lines integration for better error context
             Sentry.contextLinesIntegration(),
         ],

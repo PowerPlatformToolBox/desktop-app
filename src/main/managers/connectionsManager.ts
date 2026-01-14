@@ -1,5 +1,5 @@
 import Store from "electron-store";
-import { captureMessage } from "../../common/sentryHelper";
+import { logInfo } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
 
@@ -54,10 +54,10 @@ export class ConnectionsManager {
         }
 
         if (needsMigration) {
-            captureMessage("Migrating connections to encrypted storage...");
+            logInfo("Migrating connections to encrypted storage...");
             const encryptedConnections = connections.map((conn) => this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
             this.store.set("connections", encryptedConnections);
-            captureMessage("Connection migration complete");
+            logInfo("Connection migration complete");
         }
     }
 

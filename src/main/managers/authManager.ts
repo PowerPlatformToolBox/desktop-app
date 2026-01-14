@@ -3,7 +3,7 @@ import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage } from "../../common/sentryHelper";
+import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
@@ -44,7 +44,7 @@ export class AuthManager {
             system: {
                 loggerOptions: {
                     loggerCallback(loglevel: LogLevel, message: string) {
-                        captureMessage(message);
+                        logWarn(message);
                     },
                     piiLoggingEnabled: false,
                     logLevel: LogLevel.Warning,
@@ -150,7 +150,7 @@ export class AuthManager {
                 // Force close any remaining connections after graceful shutdown attempt
                 server.closeAllConnections();
                 if (logMessage) {
-                    captureMessage(logMessage);
+                    logInfo(logMessage);
                 }
             });
         }
@@ -176,7 +176,7 @@ export class AuthManager {
                 server.close(() => {
                     // Force close any remaining connections after graceful shutdown attempt
                     server.closeAllConnections();
-                    captureMessage("Authentication server closed and port released");
+                    logInfo("Authentication server closed and port released");
                     resolve();
                 });
             } else {
