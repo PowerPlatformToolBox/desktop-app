@@ -1,7 +1,7 @@
 import { app, protocol } from "electron";
 import * as fs from "fs";
 import * as path from "path";
-import { captureMessage } from "../../common/sentryHelper";
+import { logInfo } from "../../common/sentryHelper";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
 
@@ -70,7 +70,7 @@ export class BrowserviewProtocolManager {
             const [toolId, ...pathParts] = url.split("/");
             const filePath = pathParts.join("/") || "index.html";
 
-            captureMessage(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
+            logInfo(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
 
             // Get the tool
             const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
@@ -119,7 +119,7 @@ export class BrowserviewProtocolManager {
                     const cspString = this.buildToolCsp(tool);
                     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${this.escapeHtml(cspString)}">`;
 
-                    captureMessage(`[pptb-webview] Injecting CSP for ${toolId}: ${cspString}`);
+                    logInfo(`[pptb-webview] Injecting CSP for ${toolId}: ${cspString}`);
 
                     // Inject CSP meta tag in <head>
                     if (htmlContent.includes("</head>")) {
@@ -134,8 +134,8 @@ export class BrowserviewProtocolManager {
                         htmlContent = `${cspMetaTag}\n${htmlContent}`;
                     }
 
-                    captureMessage(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
-                    captureMessage(`[pptb-webview] CSP: ${cspString}`);
+                    logInfo(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
+                    logInfo(`[pptb-webview] CSP: ${cspString}`);
 
                     // Return the modified HTML content with proper MIME type
                     callback({
@@ -151,7 +151,7 @@ export class BrowserviewProtocolManager {
             }
 
             // Read and serve the file
-            captureMessage(`[pptb-webview] Serving: ${fullPath}`);
+            logInfo(`[pptb-webview] Serving: ${fullPath}`);
             const content = fs.readFileSync(fullPath);
             callback({
                 mimeType,

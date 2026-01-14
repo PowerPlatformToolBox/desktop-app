@@ -1,7 +1,7 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage } from "../../common/sentryHelper";
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
@@ -180,7 +180,7 @@ export class ToolWindowManager {
      */
     async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null): Promise<boolean> {
         try {
-            captureMessage(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
+            logInfo(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
             // Extract actual toolId from instanceId (format: toolId-timestamp-random)
             const toolId = instanceId.split("-").slice(0, -2).join("-");
@@ -210,7 +210,7 @@ export class ToolWindowManager {
 
             // Get tool URL from custom protocol using the base toolId
             const toolUrl = this.browserviewProtocolManager.buildToolUrl(toolId);
-            captureMessage(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
+            logInfo(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
@@ -251,7 +251,7 @@ export class ToolWindowManager {
                 secondaryConnectionId: secondaryConnectionId,
             };
             toolView.webContents.send("toolbox:context", toolContext);
-            captureMessage(`[ToolWindowManager] Sent tool context for ${instanceId} with connection: ${connectionUrl ? "yes" : "no"}, secondary: ${secondaryConnectionUrl ? "yes" : "no"}`);
+            logInfo(`[ToolWindowManager] Sent tool context for ${instanceId} with connection: ${connectionUrl ? "yes" : "no"}, secondary: ${secondaryConnectionUrl ? "yes" : "no"}`);
 
             // Store connection info for this instance so IPC handlers can use it
             this.toolConnectionInfo.set(instanceId, {
@@ -270,7 +270,7 @@ export class ToolWindowManager {
             // Add to recently used tools list
             this.settingsManager.addLastUsedTool(toolId);
 
-            captureMessage(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
+            logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error launching tool instance ${instanceId}:`, error);
@@ -309,7 +309,7 @@ export class ToolWindowManager {
             }
             this.activeToolId = instanceId;
 
-            captureMessage(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
+            logInfo(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
 
             // Request bounds update from renderer
             this.scheduleBoundsUpdate();
@@ -348,7 +348,7 @@ export class ToolWindowManager {
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
 
-            captureMessage(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
+            logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
@@ -553,7 +553,7 @@ export class ToolWindowManager {
         };
         toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
 
-        captureMessage(`[ToolWindowManager] Updated connection for tool instance ${instanceId}: primaryConnectionId=${primaryConnectionId}, secondaryConnectionId=${secondaryConnectionId}`);
+        logInfo(`[ToolWindowManager] Updated connection for tool instance ${instanceId}: primaryConnectionId=${primaryConnectionId}, secondaryConnectionId=${secondaryConnectionId}`);
     }
 
     /**
@@ -642,7 +642,7 @@ export class ToolWindowManager {
 
         try {
             toolView.webContents.openDevTools();
-            captureMessage(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
+            logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
             return true;
         } catch (error) {
             console.error(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}:`, error);
