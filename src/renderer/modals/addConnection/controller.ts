@@ -60,10 +60,12 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         authenticationType: authTypeSelect?.value || "interactive",
         clientId: getInputValue("connection-client-id"),
         clientSecret: getInputValue("connection-client-secret"),
-        tenantId: getInputValue("connection-tenant-id"),
-        username: getInputValue("connection-username"),
+        tenantId: getInputValue("connection-tenant-id-cs"),
+        username: getInputValue("connection-username-up"),
         password: getInputValue("connection-password"),
         optionalClientId: getInputValue("connection-optional-client-id"),
+        interactiveUsername: getInputValue("connection-username"),
+        interactiveTenantId: getInputValue("connection-tenant-id"),
     });
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {

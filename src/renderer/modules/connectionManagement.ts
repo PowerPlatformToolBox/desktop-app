@@ -36,6 +36,8 @@ interface ConnectionFormPayload {
     username?: string;
     password?: string;
     optionalClientId?: string;
+    interactiveUsername?: string;
+    interactiveTenantId?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -1056,9 +1058,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
             connection.clientId = optionalClientId;
         }
     } else if (authenticationType === "interactive") {
+        // Interactive OAuth with optional username (login_hint), clientId, and tenantId
+        const interactiveUsername = sanitizeInput(formPayload.interactiveUsername);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        // Explicitly set clientId to undefined when empty to ensure it gets cleared in updates
+        const interactiveTenantId = sanitizeInput(formPayload.interactiveTenantId);
+        
+        connection.username = interactiveUsername ? interactiveUsername : undefined;
         connection.clientId = optionalClientId ? optionalClientId : undefined;
+        connection.tenantId = interactiveTenantId ? interactiveTenantId : undefined;
     }
 
     return connection;

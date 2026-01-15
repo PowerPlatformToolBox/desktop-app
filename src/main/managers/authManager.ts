@@ -60,6 +60,7 @@ export class AuthManager {
      */
     async authenticateInteractive(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const tenantId = connection.tenantId || "common";
         this.msalApp = this.initializeMsal(clientId);
 
         try {
@@ -69,11 +70,26 @@ export class AuthManager {
 
             const scopes = [`${connection.url}/.default`];
 
-            // Create authorization URL
-            const authCodeUrlParameters = {
+            // Create authorization URL with optional login_hint
+            const authCodeUrlParameters: {
+                scopes: string[];
+                redirectUri: string;
+                loginHint?: string;
+                authority?: string;
+            } = {
                 scopes: scopes,
                 redirectUri: redirectUri,
             };
+
+            // Add login_hint if username is provided (for OAuth MFA)
+            if (connection.username) {
+                authCodeUrlParameters.loginHint = connection.username;
+            }
+
+            // Use specific tenant if provided
+            if (tenantId !== "common") {
+                authCodeUrlParameters.authority = `https://login.microsoftonline.com/${tenantId}`;
+            }
 
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
