@@ -1062,10 +1062,10 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         const interactiveUsername = sanitizeInput(formPayload.interactiveUsername);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
         const interactiveTenantId = sanitizeInput(formPayload.interactiveTenantId);
-        
-        connection.username = interactiveUsername ? interactiveUsername : undefined;
-        connection.clientId = optionalClientId ? optionalClientId : undefined;
-        connection.tenantId = interactiveTenantId ? interactiveTenantId : undefined;
+
+        connection.username = interactiveUsername || undefined;
+        connection.clientId = optionalClientId || undefined;
+        connection.tenantId = interactiveTenantId || undefined;
     }
 
     return connection;
