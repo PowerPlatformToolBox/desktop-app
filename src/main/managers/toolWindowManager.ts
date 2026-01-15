@@ -306,7 +306,7 @@ export class ToolWindowManager {
             try {
                 (toolView as any).setAutoResize?.({ width: true, height: true });
             } catch (err) {
-                console.error(err);
+                captureMessage(`[ToolWindowManager] Error enabling auto-resize for tool view ${instanceId}: ${err}`, "warning");
             }
             this.activeToolId = instanceId;
             this.invokeActiveToolChangedCallback();
