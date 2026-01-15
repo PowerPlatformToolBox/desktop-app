@@ -1131,6 +1131,7 @@ class ToolBoxApp {
      */
     private createMenu(): void {
         const isMac = process.platform === "darwin";
+        const isToolOpened = this.toolWindowManager?.getActiveToolId() !== null;
 
         const template: any[] = [
             // App menu (macOS only)
@@ -1232,42 +1233,46 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
-                    {
-                        label: "Tool Feedback",
-                        accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
-                        click: async () => {
-                            const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
-                            if (repositoryUrl) {
-                                await shell.openExternal(repositoryUrl);
-                            } else {
-                                dialog.showMessageBox(this.mainWindow!, {
-                                    type: "info",
-                                    title: "Tool Feedback",
-                                    message: "No active tool or repository URL not available for this tool.",
-                                    buttons: ["OK"],
-                                });
-                            }
-                        },
-                    },
-                    {
-                        label: "Toggle Tool DevTools",
-                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
-                        click: () => {
-                            if (this.toolWindowManager) {
-                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
-                                if (!opened) {
-                                    // Show notification if no active tool
-                                    dialog.showMessageBox(this.mainWindow!, {
-                                        type: "info",
-                                        title: "No Active Tool",
-                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
-                                        buttons: ["OK"],
-                                    });
-                                }
-                            }
-                        },
-                    },
-                    { type: "separator" },
+                    ...(isToolOpened
+                        ? [
+                              {
+                                  label: "Tool Feedback",
+                                  accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                                  click: async () => {
+                                      const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
+                                      if (repositoryUrl) {
+                                          await shell.openExternal(repositoryUrl);
+                                      } else {
+                                          dialog.showMessageBox(this.mainWindow!, {
+                                              type: "info",
+                                              title: "Tool Feedback",
+                                              message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns",
+                                              buttons: ["OK"],
+                                          });
+                                      }
+                                  },
+                              },
+                              {
+                                  label: "Toggle Tool DevTools",
+                                  accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                                  click: () => {
+                                      if (this.toolWindowManager) {
+                                          const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                          if (!opened) {
+                                              // Show notification if no active tool
+                                              dialog.showMessageBox(this.mainWindow!, {
+                                                  type: "info",
+                                                  title: "No Active Tool",
+                                                  message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                                  buttons: ["OK"],
+                                              });
+                                          }
+                                      }
+                                  },
+                              },
+                              { type: "separator" },
+                          ]
+                        : []),
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
@@ -1353,6 +1358,11 @@ class ToolBoxApp {
 
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
+
+        // Set up callback to rebuild menu when active tool changes
+        this.toolWindowManager.setOnActiveToolChanged(() => {
+            this.createMenu();
+        });
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);

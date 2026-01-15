@@ -54,6 +54,7 @@ export class ToolWindowManager {
     private refreshBoundsListener: () => void;
     private focusListener: () => void;
     private showListener: () => void;
+    private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
 
     constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
         this.mainWindow = mainWindow;
@@ -308,6 +309,7 @@ export class ToolWindowManager {
                 console.error(err);
             }
             this.activeToolId = instanceId;
+            this.invokeActiveToolChangedCallback();
 
             logInfo(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
 
@@ -336,6 +338,7 @@ export class ToolWindowManager {
             if (this.activeToolId === instanceId) {
                 this.mainWindow.setBrowserView(null);
                 this.activeToolId = null;
+                this.invokeActiveToolChangedCallback();
             }
 
             // Destroy the BrowserView's web contents
@@ -647,6 +650,23 @@ export class ToolWindowManager {
         } catch (error) {
             console.error(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}:`, error);
             return false;
+        }
+    }
+
+    /**
+     * Set a callback to be invoked when the active tool changes
+     * @param callback Function to call with the new active tool ID (null if no tool is active)
+     */
+    setOnActiveToolChanged(callback: (activeToolId: string | null) => void): void {
+        this.onActiveToolChanged = callback;
+    }
+
+    /**
+     * Invoke the active tool changed callback
+     */
+    private invokeActiveToolChangedCallback(): void {
+        if (this.onActiveToolChanged) {
+            this.onActiveToolChanged(this.activeToolId);
         }
     }
 
