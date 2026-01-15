@@ -35,11 +35,11 @@ export class AuthManager {
     /**
      * Initialize MSAL for interactive authentication
      */
-    private initializeMsal(clientId?: string): PublicClientApplication {
+    private initializeMsal(clientId: string, tenantId: string): PublicClientApplication {
         const msalConfig = {
             auth: {
-                clientId: clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d", // Default Azure CLI client ID
-                authority: "https://login.microsoftonline.com/common",
+                clientId, 
+                authority: `https://login.microsoftonline.com/${tenantId}`,
             },
             system: {
                 loggerOptions: {
@@ -59,9 +59,9 @@ export class AuthManager {
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
     async authenticateInteractive(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
-        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "common";
-        this.msalApp = this.initializeMsal(clientId);
+        this.msalApp = this.initializeMsal(clientId, tenantId);
 
         try {
             // Find an available port for the OAuth redirect server
@@ -75,7 +75,6 @@ export class AuthManager {
                 scopes: string[];
                 redirectUri: string;
                 loginHint?: string;
-                authority?: string;
             } = {
                 scopes: scopes,
                 redirectUri: redirectUri,
@@ -84,11 +83,6 @@ export class AuthManager {
             // Add login_hint if username is provided (for OAuth MFA)
             if (connection.username) {
                 authCodeUrlParameters.loginHint = connection.username;
-            }
-
-            // Use specific tenant if provided
-            if (tenantId !== "common") {
-                authCodeUrlParameters.authority = `https://login.microsoftonline.com/${tenantId}`;
             }
 
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
