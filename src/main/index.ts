@@ -1246,7 +1246,7 @@ class ToolBoxApp {
                                           dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
                                               title: "Tool Feedback",
-                                              message: "The tool creator has not provided support links, please connect with the discord channel to raise concerns",
+                                              message: "The tool creator has not provided support links, please connect with the Discord channel to raise concerns",
                                               buttons: ["OK"],
                                           });
                                       }
