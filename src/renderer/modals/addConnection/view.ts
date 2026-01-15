@@ -32,7 +32,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
         <div class="form-group">
             <label for="connection-authentication-type">Authentication Type</label>
             <select id="connection-authentication-type" class="modal-input">
-                <option value="interactive">Microsoft Login Prompt</option>
+                <option value="interactive">Microsoft Login (OAuth)</option>
                 <option value="clientSecret">Client ID/Secret</option>
                 <option value="usernamePassword">Username/Password</option>
             </select>
@@ -47,9 +47,16 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             </select>
         </div>
         <div id="interactive-fields" class="field-group" style="display: none">
-            <label for="connection-optional-client-id">Optional Client ID (override)</label>
-            <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="client-id" />
-            <p class="helper-text">Provide when you need to override the default Azure AD application ID.</p>
+            <span class="section-label">Microsoft Login Options</span>
+            <label for="connection-username">Username / Email (Optional)</label>
+            <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
+            <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
+            <label for="connection-optional-client-id">Client ID (Optional)</label>
+            <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
+            <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
+            <label for="connection-tenant-id">Tenant ID (Optional)</label>
+            <input type="text" id="connection-tenant-id" class="modal-input" placeholder="common" />
+            <p class="helper-text">Defaults to 'common' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
         </div>
         <div id="client-secret-fields" class="field-group" style="display: none">
             <span class="section-label">Client Secret Authentication</span>
@@ -60,13 +67,13 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <input type="password" id="connection-client-secret" class="modal-input" placeholder="client-secret" />
                 <button type="button" id="toggle-client-secret" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
             </div>
-            <label for="connection-tenant-id">Tenant ID</label>
-            <input type="text" id="connection-tenant-id" class="modal-input" placeholder="tenant-id" />
+            <label for="connection-tenant-id-cs">Tenant ID</label>
+            <input type="text" id="connection-tenant-id-cs" class="modal-input" placeholder="tenant-id" />
         </div>
         <div id="username-password-fields" class="field-group" style="display: none">
             <span class="section-label">Username & Password</span>
-            <label for="connection-username">Username</label>
-            <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
+            <label for="connection-username-up">Username</label>
+            <input type="text" id="connection-username-up" class="modal-input" placeholder="user@domain.com" />
             <label for="connection-password">Password</label>
             <div class="password-wrapper">
                 <input type="password" id="connection-password" class="modal-input" placeholder="password" />
