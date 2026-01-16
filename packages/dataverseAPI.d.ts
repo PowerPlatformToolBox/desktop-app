@@ -356,7 +356,7 @@ declare namespace DataverseAPI {
          * @example
          * // Get top 10 active accounts with specific fields
          * const result = await dataverseAPI.queryData(
-         *     '$select=name,emailaddress1,telephone1&$filter=statecode eq 0&$orderby=name&$top=10'
+         *     'accounts?$select=name,emailaddress1,telephone1&$filter=statecode eq 0&$orderby=name&$top=10'
          * );
          * console.log(`Found ${result.value.length} records`);
          * result.value.forEach(record => {
@@ -366,7 +366,7 @@ declare namespace DataverseAPI {
          * @example
          * // Query with expand to include related records
          * const result = await dataverseAPI.queryData(
-         *     '$select=name,accountid&$expand=contact_customer_accounts($select=fullname,emailaddress1)&$top=5'
+         *     'accounts?$select=name,accountid&$expand=contact_customer_accounts($select=fullname,emailaddress1)&$top=5'
          * );
          *
          * @example
@@ -377,7 +377,7 @@ declare namespace DataverseAPI {
          *
          * @example
          * // Multi-connection tool using secondary connection
-         * const result = await dataverseAPI.queryData('$filter=statecode eq 0', 'secondary');
+         * const result = await dataverseAPI.queryData('contacts?$filter=statecode eq 0', 'secondary');
          */
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => Promise<{ value: Record<string, unknown>[] }>;
 
