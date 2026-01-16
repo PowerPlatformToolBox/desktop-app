@@ -1232,6 +1232,12 @@ class ToolBoxApp {
                             await shell.openExternal("https://docs.powerplatformtoolbox.com/");
                         },
                     },
+                    {
+                        label: "Join Discord",
+                        click: async () => {
+                            await shell.openExternal("https://discord.gg/efwAu9sXyJ");
+                        },
+                    },
                     { type: "separator" },
                     ...(isToolOpened
                         ? [
@@ -1246,7 +1252,8 @@ class ToolBoxApp {
                                           dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
                                               title: "Tool Feedback",
-                                              message: "The tool creator has not provided support links, please connect with the Discord channel to raise concerns",
+                                              message:
+                                                  "The tool creator has not provided support links. To share feedback or raise concerns, please join the Power Platform ToolBox community Discord. You can find the link in the Help menu.",
                                               buttons: ["OK"],
                                           });
                                       }
