@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, loadEnv } from "vite";
+import checker from "vite-plugin-checker";
 import electron from "vite-plugin-electron/simple";
 import packageJson from "./package.json";
 
@@ -102,6 +103,13 @@ export default defineConfig(({ mode }) => {
                 },
                 // Polyfill node built-in modules for renderer process
                 renderer: {},
+            }),
+            // Fail builds immediately if the renderer TypeScript project has errors
+            checker({
+                typescript: {
+                    tsconfigPath: "tsconfig.renderer.json",
+                    buildMode: true,
+                },
             }),
             // Custom plugin to reorganize output and copy static assets
             {
