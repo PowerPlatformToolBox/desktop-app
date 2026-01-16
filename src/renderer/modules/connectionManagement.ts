@@ -1164,19 +1164,31 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     // Position menu near the anchor
     const anchorRect = anchor.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
-    let top = anchorRect.bottom + 4;
-    let left = anchorRect.left;
+    const sidebar = document.getElementById("sidebar");
+    const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
 
-    // Adjust if menu goes off-screen
-    if (left + menuRect.width > window.innerWidth) {
-        left = window.innerWidth - menuRect.width - 8;
+    // Prefer opening to the left to avoid overlapping BrowserView on the right
+    let left = anchorRect.left - menuRect.width + anchorRect.width;
+    let top = anchorRect.bottom + 6;
+
+    // Clamp within sidebar bounds to prevent overlapping with tool BrowserView
+    const margin = 6;
+    if (left < sidebarRect.left + margin) {
+        left = sidebarRect.left + margin;
     }
-    if (top + menuRect.height > window.innerHeight) {
-        top = anchorRect.top - menuRect.height - 4;
+    if (left + menuRect.width > sidebarRect.right - margin) {
+        left = sidebarRect.right - margin - menuRect.width;
     }
 
-    menu.style.top = `${top}px`;
+    if (top + menuRect.height > sidebarRect.bottom - margin) {
+        top = anchorRect.top - menuRect.height - margin;
+    }
+    if (top < sidebarRect.top + margin) {
+        top = sidebarRect.top + margin;
+    }
+
     menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
 
     // Add event listeners
     menu.querySelectorAll(".context-menu-item").forEach((item) => {
