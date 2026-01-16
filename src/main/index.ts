@@ -84,6 +84,9 @@ import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 
+// Constants
+const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
+
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
@@ -1314,11 +1317,11 @@ class ToolBoxApp {
             clearTimeout(this.menuCreationTimeout);
         }
 
-        // Schedule menu creation after a short delay (150ms)
+        // Schedule menu creation after a short delay
         this.menuCreationTimeout = setTimeout(() => {
             this.createMenu();
             this.menuCreationTimeout = null;
-        }, 150);
+        }, MENU_CREATION_DEBOUNCE_MS);
     }
 
     /**
