@@ -30,6 +30,27 @@ export type DeprecatedToolsVisibility = "hide-all" | "show-all" | "show-installe
  */
 export type ToolDisplayMode = "standard" | "compact";
 
+export interface LastUsedToolConnectionInfo {
+    id: string | null;
+    name?: string;
+    environment?: DataverseConnection["environment"];
+    url?: string;
+}
+
+export interface LastUsedToolEntry {
+    toolId: string;
+    lastUsedAt: string;
+    primaryConnection?: LastUsedToolConnectionInfo | null;
+    secondaryConnection?: LastUsedToolConnectionInfo | null;
+}
+
+export interface LastUsedToolUpdate {
+    toolId: string;
+    primaryConnection?: LastUsedToolConnectionInfo | null;
+    secondaryConnection?: LastUsedToolConnectionInfo | null;
+    lastUsedAt?: string;
+}
+
 /**
  * User settings for the ToolBox application
  */
@@ -41,7 +62,7 @@ export interface UserSettings {
     showDebugMenu: boolean;
     deprecatedToolsVisibility?: DeprecatedToolsVisibility;
     toolDisplayMode?: ToolDisplayMode;
-    lastUsedTools: string[];
+    lastUsedTools: LastUsedToolEntry[];
     connections: DataverseConnection[];
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs

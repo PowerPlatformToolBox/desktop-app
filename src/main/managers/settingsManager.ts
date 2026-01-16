@@ -1,5 +1,5 @@
 import Store from "electron-store";
-import { ToolSettings, UserSettings } from "../../common/types";
+import { LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
 
 /**
  * Manages user settings using electron-store
@@ -264,13 +264,21 @@ export class SettingsManager {
      * Add a tool to the recently used list
      * Keeps track of tool usage order with most recent at the end
      */
-    addLastUsedTool(toolId: string): void {
-        const lastUsedTools = this.store.get("lastUsedTools") || [];
-        // Remove the tool if it already exists to avoid duplicates
-        const filtered = lastUsedTools.filter((t: string) => t !== toolId);
-        // Add the tool to the end (most recent)
-        filtered.push(toolId);
-        // Keep only the last 20 tools
+    addLastUsedTool(entry: LastUsedToolUpdate): void {
+        if (!entry?.toolId) {
+            return;
+        }
+
+        const normalizedEntry: LastUsedToolEntry = {
+            toolId: entry.toolId,
+            primaryConnection: this.normalizeConnectionInfo(entry.primaryConnection) ?? undefined,
+            secondaryConnection: this.normalizeConnectionInfo(entry.secondaryConnection) ?? undefined,
+            lastUsedAt: entry.lastUsedAt || new Date().toISOString(),
+        };
+
+        const lastUsedTools = this.getLastUsedTools();
+        const filtered = lastUsedTools.filter((existing) => !this.isSameUsage(existing, normalizedEntry));
+        filtered.push(normalizedEntry);
         const trimmed = filtered.slice(-20);
         this.store.set("lastUsedTools", trimmed);
     }
@@ -278,8 +286,13 @@ export class SettingsManager {
     /**
      * Get all recently used tools (ordered from oldest to newest)
      */
-    getLastUsedTools(): string[] {
-        return this.store.get("lastUsedTools") || [];
+    getLastUsedTools(): LastUsedToolEntry[] {
+        const stored = this.store.get("lastUsedTools") || [];
+        if (!Array.isArray(stored)) {
+            return [];
+        }
+
+        return stored.map((entry) => this.normalizeLastUsedToolEntry(entry)).filter((entry): entry is LastUsedToolEntry => entry !== null);
     }
 
     /**
@@ -287,5 +300,49 @@ export class SettingsManager {
      */
     clearLastUsedTools(): void {
         this.store.set("lastUsedTools", []);
+    }
+
+    private normalizeLastUsedToolEntry(entry: unknown): LastUsedToolEntry | null {
+        if (!entry) {
+            return null;
+        }
+
+        if (typeof entry === "string") {
+            return {
+                toolId: entry,
+                lastUsedAt: new Date().toISOString(),
+            };
+        }
+
+        if (typeof entry === "object" && "toolId" in entry) {
+            const typedEntry = entry as Partial<LastUsedToolEntry> & { toolId: string };
+            return {
+                toolId: typedEntry.toolId,
+                lastUsedAt: typedEntry.lastUsedAt || new Date().toISOString(),
+                primaryConnection: this.normalizeConnectionInfo(typedEntry.primaryConnection) ?? undefined,
+                secondaryConnection: this.normalizeConnectionInfo(typedEntry.secondaryConnection) ?? undefined,
+            };
+        }
+
+        return null;
+    }
+
+    private normalizeConnectionInfo(info?: LastUsedToolConnectionInfo | null): LastUsedToolConnectionInfo | undefined {
+        if (!info) {
+            return undefined;
+        }
+
+        return {
+            id: info.id ?? null,
+            name: info.name ?? undefined,
+            environment: info.environment,
+            url: info.url,
+        };
+    }
+
+    private isSameUsage(a: LastUsedToolEntry, b: LastUsedToolEntry): boolean {
+        const primaryMatch = (a.primaryConnection?.id ?? null) === (b.primaryConnection?.id ?? null);
+        const secondaryMatch = (a.secondaryConnection?.id ?? null) === (b.secondaryConnection?.id ?? null);
+        return a.toolId === b.toolId && primaryMatch && secondaryMatch;
     }
 }

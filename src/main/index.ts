@@ -68,7 +68,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -694,8 +694,13 @@ class ToolBoxApp {
         });
 
         // Recently used tools
-        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, toolId: string) => {
-            this.settingsManager.addLastUsedTool(toolId);
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, payload: LastUsedToolUpdate | string) => {
+            if (typeof payload === "string") {
+                this.settingsManager.addLastUsedTool({ toolId: payload });
+                return;
+            }
+
+            this.settingsManager.addLastUsedTool(payload);
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS, () => {
@@ -1138,8 +1143,8 @@ class ToolBoxApp {
         const isToolOpened = this.toolWindowManager?.getActiveToolId() !== null;
         const favoriteTools = (this.settingsManager.getFavoriteTools() || []).slice(0, 5);
         const recentTools = (this.settingsManager.getLastUsedTools() || []).slice(-10).reverse();
-        const favoriteSubmenuItems = this.buildToolShortcutMenuItems(favoriteTools, "favorite");
-        const recentSubmenuItems = this.buildToolShortcutMenuItems(recentTools, "recent");
+        const favoriteSubmenuItems = this.buildFavoriteToolShortcutMenuItems(favoriteTools);
+        const recentSubmenuItems = this.buildRecentToolShortcutMenuItems(recentTools);
 
         const fileSubmenu: MenuItemConstructorOptions[] = [
             {
@@ -1336,7 +1341,7 @@ class ToolBoxApp {
         Menu.setApplicationMenu(menu);
     }
 
-    private buildToolShortcutMenuItems(toolIds: string[], source: "recent" | "favorite"): MenuItemConstructorOptions[] {
+    private buildFavoriteToolShortcutMenuItems(toolIds: string[]): MenuItemConstructorOptions[] {
         if (!toolIds || toolIds.length === 0) {
             return [];
         }
@@ -1350,12 +1355,37 @@ class ToolBoxApp {
             return {
                 label,
                 enabled,
-                click: () => this.sendToolLaunchRequest(toolId, source),
+                click: () => this.sendToolLaunchRequest(toolId, "favorite"),
             };
         });
     }
 
-    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite"): void {
+    private buildRecentToolShortcutMenuItems(entries: LastUsedToolEntry[]): MenuItemConstructorOptions[] {
+        if (!entries || entries.length === 0) {
+            return [];
+        }
+
+        return entries.map((entry) => {
+            const tool = this.toolManager.getTool(entry.toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(entry.toolId);
+            const baseLabel = tool?.name || manifest?.name || entry.toolId;
+            const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+            const label = connectionLabel ? `${baseLabel} (${connectionLabel})` : baseLabel;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () =>
+                    this.sendToolLaunchRequest(entry.toolId, "recent", {
+                        primaryConnectionId: entry.primaryConnection?.id ?? null,
+                        secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+                    }),
+            };
+        });
+    }
+
+    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite", connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }): void {
         if (!this.mainWindow) {
             return;
         }
@@ -1365,6 +1395,8 @@ class ToolBoxApp {
             data: {
                 toolId,
                 source,
+                primaryConnectionId: connectionContext?.primaryConnectionId ?? null,
+                secondaryConnectionId: connectionContext?.secondaryConnectionId ?? null,
             },
             timestamp: new Date().toISOString(),
         };

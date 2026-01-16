@@ -3,8 +3,9 @@
  * Handles homepage display, data loading, and user interactions
  */
 
+import type { LastUsedToolEntry } from "../../common/types";
 import { switchSidebar } from "./sidebarManagement";
-import { launchTool } from "./toolManagement";
+import { launchTool, LaunchToolOptions } from "./toolManagement";
 
 /**
  * Show the homepage and hide the tool panel
@@ -313,17 +314,19 @@ async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Pr
 /**
  * Load recently used tools into the UI
  */
-async function loadRecentlyUsedTools(allTools: any[], recentlyUsedToolIds: string[]): Promise<void> {
+async function loadRecentlyUsedTools(allTools: any[], recentEntries: LastUsedToolEntry[]): Promise<void> {
     const recentlyUsedToolsList = document.getElementById("recently-used-tools-list");
     if (!recentlyUsedToolsList) return;
 
-    // Get top 3 recently used tools (reverse order - most recent first)
-    const recentTools = recentlyUsedToolIds
+    const recentTools = recentEntries
         .slice()
         .reverse()
-        .slice(0, 3)
-        .map((toolId) => allTools.find((tool) => tool.id === toolId))
-        .filter((tool) => tool !== undefined);
+        .map((entry) => {
+            const tool = allTools.find((toolItem) => toolItem.id === entry.toolId);
+            return tool ? { tool, entry } : null;
+        })
+        .filter((item): item is { tool: any; entry: LastUsedToolEntry } => item !== null)
+        .slice(0, 3);
 
     if (recentTools.length === 0) {
         // Show empty state
@@ -336,8 +339,7 @@ async function loadRecentlyUsedTools(allTools: any[], recentlyUsedToolIds: strin
         return;
     }
 
-    // Render recently used tools using safe DOM creation
-    renderToolsList(recentlyUsedToolsList, recentTools);
+    renderRecentToolsList(recentlyUsedToolsList, recentTools);
 }
 
 /**
@@ -398,12 +400,72 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
     });
 }
 
+function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry: LastUsedToolEntry }[]): void {
+    container.innerHTML = "";
+
+    items.forEach(({ tool, entry }) => {
+        const toolItem = document.createElement("div");
+        toolItem.className = "quick-tool-item";
+        toolItem.setAttribute("data-tool-id", tool.id);
+
+        const iconContainer = document.createElement("div");
+        iconContainer.className = "quick-tool-icon";
+
+        if (tool.iconUrl) {
+            const img = document.createElement("img");
+            img.src = tool.iconUrl;
+            img.alt = escapeHtml(tool.name);
+            iconContainer.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.className = "quick-tool-icon-placeholder";
+            placeholder.textContent = tool.name.charAt(0).toUpperCase();
+            iconContainer.appendChild(placeholder);
+        }
+
+        const infoContainer = document.createElement("div");
+        infoContainer.className = "quick-tool-info";
+
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "quick-tool-name";
+        nameDiv.textContent = tool.name;
+
+        const versionDiv = document.createElement("div");
+        versionDiv.className = "quick-tool-version";
+        versionDiv.textContent = `v${tool.version}`;
+
+        infoContainer.appendChild(nameDiv);
+        infoContainer.appendChild(versionDiv);
+
+        const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+        if (connectionLabel) {
+            const connectionDiv = document.createElement("div");
+            connectionDiv.className = "quick-tool-connection";
+            connectionDiv.textContent = `Connection: ${connectionLabel}`;
+            infoContainer.appendChild(connectionDiv);
+        }
+
+        toolItem.appendChild(iconContainer);
+        toolItem.appendChild(infoContainer);
+
+        toolItem.addEventListener("click", async () => {
+            await openTool(tool.id, {
+                source: "recent",
+                primaryConnectionId: entry.primaryConnection?.id ?? null,
+                secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+            });
+        });
+
+        container.appendChild(toolItem);
+    });
+}
+
 /**
  * Open a tool by ID
  */
-async function openTool(toolId: string): Promise<void> {
+async function openTool(toolId: string, options?: LaunchToolOptions): Promise<void> {
     try {
-        launchTool(toolId);
+        await launchTool(toolId, options);
     } catch (error) {
         console.error(`Failed to open tool ${toolId}:`, error);
     }

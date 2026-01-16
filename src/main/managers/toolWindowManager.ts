@@ -224,11 +224,22 @@ export class ToolWindowManager {
             let connectionUrl: string | null = null;
             let secondaryConnectionUrl: string | null = null;
 
+            let primaryConnectionDetails: { id: string | null; name?: string; environment?: string; url?: string } | undefined;
+            let secondaryConnectionDetails: { id: string | null; name?: string; environment?: string; url?: string } | undefined;
+
             if (primaryConnectionId) {
                 // Get the actual connection object to retrieve the URL
                 const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
                 if (connection) {
                     connectionUrl = connection.url;
+                    primaryConnectionDetails = {
+                        id: connection.id,
+                        name: connection.name,
+                        environment: connection.environment,
+                        url: connection.url,
+                    };
+                } else {
+                    primaryConnectionDetails = { id: primaryConnectionId };
                 }
             }
 
@@ -237,6 +248,14 @@ export class ToolWindowManager {
                 const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
                 if (secondaryConnection) {
                     secondaryConnectionUrl = secondaryConnection.url;
+                    secondaryConnectionDetails = {
+                        id: secondaryConnection.id,
+                        name: secondaryConnection.name,
+                        environment: secondaryConnection.environment,
+                        url: secondaryConnection.url,
+                    };
+                } else {
+                    secondaryConnectionDetails = { id: secondaryConnectionId };
                 }
             }
 
@@ -269,7 +288,11 @@ export class ToolWindowManager {
             });
 
             // Add to recently used tools list
-            this.settingsManager.addLastUsedTool(toolId);
+            this.settingsManager.addLastUsedTool({
+                toolId,
+                primaryConnection: primaryConnectionDetails,
+                secondaryConnection: secondaryConnectionDetails,
+            });
 
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;

@@ -766,7 +766,11 @@ function setupToolboxEventListeners(): void {
         if (payload.event === "menu:launch-tool") {
             const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
             if (toolId) {
-                void launchTool(toolId);
+                void launchTool(toolId, {
+                    source: payload.data?.source,
+                    primaryConnectionId: payload.data?.primaryConnectionId ?? null,
+                    secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
+                });
             } else {
                 console.warn("Menu launch event missing toolId", payload);
             }
