@@ -1249,13 +1249,19 @@ class ToolBoxApp {
                                       if (repositoryUrl) {
                                           await shell.openExternal(repositoryUrl);
                                       } else {
-                                          dialog.showMessageBox(this.mainWindow!, {
+                                          const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
                                               title: "Tool Feedback",
-                                              message:
-                                                  "The tool creator has not provided support links. To share feedback or raise concerns, please join the Power Platform ToolBox community Discord. You can find the link in the Help menu.",
-                                              buttons: ["OK"],
+                                              message: "The tool creator has not provided specific support links for this tool.",
+                                              detail:
+                                                  "To share feedback or raise concerns, you can join the Power Platform ToolBox community Discord directly.",
+                                              buttons: ["Open Discord", "Close"],
+                                              defaultId: 0,
+                                              cancelId: 1,
                                           });
+                                          if (result.response === 0) {
+                                              await shell.openExternal("https://discord.gg/powerplatformtoolbox");
+                                          }
                                       }
                                   },
                               },
