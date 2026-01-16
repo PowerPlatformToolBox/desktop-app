@@ -1253,14 +1253,13 @@ class ToolBoxApp {
                                               type: "info",
                                               title: "Tool Feedback",
                                               message: "The tool creator has not provided specific support links for this tool.",
-                                              detail:
-                                                  "To share feedback or raise concerns, you can join the Power Platform ToolBox community Discord directly.",
+                                              detail: "To share feedback or raise concerns, you can join the Power Platform ToolBox community Discord directly.",
                                               buttons: ["Open Discord", "Close"],
                                               defaultId: 0,
                                               cancelId: 1,
                                           });
                                           if (result.response === 0) {
-                                              await shell.openExternal("https://discord.gg/powerplatformtoolbox");
+                                              await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                                           }
                                       }
                                   },
