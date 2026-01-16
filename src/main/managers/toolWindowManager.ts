@@ -648,7 +648,7 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}:`, error);
+            captureMessage(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}: ${error}`, "error");
             return false;
         }
     }
