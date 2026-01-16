@@ -1168,7 +1168,7 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
 
     // Prefer opening to the left to avoid overlapping BrowserView on the right
-    let left = anchorRect.left - menuRect.width + anchorRect.width;
+    let left = anchorRect.right - menuRect.width;
     let top = anchorRect.bottom + 6;
 
     // Clamp within sidebar bounds to prevent overlapping with tool BrowserView
