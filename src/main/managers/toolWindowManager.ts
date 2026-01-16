@@ -2,7 +2,7 @@ import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
-import { Tool } from "../../common/types";
+import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -224,8 +224,8 @@ export class ToolWindowManager {
             let connectionUrl: string | null = null;
             let secondaryConnectionUrl: string | null = null;
 
-            let primaryConnectionDetails: { id: string | null; name?: string; environment?: string; url?: string } | undefined;
-            let secondaryConnectionDetails: { id: string | null; name?: string; environment?: string; url?: string } | undefined;
+            let primaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
+            let secondaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
 
             if (primaryConnectionId) {
                 // Get the actual connection object to retrieve the URL
@@ -284,7 +284,9 @@ export class ToolWindowManager {
 
             // Track tool usage for analytics (async, don't wait for completion)
             this.toolManager.trackToolUsage(toolId).catch((error) => {
-                console.error(`[ToolWindowManager] Failed to track tool usage asynchronously:`, error);
+                captureMessage(`[ToolWindowManager] Failed to track tool usage asynchronously: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             });
 
             // Add to recently used tools list
@@ -297,7 +299,9 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error launching tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error launching tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
 
             return false;
         }
@@ -311,7 +315,7 @@ export class ToolWindowManager {
         try {
             const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
-                console.error(`[ToolWindowManager] Tool instance not found: ${instanceId}`);
+                captureMessage(`[ToolWindowManager] Tool instance not found: ${instanceId}`, "error");
                 return false;
             }
 
@@ -341,7 +345,9 @@ export class ToolWindowManager {
 
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error switching to tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error switching to tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
             return false;
         }
     }
@@ -377,7 +383,9 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error closing tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
 
             return false;
         }
@@ -453,7 +461,7 @@ export class ToolWindowManager {
                     // Encourage tool content to reflow
                     toolView.webContents.executeJavaScript("try{window.dispatchEvent(new Event('resize'));}catch(e){}", true).catch(() => {});
                 } catch (err) {
-                    console.error("[ToolWindowManager] Error in fallback bounds update:", err);
+                    captureMessage("[ToolWindowManager] Error in fallback bounds update:", "error", { extra: { err } });
                 } finally {
                     this.boundsUpdatePending = false;
                 }
@@ -489,7 +497,7 @@ export class ToolWindowManager {
             toolView.setBounds(clamped);
             this.boundsUpdatePending = false;
         } catch (error) {
-            console.error("[ToolWindowManager] Error applying tool view bounds:", error);
+            captureMessage("[ToolWindowManager] Error applying tool view bounds:", "error", { extra: { error } });
         }
     }
 
@@ -512,7 +520,9 @@ export class ToolWindowManager {
             // Send to tool via IPC
             toolView.webContents.send("toolbox:context", toolContext);
         } catch (error) {
-            console.error(`[ToolWindowManager] Error sending context to tool ${toolId}:`, error);
+            captureMessage(`[ToolWindowManager] Error sending context to tool ${toolId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         }
     }
 
@@ -620,7 +630,9 @@ export class ToolWindowManager {
                     toolView.webContents.destroy();
                 }
             } catch (error) {
-                console.error(`[ToolWindowManager] Error destroying tool view ${toolId}:`, error);
+                captureMessage(`[ToolWindowManager] Error destroying tool view ${toolId}: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             }
         }
         this.toolViews.clear();
@@ -638,7 +650,9 @@ export class ToolWindowManager {
                     toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
                 }
             } catch (error) {
-                console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
+                captureMessage(`[ToolWindowManager] Error forwarding event to tool ${toolId}: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             }
         }
     }

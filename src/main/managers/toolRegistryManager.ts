@@ -247,7 +247,9 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
         } catch (error) {
-            console.error(`[ToolRegistry] Failed to fetch registry from Supabase:`, error);
+            captureMessage(`[ToolRegistry] Failed to fetch registry from Supabase: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
             throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -298,7 +300,9 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
         } catch (error) {
-            console.error(`[ToolRegistry] Failed to fetch local registry:`, error);
+            captureMessage(`[ToolRegistry] Failed to fetch local registry: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
             throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -483,7 +487,9 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Track the download (async, don't wait for completion)
         this.trackToolDownload(toolId).catch((error) => {
-            console.error(`[ToolRegistry] Failed to track download asynchronously:`, error);
+            captureMessage(`[ToolRegistry] Failed to track download asynchronously: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         });
 
         return manifest;
@@ -533,7 +539,9 @@ export class ToolRegistryManager extends EventEmitter {
             const tools: Record<string, unknown>[] = manifest.tools || [];
             return tools.map((entry) => this.normalizeManifestEntry(entry));
         } catch (error) {
-            console.error(`[ToolRegistry] Failed to read manifest:`, error);
+            captureMessage(`[ToolRegistry] Failed to read manifest: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
             return [];
         }
     }
@@ -593,7 +601,9 @@ export class ToolRegistryManager extends EventEmitter {
             const { data, error } = await this.supabase!.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
 
             if (error) {
-                console.error(`[ToolRegistry] Failed to fetch analytics:`, error);
+                captureMessage(`[ToolRegistry] Failed to fetch analytics: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
                 return map;
             }
 
@@ -604,7 +614,9 @@ export class ToolRegistryManager extends EventEmitter {
                 }
             });
         } catch (error) {
-            console.error(`[ToolRegistry] Error fetching analytics:`, error);
+            captureMessage(`[ToolRegistry] Error fetching analytics: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         }
 
         return map;
@@ -733,7 +745,9 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
-            console.error(`[ToolRegistry] Failed to track download for ${toolId}:`, error);
+            captureMessage(`[ToolRegistry] Failed to track download for ${toolId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         }
     }
 
@@ -809,7 +823,9 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
-            console.error(`[ToolRegistry] Failed to track usage for ${toolId}:`, error);
+            captureMessage(`[ToolRegistry] Failed to track usage for ${toolId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         }
     }
 }

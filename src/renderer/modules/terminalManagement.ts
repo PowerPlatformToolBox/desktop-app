@@ -4,7 +4,7 @@
  */
 
 import AnsiToHtml from "ansi-to-html";
-import { logInfo } from "../../common/sentryHelper";
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
 import type { TerminalTab } from "../types/index";
 
@@ -176,7 +176,7 @@ function createTerminalTab(terminal: any): void {
             }
         })
         .catch((error: Error) => {
-            console.error("Failed to apply terminal font:", error);
+            captureMessage("Failed to apply terminal font:", "error", { extra: { error } });
         });
 
     // Store terminal tab

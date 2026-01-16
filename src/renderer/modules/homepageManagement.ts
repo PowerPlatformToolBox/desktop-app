@@ -3,9 +3,38 @@
  * Handles homepage display, data loading, and user interactions
  */
 
+import { captureException } from "../../common/sentryHelper";
 import type { LastUsedToolEntry } from "../../common/types";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
+
+function normalizeHomepageError(error: unknown, fallbackMessage: string): Error {
+    if (error instanceof Error) {
+        return error;
+    }
+
+    if (typeof error === "string") {
+        return new Error(error);
+    }
+
+    try {
+        const serialized = JSON.stringify(error);
+        return new Error(serialized);
+    } catch {
+        return new Error(fallbackMessage);
+    }
+}
+
+function reportHomepageError(operation: string, error: unknown, extra?: Record<string, unknown>): void {
+    const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
+    captureException(normalized, {
+        tags: {
+            module: "homepage",
+            operation,
+        },
+        extra,
+    });
+}
 
 /**
  * Show the homepage and hide the tool panel
@@ -94,7 +123,7 @@ async function loadNewToolsNotification(): Promise<void> {
             notificationBar.style.display = "none";
         }
     } catch (error) {
-        console.error("Failed to load new tools notification:", error);
+        reportHomepageError("loadNewToolsNotification", error);
     }
 }
 
@@ -132,7 +161,7 @@ async function loadHeroStats(): Promise<void> {
             connectionsCountEl.textContent = connectionsCount.toString();
         }
     } catch (error) {
-        console.error("Failed to load hero stats:", error);
+        reportHomepageError("loadHeroStats", error);
     }
 }
 
@@ -177,7 +206,7 @@ async function loadWhatsNew(): Promise<void> {
             fullNotesLink.setAttribute("href", release.html_url);
         }
     } catch (error) {
-        console.error("Failed to load what's new:", error);
+        reportHomepageError("loadWhatsNew", error);
 
         // Show fallback content
         const highlightsList = document.getElementById("release-highlights");
@@ -252,7 +281,7 @@ async function loadSponsorData(): Promise<void> {
         // In the future, this could fetch real sponsor data from GitHub Sponsors API
         // which would require authentication
     } catch (error) {
-        console.error("Failed to load sponsor data:", error);
+        reportHomepageError("loadSponsorData", error);
     }
 }
 
@@ -270,7 +299,7 @@ async function loadQuickAccessTools(): Promise<void> {
         // Load recently used tools
         await loadRecentlyUsedTools(allTools, userSettings.lastUsedTools || []);
     } catch (error) {
-        console.error("Failed to load quick access tools:", error);
+        reportHomepageError("loadQuickAccessTools", error);
     }
 }
 
@@ -467,7 +496,7 @@ async function openTool(toolId: string, options?: LaunchToolOptions): Promise<vo
     try {
         await launchTool(toolId, options);
     } catch (error) {
-        console.error(`Failed to open tool ${toolId}:`, error);
+        reportHomepageError("openTool", error, { toolId });
     }
 }
 
