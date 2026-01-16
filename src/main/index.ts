@@ -84,6 +84,9 @@ import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 
+// Constants
+const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
+
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
@@ -102,6 +105,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
+    private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
@@ -1316,6 +1320,23 @@ class ToolBoxApp {
     }
 
     /**
+     * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
+     * This method cancels any pending menu recreation and schedules a new one after a short delay.
+     */
+    private debouncedCreateMenu(): void {
+        // Clear any existing timeout
+        if (this.menuCreationTimeout) {
+            clearTimeout(this.menuCreationTimeout);
+        }
+
+        // Schedule menu creation after a short delay
+        this.menuCreationTimeout = setTimeout(() => {
+            this.createMenu();
+            this.menuCreationTimeout = null;
+        }, MENU_CREATION_DEBOUNCE_MS);
+    }
+
+    /**
      * Check for token expiry and notify user
      * Note: With no global active connection, this method is deprecated
      * Token expiry checks are now done per-tool when making API calls
@@ -1371,9 +1392,9 @@ class ToolBoxApp {
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
 
-        // Set up callback to rebuild menu when active tool changes
+        // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
-            this.createMenu();
+            this.debouncedCreateMenu();
         });
 
         // Initialize NotificationWindowManager for overlay notifications
