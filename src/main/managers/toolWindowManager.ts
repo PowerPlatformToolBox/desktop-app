@@ -2,7 +2,7 @@ import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
-import { Tool } from "../../common/types";
+import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -54,6 +54,7 @@ export class ToolWindowManager {
     private refreshBoundsListener: () => void;
     private focusListener: () => void;
     private showListener: () => void;
+    private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
 
     constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
         this.mainWindow = mainWindow;
@@ -223,11 +224,22 @@ export class ToolWindowManager {
             let connectionUrl: string | null = null;
             let secondaryConnectionUrl: string | null = null;
 
+            let primaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
+            let secondaryConnectionDetails: LastUsedToolConnectionInfo | undefined;
+
             if (primaryConnectionId) {
                 // Get the actual connection object to retrieve the URL
                 const connection = this.connectionsManager.getConnectionById(primaryConnectionId);
                 if (connection) {
                     connectionUrl = connection.url;
+                    primaryConnectionDetails = {
+                        id: connection.id,
+                        name: connection.name,
+                        environment: connection.environment,
+                        url: connection.url,
+                    };
+                } else {
+                    primaryConnectionDetails = { id: primaryConnectionId };
                 }
             }
 
@@ -236,6 +248,14 @@ export class ToolWindowManager {
                 const secondaryConnection = this.connectionsManager.getConnectionById(secondaryConnectionId);
                 if (secondaryConnection) {
                     secondaryConnectionUrl = secondaryConnection.url;
+                    secondaryConnectionDetails = {
+                        id: secondaryConnection.id,
+                        name: secondaryConnection.name,
+                        environment: secondaryConnection.environment,
+                        url: secondaryConnection.url,
+                    };
+                } else {
+                    secondaryConnectionDetails = { id: secondaryConnectionId };
                 }
             }
 
@@ -264,16 +284,24 @@ export class ToolWindowManager {
 
             // Track tool usage for analytics (async, don't wait for completion)
             this.toolManager.trackToolUsage(toolId).catch((error) => {
-                console.error(`[ToolWindowManager] Failed to track tool usage asynchronously:`, error);
+                captureMessage(`[ToolWindowManager] Failed to track tool usage asynchronously: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             });
 
             // Add to recently used tools list
-            this.settingsManager.addLastUsedTool(toolId);
+            this.settingsManager.addLastUsedTool({
+                toolId,
+                primaryConnection: primaryConnectionDetails,
+                secondaryConnection: secondaryConnectionDetails,
+            });
 
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error launching tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error launching tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
 
             return false;
         }
@@ -287,7 +315,7 @@ export class ToolWindowManager {
         try {
             const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
-                console.error(`[ToolWindowManager] Tool instance not found: ${instanceId}`);
+                captureMessage(`[ToolWindowManager] Tool instance not found: ${instanceId}`, "error");
                 return false;
             }
 
@@ -305,9 +333,10 @@ export class ToolWindowManager {
             try {
                 (toolView as any).setAutoResize?.({ width: true, height: true });
             } catch (err) {
-                console.error(err);
+                captureMessage(`[ToolWindowManager] Error enabling auto-resize for tool view ${instanceId}: ${err}`, "warning");
             }
             this.activeToolId = instanceId;
+            this.invokeActiveToolChangedCallback();
 
             logInfo(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
 
@@ -316,7 +345,9 @@ export class ToolWindowManager {
 
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error switching to tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error switching to tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
             return false;
         }
     }
@@ -336,6 +367,7 @@ export class ToolWindowManager {
             if (this.activeToolId === instanceId) {
                 this.mainWindow.setBrowserView(null);
                 this.activeToolId = null;
+                this.invokeActiveToolChangedCallback();
             }
 
             // Destroy the BrowserView's web contents
@@ -351,7 +383,9 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error closing tool instance ${instanceId}:`, error);
+            captureMessage(`[ToolWindowManager] Error closing tool instance ${instanceId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
 
             return false;
         }
@@ -427,7 +461,7 @@ export class ToolWindowManager {
                     // Encourage tool content to reflow
                     toolView.webContents.executeJavaScript("try{window.dispatchEvent(new Event('resize'));}catch(e){}", true).catch(() => {});
                 } catch (err) {
-                    console.error("[ToolWindowManager] Error in fallback bounds update:", err);
+                    captureMessage("[ToolWindowManager] Error in fallback bounds update:", "error", { extra: { err } });
                 } finally {
                     this.boundsUpdatePending = false;
                 }
@@ -463,7 +497,7 @@ export class ToolWindowManager {
             toolView.setBounds(clamped);
             this.boundsUpdatePending = false;
         } catch (error) {
-            console.error("[ToolWindowManager] Error applying tool view bounds:", error);
+            captureMessage("[ToolWindowManager] Error applying tool view bounds:", "error", { extra: { error } });
         }
     }
 
@@ -486,7 +520,9 @@ export class ToolWindowManager {
             // Send to tool via IPC
             toolView.webContents.send("toolbox:context", toolContext);
         } catch (error) {
-            console.error(`[ToolWindowManager] Error sending context to tool ${toolId}:`, error);
+            captureMessage(`[ToolWindowManager] Error sending context to tool ${toolId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
         }
     }
 
@@ -594,7 +630,9 @@ export class ToolWindowManager {
                     toolView.webContents.destroy();
                 }
             } catch (error) {
-                console.error(`[ToolWindowManager] Error destroying tool view ${toolId}:`, error);
+                captureMessage(`[ToolWindowManager] Error destroying tool view ${toolId}: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             }
         }
         this.toolViews.clear();
@@ -612,7 +650,9 @@ export class ToolWindowManager {
                     toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
                 }
             } catch (error) {
-                console.error(`[ToolWindowManager] Error forwarding event to tool ${toolId}:`, error);
+                captureMessage(`[ToolWindowManager] Error forwarding event to tool ${toolId}: ${(error as Error).message}`, "error", {
+                    extra: { error },
+                });
             }
         }
     }
@@ -645,8 +685,30 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
             return true;
         } catch (error) {
-            console.error(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}:`, error);
+            captureMessage(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}: ${error}`, "error");
             return false;
+        }
+    }
+
+    /**
+     * Set a callback to be invoked when the active tool changes
+     * @param callback Function to call with the new active tool ID (null if no tool is active). Pass null/undefined to clear the callback.
+     */
+    setOnActiveToolChanged(callback: ((activeToolId: string | null) => void) | null | undefined): void {
+        if (callback !== null && callback !== undefined && typeof callback !== "function") {
+            captureMessage("[ToolWindowManager] setOnActiveToolChanged called with non-function callback", "warning");
+            return;
+        }
+
+        this.onActiveToolChanged = callback ?? null;
+    }
+
+    /**
+     * Invoke the active tool changed callback
+     */
+    private invokeActiveToolChangedCallback(): void {
+        if (this.onActiveToolChanged) {
+            this.onActiveToolChanged(this.activeToolId);
         }
     }
 

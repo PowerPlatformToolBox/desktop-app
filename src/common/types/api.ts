@@ -6,7 +6,7 @@
 import { ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
-import { UserSettings } from "./settings";
+import { LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { Tool, ToolContext, ToolSettings } from "./tool";
 
@@ -145,8 +145,8 @@ export interface ToolboxAPI {
     getAllToolSecondaryConnections: () => Promise<Record<string, string>>;
 
     // Recently used tools
-    addLastUsedTool: (toolId: string) => Promise<void>;
-    getLastUsedTools: () => Promise<string[]>;
+    addLastUsedTool: (entry: LastUsedToolUpdate) => Promise<void>;
+    getLastUsedTools: () => Promise<LastUsedToolEntry[]>;
     clearLastUsedTools: () => Promise<void>;
 
     // Local tool development (DEBUG MODE)

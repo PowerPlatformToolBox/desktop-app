@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, MODAL_WINDOW_CHANNELS } from "../../common/ipc/channels";
+import { captureMessage } from "../../common/sentryHelper";
 import { ModalWindowClosedPayload, ModalWindowMessagePayload, ModalWindowOptions } from "../../common/types";
 
 const MIN_MODAL_WIDTH = 280;
@@ -49,7 +50,7 @@ export class ModalWindowManager {
                 }
             })
             .catch((error) => {
-                console.error("Failed to load modal content", error);
+                captureMessage("Failed to load modal content", "error", { extra: { error } });
             });
     }
 

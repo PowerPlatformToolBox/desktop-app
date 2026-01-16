@@ -4,6 +4,7 @@
  */
 
 import AnsiToHtml from "ansi-to-html";
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
 import type { TerminalTab } from "../types/index";
 
@@ -66,10 +67,7 @@ export function setupTerminalPanel(): void {
         document.addEventListener("mousemove", (e) => {
             if (!isResizing) return;
             const deltaY = startY - e.clientY;
-            const newHeight = Math.max(
-                TERMINAL_RESIZE_CONFIG.MIN_HEIGHT,
-                Math.min(startHeight + deltaY, window.innerHeight * TERMINAL_RESIZE_CONFIG.MAX_HEIGHT_RATIO)
-            );
+            const newHeight = Math.max(TERMINAL_RESIZE_CONFIG.MIN_HEIGHT, Math.min(startHeight + deltaY, window.innerHeight * TERMINAL_RESIZE_CONFIG.MAX_HEIGHT_RATIO));
             terminalPanel.style.height = `${newHeight}px`;
         });
 
@@ -86,7 +84,7 @@ export function setupTerminalPanel(): void {
  * Handle terminal created event
  */
 export function handleTerminalCreated(terminal: any): void {
-    console.log("Terminal created:", terminal);
+    logInfo("Terminal created:", { terminal });
     createTerminalTab(terminal);
     showTerminalPanel();
 }
@@ -95,7 +93,7 @@ export function handleTerminalCreated(terminal: any): void {
  * Handle terminal closed event
  */
 export function handleTerminalClosed(data: any): void {
-    console.log("Terminal closed:", data);
+    logInfo("Terminal closed:", data);
     removeTerminalTab(data.terminalId);
 }
 
@@ -111,7 +109,7 @@ export function handleTerminalOutput(data: any): void {
  * Handle terminal command completed event
  */
 export function handleTerminalCommandCompleted(result: any): void {
-    console.log("Terminal command completed:", result);
+    logInfo("Terminal command completed:", result);
     // Output is already displayed via terminal:output events
 }
 
@@ -178,7 +176,7 @@ function createTerminalTab(terminal: any): void {
             }
         })
         .catch((error: Error) => {
-            console.error("Failed to apply terminal font:", error);
+            captureMessage("Failed to apply terminal font:", "error", { extra: { error } });
         });
 
     // Store terminal tab

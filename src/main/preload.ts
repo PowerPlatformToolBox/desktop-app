@@ -10,6 +10,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import type { LastUsedToolUpdate } from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -96,7 +97,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getAllToolSecondaryConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS),
 
     // Recently used tools - Only for PPTB UI
-    addLastUsedTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, toolId),
+    addLastUsedTool: (entry: LastUsedToolUpdate) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, entry),
     getLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS),
     clearLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS),
 

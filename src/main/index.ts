@@ -55,7 +55,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
@@ -68,7 +68,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -83,6 +83,9 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+
+// Constants
+const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -102,6 +105,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
+    private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
@@ -690,8 +694,13 @@ class ToolBoxApp {
         });
 
         // Recently used tools
-        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, toolId: string) => {
-            this.settingsManager.addLastUsedTool(toolId);
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, payload: LastUsedToolUpdate | string) => {
+            if (typeof payload === "string") {
+                this.settingsManager.addLastUsedTool({ toolId: payload });
+                return;
+            }
+
+            this.settingsManager.addLastUsedTool(payload);
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS, () => {
@@ -1131,6 +1140,24 @@ class ToolBoxApp {
      */
     private createMenu(): void {
         const isMac = process.platform === "darwin";
+        const isToolOpened = this.toolWindowManager?.getActiveToolId() !== null;
+        const favoriteTools = (this.settingsManager.getFavoriteTools() || []).slice(0, 5);
+        const recentTools = (this.settingsManager.getLastUsedTools() || []).slice(-10).reverse();
+        const favoriteSubmenuItems = this.buildFavoriteToolShortcutMenuItems(favoriteTools);
+        const recentSubmenuItems = this.buildRecentToolShortcutMenuItems(recentTools);
+
+        const fileSubmenu: MenuItemConstructorOptions[] = [
+            {
+                label: "Open Recent",
+                submenu: recentSubmenuItems.length > 0 ? recentSubmenuItems : [{ label: "No recent tools", enabled: false }],
+            },
+            {
+                label: "Open Favorite",
+                submenu: favoriteSubmenuItems.length > 0 ? favoriteSubmenuItems : [{ label: "No favorite tools", enabled: false }],
+            },
+            { type: "separator" },
+            isMac ? { role: "close" } : { role: "quit" },
+        ];
 
         const template: any[] = [
             // App menu (macOS only)
@@ -1156,7 +1183,7 @@ class ToolBoxApp {
             // File menu
             {
                 label: "File",
-                submenu: [isMac ? { role: "close" } : { role: "quit" }],
+                submenu: fileSubmenu,
             },
 
             // Edit menu
@@ -1231,43 +1258,59 @@ class ToolBoxApp {
                             await shell.openExternal("https://docs.powerplatformtoolbox.com/");
                         },
                     },
-                    { type: "separator" },
                     {
-                        label: "Tool Feedback",
-                        accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                        label: "Join Discord",
                         click: async () => {
-                            const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
-                            if (repositoryUrl) {
-                                await shell.openExternal(repositoryUrl);
-                            } else {
-                                dialog.showMessageBox(this.mainWindow!, {
-                                    type: "info",
-                                    title: "Tool Feedback",
-                                    message: "No active tool or repository URL not available for this tool.",
-                                    buttons: ["OK"],
-                                });
-                            }
-                        },
-                    },
-                    {
-                        label: "Toggle Tool DevTools",
-                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
-                        click: () => {
-                            if (this.toolWindowManager) {
-                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
-                                if (!opened) {
-                                    // Show notification if no active tool
-                                    dialog.showMessageBox(this.mainWindow!, {
-                                        type: "info",
-                                        title: "No Active Tool",
-                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
-                                        buttons: ["OK"],
-                                    });
-                                }
-                            }
+                            await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                         },
                     },
                     { type: "separator" },
+                    ...(isToolOpened
+                        ? [
+                              {
+                                  label: "Tool Feedback",
+                                  accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                                  click: async () => {
+                                      const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
+                                      if (repositoryUrl) {
+                                          await shell.openExternal(repositoryUrl);
+                                      } else {
+                                          const result = await dialog.showMessageBox(this.mainWindow!, {
+                                              type: "info",
+                                              title: "Tool Feedback",
+                                              message: "The tool creator has not provided specific support links for this tool.",
+                                              detail: "To share feedback or raise concerns, you can join the Power Platform ToolBox community Discord directly.",
+                                              buttons: ["Open Discord", "Close"],
+                                              defaultId: 0,
+                                              cancelId: 1,
+                                          });
+                                          if (result.response === 0) {
+                                              await shell.openExternal("https://discord.gg/efwAu9sXyJ");
+                                          }
+                                      }
+                                  },
+                              },
+                              {
+                                  label: "Toggle Tool DevTools",
+                                  accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                                  click: () => {
+                                      if (this.toolWindowManager) {
+                                          const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                          if (!opened) {
+                                              // Show notification if no active tool
+                                              dialog.showMessageBox(this.mainWindow!, {
+                                                  type: "info",
+                                                  title: "No Active Tool",
+                                                  message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                                  buttons: ["OK"],
+                                              });
+                                          }
+                                      }
+                                  },
+                              },
+                              { type: "separator" },
+                          ]
+                        : []),
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
@@ -1296,6 +1339,86 @@ class ToolBoxApp {
 
         const menu = Menu.buildFromTemplate(template);
         Menu.setApplicationMenu(menu);
+    }
+
+    private buildFavoriteToolShortcutMenuItems(toolIds: string[]): MenuItemConstructorOptions[] {
+        if (!toolIds || toolIds.length === 0) {
+            return [];
+        }
+
+        return toolIds.map((toolId) => {
+            const tool = this.toolManager.getTool(toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(toolId);
+            const label = tool?.name || manifest?.name || toolId;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () => this.sendToolLaunchRequest(toolId, "favorite"),
+            };
+        });
+    }
+
+    private buildRecentToolShortcutMenuItems(entries: LastUsedToolEntry[]): MenuItemConstructorOptions[] {
+        if (!entries || entries.length === 0) {
+            return [];
+        }
+
+        return entries.map((entry) => {
+            const tool = this.toolManager.getTool(entry.toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(entry.toolId);
+            const baseLabel = tool?.name || manifest?.name || entry.toolId;
+            const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+            const label = connectionLabel ? `${baseLabel} (${connectionLabel})` : baseLabel;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () =>
+                    this.sendToolLaunchRequest(entry.toolId, "recent", {
+                        primaryConnectionId: entry.primaryConnection?.id ?? null,
+                        secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+                    }),
+            };
+        });
+    }
+
+    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite", connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:launch-tool",
+            data: {
+                toolId,
+                source,
+                primaryConnectionId: connectionContext?.primaryConnectionId ?? null,
+                secondaryConnectionId: connectionContext?.secondaryConnectionId ?? null,
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+    }
+
+    /**
+     * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
+     * This method cancels any pending menu recreation and schedules a new one after a short delay.
+     */
+    private debouncedCreateMenu(): void {
+        // Clear any existing timeout
+        if (this.menuCreationTimeout) {
+            clearTimeout(this.menuCreationTimeout);
+        }
+
+        // Schedule menu creation after a short delay
+        this.menuCreationTimeout = setTimeout(() => {
+            this.createMenu();
+            this.menuCreationTimeout = null;
+        }, MENU_CREATION_DEBOUNCE_MS);
     }
 
     /**
@@ -1353,6 +1476,11 @@ class ToolBoxApp {
 
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
+
+        // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
+        this.toolWindowManager.setOnActiveToolChanged(() => {
+            this.debouncedCreateMenu();
+        });
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);

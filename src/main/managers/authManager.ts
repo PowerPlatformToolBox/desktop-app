@@ -3,7 +3,7 @@ import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { logInfo, logWarn } from "../../common/sentryHelper";
+import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
@@ -106,7 +106,9 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
-            console.error("Interactive authentication failed:", error);
+            captureMessage("Interactive authentication failed:", "error", {
+                extra: { error },
+            });
             // Show error in a modal dialog
             this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
             throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -336,7 +338,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Client secret authentication failed:", error);
+            captureMessage("Client secret authentication failed:", "error", {
+                extra: { error },
+            });
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,7 +386,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Username/password authentication failed:", error);
+            captureMessage("Username/password authentication failed:", "error", {
+                extra: { error },
+            });
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -438,7 +444,9 @@ export class AuthManager {
 
             throw new Error("Connection test failed: Unable to verify identity");
         } catch (error) {
-            console.error("Test connection failed:", error);
+            captureMessage("Test connection failed:", "error", {
+                extra: { error },
+            });
             throw error;
         }
     }
@@ -553,7 +561,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Token refresh failed:", error);
+            captureMessage("Token refresh failed:", "error", {
+                extra: { error },
+            });
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }
