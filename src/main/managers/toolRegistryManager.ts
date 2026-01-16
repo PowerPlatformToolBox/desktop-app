@@ -514,6 +514,15 @@ export class ToolRegistryManager extends EventEmitter {
      * Get list of installed tools
      */
     async getInstalledTools(): Promise<ToolManifest[]> {
+        return this.readInstalledManifest();
+    }
+
+    getInstalledManifestSync(toolId: string): ToolManifest | null {
+        const tools = this.readInstalledManifest();
+        return tools.find((tool) => tool.id === toolId) || null;
+    }
+
+    private readInstalledManifest(): ToolManifest[] {
         if (!fs.existsSync(this.manifestPath)) {
             return [];
         }
@@ -521,42 +530,53 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             const data = fs.readFileSync(this.manifestPath, "utf-8");
             const manifest = JSON.parse(data);
-            const tools: any[] = manifest.tools || [];
-            // Normalize installed entries to new schema (categories, authors[])
-            const normalized: ToolManifest[] = tools.map((t) => {
-                const categories = t.categories ?? t.tags ?? [];
-                let authors: string[] | undefined = t.authors;
-                if ((!authors || authors.length === 0) && t.author) {
-                    if (typeof t.author === "string") authors = [t.author];
-                    else if (typeof t.author === "object" && typeof t.author.name === "string") authors = [t.author.name];
-                }
-                const { id, name, version, description, icon, installPath, installedAt, source, sourceUrl, readme, cspExceptions, features, license, status, repository, website } = t as any;
-                return {
-                    id,
-                    name,
-                    version,
-                    description,
-                    authors,
-                    icon,
-                    installPath,
-                    installedAt,
-                    source,
-                    sourceUrl,
-                    readme,
-                    cspExceptions,
-                    features,
-                    categories,
-                    license,
-                    status,
-                    repository,
-                    website,
-                } as ToolManifest;
-            });
-            return normalized;
+            const tools: Record<string, unknown>[] = manifest.tools || [];
+            return tools.map((entry) => this.normalizeManifestEntry(entry));
         } catch (error) {
             console.error(`[ToolRegistry] Failed to read manifest:`, error);
             return [];
         }
+    }
+
+    private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
+        const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
+        const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
+        let authors: string[] | undefined = manifestEntry.authors;
+        const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
+
+        if ((!authors || authors.length === 0) && legacyAuthor) {
+            if (typeof legacyAuthor === "string") {
+                authors = [legacyAuthor];
+            } else if (typeof legacyAuthor === "object" && typeof legacyAuthor.name === "string") {
+                authors = [legacyAuthor.name];
+            }
+        }
+
+        return {
+            id: manifestEntry.id,
+            name: manifestEntry.name,
+            version: manifestEntry.version,
+            description: manifestEntry.description,
+            authors,
+            icon: manifestEntry.icon,
+            installPath: manifestEntry.installPath,
+            installedAt: manifestEntry.installedAt,
+            source: manifestEntry.source,
+            sourceUrl: manifestEntry.sourceUrl,
+            readme: manifestEntry.readme,
+            cspExceptions: manifestEntry.cspExceptions,
+            features: manifestEntry.features,
+            categories,
+            license: manifestEntry.license,
+            status: manifestEntry.status,
+            repository: manifestEntry.repository,
+            website: manifestEntry.website,
+            downloads: manifestEntry.downloads,
+            rating: manifestEntry.rating,
+            mau: manifestEntry.mau,
+            publishedAt: manifestEntry.publishedAt,
+            createdAt: manifestEntry.createdAt,
+        };
     }
 
     canFetchRemoteAnalytics(): boolean {

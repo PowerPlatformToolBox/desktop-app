@@ -160,6 +160,10 @@ export class ToolManager extends EventEmitter {
         return tool;
     }
 
+    getInstalledManifestSync(toolId: string): ToolManifest | null {
+        return this.registryManager.getInstalledManifestSync(toolId);
+    }
+
     /**
      * Get all loaded tools
      */

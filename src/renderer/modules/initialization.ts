@@ -77,7 +77,7 @@ import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -762,6 +762,16 @@ function setupToolboxEventListeners(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
         console.log("ToolBox Event:", payload);
+
+        if (payload.event === "menu:launch-tool") {
+            const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
+            if (toolId) {
+                void launchTool(toolId);
+            } else {
+                console.warn("Menu launch event missing toolId", payload);
+            }
+            return;
+        }
 
         // Handle notifications
         if (payload.event === "notification:shown") {

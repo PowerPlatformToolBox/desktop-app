@@ -55,7 +55,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
@@ -1136,6 +1136,23 @@ class ToolBoxApp {
     private createMenu(): void {
         const isMac = process.platform === "darwin";
         const isToolOpened = this.toolWindowManager?.getActiveToolId() !== null;
+        const favoriteTools = (this.settingsManager.getFavoriteTools() || []).slice(0, 5);
+        const recentTools = (this.settingsManager.getLastUsedTools() || []).slice(-10).reverse();
+        const favoriteSubmenuItems = this.buildToolShortcutMenuItems(favoriteTools, "favorite");
+        const recentSubmenuItems = this.buildToolShortcutMenuItems(recentTools, "recent");
+
+        const fileSubmenu: MenuItemConstructorOptions[] = [
+            {
+                label: "Open Recent",
+                submenu: recentSubmenuItems.length > 0 ? recentSubmenuItems : [{ label: "No recent tools", enabled: false }],
+            },
+            {
+                label: "Open Favorite",
+                submenu: favoriteSubmenuItems.length > 0 ? favoriteSubmenuItems : [{ label: "No favorite tools", enabled: false }],
+            },
+            { type: "separator" },
+            isMac ? { role: "close" } : { role: "quit" },
+        ];
 
         const template: any[] = [
             // App menu (macOS only)
@@ -1161,7 +1178,7 @@ class ToolBoxApp {
             // File menu
             {
                 label: "File",
-                submenu: [isMac ? { role: "close" } : { role: "quit" }],
+                submenu: fileSubmenu,
             },
 
             // Edit menu
@@ -1317,6 +1334,42 @@ class ToolBoxApp {
 
         const menu = Menu.buildFromTemplate(template);
         Menu.setApplicationMenu(menu);
+    }
+
+    private buildToolShortcutMenuItems(toolIds: string[], source: "recent" | "favorite"): MenuItemConstructorOptions[] {
+        if (!toolIds || toolIds.length === 0) {
+            return [];
+        }
+
+        return toolIds.map((toolId) => {
+            const tool = this.toolManager.getTool(toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(toolId);
+            const label = tool?.name || manifest?.name || toolId;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () => this.sendToolLaunchRequest(toolId, source),
+            };
+        });
+    }
+
+    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite"): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:launch-tool",
+            data: {
+                toolId,
+                source,
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
     }
 
     /**
