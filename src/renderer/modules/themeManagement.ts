@@ -182,6 +182,11 @@ function updateHomepageIconForTheme(): void {
     if (homepageIcon) {
         homepageIcon.src = isDarkTheme ? "icons/dark/app-icon.svg" : "icons/light/app-icon.svg";
     }
+
+    const newToolsIcon = document.getElementById("new-tools-icon") as HTMLImageElement | null;
+    if (newToolsIcon) {
+        newToolsIcon.src = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
+    }
 }
 
 /**

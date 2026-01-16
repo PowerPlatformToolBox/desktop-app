@@ -51,7 +51,7 @@ export function setSentryMachineId(id: string): void {
     // Also set as a tag for easier filtering
     sentryModule.setTag("machine_id", id);
 
-    console.log(`[Sentry] Machine ID set: ${id}`);
+    logInfo(`[Sentry] Machine ID set: ${id}`);
 }
 
 /**

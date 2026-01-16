@@ -293,6 +293,16 @@ body.dark-theme .quick-tool-version {
     color: var(--text-secondary, #a19f9d);
 }
 
+.quick-tool-connection {
+    font-size: 12px;
+    color: var(--text-secondary, #605e5c);
+    margin: 0;
+}
+
+body.dark-theme .quick-tool-connection {
+    color: var(--text-secondary, #a19f9d);
+}
+
 .quick-tools-empty {
     text-align: center;
     padding: 32px 16px;

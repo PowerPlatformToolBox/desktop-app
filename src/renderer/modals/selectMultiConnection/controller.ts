@@ -225,7 +225,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
 
             // The connectReady message handler will update the UI based on success/failure
         } catch (error) {
-            console.error('Error connecting:', error);
+            captureException('Error connecting:', error);
             button.disabled = false;
             button.textContent = originalText;
         }
@@ -341,7 +341,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                         button.textContent = 'Connect';
                     }
                     // Optionally show an error message
-                    console.error('Authentication failed:', payload.data.error);
+                    captureException('Authentication failed:', payload.data.error);
                 }
             }
             

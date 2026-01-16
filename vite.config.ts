@@ -103,6 +103,13 @@ export default defineConfig(({ mode }) => {
                 // Polyfill node built-in modules for renderer process
                 renderer: {},
             }),
+            // // Fail builds immediately if the renderer TypeScript project has errors
+            // checker({
+            //     typescript: {
+            //         tsconfigPath: "tsconfig.renderer.json",
+            //         buildMode: true,
+            //     },
+            // }),
             // Custom plugin to reorganize output and copy static assets
             {
                 name: "reorganize-output",

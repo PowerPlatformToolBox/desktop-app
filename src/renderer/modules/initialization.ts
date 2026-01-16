@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -56,12 +56,12 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
 
-    console.log("[Sentry] Initialized in renderer process with tracing and logging");
+    logInfo("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
 
     // Machine ID will be set via IPC from main process after settings are loaded
 } else {
-    console.log("[Sentry] Telemetry disabled - no DSN configured");
+    logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
 import { Theme } from "../../common/types";
@@ -77,7 +77,7 @@ import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -707,7 +707,7 @@ function setupAuthenticationListeners(): void {
     });
 
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
-        console.log("Token expired for connection:", data);
+        logInfo("Token expired for connection:", data);
 
         showPPTBNotification({
             title: "Connection Token Expired",
@@ -761,7 +761,21 @@ function setupLoadingScreenListeners(): void {
 function setupToolboxEventListeners(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
-        console.log("ToolBox Event:", payload);
+        logInfo("ToolBox Event:", { payload });
+
+        if (payload.event === "menu:launch-tool") {
+            const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
+            if (toolId) {
+                void launchTool(toolId, {
+                    source: payload.data?.source,
+                    primaryConnectionId: payload.data?.primaryConnectionId ?? null,
+                    secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
+                });
+            } else {
+                console.warn("Menu launch event missing toolId", payload);
+            }
+            return;
+        }
 
         // Handle notifications
         if (payload.event === "notification:shown") {
@@ -776,7 +790,7 @@ function setupToolboxEventListeners(): void {
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
-            console.log("Connection event detected, reloading connections...");
+            logInfo("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => {
                 captureException(err instanceof Error ? err : new Error(String(err)), {
                     tags: { phase: "connection_reload" },
@@ -793,7 +807,7 @@ function setupToolboxEventListeners(): void {
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
-            console.log("Tool event detected, reloading tools...");
+            logInfo("Tool event detected, reloading tools...");
             loadSidebarTools().catch((err) => {
                 captureException(err instanceof Error ? err : new Error(String(err)), {
                     tags: { phase: "tools_reload" },
@@ -832,7 +846,7 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: Math.round(rect.height),
             };
-            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
             console.warn("[Renderer] Tool panel content element not found");
