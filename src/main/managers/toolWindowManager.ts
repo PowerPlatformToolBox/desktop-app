@@ -655,10 +655,15 @@ export class ToolWindowManager {
 
     /**
      * Set a callback to be invoked when the active tool changes
-     * @param callback Function to call with the new active tool ID (null if no tool is active)
+     * @param callback Function to call with the new active tool ID (null if no tool is active). Pass null/undefined to clear the callback.
      */
-    setOnActiveToolChanged(callback: (activeToolId: string | null) => void): void {
-        this.onActiveToolChanged = callback;
+    setOnActiveToolChanged(callback: ((activeToolId: string | null) => void) | null | undefined): void {
+        if (callback !== null && callback !== undefined && typeof callback !== "function") {
+            captureMessage("[ToolWindowManager] setOnActiveToolChanged called with non-function callback", "warning");
+            return;
+        }
+
+        this.onActiveToolChanged = callback ?? undefined;
     }
 
     /**
