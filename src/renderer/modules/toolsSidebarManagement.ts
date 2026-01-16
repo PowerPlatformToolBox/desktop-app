@@ -164,7 +164,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Create lookup for menu actions
         const toolLookup = new Map(sortedTools.map((t) => [t.id, t]));
 
-        console.log(`Loaded ${sortedTools.length} installed tools`);
+        logInfo(`Loaded ${sortedTools.length} installed tools`);
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools

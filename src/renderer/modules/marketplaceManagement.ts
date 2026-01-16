@@ -3,6 +3,7 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
+import { logInfo } from "../../common/sentryHelper";
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "../../common/types";
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
@@ -73,10 +74,10 @@ export async function loadToolsLibrary(): Promise<void> {
                     repository: tool.repository,
                     website: tool.website,
                     createdAt: tool.createdAt, // Use createdAt for new tool detection
-                } as ToolDetail),
+                }) as ToolDetail,
         );
 
-        console.log(`Loaded ${toolLibrary.length} tools from registry`);
+        logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
         console.error("Failed to load tools from registry:", error);
         toolLibrary = [];

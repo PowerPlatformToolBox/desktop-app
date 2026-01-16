@@ -3,7 +3,7 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import { captureException } from "../../common/sentryHelper";
+import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -63,12 +63,11 @@ export function updateToolbarButtonVisibility(): void {
  */
 export async function launchTool(toolId: string, options?: LaunchToolOptions): Promise<void> {
     try {
-        console.log("Launching tool:", toolId);
+        logInfo("Launching tool:", { toolId });
 
         // Generate a unique instance ID for this tool launch
         const instanceId = generateInstanceId(toolId);
-        console.log("Generated instance ID:", instanceId);
-
+        logInfo("Generated instance ID:", { instanceId });
         // Load the tool first to check if it requires multi-connection
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
@@ -111,7 +110,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
             // Tool supports multi-connection - show multi-connection modal
             const isSecondaryRequired = multiConnectionMode === "required";
-            console.log(
+            logInfo(
                 `Tool supports multi-connection (secondary ${isSecondaryRequired ? "required" : "optional"}). ` +
                     `${primaryConnectionId ? "Reusing stored connections when available." : "Showing selection modal."}`,
             );
@@ -124,13 +123,13 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     const result = await openSelectMultiConnectionModal(isSecondaryRequired);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
-                    console.log("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+                    logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
 
                     if (isSecondaryRequired && !secondaryConnectionId) {
                         throw new Error("Secondary connection is required but was not provided");
                     }
                 } catch (error) {
-                    console.log("Multi-connection selection cancelled:", error);
+                    logInfo("Multi-connection selection cancelled:", { error });
                     const errorMessage = isSecondaryRequired
                         ? "This tool requires two connections. Please select both connections to continue."
                         : "This tool requires a primary connection. Please select at least a primary connection to continue.";
@@ -145,17 +144,17 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         } else {
             if (!primaryConnectionId) {
                 // Regular single-connection flow - prompt if no stored connection
-                console.log("Showing connection selection modal for new instance...");
+                logInfo("Showing connection selection modal for new instance...");
                 try {
                     const selectedConnectionId = await openSelectConnectionModal();
-                    console.log("Connection established. Continuing with tool launch...");
+                    logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
                     } else {
                         throw new Error("No connection was selected");
                     }
                 } catch (error) {
-                    console.log("Connection selection cancelled:", error);
+                    logInfo("Connection selection cancelled:", { error });
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
                         body: "A connection is required to use this tool. Please connect to an environment to continue.",
@@ -177,7 +176,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 try {
                     consentGranted = await openCspExceptionModal(tool);
                 } catch (error) {
-                    console.log("CSP consent modal closed without selection:", error);
+                    logInfo("CSP consent modal closed without selection:", { error });
                     consentGranted = false;
                 }
 
@@ -224,7 +223,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             return;
         }
 
-        console.log(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
+        logInfo(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
 
         // Count how many instances of this tool are already open
         const existingInstances = Array.from(openTools.values()).filter((t) => t.toolId === toolId);
@@ -252,7 +251,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Save session after launching
         saveSession();
 
-        console.log("Tool launched successfully:", tool.name, "Instance:", instanceNumber);
+        logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
     } catch (error) {
         captureException(error instanceof Error ? error : new Error(String(error)), {
             tags: { phase: "tool_launch", toolId },
@@ -616,7 +615,7 @@ export async function setToolConnection(instanceId: string, connectionId: string
         await updateActiveToolConnectionStatus();
     }
 
-    console.log(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, connectionId);
+    logInfo(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, { connectionId });
 }
 
 /**
@@ -944,7 +943,9 @@ export async function openToolConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        console.log("Connection selection cancelled or failed:", error);
+        captureMessage("Connection selection cancelled or failed", "error", {
+            extra: { error },
+        });
     }
 }
 
@@ -969,7 +970,7 @@ export async function setToolSecondaryConnection(instanceId: string, connectionI
         await updateActiveToolConnectionStatus();
     }
 
-    console.log(`Tool instance ${instanceId} secondary connection set to:`, connectionId);
+    logInfo(`Tool instance ${instanceId} secondary connection set to:`, { connectionId });
 }
 
 /**
@@ -1024,7 +1025,9 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        console.log("Secondary connection selection cancelled or failed:", error);
+        captureMessage("Secondary connection selection cancelled or failed", "error", {
+            extra: { error },
+        });
     }
 }
 

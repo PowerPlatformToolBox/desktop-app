@@ -3,6 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
+import { logInfo } from "../../common/sentryHelper";
 import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
@@ -539,7 +540,7 @@ async function signalSelectMultiConnectionReady(): Promise<void> {
  * Load connections list in the connections view
  */
 export async function loadConnections(): Promise<void> {
-    console.log("loadConnections() called");
+    logInfo("loadConnections() called");
     const connectionsList = document.getElementById("connections-list");
     if (!connectionsList) {
         console.error("connections-list element not found");
@@ -548,7 +549,7 @@ export async function loadConnections(): Promise<void> {
 
     try {
         const connections = await window.toolboxAPI.connections.getAll();
-        console.log("Loaded connections:", connections);
+        logInfo("Loaded connections:", { connections });
 
         if (connections.length === 0) {
             connectionsList.innerHTML = `
@@ -599,7 +600,7 @@ export async function loadConnections(): Promise<void> {
                 } else if (action === "disconnect") {
                     // Disconnect action is no longer needed as there's no global active connection
                     // Tools have their own per-instance connections
-                    console.log("Disconnect action is deprecated - connections are per-tool-instance");
+                    logInfo("Disconnect action is deprecated - connections are per-tool-instance");
                 } else if (action === "edit" && connectionId) {
                     editConnection(connectionId);
                 } else if (action === "delete" && connectionId) {
@@ -838,7 +839,7 @@ export function initializeEditConnectionModalBridge(): void {
  * Edit a connection by ID
  */
 export async function editConnection(id: string): Promise<void> {
-    console.log("editConnection called with id:", id);
+    logInfo("editConnection called with id:", { connectionId: id });
     editingConnectionId = id;
     initializeEditConnectionModalBridge();
     await showBrowserWindowModal({
@@ -971,13 +972,13 @@ async function setEditConnectionTestFeedback(message?: string): Promise<void> {
  * Delete a connection by ID
  */
 export async function deleteConnection(id: string): Promise<void> {
-    console.log("deleteConnection called with id:", id);
+    logInfo("deleteConnection called with id:", { connectionId: id });
     if (!confirm("Are you sure you want to delete this connection?")) {
         return;
     }
 
     try {
-        console.log("Calling window.toolboxAPI.deleteConnection");
+        logInfo("Calling window.toolboxAPI.deleteConnection");
         await window.toolboxAPI.connections.delete(id);
 
         await window.toolboxAPI.utils.showNotification({
@@ -1035,7 +1036,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
     const connection: DataverseConnection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
