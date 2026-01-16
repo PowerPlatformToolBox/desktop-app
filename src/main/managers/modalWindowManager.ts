@@ -50,7 +50,7 @@ export class ModalWindowManager {
                 }
             })
             .catch((error) => {
-                captureMessage("Failed to load modal content", error);
+                captureMessage("Failed to load modal content", "error", { extra: { error } });
             });
     }
 
