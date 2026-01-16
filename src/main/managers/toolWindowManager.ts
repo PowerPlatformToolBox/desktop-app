@@ -663,7 +663,7 @@ export class ToolWindowManager {
             return;
         }
 
-        this.onActiveToolChanged = callback ?? undefined;
+        this.onActiveToolChanged = callback ?? null;
     }
 
     /**
