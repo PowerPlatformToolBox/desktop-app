@@ -3,6 +3,7 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
+import { logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
