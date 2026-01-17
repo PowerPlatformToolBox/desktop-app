@@ -54,7 +54,8 @@ function updateCheckForUpdatesUI(state: "idle" | "checking" | "available" | "not
 }
 
 /**
- * Handle manual check for updates from settings
+ * Handle manual check for updates from settings sidebar button
+ * This function manages the UI state for the Settings sidebar "Check for Updates" button
  */
 export async function handleCheckForUpdates(): Promise<void> {
     updateCheckForUpdatesUI("checking");
@@ -124,7 +125,9 @@ export function updateProgress(percent: number): void {
 }
 
 /**
- * Check for updates
+ * Check for updates (legacy function for non-Settings UI)
+ * This function manages the update-status div element used elsewhere in the app
+ * For Settings sidebar button, use handleCheckForUpdates() instead
  */
 export async function checkForUpdates(): Promise<void> {
     hideUpdateStatus();
