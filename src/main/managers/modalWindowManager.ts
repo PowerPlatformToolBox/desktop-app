@@ -85,7 +85,6 @@ export class ModalWindowManager {
             modal: true,
             frame: false,
             transparent: true,
-            alwaysOnTop: true,
             resizable: this.currentOptions?.resizable ?? false,
             skipTaskbar: true,
             show: false,
