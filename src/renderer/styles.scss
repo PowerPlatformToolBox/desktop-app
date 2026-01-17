@@ -2911,7 +2911,8 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     position: absolute;
     inset: 0;
     background:
-        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%), radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
+        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
+        radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
 body.dark-theme #tool-detail-modal .modal-content.tool-detail-modern {
