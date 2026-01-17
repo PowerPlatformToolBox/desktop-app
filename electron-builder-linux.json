@@ -1,6 +1,7 @@
 {
     "appId": "com.powerplatform.toolbox",
     "productName": "Power Platform ToolBox",
+    "artifactName": "Power-Platform-ToolBox-${version}-${arch}-${os}.${ext}",
     "directories": {
         "output": "build"
     },

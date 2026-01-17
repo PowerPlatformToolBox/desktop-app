@@ -20,7 +20,7 @@
         "icon": "icons/icon.ico"
     },
     "nsis": {
-        "artifactName": "Power-Platform-ToolBox-${version}-arm64-win.${ext}",
+        "artifactName": "Power-Platform-ToolBox-${version}-${arch}-${os}.${ext}",
         "oneClick": false,
         "perMachine": true,
         "allowToChangeInstallationDirectory": true,
