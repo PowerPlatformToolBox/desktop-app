@@ -1,0 +1,34 @@
+{
+    "appId": "com.powerplatform.toolbox",
+    "productName": "Power Platform ToolBox",
+    "directories": {
+        "output": "build"
+    },
+    "files": ["dist/**/*", "assets/**/*", "package.json"],
+    "publish": {
+        "provider": "github",
+        "owner": "PowerPlatformToolBox",
+        "repo": "desktop-app"
+    },
+    "mac": {
+        "target": [
+            {
+                "target": "zip",
+                "arch": ["x64", "arm64"]
+            },
+            {
+                "target": "dmg",
+                "arch": ["x64", "arm64"]
+            }
+        ],
+        "category": "public.app-category.developer-tools",
+        "icon": "icons/icon.icns",
+        "identity": null,
+        "gatekeeperAssess": false,
+        "hardenedRuntime": false,
+        "type": "distribution"
+    },
+    "dmg": {
+        "sign": false
+    }
+}

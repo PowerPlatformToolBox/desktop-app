@@ -9,21 +9,40 @@ function run(cmd) {
 }
 
 const platform = os.platform();
+const arch = os.arch();
 
-switch (platform) {
-    case "darwin": // macOS
-        run("electron-builder --mac");
-        break;
+// Get config file from command line argument or use platform defaults
+const configArg = process.argv.find((arg) => arg.startsWith("--config="));
+const configFile = configArg ? configArg.split("=")[1] : null;
 
-    case "win32": // Windows
-        run("electron-builder --win nsis");
-        break;
+if (configFile) {
+    // Build with specific config file
+    console.log(`📦 Building with config: ${configFile}`);
+    run(`electron-builder --config ${configFile}`);
+} else {
+    // Build with platform defaults
+    switch (platform) {
+        case "darwin": // macOS
+            console.log(`📦 Building for macOS (${arch})`);
+            run("electron-builder --config electron-builder-mac.json");
+            break;
 
-    case "linux": // Linux
-        run("electron-builder --linux AppImage");
-        break;
+        case "win32": // Windows
+            console.log(`📦 Building for Windows (${arch})`);
+            if (arch === "arm64") {
+                run("electron-builder --config electron-builder-win-arm64.json");
+            } else {
+                run("electron-builder --config electron-builder-win.json");
+            }
+            break;
 
-    default:
-        console.error(`❌ Unsupported platform: ${platform}`);
-        process.exit(1);
+        case "linux": // Linux
+            console.log(`📦 Building for Linux (${arch})`);
+            run("electron-builder --config electron-builder-linux.json");
+            break;
+
+        default:
+            console.error(`❌ Unsupported platform: ${platform}`);
+            process.exit(1);
+    }
 }

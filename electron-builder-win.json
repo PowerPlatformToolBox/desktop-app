@@ -1,0 +1,30 @@
+{
+    "appId": "com.powerplatform.toolbox",
+    "productName": "Power Platform ToolBox",
+    "directories": {
+        "output": "build"
+    },
+    "files": ["dist/**/*", "assets/**/*", "package.json"],
+    "publish": {
+        "provider": "github",
+        "owner": "PowerPlatformToolBox",
+        "repo": "desktop-app"
+    },
+    "win": {
+        "target": [
+            {
+                "target": "nsis",
+                "arch": ["x64"]
+            }
+        ],
+        "icon": "icons/icon.ico"
+    },
+    "nsis": {
+        "artifactName": "Power-Platform-ToolBox-${version}-x64-win.${ext}",
+        "oneClick": false,
+        "perMachine": true,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true
+    }
+}
