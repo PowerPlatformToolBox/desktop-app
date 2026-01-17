@@ -1078,12 +1078,17 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         }
         
         // Build connection from parsed data
+        // Note: parsed.authenticationType is always defined by parseConnectionString
+        if (!parsed.authenticationType) {
+            throw new Error("Connection string parsing failed to determine authentication type");
+        }
+        
         const connection: DataverseConnection = {
             id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
-            authenticationType: parsed.authenticationType || "interactive",
+            authenticationType: parsed.authenticationType,
             createdAt: new Date().toISOString(),
         };
         

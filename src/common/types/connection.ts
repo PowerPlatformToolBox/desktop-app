@@ -63,8 +63,12 @@ export interface UIConnectionData {
 /**
  * Parse a Dataverse connection string into connection properties
  * Supports various connection string formats including:
- * - AuthType=OAuth;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com;
- * - AuthType=ClientSecret;ClientId=xxx;ClientSecret=yyy;Url=https://org.crm.dynamics.com;TenantId=zzz;
+ * - Username/Password: Url=https://org.crm.dynamics.com;Username=user@domain.com;Password=password;
+ * - Client Secret: AuthType=ClientSecret;ClientId=xxx;ClientSecret=yyy;TenantId=zzz;Url=https://org.crm.dynamics.com;
+ * - Interactive: Url=https://org.crm.dynamics.com; (no credentials provided)
+ * 
+ * Note: AuthType=OAuth in connection strings is mapped to usernamePassword authentication,
+ * as it typically represents the Resource Owner Password Credentials flow.
  * 
  * @param connectionString The connection string to parse
  * @returns Parsed connection properties or null if invalid
@@ -99,6 +103,8 @@ export function parseConnectionString(connectionString: string): Partial<Dataver
     // Determine authentication type based on AuthType or available credentials
     const authType = parts.authtype?.toLowerCase();
     
+    // AuthType=OAuth or presence of username+password indicates username/password authentication
+    // (OAuth in connection strings typically refers to Resource Owner Password Credentials flow)
     if (authType === "oauth" || (parts.username && parts.password)) {
         result.authenticationType = "usernamePassword";
         result.username = parts.username;
