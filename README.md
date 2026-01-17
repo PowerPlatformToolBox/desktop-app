@@ -131,8 +131,42 @@ Power Platform ToolBox releases are published on GitHub:
 
 Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/releases) to download:
 
--   **Windows**: `.exe` installer
--   **macOS**: `.dmg` installer
+-   **Windows**: `.exe` installer (x64 and ARM64 available)
+-   **macOS**: `.dmg` installer (Universal binary with x64 and ARM64)
+-   **Linux**: `.AppImage` (x64)
+
+### Building from Source
+
+To build the application for your platform:
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build application code
+pnpm run build
+
+# Package for your current platform (auto-detects architecture)
+pnpm run package
+```
+
+**Platform-specific builds:**
+
+```bash
+# Windows x64
+pnpm run package:win
+
+# Windows ARM64 (for Snapdragon processors)
+pnpm run package:win-arm64
+
+# macOS (Universal binary with x64 and ARM64)
+pnpm run package:mac
+
+# Linux x64
+pnpm run package:linux
+```
+
+The packaged application will be available in the `build/` directory.
 
 ## Development Configuration
 
