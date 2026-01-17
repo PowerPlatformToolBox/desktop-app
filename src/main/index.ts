@@ -452,6 +452,10 @@ class ToolBoxApp {
                     case "usernamePassword":
                         authResult = await this.authManager.authenticateUsernamePassword(connection);
                         break;
+                    case "connectionString":
+                        // Connection string should have been parsed to its actual auth type
+                        // This shouldn't happen, but handle it gracefully
+                        throw new Error("Connection string must be parsed before authentication. Please edit the connection to set a specific authentication type.");
                     default:
                         throw new Error("Invalid authentication type");
                 }

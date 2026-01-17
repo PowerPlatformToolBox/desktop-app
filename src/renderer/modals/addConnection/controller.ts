@@ -25,6 +25,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const interactiveFields = document.getElementById("interactive-fields");
     const clientSecretFields = document.getElementById("client-secret-fields");
     const usernamePasswordFields = document.getElementById("username-password-fields");
+    const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const addButton = document.getElementById("confirm-connection-btn");
     const testFeedback = document.getElementById("connection-test-feedback");
@@ -34,7 +35,8 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         if (interactiveFields) interactiveFields.style.display = authType === "interactive" ? "flex" : "none";
         if (clientSecretFields) clientSecretFields.style.display = authType === "clientSecret" ? "flex" : "none";
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
-        if (testButton) testButton.style.display = authType === "interactive" ? "none" : "inline-flex";
+        if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
+        if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
     };
 
     const updateTestFeedback = (message) => {
@@ -66,6 +68,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         optionalClientId: getInputValue("connection-optional-client-id"),
         interactiveUsername: getInputValue("connection-username"),
         interactiveTenantId: getInputValue("connection-tenant-id"),
+        connectionString: getInputValue("connection-string-input"),
     });
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {
