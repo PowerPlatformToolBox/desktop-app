@@ -43,7 +43,7 @@ export function isDataverseConnection(obj: unknown): obj is DataverseConnection 
         typeof conn.name === "string" &&
         typeof conn.url === "string" &&
         (conn.environment === "Dev" || conn.environment === "Test" || conn.environment === "UAT" || conn.environment === "Production") &&
-        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword" || conn.authenticationType === "connectionString")
+        (conn.authenticationType === "interactive" || conn.authenticationType === "clientSecret" || conn.authenticationType === "usernamePassword")
     );
 }
 
