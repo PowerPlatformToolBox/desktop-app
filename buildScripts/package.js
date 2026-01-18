@@ -2,6 +2,8 @@
 
 const { execSync } = require("child_process");
 const os = require("os");
+const fs = require("fs");
+const path = require("path");
 
 function run(cmd) {
     console.log(`\n> ${cmd}\n`);
@@ -16,6 +18,14 @@ const configArg = process.argv.find((arg) => arg.startsWith("--config="));
 const configFile = configArg ? configArg.split("=")[1] : null;
 
 if (configFile) {
+    // Validate config file exists
+    const configPath = path.resolve(process.cwd(), configFile);
+    if (!fs.existsSync(configPath)) {
+        console.error(`❌ Error: Config file not found: ${configFile}`);
+        console.error(`   Looked for: ${configPath}`);
+        process.exit(1);
+    }
+
     // Build with specific config file
     console.log(`📦 Building with config: ${configFile}`);
     run(`electron-builder --config ${configFile}`);
