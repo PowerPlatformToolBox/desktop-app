@@ -66,7 +66,7 @@ if (sentryConfig) {
 
 import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
-import { setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
@@ -403,6 +403,21 @@ function setupSidebarButtons(): void {
     const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
     if (sidebarSaveSettingsBtn) {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
+    }
+
+    // Sidebar check for updates button
+    const sidebarCheckForUpdatesBtn = document.getElementById("sidebar-check-for-updates-btn");
+    if (sidebarCheckForUpdatesBtn) {
+        sidebarCheckForUpdatesBtn.addEventListener("click", async () => {
+            try {
+                await handleCheckForUpdates();
+            } catch (error) {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "check_for_updates" },
+                    level: "error",
+                });
+            }
+        });
     }
 }
 
