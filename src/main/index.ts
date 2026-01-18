@@ -439,7 +439,7 @@ class ToolBoxApp {
             }
 
             // Check if connection already has a valid, non-expired token
-            const hasValidToken = connection.accessToken && connection.tokenExpiry && !this.connectionsManager.isConnectionTokenExpired(id);
+            const hasValidToken = connection.accessToken && !this.connectionsManager.isConnectionTokenExpired(id);
 
             if (hasValidToken) {
                 // Connection already has a valid token, no need to re-authenticate
@@ -456,7 +456,7 @@ class ToolBoxApp {
             }
 
             // Token is expired or missing - try to refresh if refresh token is available
-            if (connection.accessToken && connection.refreshToken && this.connectionsManager.isConnectionTokenExpired(id)) {
+            if (connection.refreshToken) {
                 logInfo(`[ConnectionAuth] Token expired, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
                     const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
