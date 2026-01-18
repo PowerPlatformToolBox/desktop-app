@@ -11,7 +11,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 import { logInfo } from "../common/sentryHelper";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 
@@ -177,8 +177,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showNotification: (options: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
         openExternal: (url: string) => ipcInvoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
-        saveFile: (defaultPath: string, content: unknown) => ipcInvoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
-        selectPath: (options?: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         showLoading: (message?: string) => ipcInvoke(UTIL_CHANNELS.SHOW_LOADING, message),
         hideLoading: () => ipcInvoke(UTIL_CHANNELS.HIDE_LOADING),
@@ -186,6 +184,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);
         },
+    },
+
+    // FileSystem API
+    fileSystem: {
+        readText: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_TEXT, path),
+        readBinary: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_BINARY, path),
+        exists: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.EXISTS, path),
+        stat: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.STAT, path),
+        readDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_DIRECTORY, path),
+        writeText: (path: string, content: string) => ipcInvoke(FILESYSTEM_CHANNELS.WRITE_TEXT, path, content),
+        createDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, path),
+        saveFile: (defaultPath: string, content: unknown) => ipcInvoke(FILESYSTEM_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: Record<string, unknown>) => ipcInvoke(FILESYSTEM_CHANNELS.SELECT_PATH, options),
     },
 
     // Terminal API

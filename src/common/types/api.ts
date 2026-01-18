@@ -31,8 +31,6 @@ export interface ConnectionsAPI {
 export interface UtilsAPI {
     showNotification: (options: { title: string; body: string; type?: "info" | "success" | "warning" | "error"; duration?: number }) => Promise<void>;
     copyToClipboard: (text: string) => Promise<void>;
-    saveFile: (defaultPath: string, content: string | Buffer) => Promise<string | null>;
-    selectPath: (options?: SelectPathOptions) => Promise<string | null>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
     showLoading: (message?: string) => Promise<void>;
@@ -40,6 +38,21 @@ export interface UtilsAPI {
     showModalWindow: (options: ModalWindowOptions) => Promise<void>;
     closeModalWindow: () => Promise<void>;
     sendModalMessage: (payload: ModalWindowMessagePayload) => Promise<void>;
+}
+
+/**
+ * FileSystem API namespace
+ */
+export interface FileSystemAPI {
+    readText: (path: string) => Promise<string>;
+    readBinary: (path: string) => Promise<ArrayBuffer>;
+    exists: (path: string) => Promise<boolean>;
+    stat: (path: string) => Promise<{ type: "file" | "directory"; size: number; mtime: string }>;
+    readDirectory: (path: string) => Promise<Array<{ name: string; type: "file" | "directory" }>>;
+    writeText: (path: string, content: string) => Promise<void>;
+    createDirectory: (path: string) => Promise<void>;
+    saveFile: (defaultPath: string, content: string | Buffer) => Promise<string | null>;
+    selectPath: (options?: SelectPathOptions) => Promise<string | null>;
 }
 
 /**
@@ -161,6 +174,9 @@ export interface ToolboxAPI {
 
     // Utils namespace
     utils: UtilsAPI;
+
+    // FileSystem namespace
+    fileSystem: FileSystemAPI;
 
     openExternal: (url: string) => Promise<void>;
 
