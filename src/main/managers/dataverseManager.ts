@@ -1,5 +1,5 @@
 import * as https from "https";
-import { DataverseConnection } from "../../common/types";
+import { DataverseConnection, ENTITY_RELATED_METADATA_BASE_PATHS, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -39,9 +39,10 @@ interface EntityMetadata {
     DisplayName?: {
         LocalizedLabels: Array<{ Label: string; LanguageCode: number }>;
     };
-    Attributes?: unknown[];
     [key: string]: unknown;
 }
+
+const ENTITY_RELATED_METADATA_BASE_PATH_SET: Set<string> = new Set(ENTITY_RELATED_METADATA_BASE_PATHS);
 
 /**
  * Manages Dataverse Web API operations
@@ -311,19 +312,29 @@ export class DataverseManager {
      * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships')
      * @param selectColumns - Optional array of column names to select
      */
-    async getEntityRelatedMetadata(connectionId: string, entityLogicalName: string, relatedPath: string, selectColumns?: string[]): Promise<Record<string, unknown>> {
+    async getEntityRelatedMetadata<P extends EntityRelatedMetadataPath>(
+        connectionId: string,
+        entityLogicalName: string,
+        relatedPath: P,
+        selectColumns?: string[],
+    ): Promise<EntityRelatedMetadataResponse<P>> {
         if (!entityLogicalName || !entityLogicalName.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
-        if (!relatedPath || !relatedPath.trim()) {
+        const sanitizedPath = relatedPath.trim();
+        if (!sanitizedPath) {
             throw new Error("relatedPath parameter cannot be empty");
+        }
+        const baseSegment = sanitizedPath.split(/[(/]/)[0];
+        if (!ENTITY_RELATED_METADATA_BASE_PATH_SET.has(baseSegment)) {
+            throw new Error(`Unsupported relatedPath segment: ${baseSegment}. Allowed segments: ${ENTITY_RELATED_METADATA_BASE_PATHS.join(", ")}`);
         }
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
         // Encode individual path segments but preserve forward slashes for URL structure
         // Filter out empty or whitespace-only segments to prevent double slashes
-        const encodedPath = relatedPath
+        const encodedPath = sanitizedPath
             .split("/")
             .filter((segment) => segment.trim().length > 0)
             .map((segment) => encodeURIComponent(segment))
@@ -336,7 +347,7 @@ export class DataverseManager {
         }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
-        return response.data as Record<string, unknown>;
+        return response.data as EntityRelatedMetadataResponse<P>;
     }
 
     /**
@@ -499,12 +510,7 @@ export class DataverseManager {
 
     /** Build the PublishXml payload for a single table */
     private escapeXml(value: string): string {
-        return value
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&apos;");
+        return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
     }
 
     private buildEntityPublishXml(entityLogicalName: string): string {

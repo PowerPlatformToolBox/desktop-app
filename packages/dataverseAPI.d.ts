@@ -23,9 +23,20 @@ declare namespace DataverseAPI {
         DisplayName?: {
             LocalizedLabels: Array<{ Label: string; LanguageCode: number }>;
         };
-        Attributes?: unknown[];
         [key: string]: unknown;
     }
+
+    export type EntityRelatedMetadataBasePath = "Attributes" | "Keys" | "ManyToOneRelationships" | "OneToManyRelationships" | "ManyToManyRelationships" | "Privileges";
+
+    export type EntityRelatedMetadataPath =
+        | EntityRelatedMetadataBasePath
+        | `${EntityRelatedMetadataBasePath}/${string}`
+        | `${EntityRelatedMetadataBasePath}(${string})`
+        | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+
+    type EntityRelatedMetadataRecordPath = `${EntityRelatedMetadataBasePath}/${string}` | `${EntityRelatedMetadataBasePath}(${string})` | `${EntityRelatedMetadataBasePath}(${string})/${string}`;
+
+    export type EntityRelatedMetadataResponse<P extends EntityRelatedMetadataPath> = P extends EntityRelatedMetadataRecordPath ? Record<string, unknown> : { value: Record<string, unknown>[] };
 
     /**
      * Entity metadata collection response
@@ -307,6 +318,47 @@ declare namespace DataverseAPI {
          * console.log('Filtered attributes:', attributes.value);
          *
          * @example
+         * // Get a single attribute definition (returns an object, not a collection)
+         * const nameAttribute = await dataverseAPI.getEntityRelatedMetadata(
+         *     'account',
+         *     "Attributes(LogicalName='name')"
+         * );
+         * console.log('Attribute type:', nameAttribute.AttributeType);
+         *
+         * @example
+         * // Drill into an attribute's option set
+         * const industryOptions = await dataverseAPI.getEntityRelatedMetadata(
+         *     'account',
+         *     "Attributes(LogicalName='industrycode')/OptionSet"
+         * );
+         * console.log('Industry options:', industryOptions.Options);
+         *
+         * @example
+         * // Retrieve keys defined on the entity
+         * const keys = await dataverseAPI.getEntityRelatedMetadata('account', 'Keys');
+         * console.log('Entity keys:', keys.value);
+         *
+         * @example
+         * // Retrieve many-to-one relationships (collection)
+         * const m2oRelationships = await dataverseAPI.getEntityRelatedMetadata('account', 'ManyToOneRelationships');
+         * console.log('Many-to-one count:', m2oRelationships.value.length);
+         *
+         * @example
+         * // Retrieve one-to-many relationships (collection)
+         * const o2mRelationships = await dataverseAPI.getEntityRelatedMetadata('account', 'OneToManyRelationships');
+         * console.log('One-to-many relationships:', o2mRelationships.value.map((rel) => rel.SchemaName));
+         *
+         * @example
+         * // Retrieve many-to-many relationships (collection)
+         * const m2mRelationships = await dataverseAPI.getEntityRelatedMetadata('account', 'ManyToManyRelationships');
+         * console.log('Many-to-many relationships:', m2mRelationships.value.map((rel) => rel.SchemaName));
+         *
+         * @example
+         * // Retrieve privileges (collection)
+         * const privileges = await dataverseAPI.getEntityRelatedMetadata('account', 'Privileges');
+         * console.log('Privilege names:', privileges.value.map((priv) => priv.Name));
+         *
+         * @example
          * // Get one-to-many relationships
          * const relationships = await dataverseAPI.getEntityRelatedMetadata(
          *     'account',
@@ -318,7 +370,12 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const attributes = await dataverseAPI.getEntityRelatedMetadata('account', 'Attributes', ['LogicalName'], 'secondary');
          */
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+        getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(
+            entityLogicalName: string,
+            relatedPath: P,
+            selectColumns?: string[],
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<EntityRelatedMetadataResponse<P>>;
 
         /**
          * Get solutions from the environment
