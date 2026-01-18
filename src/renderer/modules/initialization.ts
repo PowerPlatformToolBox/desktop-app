@@ -963,6 +963,11 @@ function setupFilterDropdownToggles(): void {
     });
 }
 
+// Store the interval ID for potential cleanup
+// Note: This interval runs for the lifetime of the application, so cleanup is not currently needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
+
 /**
  * Set up periodic token expiry checking for active tool connections
  * Checks every minute if the active tool's connection token has expired
@@ -972,7 +977,8 @@ function setupTokenExpiryCheck(): void {
     void checkActiveToolTokenExpiry();
 
     // Then check every 60 seconds
-    setInterval(() => {
+    // Note: This interval runs for the lifetime of the application
+    tokenExpiryCheckInterval = setInterval(() => {
         void checkActiveToolTokenExpiry();
     }, 60000); // Check every minute
 }
