@@ -1067,36 +1067,36 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 
 function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
-    
+
     // Handle connection string specially
     if (authenticationType === "connectionString") {
         const connectionString = sanitizeInput(formPayload.connectionString);
         const parsed = parseConnectionString(connectionString);
-        
+
         if (!parsed || !parsed.url) {
             throw new Error("Invalid connection string format");
         }
-        
+
         // Build connection from parsed data
         const connection: DataverseConnection = {
             id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
             environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
-            authenticationType: parsed.authenticationType,
+            authenticationType: parsed.authenticationType!,
             createdAt: new Date().toISOString(),
         };
-        
+
         // Add auth-specific fields from parsed connection string
         if (parsed.clientId) connection.clientId = parsed.clientId;
         if (parsed.clientSecret) connection.clientSecret = parsed.clientSecret;
         if (parsed.tenantId) connection.tenantId = parsed.tenantId;
         if (parsed.username) connection.username = parsed.username;
         if (parsed.password) connection.password = parsed.password;
-        
+
         return connection;
     }
-    
+
     // Standard connection building for non-connection-string types
     const connection: DataverseConnection = {
         id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
