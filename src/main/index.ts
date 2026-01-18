@@ -438,32 +438,36 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
-            // Check if connection has a token and if it's valid with safety buffer
-            // Similar to DataverseManager, we check if token expires within 5 minutes
-            let needsRefresh = false;
-            let hasValidToken = false;
+            // Determine authentication strategy based on token state
+            // Similar to DataverseManager, we proactively refresh tokens expiring within 5 minutes
+            let tokenState: "valid" | "needs-refresh" | "needs-auth" = "needs-auth";
 
             if (connection.accessToken && connection.tokenExpiry) {
                 const expiryDate = new Date(connection.tokenExpiry);
-                const now = new Date();
-                const timeUntilExpiry = expiryDate.getTime() - now.getTime();
-
-                // Token is valid if it won't expire in the next 5 minutes
-                if (timeUntilExpiry > 5 * 60 * 1000) {
-                    hasValidToken = true;
-                } else if (timeUntilExpiry > 0) {
-                    // Token expires within 5 minutes - needs refresh
-                    needsRefresh = true;
+                
+                // Validate date parsing
+                if (isNaN(expiryDate.getTime())) {
+                    logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
+                    tokenState = "needs-auth";
                 } else {
-                    // Token is already expired - needs refresh
-                    needsRefresh = true;
+                    const now = new Date();
+                    const timeUntilExpiry = expiryDate.getTime() - now.getTime();
+
+                    // Token is valid if it won't expire in the next 5 minutes (300,000ms)
+                    if (timeUntilExpiry > 5 * 60 * 1000) {
+                        tokenState = "valid";
+                    } else {
+                        // Token is expired or expiring soon - needs refresh
+                        tokenState = "needs-refresh";
+                    }
                 }
-            } else if (!connection.accessToken) {
-                // No token at all - needs full authentication
-                needsRefresh = false;
+            } else if (connection.refreshToken) {
+                // No access token but has refresh token - try to refresh
+                tokenState = "needs-refresh";
             }
 
-            if (hasValidToken) {
+            // Handle valid token - reuse it
+            if (tokenState === "valid") {
                 // Connection has a valid token with sufficient time remaining, no need to re-authenticate
                 // Just update the lastUsedAt timestamp
                 this.connectionsManager.updateConnection(id, {
@@ -477,8 +481,8 @@ class ToolBoxApp {
                 return;
             }
 
-            // Token is expired/expiring soon - try to refresh if refresh token is available
-            if (needsRefresh && connection.refreshToken) {
+            // Handle token refresh - attempt to refresh expired/expiring token
+            if (tokenState === "needs-refresh" && connection.refreshToken) {
                 logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
                     const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
