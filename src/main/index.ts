@@ -455,7 +455,33 @@ class ToolBoxApp {
                 return;
             }
 
-            // No valid token exists, proceed with authentication
+            // Token is expired or missing - try to refresh if refresh token is available
+            if (connection.accessToken && connection.refreshToken && this.connectionsManager.isConnectionTokenExpired(id)) {
+                logInfo(`[ConnectionAuth] Token expired, attempting refresh for connection: ${connection.name} (${id})`);
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update the connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(id, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    // Clear notification tracking since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    logInfo(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                    return;
+                } catch (error) {
+                    // Token refresh failed, fall through to full authentication
+                    logInfo(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
+                }
+            }
+
+            // No valid token exists or refresh failed, proceed with full authentication
             logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
 
             // Authenticate based on the authentication type
