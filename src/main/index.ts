@@ -438,6 +438,26 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
+            // Check if connection already has a valid, non-expired token
+            const hasValidToken = connection.accessToken && connection.tokenExpiry && !this.connectionsManager.isConnectionTokenExpired(id);
+
+            if (hasValidToken) {
+                // Connection already has a valid token, no need to re-authenticate
+                // Just update the lastUsedAt timestamp
+                this.connectionsManager.updateConnection(id, {
+                    lastUsedAt: new Date().toISOString(),
+                });
+
+                logInfo(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
+
+                // Emit event to notify that connection is active
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                return;
+            }
+
+            // No valid token exists, proceed with authentication
+            logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
+
             // Authenticate based on the authentication type
             try {
                 let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
