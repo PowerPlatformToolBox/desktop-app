@@ -1,0 +1,13 @@
+{
+    "extends": "./electron-builder-base.json",
+    "linux": {
+        "target": [
+            {
+                "target": "AppImage",
+                "arch": ["x64"]
+            }
+        ],
+        "category": "Development",
+        "maintainer": "Power Platform ToolBox"
+    }
+}
