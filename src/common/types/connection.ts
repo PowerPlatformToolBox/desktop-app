@@ -9,7 +9,7 @@ export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassw
 
 /**
  * Dataverse connection configuration
- * 
+ *
  * Note: This interface represents the persisted connection data.
  * UI-level properties like 'isActive' are NOT part of this type and should be
  * added transiently when needed for rendering (e.g., in modals or lists).
@@ -62,14 +62,13 @@ export interface UIConnectionData {
 
 /**
  * Parse a Dataverse connection string into connection properties
- * Follows Microsoft XRM Tooling connection string format.
  * Reference: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/xrm-tooling/use-connection-strings-xrm-tooling-connect
- * 
+ *
  * Supported formats:
  * - Office365 (Username/Password): AuthType=Office365;Username=user@domain.com;Password=pass;Url=https://org.crm.dynamics.com
  * - OAuth (Interactive): AuthType=OAuth;Username=user@domain.com;Url=https://org.crm.dynamics.com;AppId=xxx;RedirectUri=yyy
  * - ClientSecret: AuthType=ClientSecret;ClientId=xxx;ClientSecret=yyy;Url=https://org.crm.dynamics.com
- * 
+ *
  * @param connectionString The connection string to parse
  * @returns Parsed connection properties or null if invalid
  */
@@ -79,10 +78,10 @@ export function parseConnectionString(connectionString: string): Partial<Dataver
     }
 
     const parts: { [key: string]: string } = {};
-    
+
     // Split by semicolon and parse key=value pairs
     const segments = connectionString.split(";").filter((s) => s.trim());
-    
+
     for (const segment of segments) {
         const [key, ...valueParts] = segment.split("=");
         if (key && valueParts.length > 0) {
@@ -101,9 +100,9 @@ export function parseConnectionString(connectionString: string): Partial<Dataver
         url: url,
     };
 
-    // Parse authentication type based on Microsoft XRM Tooling standard
+    // Parse authentication type based on Microsoft standard
     const authType = parts.authtype?.toLowerCase();
-    
+
     // Office365 = Username/Password authentication
     if (authType === "office365") {
         result.authenticationType = "usernamePassword";
