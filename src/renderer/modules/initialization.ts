@@ -261,6 +261,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up terminal toggle button
         setupTerminalPanel();
 
+        // Set up periodic token expiry checking for active tool connections
+        setupTokenExpiryCheck();
+
         addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
@@ -812,10 +815,13 @@ function setupToolboxEventListeners(): void {
                     level: "warning",
                 });
             });
-            updateFooterConnection().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "footer_update" },
-                    level: "warning",
+            // Update active tool connection status to reflect changes
+            import("./toolManagement").then(({ updateActiveToolConnectionStatus }) => {
+                updateActiveToolConnectionStatus().catch((err) => {
+                    captureException(err instanceof Error ? err : new Error(String(err)), {
+                        tags: { phase: "footer_update" },
+                        level: "warning",
+                    });
                 });
             });
         }
@@ -955,4 +961,32 @@ function setupFilterDropdownToggles(): void {
             e.stopPropagation();
         });
     });
+}
+
+/**
+ * Set up periodic token expiry checking for active tool connections
+ * Checks every minute if the active tool's connection token has expired
+ */
+function setupTokenExpiryCheck(): void {
+    // Check immediately on setup
+    void checkActiveToolTokenExpiry();
+
+    // Then check every 60 seconds
+    setInterval(() => {
+        void checkActiveToolTokenExpiry();
+    }, 60000); // Check every minute
+}
+
+/**
+ * Check if the active tool's connection token has expired and update the footer
+ */
+async function checkActiveToolTokenExpiry(): Promise<void> {
+    try {
+        // Import updateActiveToolConnectionStatus to refresh the footer status
+        const { updateActiveToolConnectionStatus } = await import("./toolManagement");
+        await updateActiveToolConnectionStatus();
+    } catch (error) {
+        // Silently fail - this is a background check
+        logInfo("Token expiry check failed:", { error });
+    }
 }

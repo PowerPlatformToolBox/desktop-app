@@ -700,11 +700,22 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
 
         if (primaryConnection) {
+            // Check if primary token is expired
+            let isPrimaryExpired = false;
+            if (primaryConnection.tokenExpiry) {
+                const expiryDate = new Date(primaryConnection.tokenExpiry);
+                const now = new Date();
+                isPrimaryExpired = expiryDate.getTime() <= now.getTime();
+            }
+
             // Display primary connection on the left
-            const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
+            const primaryText = isPrimaryExpired
+                ? `Primary: ${primaryConnection.name} (${primaryConnection.environment}) ⚠ (Token Expired)`
+                : `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
-            statusElement.className = `connection-status connected ${primaryEnvClass}`;
+            const primaryStatusClass = isPrimaryExpired ? "expired" : "connected";
+            statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
 
             // Handle secondary connection display
             if (secondaryStatusElement) {
@@ -712,10 +723,21 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                     // Secondary connection is set
                     const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
                     if (secondaryConnection) {
-                        const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                        // Check if secondary token is expired
+                        let isSecondaryExpired = false;
+                        if (secondaryConnection.tokenExpiry) {
+                            const expiryDate = new Date(secondaryConnection.tokenExpiry);
+                            const now = new Date();
+                            isSecondaryExpired = expiryDate.getTime() <= now.getTime();
+                        }
+
+                        const secondaryText = isSecondaryExpired
+                            ? `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment}) ⚠ (Token Expired)`
+                            : `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
                         secondaryStatusElement.textContent = secondaryText;
                         const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
-                        secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                        const secondaryStatusClass = isSecondaryExpired ? "expired" : "connected";
+                        secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
 
                         // Update tool panel border based on both primary and secondary environment
                         updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
