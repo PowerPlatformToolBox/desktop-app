@@ -84,8 +84,8 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
         <div id="connection-string-fields" class="field-group" style="display: none">
             <span class="section-label">Connection String</span>
             <label for="connection-string-input">Connection String</label>
-            <textarea id="connection-string-input" class="modal-input" rows="4" placeholder="AuthType=OAuth;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com;"></textarea>
-            <p class="helper-text">Enter your Dataverse connection string. The connection name, URL, and authentication details will be extracted automatically.</p>
+            <textarea id="connection-string-input" class="modal-input" rows="4" placeholder="AuthType=Office365;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com"></textarea>
+            <p class="helper-text">Enter your XRM Tooling connection string. Supports Office365, OAuth, and ClientSecret authentication types. URL and authentication details will be extracted automatically.</p>
         </div>
     </div>
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>

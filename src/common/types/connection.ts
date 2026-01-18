@@ -62,13 +62,13 @@ export interface UIConnectionData {
 
 /**
  * Parse a Dataverse connection string into connection properties
- * Supports various connection string formats including:
- * - Username/Password: Url=https://org.crm.dynamics.com;Username=user@domain.com;Password=password;
- * - Client Secret: AuthType=ClientSecret;ClientId=xxx;ClientSecret=yyy;TenantId=zzz;Url=https://org.crm.dynamics.com;
- * - Interactive: Url=https://org.crm.dynamics.com; (no credentials provided)
+ * Follows Microsoft XRM Tooling connection string format.
+ * Reference: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/xrm-tooling/use-connection-strings-xrm-tooling-connect
  * 
- * Note: AuthType=OAuth in connection strings is mapped to usernamePassword authentication,
- * as it typically represents the Resource Owner Password Credentials flow.
+ * Supported formats:
+ * - Office365 (Username/Password): AuthType=Office365;Username=user@domain.com;Password=pass;Url=https://org.crm.dynamics.com
+ * - OAuth (Interactive): AuthType=OAuth;Username=user@domain.com;Url=https://org.crm.dynamics.com;AppId=xxx;RedirectUri=yyy
+ * - ClientSecret: AuthType=ClientSecret;ClientId=xxx;ClientSecret=yyy;Url=https://org.crm.dynamics.com
  * 
  * @param connectionString The connection string to parse
  * @returns Parsed connection properties or null if invalid
@@ -91,31 +91,53 @@ export function parseConnectionString(connectionString: string): Partial<Dataver
         }
     }
 
-    // URL is required
-    if (!parts.url) {
+    // URL is required (can be Url or ServiceUri per Microsoft docs)
+    const url = parts.url || parts.serviceuri;
+    if (!url) {
         return null;
     }
 
     const result: Partial<DataverseConnection> = {
-        url: parts.url,
+        url: url,
     };
 
-    // Determine authentication type based on AuthType or available credentials
+    // Parse authentication type based on Microsoft XRM Tooling standard
     const authType = parts.authtype?.toLowerCase();
     
-    // AuthType=OAuth or presence of username+password indicates username/password authentication
-    // (OAuth in connection strings typically refers to Resource Owner Password Credentials flow)
-    if (authType === "oauth" || (parts.username && parts.password)) {
+    // Office365 = Username/Password authentication
+    if (authType === "office365") {
         result.authenticationType = "usernamePassword";
         result.username = parts.username;
         result.password = parts.password;
-    } else if (authType === "clientsecret" || (parts.clientid && parts.clientsecret)) {
+    }
+    // OAuth = Interactive authentication (browser-based)
+    else if (authType === "oauth") {
+        result.authenticationType = "interactive";
+        result.username = parts.username; // Optional login hint
+        result.clientId = parts.appid; // Optional AppId
+        result.tenantId = parts.tenantid; // Optional TenantId
+    }
+    // ClientSecret = Service Principal authentication
+    else if (authType === "clientsecret") {
+        result.authenticationType = "clientSecret";
+        result.clientId = parts.clientid;
+        result.clientSecret = parts.clientsecret;
+        result.tenantId = parts.tenantid;
+    }
+    // No AuthType specified - infer from available credentials
+    else if (parts.username && parts.password) {
+        // If username and password provided without AuthType, assume Office365
+        result.authenticationType = "usernamePassword";
+        result.username = parts.username;
+        result.password = parts.password;
+    } else if (parts.clientid && parts.clientsecret) {
+        // If client credentials provided without AuthType, assume ClientSecret
         result.authenticationType = "clientSecret";
         result.clientId = parts.clientid;
         result.clientSecret = parts.clientsecret;
         result.tenantId = parts.tenantid;
     } else {
-        // Default to interactive if no specific auth type is determined
+        // Default to interactive if no credentials provided
         result.authenticationType = "interactive";
     }
 
