@@ -438,11 +438,33 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
-            // Check if connection already has a valid, non-expired token
-            const hasValidToken = connection.accessToken && !this.connectionsManager.isConnectionTokenExpired(id);
+            // Check if connection has a token and if it's valid with safety buffer
+            // Similar to DataverseManager, we check if token expires within 5 minutes
+            let needsRefresh = false;
+            let hasValidToken = false;
+
+            if (connection.accessToken && connection.tokenExpiry) {
+                const expiryDate = new Date(connection.tokenExpiry);
+                const now = new Date();
+                const timeUntilExpiry = expiryDate.getTime() - now.getTime();
+
+                // Token is valid if it won't expire in the next 5 minutes
+                if (timeUntilExpiry > 5 * 60 * 1000) {
+                    hasValidToken = true;
+                } else if (timeUntilExpiry > 0) {
+                    // Token expires within 5 minutes - needs refresh
+                    needsRefresh = true;
+                } else {
+                    // Token is already expired - needs refresh
+                    needsRefresh = true;
+                }
+            } else if (!connection.accessToken) {
+                // No token at all - needs full authentication
+                needsRefresh = false;
+            }
 
             if (hasValidToken) {
-                // Connection already has a valid token, no need to re-authenticate
+                // Connection has a valid token with sufficient time remaining, no need to re-authenticate
                 // Just update the lastUsedAt timestamp
                 this.connectionsManager.updateConnection(id, {
                     lastUsedAt: new Date().toISOString(),
@@ -455,9 +477,9 @@ class ToolBoxApp {
                 return;
             }
 
-            // Token is expired or missing - try to refresh if refresh token is available
-            if (connection.refreshToken) {
-                logInfo(`[ConnectionAuth] Token expired, attempting refresh for connection: ${connection.name} (${id})`);
+            // Token is expired/expiring soon - try to refresh if refresh token is available
+            if (needsRefresh && connection.refreshToken) {
+                logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
                     const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
