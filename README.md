@@ -90,9 +90,9 @@
 - [Features Overview](#features-overview)
 - [Releases \& Downloads](#releases--downloads)
   - [Download Latest Release](#download-latest-release)
+  - [Building from Source](#building-from-source)
 - [Development Configuration](#development-configuration)
   - [Telemetry and Error Tracking](#telemetry-and-error-tracking)
-    - [Setting up Sentry (Optional)](#setting-up-sentry-optional)
   - [Environment Variables](#environment-variables)
 - [Discussions](#discussions)
 - [License](#license)
@@ -101,21 +101,21 @@
 
 ## Known Issues
 
--   Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
+- Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
 
 ## Features Overview
 
--   **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
--   **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
--   **🛡️ Per-Tool CSP**: Content Security Policy configuration with user consent for external resource access
--   **🔗 Dataverse Connections**: Create and manage connections to Dataverse environments
--   **⚙️ Settings Management**:
-    -   User settings for the ToolBox application
-    -   Individual tool-specific settings
--   **🎨 Modern Interface**: Built with Microsoft Fluent UI components for a consistent, accessible experience aligned with Power Platform
--   **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
--   **🔔 Notifications**: Built-in notification system to keep users informed
--   **🔄 Auto-Updates**: Automatic application updates with user control
+- **🔧 Tool Management**: Install and manage external tools built by 3rd parties via npm
+- **🔒 Secure Tool Host**: VS Code Extension Host-inspired architecture for isolated tool execution
+- **🛡️ Per-Tool CSP**: Content Security Policy configuration with user consent for external resource access
+- **🔗 Dataverse Connections**: Create and manage connections to Dataverse environments
+- **⚙️ Settings Management**:
+    - User settings for the ToolBox application
+    - Individual tool-specific settings
+- **🎨 Modern Interface**: Built with Microsoft Fluent UI components for a consistent, accessible experience aligned with Power Platform
+- **📡 Event-Driven API**: ToolBox provides its own APIs that emit events
+- **🔔 Notifications**: Built-in notification system to keep users informed
+- **🔄 Auto-Updates**: Automatic application updates with user control
 
 > [!IMPORTANT]
 > Full documentation of the toolbox including How tos, FAQs, architecture, design & security principles is available on our main website [https://docs.powerplatformtoolbox.com/](https://docs.powerplatformtoolbox.com/)
@@ -124,16 +124,16 @@
 
 Power Platform ToolBox releases are published on GitHub:
 
--   **Stable Releases**: Published when PRs are merged to the `main` branch
--   **Insider Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
+- **Stable Releases**: Published when PRs are merged to the `main` branch
+- **Insider Builds**: Pre-release builds from the `dev` branch (built daily if there are new commits)
 
 ### Download Latest Release
 
 Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/releases) to download:
 
--   **Windows**: `.exe` installer (x64 and ARM64 available)
--   **macOS**: `.dmg` installer (Universal binary with x64 and ARM64)
--   **Linux**: `.AppImage` (x64)
+- **Windows**: `.exe` installer (x64 and ARM64 available)
+- **macOS**: `.dmg` installer (Universal binary with x64 and ARM64)
+- **Linux**: `.AppImage` (x64)
 
 ### Building from Source
 
@@ -173,70 +173,18 @@ The packaged application will be available in the `build/` directory.
 ### Telemetry and Error Tracking
 
 Power Platform ToolBox uses [Sentry.io](https://sentry.io) for error tracking and telemetry.
-
-#### Setting up Sentry (Optional)
-
-1. Create a `.env` file in the project root (copy from `.env.example`):
-
-```bash
-# Optional: Enable Sentry telemetry
-SENTRY_DSN=https://your-dsn@sentry.io/your-project-id
-
-# Optional: For production builds with source map upload
-SENTRY_AUTH_TOKEN=your-auth-token
-SENTRY_ORG=your-org-slug
-SENTRY_PROJECT=your-project-slug
-```
-
-2. Build the project with `pnpm run build`
-
-**Features enabled with Sentry:**
-
--   **Error tracking** in both main and renderer processes with full stack traces
--   **Session replay** (captures user interactions before errors)
--   **Performance monitoring** with browser tracing in renderer process
--   **Distributed tracing** for tracking operations across processes
--   **Structured logging** with Sentry.logger API for trace, debug, info, warn, error, and fatal levels
--   **Console integration** - Console errors and warnings automatically captured
--   **HTTP request tracing** - Network requests tracked for debugging in main process
--   **Context enrichment** - Machine ID, OS info, and breadcrumbs included
--   **Automatic source map upload** in production builds (requires auth token)
-
-**Logs & Tracing:**
-
--   Console logs at `error` and `warn` levels are automatically captured
--   Structured logging available via Sentry logger helpers (`logTrace`, `logDebug`, `logInfo`, `logWarn`, `logError`, `logFatal`)
--   HTTP requests in main process are traced for performance monitoring
--   Browser performance metrics (page loads, long tasks) captured in renderer
--   All traces include machine ID for per-installation analysis
--   Breadcrumbs capture sequence of events leading to errors
-
-**Using Sentry Logger in Code:**
-
-```typescript
-import { logTrace, logDebug, logInfo, logWarn, logError, logFatal } from "./common/sentryHelper";
-
-// Structured logging with context
-logTrace("Starting database connection", { database: "users" });
-logDebug("Cache miss for user", { userId: 123 });
-logInfo("Updated profile", { profileId: 345 });
-logWarn("Rate limit reached for endpoint", { endpoint: "/api/results/" });
-logError("Failed to process payment", { orderId: "order_123", amount: 99.99 });
-logFatal("Database connection pool exhausted", { database: "users", activeConnections: 100 });
-```
-
-**Note**: If `SENTRY_DSN` is not configured, the application will run normally with telemetry disabled.
+By default, telemetry is enabled to help improve the application. You can disable it in the application settings.
 
 ### Environment Variables
 
 The application supports the following environment variables in a `.env` file:
 
--   `SUPABASE_URL` - Your Supabase project URL (required for tool registry)
--   `SUPABASE_ANON_KEY` - Your Supabase anonymous key (required for tool registry)
--   `SENTRY_DSN` - Your Sentry DSN for error tracking (optional)
--   `SENTRY_AUTH_TOKEN` - Your Sentry auth token for source map upload (optional, production only)
--   `SENTRY_ORG` - Your Sentry organization slug (optional, production only)
--   `SENTRY_PROJECT` - Your Sentry project slug (optional, production only)
+- `SUPABASE_URL` - Your Supabase project URL (required for tool registry)
+- `SUPABASE_ANON_KEY` - Your Supabase anonymous key (required for tool registry)
+- `SENTRY_DSN` - Your Sentry DSN for error tracking (optional)
+- `SENTRY_AUTH_TOKEN` - Your Sentry auth token for source map upload (optional, production only)
+- `SENTRY_ORG` - Your Sentry organization slug (optional, production only)
+- `SENTRY_PROJECT` - Your Sentry project slug (optional, production only)
 
 All environment variables are injected at build time and not exposed in the final bundle.
 
@@ -254,20 +202,20 @@ Created & maintained by **[Danish Naglekar (Power Maverick)](https://github.com/
 
 Supporting Team:
 
--   **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
-    Turns ideas into features and chaos into clarity.
--   **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
-    First to test, first to build, first to break things so others don’t.
--   **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
-    Always thinking beyond boundaries and making bold ideas actually work.
--   **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
-    Tester, implementor, and tool author — a one-person strike team.
--   **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
-    Focused on refining the toolbox UI and elevating the overall experience.
--   **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
-     Generates ideas and relentlessly pushes the team forward.
--   **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
-     Constantly brainstorming new features and improvements to keep the toolbox evolving.
+- **[Matt Berg](https://github.com/MattBerg11)** — _The Product Whisperer_  
+  Turns ideas into features and chaos into clarity.
+- **[Carl Cookson](https://github.com/LinkeD365)** — _Bug Crusher_ 🐞💥  
+  First to test, first to build, first to break things so others don’t.
+- **[Lars Hildebrandt](https://github.com/cyco77)** — _The Box Breaker_ 📦 🚀  
+  Always thinking beyond boundaries and making bold ideas actually work.
+- **[Mohsin Mirza](https://github.com/mohsinonxrm)** — _The Triple Threat_ ⚔️  
+  Tester, implementor, and tool author — a one-person strike team.
+- **[Oleksandr Olashyn](https://github.com/OOlashyn)** — _The UI Polisher_ 🎨  
+  Focused on refining the toolbox UI and elevating the overall experience.
+- **[Oliver Flint](https://github.com/OliverFlint)** — _The Momentum Engine_ ⚡  
+   Generates ideas and relentlessly pushes the team forward.
+- **[Mike Ochs](https://github.com/mikefactorial)** - _The Idea Factory_ 💡  
+   Constantly brainstorming new features and improvements to keep the toolbox evolving.
 
 > If you wish to officially be part of the team, please reach out to **[Danish Naglekar (Power Maverick)](https://github.com/Power-Maverick)** for onboarding.
 
