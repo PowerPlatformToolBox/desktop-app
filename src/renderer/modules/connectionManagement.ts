@@ -5,6 +5,7 @@
 
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
@@ -23,7 +24,7 @@ import {
 } from "./browserWindowModals";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
-type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
+type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
 
 interface ConnectionFormPayload {
     id?: string;
@@ -39,6 +40,7 @@ interface ConnectionFormPayload {
     optionalClientId?: string;
     interactiveUsername?: string;
     interactiveTenantId?: string;
+    connectionString?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -1005,6 +1007,36 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Connection form data is unavailable.";
     }
 
+    const authType = normalizeAuthenticationType(formPayload.authenticationType);
+
+    // Special validation for connection string
+    if (authType === "connectionString") {
+        const connectionString = sanitizeInput(formPayload.connectionString);
+        if (!connectionString) {
+            return "Please provide a connection string.";
+        }
+
+        // Try to parse the connection string
+        const parsed = parseConnectionString(connectionString);
+        if (!parsed || !parsed.url) {
+            return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
+        }
+
+        // Validate URL format
+        const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+        if (!dynamicsUrlPattern.test(parsed.url)) {
+            return "Connection string URL must contain .crm*.dynamics pattern (e.g., https://orgname.crm.dynamics.com).";
+        }
+
+        // Connection name is still required for add/edit modes even with connection string
+        if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
+            return "Please provide a connection name.";
+        }
+
+        return null;
+    }
+
+    // Standard validation for non-connection-string types
     if (!sanitizeInput(formPayload.url)) {
         return "Please provide an environment URL.";
     }
@@ -1019,8 +1051,6 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
-
-    const authType = normalizeAuthenticationType(formPayload.authenticationType);
 
     if (authType === "clientSecret") {
         if (!sanitizeInput(formPayload.clientId) || !sanitizeInput(formPayload.clientSecret) || !sanitizeInput(formPayload.tenantId)) {
@@ -1037,6 +1067,37 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 
 function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
+
+    // Handle connection string specially
+    if (authenticationType === "connectionString") {
+        const connectionString = sanitizeInput(formPayload.connectionString);
+        const parsed = parseConnectionString(connectionString);
+
+        if (!parsed || !parsed.url) {
+            throw new Error("Invalid connection string format");
+        }
+
+        // Build connection from parsed data
+        const connection: DataverseConnection = {
+            id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
+            name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
+            url: parsed.url,
+            environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
+            authenticationType: parsed.authenticationType!,
+            createdAt: new Date().toISOString(),
+        };
+
+        // Add auth-specific fields from parsed connection string
+        if (parsed.clientId) connection.clientId = parsed.clientId;
+        if (parsed.clientSecret) connection.clientSecret = parsed.clientSecret;
+        if (parsed.tenantId) connection.tenantId = parsed.tenantId;
+        if (parsed.username) connection.username = parsed.username;
+        if (parsed.password) connection.password = parsed.password;
+
+        return connection;
+    }
+
+    // Standard connection building for non-connection-string types
     const connection: DataverseConnection = {
         id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
@@ -1088,17 +1149,18 @@ function normalizeEnvironment(value?: string): ConnectionEnvironment {
     return map[normalized] || "Dev";
 }
 
-function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword") {
+function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword" | "connectionString") {
     const labels: Record<string, string> = {
         interactive: "Microsoft Login",
         clientSecret: "Client Secret",
         usernamePassword: "Username/Password",
+        connectionString: "Connection String",
     };
     return labels[authType] || authType;
 }
 
 function normalizeAuthenticationType(value?: string): ConnectionAuthenticationType {
-    if (value === "clientSecret" || value === "usernamePassword") {
+    if (value === "clientSecret" || value === "usernamePassword" || value === "connectionString") {
         return value;
     }
     return "interactive";

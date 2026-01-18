@@ -428,6 +428,9 @@ export class AuthManager {
                     accessToken = passwordResult.accessToken;
                     break;
                 }
+                case "connectionString":
+                    // Connection string should have been parsed to its actual auth type
+                    throw new Error("Connection string must be parsed before testing. Please check the connection configuration.");
                 default:
                     throw new Error("Invalid authentication type");
             }

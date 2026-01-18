@@ -35,6 +35,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <option value="interactive">Microsoft Login (OAuth)</option>
                 <option value="clientSecret">Client ID/Secret</option>
                 <option value="usernamePassword">Username/Password</option>
+                <option value="connectionString">Connection String</option>
             </select>
         </div>
         <div class="form-group">
@@ -79,6 +80,12 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <input type="password" id="connection-password" class="modal-input" placeholder="password" />
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
             </div>
+        </div>
+        <div id="connection-string-fields" class="field-group" style="display: none">
+            <span class="section-label">Connection String</span>
+            <label for="connection-string-input">Connection String</label>
+            <textarea id="connection-string-input" class="modal-input" rows="4" placeholder="AuthType=Office365;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com"></textarea>
+            <p class="helper-text">Enter your connection string. Supports Office365, OAuth, and ClientSecret authentication types. URL and authentication details will be extracted automatically.</p>
         </div>
     </div>
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>
