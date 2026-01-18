@@ -283,17 +283,6 @@
                                     <div class="settings-field">
                                         <div class="settings-field-header">
                                             <div>
-                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
-                                                <span class="setting-hint">Automatically check for new builds</span>
-                                            </div>
-                                            <div class="setting-checkbox-group">
-                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-field">
-                                        <div class="settings-field-header">
-                                            <div>
                                                 <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
                                                 <span class="setting-hint">Expose the Debug activity to quickly test tools</span>
                                             </div>
@@ -362,10 +351,21 @@
                                 </div>
                                 <div class="settings-section-body">
                                     <div class="settings-field">
+                                        <div class="settings-field-header">
+                                            <div>
+                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
+                                                <span class="setting-hint">Automatically check for new builds</span>
+                                            </div>
+                                            <div class="setting-checkbox-group">
+                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-field">
                                         <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary">
                                             <span id="check-updates-btn-text">Check for Updates</span>
                                         </button>
-                                        <div id="update-status-message" class="setting-hint" style="display: none; margin-top: 8px;"></div>
+                                        <div id="update-status-message" class="setting-hint" style="display: none; margin-top: 8px"></div>
                                     </div>
                                 </div>
                             </section>
