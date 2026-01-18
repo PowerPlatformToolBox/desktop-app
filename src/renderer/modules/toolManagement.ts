@@ -33,7 +33,11 @@ let draggedTab: HTMLElement | null = null;
  */
 function isTokenExpired(tokenExpiry: string | undefined): boolean {
     if (!tokenExpiry) return false;
+    
     const expiryDate = new Date(tokenExpiry);
+    // Check if date is valid (invalid dates result in NaN)
+    if (isNaN(expiryDate.getTime())) return false;
+    
     const now = new Date();
     return expiryDate.getTime() <= now.getTime();
 }
