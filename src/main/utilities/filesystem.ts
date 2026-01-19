@@ -48,20 +48,30 @@ export async function exists(filePath: string): Promise<boolean> {
  * Get file or directory metadata
  * Confirms users picked the correct folder/file and shows info in UI
  */
+ * Get file or directory metadata
+ * Confirms users picked the correct folder/file and shows info in UI
+ */
 export async function stat(filePath: string): Promise<{ type: "file" | "directory"; size: number; mtime: string }> {
-    try {
-        const stats = await fs.stat(filePath);
-        return {
-            type: stats.isDirectory() ? "directory" : "file",
-            size: stats.size,
-            mtime: stats.mtime.toISOString(),
-        };
-    } catch (error) {
-        throw new Error(`Failed to get file stats: ${(error as Error).message}`);
-    }
-}
+   try {
+       const stats = await fs.stat(filePath);
 
-/**
+       let type: "file" | "directory";
+       if (stats.isDirectory()) {
+           type = "directory";
+       } else if (stats.isFile()) {
+           type = "file";
+       } else {
+           throw new Error("Unsupported file system entry type (not a regular file or directory)");
+       }
+
+       return {
+           type,
+           size: stats.size,
+           mtime: stats.mtime.toISOString(),
+       };
+   } catch (error) {
+       throw new Error(`Failed to get file stats: ${(error as Error).message}`);
+   }
  * Read directory contents
  * Enumerate folder contents when tools need to show selectable files or validate structure
  */
