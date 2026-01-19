@@ -45,7 +45,7 @@ export interface UtilsAPI {
  */
 export interface FileSystemAPI {
     readText: (path: string) => Promise<string>;
-    readBinary: (path: string) => Promise<ArrayBuffer>;
+    readBinary: (path: string) => Promise<Buffer>;
     exists: (path: string) => Promise<boolean>;
     stat: (path: string) => Promise<{ type: "file" | "directory"; size: number; mtime: string }>;
     readDirectory: (path: string) => Promise<Array<{ name: string; type: "file" | "directory" }>>;

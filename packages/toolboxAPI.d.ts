@@ -221,10 +221,12 @@ declare namespace ToolBoxAPI {
         readText: (path: string) => Promise<string>;
 
         /**
-         * Read a file as raw binary data (ArrayBuffer)
+         * Read a file as raw binary data (Buffer)
          * For images, ZIPs, manifests that need to be hashed, uploaded, or parsed as non-text
+         * Returns a Node.js Buffer which Electron can properly serialize over IPC
+         * Tools can convert to ArrayBuffer using buffer.buffer if needed
          */
-        readBinary: (path: string) => Promise<ArrayBuffer>;
+        readBinary: (path: string) => Promise<Buffer>;
 
         /**
          * Check if a file or directory exists
