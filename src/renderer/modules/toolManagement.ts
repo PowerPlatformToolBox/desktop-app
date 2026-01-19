@@ -27,6 +27,22 @@ let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
 
 /**
+ * Check if a connection token is expired
+ * @param tokenExpiry ISO date string of token expiry
+ * @returns true if token is expired, false otherwise
+ */
+function isTokenExpired(tokenExpiry: string | undefined): boolean {
+    if (!tokenExpiry) return false;
+    
+    const expiryDate = new Date(tokenExpiry);
+    // Check if date is valid (invalid dates result in NaN)
+    if (isNaN(expiryDate.getTime())) return false;
+    
+    const now = new Date();
+    return expiryDate.getTime() <= now.getTime();
+}
+
+/**
  * Generate a unique instance ID for a tool
  */
 function generateInstanceId(toolId: string): string {
@@ -700,11 +716,17 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const primaryConnection = connections.find((c: any) => c.id === toolConnectionId);
 
         if (primaryConnection) {
+            // Check if primary token is expired
+            const isPrimaryExpired = isTokenExpired(primaryConnection.tokenExpiry);
+
             // Display primary connection on the left
-            const primaryText = `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
+            const primaryText = isPrimaryExpired
+                ? `Primary: ${primaryConnection.name} (${primaryConnection.environment}) ⚠ (Token Expired)`
+                : `Primary: ${primaryConnection.name} (${primaryConnection.environment})`;
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
-            statusElement.className = `connection-status connected ${primaryEnvClass}`;
+            const primaryStatusClass = isPrimaryExpired ? "expired" : "connected";
+            statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
 
             // Handle secondary connection display
             if (secondaryStatusElement) {
@@ -712,10 +734,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                     // Secondary connection is set
                     const secondaryConnection = connections.find((c: any) => c.id === secondaryConnectionId);
                     if (secondaryConnection) {
-                        const secondaryText = `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
+                        // Check if secondary token is expired
+                        const isSecondaryExpired = isTokenExpired(secondaryConnection.tokenExpiry);
+
+                        const secondaryText = isSecondaryExpired
+                            ? `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment}) ⚠ (Token Expired)`
+                            : `Secondary: ${secondaryConnection.name} (${secondaryConnection.environment})`;
                         secondaryStatusElement.textContent = secondaryText;
                         const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
-                        secondaryStatusElement.className = `secondary-connection-status connected visible ${secondaryEnvClass}`;
+                        const secondaryStatusClass = isSecondaryExpired ? "expired" : "connected";
+                        secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
 
                         // Update tool panel border based on both primary and secondary environment
                         updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
@@ -744,12 +772,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
         const toolConnection = connections.find((c: any) => c.id === toolConnectionId);
         if (toolConnection) {
             // Check if token is expired
-            let isExpired = false;
-            if (toolConnection.tokenExpiry) {
-                const expiryDate = new Date(toolConnection.tokenExpiry);
-                const now = new Date();
-                isExpired = expiryDate.getTime() <= now.getTime();
-            }
+            const isExpired = isTokenExpired(toolConnection.tokenExpiry);
             const envClass = `env-${toolConnection.environment.toLowerCase()}`;
             // Format: "ToolName is connected to: ConnectionName"
             if (isExpired) {

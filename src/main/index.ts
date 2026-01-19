@@ -438,6 +438,78 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
+            // Determine authentication strategy based on token state
+            // Similar to DataverseManager, we proactively refresh tokens expiring within 5 minutes
+            let tokenState: "valid" | "needs-refresh" | "needs-auth" = "needs-auth";
+
+            if (connection.accessToken && connection.tokenExpiry) {
+                const expiryDate = new Date(connection.tokenExpiry);
+                
+                // Validate date parsing
+                if (isNaN(expiryDate.getTime())) {
+                    logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
+                    tokenState = "needs-auth";
+                } else {
+                    const now = new Date();
+                    const timeUntilExpiry = expiryDate.getTime() - now.getTime();
+
+                    // Token is valid if it won't expire in the next 5 minutes (300,000ms)
+                    if (timeUntilExpiry > 5 * 60 * 1000) {
+                        tokenState = "valid";
+                    } else {
+                        // Token is expired or expiring soon - needs refresh
+                        tokenState = "needs-refresh";
+                    }
+                }
+            } else if (connection.refreshToken) {
+                // No access token but has refresh token - try to refresh
+                tokenState = "needs-refresh";
+            }
+
+            // Handle valid token - reuse it
+            if (tokenState === "valid") {
+                // Connection has a valid token with sufficient time remaining, no need to re-authenticate
+                // Just update the lastUsedAt timestamp
+                this.connectionsManager.updateConnection(id, {
+                    lastUsedAt: new Date().toISOString(),
+                });
+
+                logInfo(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
+
+                // Emit event to notify that connection is active
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                return;
+            }
+
+            // Handle token refresh - attempt to refresh expired/expiring token
+            if (tokenState === "needs-refresh" && connection.refreshToken) {
+                logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update the connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(id, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    // Clear notification tracking since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    logInfo(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                    return;
+                } catch (error) {
+                    // Token refresh failed, fall through to full authentication
+                    logInfo(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
+                }
+            }
+
+            // No valid token exists or refresh failed, proceed with full authentication
+            logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
+
             // Authenticate based on the authentication type
             try {
                 let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
