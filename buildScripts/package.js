@@ -34,21 +34,21 @@ if (configFile) {
     switch (platform) {
         case "darwin": // macOS
             console.log(`📦 Building for macOS (${arch})`);
-            run("pnpm exec electron-builder --config electron-builder-mac.json");
+            run("pnpm exec electron-builder --config buildScripts/electron-builder-mac.json");
             break;
 
         case "win32": // Windows
             console.log(`📦 Building for Windows (${arch})`);
             if (arch === "arm64") {
-                run("pnpm exec electron-builder --config electron-builder-win-arm64.json");
+                run("pnpm exec electron-builder --config buildScripts/electron-builder-win-arm64.json");
             } else {
-                run("pnpm exec electron-builder --config electron-builder-win.json");
+                run("pnpm exec electron-builder --config buildScripts/electron-builder-win.json");
             }
             break;
 
         case "linux": // Linux
             console.log(`📦 Building for Linux (${arch})`);
-            run("pnpm exec electron-builder --config electron-builder-linux.json");
+            run("pnpm exec electron-builder --config buildScripts/electron-builder-linux.json");
             break;
 
         default:

@@ -4,7 +4,9 @@
         "target": [
             {
                 "target": "nsis",
-                "arch": ["x64"]
+                "arch": [
+                    "arm64"
+                ]
             }
         ],
         "icon": "icons/icon.ico"
@@ -13,7 +15,7 @@
         "oneClick": false,
         "perMachine": true,
         "allowToChangeInstallationDirectory": true,
-        "createDesktopShortcut": true,
-        "createStartMenuShortcut": true
+        "createDesktopShortcut": false,
+        "createStartMenuShortcut": false
     }
 }
