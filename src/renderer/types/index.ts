@@ -21,6 +21,7 @@ export interface TerminalTab {
     id: string;
     name: string;
     toolId: string;
+    toolInstanceId?: string | null;
     element: HTMLElement;
     outputElement: HTMLElement;
 }

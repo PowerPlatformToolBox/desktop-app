@@ -454,7 +454,7 @@ class ToolBoxApp {
 
             if (connection.accessToken && connection.tokenExpiry) {
                 const expiryDate = new Date(connection.tokenExpiry);
-                
+
                 // Validate date parsing
                 if (isNaN(expiryDate.getTime())) {
                     logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
@@ -926,8 +926,8 @@ class ToolBoxApp {
         });
 
         // Terminal handlers
-        ipcMain.handle(TERMINAL_CHANNELS.CREATE_TERMINAL, async (_, toolId, options) => {
-            return await this.terminalManager.createTerminal(toolId, options);
+        ipcMain.handle(TERMINAL_CHANNELS.CREATE_TERMINAL, async (_, toolId, instanceId, options) => {
+            return await this.terminalManager.createTerminal(toolId, instanceId ?? null, options);
         });
 
         ipcMain.handle(TERMINAL_CHANNELS.EXECUTE_COMMAND, async (_, terminalId, command) => {
@@ -942,8 +942,8 @@ class ToolBoxApp {
             return this.terminalManager.getTerminal(terminalId);
         });
 
-        ipcMain.handle(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, (_, toolId) => {
-            return this.terminalManager.getToolTerminals(toolId);
+        ipcMain.handle(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, (_, toolId, instanceId) => {
+            return this.terminalManager.getToolTerminals(toolId, instanceId ?? null);
         });
 
         ipcMain.handle(TERMINAL_CHANNELS.GET_ALL_TERMINALS, () => {
@@ -1287,17 +1287,15 @@ class ToolBoxApp {
             ...(isMac
                 ? [
                       {
-                          label: app.name,
+                          label: "Power Platform ToolBox",
                           submenu: [
-                              { role: "about" },
-                              { type: "separator" },
                               { role: "services" },
                               { type: "separator" },
-                              { role: "hide" },
+                              { label: "Hide Power Platform ToolBox", role: "hide" },
                               { role: "hideOthers" },
                               { role: "unhide" },
                               { type: "separator" },
-                              { role: "quit" },
+                              { label: "Quit Power Platform ToolBox", role: "quit" },
                           ],
                       },
                   ]
@@ -1382,7 +1380,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Join Discord",
+                        label: "Join our Discord community!",
                         click: async () => {
                             await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                         },
@@ -1598,7 +1596,7 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager, this.terminalManager);
 
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {

@@ -20,6 +20,7 @@ export interface Terminal {
     id: string;
     name: string;
     toolId: string;
+    toolInstanceId: string | null;
     shell: string;
     cwd: string;
     isVisible: boolean;
@@ -58,6 +59,7 @@ export function isTerminal(obj: unknown): obj is Terminal {
         typeof terminal.id === "string" &&
         typeof terminal.name === "string" &&
         typeof terminal.toolId === "string" &&
+        (typeof terminal.toolInstanceId === "string" || terminal.toolInstanceId === null) &&
         typeof terminal.shell === "string" &&
         typeof terminal.cwd === "string" &&
         typeof terminal.isVisible === "boolean" &&

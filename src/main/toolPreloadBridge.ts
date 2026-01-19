@@ -80,6 +80,16 @@ async function ensureToolContext(): Promise<string> {
     return toolContext.toolId;
 }
 
+async function getToolIdentifiers(): Promise<{ toolId: string; instanceId: string | null }> {
+    await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+    if (!toolContext || typeof toolContext.toolId !== "string") {
+        throw new Error("Tool context not initialized properly");
+    }
+
+    const instanceId = typeof toolContext.instanceId === "string" ? toolContext.instanceId : null;
+    return { toolId: toolContext.toolId, instanceId };
+}
+
 // Helper to make IPC calls and return promises
 function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
     return ipcRenderer.invoke(channel, ...args);
@@ -202,15 +212,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Terminal API
     terminal: {
         create: async (options: Record<string, unknown>) => {
-            const toolId = await ensureToolContext();
-            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, options);
+            const { toolId, instanceId } = await getToolIdentifiers();
+            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, instanceId, options);
         },
         execute: (terminalId: string, command: string) => ipcInvoke(TERMINAL_CHANNELS.EXECUTE_COMMAND, terminalId, command),
         close: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.CLOSE_TERMINAL, terminalId),
         get: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.GET_TERMINAL, terminalId),
         list: async () => {
-            const toolId = await ensureToolContext();
-            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId);
+            const { toolId, instanceId } = await getToolIdentifiers();
+            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId, instanceId);
         },
         listAll: () => ipcInvoke(TERMINAL_CHANNELS.GET_ALL_TERMINALS),
         setVisibility: (terminalId: string, visible: boolean) => ipcInvoke(TERMINAL_CHANNELS.SET_VISIBILITY, terminalId, visible),

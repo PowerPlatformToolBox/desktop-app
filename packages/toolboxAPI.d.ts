@@ -11,6 +11,7 @@ declare namespace ToolBoxAPI {
      */
     export interface ToolContext {
         toolId: string | null;
+        instanceId?: string | null;
         connectionUrl: string | null;
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
@@ -123,6 +124,7 @@ declare namespace ToolBoxAPI {
         id: string;
         name: string;
         toolId: string;
+        toolInstanceId?: string | null;
         shell: string;
         cwd: string;
         isVisible: boolean;
