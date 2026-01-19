@@ -210,7 +210,8 @@ function updateHomepageIconForTheme(): void {
  */
 export function updateFilterIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const filterIconPath = isDarkTheme ? "icons/dark/filter.svg" : "icons/light/filter.svg";
+    const cacheBuster = `?t=${Date.now()}`;
+    const filterIconPath = (isDarkTheme ? "icons/dark/filter.svg" : "icons/light/filter.svg") + cacheBuster;
 
     const toolsFilterButton = document.getElementById("tools-filter-btn");
     if (toolsFilterButton) {
@@ -231,6 +232,14 @@ export function updateFilterIconsForTheme(): void {
     const marketplaceFilterButton = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterButton) {
         const filterImg = marketplaceFilterButton.querySelector("img") as HTMLImageElement | null;
+        if (filterImg) {
+            filterImg.src = filterIconPath;
+        }
+    }
+
+    const settingsFilterButton = document.getElementById("settings-filter-btn");
+    if (settingsFilterButton) {
+        const filterImg = settingsFilterButton.querySelector("img") as HTMLImageElement | null;
         if (filterImg) {
             filterImg.src = filterIconPath;
         }

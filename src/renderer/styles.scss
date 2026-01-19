@@ -32,6 +32,9 @@
     --elevation-high: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
     --elevation-medium: 0 12px 28px -8px rgba(0, 0, 0, 0.3);
     --backdrop-blur: blur(28px);
+    --filter-btn-active-bg: var(--accent-color);
+    --filter-btn-active-color: #fff;
+    --filter-btn-active-border: var(--accent-color);
     /* Environment border colors - Light theme */
     --env-border-dev: #{$env-border-dev-light};
     --env-border-test: #{$env-border-test-light};
@@ -77,6 +80,9 @@ body.dark-theme {
     --env-badge-test: #{$env-badge-test-dark};
     --env-badge-uat: #{$env-badge-uat-dark};
     --env-badge-prod: #{$env-badge-prod-dark};
+    --filter-btn-active-bg: rgba(255, 255, 255, 0.18);
+    --filter-btn-active-color: #f3f2f1;
+    --filter-btn-active-border: rgba(255, 255, 255, 0.4);
 }
 
 * {
@@ -1784,9 +1790,19 @@ body.dark-theme .settings-section-card {
 
 .search-filter-btn:active,
 .search-filter-btn.active {
-    background-color: var(--accent-color);
-    color: white;
-    border-color: var(--accent-color);
+    background-color: var(--filter-btn-active-bg);
+    color: var(--filter-btn-active-color);
+    border-color: var(--filter-btn-active-border);
+}
+
+body.light-theme .search-filter-btn:active img,
+body.light-theme .search-filter-btn.active img {
+    filter: brightness(0) invert(1);
+}
+
+body.dark-theme .search-filter-btn:active img,
+body.dark-theme .search-filter-btn.active img {
+    filter: none;
 }
 
 /* Filter dropdown - VSCode style */
