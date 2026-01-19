@@ -64,7 +64,6 @@ if (sentryConfig) {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -73,7 +72,7 @@ import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
-import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
+import { saveSidebarSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
@@ -552,68 +551,29 @@ function setupDebugSection(): void {
  * Set up settings change listeners
  */
 function setupSettingsListeners(): void {
-    // Theme selector
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement | null;
-    if (themeSelect) {
-        themeSelect.addEventListener("change", async () => {
-            const theme = themeSelect.value as Theme;
-            if (theme) {
-                await window.toolboxAPI.updateUserSettings({ theme });
-                applyTheme(theme);
-                setOriginalSettings({ theme });
-            }
-        });
-    }
-
     // Terminal font selector
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as HTMLSelectElement | null;
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
+    const toggleCustomFontVisibility = (): void => {
+        if (!customFontContainer) {
+            return;
+        }
+
+        const isCustomSelected = terminalFontSelect?.value === "custom";
+        customFontContainer.style.display = isCustomSelected ? "block" : "none";
+
+        if (isCustomSelected && customFontInput) {
+            customFontInput.focus();
+        }
+    };
+
     if (terminalFontSelect) {
-        terminalFontSelect.addEventListener("change", async () => {
-            const terminalFont = terminalFontSelect.value;
-
-            if (customFontContainer) {
-                if (terminalFont === "custom") {
-                    customFontContainer.style.display = "block";
-                    if (customFontInput && customFontInput.value.trim()) {
-                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
-                        applyTerminalFont(customFontInput.value.trim());
-                        setOriginalSettings({ terminalFont: customFontInput.value.trim() });
-                    }
-                } else {
-                    customFontContainer.style.display = "none";
-                    await window.toolboxAPI.updateUserSettings({ terminalFont });
-                    applyTerminalFont(terminalFont);
-                    setOriginalSettings({ terminalFont });
-                }
-            } else if (terminalFont && terminalFont !== "custom") {
-                await window.toolboxAPI.updateUserSettings({ terminalFont });
-                applyTerminalFont(terminalFont);
-                setOriginalSettings({ terminalFont });
-            }
-        });
+        terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
     }
 
-    // Custom font input
-    if (customFontInput) {
-        const applyCustomFont = async () => {
-            const customFont = customFontInput.value.trim();
-            if (customFont) {
-                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
-                applyTerminalFont(customFont);
-                setOriginalSettings({ terminalFont: customFont });
-            }
-        };
-
-        customFontInput.addEventListener("blur", applyCustomFont);
-        customFontInput.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") {
-                applyCustomFont();
-            }
-        });
-    }
+    toggleCustomFontVisibility();
 }
 
 /**

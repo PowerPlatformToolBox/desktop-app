@@ -72,8 +72,10 @@ export function updatePinIconsForTheme(): void {
  */
 export function updateConnectionIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-    const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
+    const cacheBuster = `?t=${Date.now()}`;
+    const iconPath = (isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg") + cacheBuster;
+    const iconEditPath = (isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg") + cacheBuster;
+    const moreIconPath = (isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg") + cacheBuster;
 
     // Update all connection action icons in sidebar
     const connectionsList = document.getElementById("sidebar-connections-list");
@@ -83,6 +85,9 @@ export function updateConnectionIconsForTheme(): void {
         });
         connectionsList.querySelectorAll('[data-action="delete"] img').forEach((img) => {
             (img as HTMLImageElement).src = iconPath;
+        });
+        connectionsList.querySelectorAll(".tool-more-icon").forEach((img) => {
+            (img as HTMLImageElement).src = moreIconPath;
         });
     }
 }
@@ -112,6 +117,7 @@ export function updateToolSidebarIconsForTheme(): void {
     const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
     const starIconPath = isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
     const starFilledIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
+    const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
 
     const toolsList = document.getElementById("sidebar-tools-list");
@@ -135,6 +141,16 @@ export function updateToolSidebarIconsForTheme(): void {
         const isFavorited = currentSrc.includes("star-filled");
 
         (img as HTMLImageElement).src = (isFavorited ? starFilledIconPath : starIconPath) + cacheBuster;
+    });
+
+    // Update inline favorite icons rendered for installed tools list (no button wrapper)
+    toolsList.querySelectorAll(".tool-favorite-icon").forEach((img) => {
+        (img as HTMLImageElement).src = starFilledIconPath + cacheBuster;
+    });
+
+    // Update "more" menu icons
+    toolsList.querySelectorAll(".tool-more-icon").forEach((img) => {
+        (img as HTMLImageElement).src = moreIconPath + cacheBuster;
     });
 
     // Update default tool icons (fallback icons only)
