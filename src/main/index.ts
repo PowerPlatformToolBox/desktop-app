@@ -61,6 +61,7 @@ import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
+    FILESYSTEM_CHANNELS,
     MODAL_WINDOW_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
@@ -316,13 +317,22 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
-        ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
-        ipcMain.removeHandler(UTIL_CHANNELS.SELECT_PATH);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+
+        // Filesystem handlers
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_BINARY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.EXISTS);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.STAT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_DIRECTORY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.WRITE_TEXT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.CREATE_DIRECTORY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.SELECT_PATH);
 
         // Modal window internal channels
         ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
@@ -815,15 +825,6 @@ class ToolBoxApp {
             this.api.copyToClipboard(text);
         });
 
-        // Save file handler
-        ipcMain.handle(UTIL_CHANNELS.SAVE_FILE, async (_, defaultPath, content) => {
-            return await this.api.saveFile(defaultPath, content);
-        });
-
-        ipcMain.handle(UTIL_CHANNELS.SELECT_PATH, async (_, options) => {
-            return await this.api.selectPath(options);
-        });
-
         // Show loading handler (overlay window above BrowserViews)
         ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
             if (this.loadingOverlayWindowManager) {
@@ -865,6 +866,52 @@ class ToolBoxApp {
         // Open external URL handler
         ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
             await shell.openExternal(url);
+        });
+
+        // Filesystem handlers
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (_, filePath: string) => {
+            const { readText } = await import("./utilities/filesystem.js");
+            return await readText(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (_, filePath: string) => {
+            const { readBinary } = await import("./utilities/filesystem.js");
+            return await readBinary(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (_, filePath: string) => {
+            const { exists } = await import("./utilities/filesystem.js");
+            return await exists(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (_, filePath: string) => {
+            const { stat } = await import("./utilities/filesystem.js");
+            return await stat(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (_, dirPath: string) => {
+            const { readDirectory } = await import("./utilities/filesystem.js");
+            return await readDirectory(dirPath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (_, filePath: string, content: string) => {
+            const { writeText } = await import("./utilities/filesystem.js");
+            return await writeText(filePath, content);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (_, dirPath: string) => {
+            const { createDirectory } = await import("./utilities/filesystem.js");
+            return await createDirectory(dirPath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer) => {
+            const { saveFile } = await import("./utilities/filesystem.js");
+            return await saveFile(defaultPath, content);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (_, options) => {
+            const { selectPath } = await import("./utilities/filesystem.js");
+            return await selectPath(options);
         });
 
         // Modal BrowserWindow internal channels (modal preload -> main)
