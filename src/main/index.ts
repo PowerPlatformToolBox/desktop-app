@@ -1287,17 +1287,15 @@ class ToolBoxApp {
             ...(isMac
                 ? [
                       {
-                          label: app.name,
+                          label: "Power Platform ToolBox",
                           submenu: [
-                              { role: "about" },
-                              { type: "separator" },
                               { role: "services" },
                               { type: "separator" },
-                              { role: "hide" },
+                              { label: "Hide Power Platform ToolBox", role: "hide" },
                               { role: "hideOthers" },
                               { role: "unhide" },
                               { type: "separator" },
-                              { role: "quit" },
+                              { label: "Quit Power Platform ToolBox", role: "quit" },
                           ],
                       },
                   ]
@@ -1382,7 +1380,7 @@ class ToolBoxApp {
                         },
                     },
                     {
-                        label: "Join Discord",
+                        label: "Join our Discord community!",
                         click: async () => {
                             await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                         },
