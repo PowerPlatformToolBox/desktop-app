@@ -33,11 +33,11 @@ let draggedTab: HTMLElement | null = null;
  */
 function isTokenExpired(tokenExpiry: string | undefined): boolean {
     if (!tokenExpiry) return false;
-    
+
     const expiryDate = new Date(tokenExpiry);
     // Check if date is valid (invalid dates result in NaN)
     if (isNaN(expiryDate.getTime())) return false;
-    
+
     const now = new Date();
     return expiryDate.getTime() <= now.getTime();
 }
@@ -365,6 +365,16 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
 
     // Update scroll button visibility after adding tab
     updateTabScrollButtons();
+}
+
+/**
+ * Get the current display name for a tool tab instance
+ */
+export function getToolInstanceDisplayName(instanceId: string): string | null {
+    const tab = document.getElementById(`tool-tab-${instanceId}`);
+    if (!tab) return null;
+    const nameElement = tab.querySelector(".tool-tab-name");
+    return nameElement?.textContent ?? null;
 }
 
 /**

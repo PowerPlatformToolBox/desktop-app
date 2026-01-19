@@ -7,6 +7,7 @@ import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
+import { TerminalManager } from "./terminalManager";
 import { ToolManager } from "./toolsManager";
 
 /**
@@ -28,6 +29,7 @@ export class ToolWindowManager {
     private connectionsManager: ConnectionsManager;
     private settingsManager: SettingsManager;
     private toolManager: ToolManager;
+    private terminalManager: TerminalManager;
     /**
      * Maps tool instanceId (NOT toolId) to BrowserView.
      *
@@ -56,12 +58,20 @@ export class ToolWindowManager {
     private showListener: () => void;
     private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
 
-    constructor(mainWindow: BrowserWindow, browserviewProtocolManager: BrowserviewProtocolManager, connectionsManager: ConnectionsManager, settingsManager: SettingsManager, toolManager: ToolManager) {
+    constructor(
+        mainWindow: BrowserWindow,
+        browserviewProtocolManager: BrowserviewProtocolManager,
+        connectionsManager: ConnectionsManager,
+        settingsManager: SettingsManager,
+        toolManager: ToolManager,
+        terminalManager: TerminalManager,
+    ) {
         this.mainWindow = mainWindow;
         this.browserviewProtocolManager = browserviewProtocolManager;
         this.connectionsManager = connectionsManager;
         this.settingsManager = settingsManager;
         this.toolManager = toolManager;
+        this.terminalManager = terminalManager;
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
@@ -263,6 +273,7 @@ export class ToolWindowManager {
             // The preload script will receive this before the tool code runs
             const toolContext = {
                 toolId: tool.id,
+                instanceId,
                 toolName: tool.name,
                 version: tool.version,
                 connectionUrl: connectionUrl,
@@ -379,6 +390,9 @@ export class ToolWindowManager {
             // Remove from maps - also clean up connection info
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
+
+            // Dispose any terminals created by this tool instance
+            this.terminalManager.closeToolInstanceTerminals(instanceId);
 
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;

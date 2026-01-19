@@ -115,6 +115,7 @@ export interface ToolSettings {
  */
 export interface ToolContext {
     toolId: string;
+    instanceId?: string | null;
     connectionUrl: string | null;
     connectionId?: string | null;
     secondaryConnectionUrl?: string | null;

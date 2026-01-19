@@ -42,7 +42,7 @@ export class TerminalManager extends EventEmitter {
     /**
      * Create a new terminal for a tool
      */
-    async createTerminal(toolId: string, options: TerminalOptions): Promise<Terminal> {
+    async createTerminal(toolId: string, toolInstanceId: string | null, options: TerminalOptions): Promise<Terminal> {
         const terminalId = randomUUID();
         let shell = options.shell || this.defaultShell;
 
@@ -61,6 +61,7 @@ export class TerminalManager extends EventEmitter {
             id: terminalId,
             name: options.name,
             toolId,
+            toolInstanceId: toolInstanceId ?? null,
             shell,
             cwd,
             isVisible,
@@ -125,10 +126,10 @@ export class TerminalManager extends EventEmitter {
     /**
      * Get all terminals for a specific tool
      */
-    getToolTerminals(toolId: string): Terminal[] {
+    getToolTerminals(toolId: string, toolInstanceId?: string | null): Terminal[] {
         const terminals: Terminal[] = [];
         this.terminals.forEach((instance) => {
-            if (instance.terminal.toolId === toolId) {
+            if (instance.terminal.toolId === toolId && (!toolInstanceId || instance.terminal.toolInstanceId === toolInstanceId)) {
                 terminals.push(instance.terminal);
             }
         });
@@ -164,6 +165,19 @@ export class TerminalManager extends EventEmitter {
         const terminalIds: string[] = [];
         this.terminals.forEach((instance, id) => {
             if (instance.terminal.toolId === toolId) {
+                terminalIds.push(id);
+            }
+        });
+        terminalIds.forEach((id) => this.closeTerminal(id));
+    }
+
+    /**
+     * Close all terminals belonging to a specific tool instance
+     */
+    closeToolInstanceTerminals(toolInstanceId: string): void {
+        const terminalIds: string[] = [];
+        this.terminals.forEach((instance, id) => {
+            if (instance.terminal.toolInstanceId === toolInstanceId) {
                 terminalIds.push(id);
             }
         });
