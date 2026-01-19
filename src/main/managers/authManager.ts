@@ -99,12 +99,17 @@ export class AuthManager {
 
             const response = await this.msalApp.acquireTokenByCode(tokenRequest);
 
-            return {
+            const authResult = {
                 accessToken: response.accessToken,
                 // MSAL Node does not expose refresh tokens directly. The homeAccountId is returned here for account identification in future token operations.
                 refreshToken: response.account?.homeAccountId,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+            return authResult;
         } catch (error) {
             captureMessage("Interactive authentication failed:", "error", {
                 extra: { error },
@@ -332,11 +337,16 @@ export class AuthManager {
                 throw new Error(data.error_description || data.error);
             }
 
-            return {
+            const authResult = {
                 accessToken: data.access_token,
                 refreshToken: undefined, // Client credentials flow doesn't provide refresh tokens
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+            return authResult;
         } catch (error) {
             captureMessage("Client secret authentication failed:", "error", {
                 extra: { error },
@@ -380,11 +390,16 @@ export class AuthManager {
                 throw new Error(data.error_description || data.error);
             }
 
-            return {
+            const authResult = {
                 accessToken: data.access_token,
                 refreshToken: data.refresh_token,
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+            return authResult;
         } catch (error) {
             captureMessage("Username/password authentication failed:", "error", {
                 extra: { error },
@@ -533,6 +548,34 @@ export class AuthManager {
 
             req.end();
         });
+    }
+
+    /**
+     * Validate user has access to the environment by performing a WhoAmI check
+     * @param connection The connection to validate
+     * @param accessToken The access token to use for the WhoAmI call
+     * @throws Error if the user does not have access to the environment
+     */
+    private async validateEnvironmentAccess(connection: DataverseConnection, accessToken: string): Promise<void> {
+        try {
+            const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
+            const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
+            const data = JSON.parse(response);
+
+            // If we get a UserId back, the user has access to the environment
+            if (!data.UserId) {
+                throw new Error("Unable to verify user identity in the selected environment");
+            }
+
+            logInfo("Environment access validated successfully", { userId: data.UserId });
+        } catch (error) {
+            // Enhance error message for permission-related failures
+            const errorMessage = (error as Error).message;
+            if (errorMessage.includes("401") || errorMessage.includes("403")) {
+                throw new Error("You do not have permission to access this environment. Please verify the user account matches the selected environment.");
+            }
+            throw new Error(`Environment access validation failed: ${errorMessage}`);
+        }
     }
 
     /**
