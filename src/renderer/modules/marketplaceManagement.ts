@@ -274,8 +274,8 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
-                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
             </div>
@@ -299,8 +299,8 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
-                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
             </div>
@@ -349,7 +349,8 @@ export async function loadMarketplace(): Promise<void> {
             // Disable button and show loading state
             buttonElement.setAttribute("disabled", "true");
             const originalHtml = buttonElement.innerHTML;
-            buttonElement.innerHTML = "Installing...";
+            buttonElement.classList.add("is-loading");
+            buttonElement.innerHTML = '<span class="install-button-spinner" aria-hidden="true"></span>';
 
             try {
                 // Use registry-based installation
@@ -366,6 +367,7 @@ export async function loadMarketplace(): Promise<void> {
                 await loadSidebarTools();
             } catch (error) {
                 buttonElement.removeAttribute("disabled");
+                buttonElement.classList.remove("is-loading");
                 buttonElement.innerHTML = originalHtml;
                 window.toolboxAPI.utils.showNotification({
                     title: "Installation Failed",

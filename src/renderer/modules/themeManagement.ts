@@ -171,6 +171,7 @@ export function updateMarketplaceIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const cacheBuster = `?t=${Date.now()}`;
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+    const installIconPath = (isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg") + cacheBuster;
 
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
@@ -186,6 +187,11 @@ export function updateMarketplaceIconsForTheme(): void {
                 this.src = defaultToolIcon;
             };
         }
+    });
+
+    // Update install buttons to match theme
+    marketplaceList.querySelectorAll(".install-button img").forEach((img) => {
+        (img as HTMLImageElement).src = installIconPath;
     });
 }
 
