@@ -13,7 +13,7 @@ export type InstalledToolsSortOption = "name-asc" | "name-desc" | "popularity" |
 /**
  * Sort options for connections
  */
-export type ConnectionsSortOption = "name-asc" | "name-desc" | "environment";
+export type ConnectionsSortOption = "last-used" | "name-asc" | "name-desc" | "environment";
 
 /**
  * Sort options for marketplace

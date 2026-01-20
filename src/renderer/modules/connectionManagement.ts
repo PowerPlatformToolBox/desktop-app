@@ -4,7 +4,7 @@
  */
 
 import { captureMessage, logInfo } from "../../common/sentryHelper";
-import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
@@ -14,6 +14,7 @@ import { getSelectConnectionModalControllerScript } from "../modals/selectConnec
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
 import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
+import { sortConnections } from "../utils/connectionSorting";
 import {
     closeBrowserWindowModal,
     offBrowserWindowModalClosed,
@@ -140,6 +141,27 @@ let highlightConnectionId: string | null = null;
 
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
+
+const CONNECTIONS_SORT_SETTING_KEY = "connectionsSort";
+const DEFAULT_CONNECTIONS_SORT: ConnectionsSortOption = "last-used";
+
+function coerceConnectionsSortOption(value: unknown): ConnectionsSortOption {
+    if (value === "last-used" || value === "name-asc" || value === "name-desc" || value === "environment") {
+        return value as ConnectionsSortOption;
+    }
+
+    return DEFAULT_CONNECTIONS_SORT;
+}
+
+async function getConnectionsSortPreference(): Promise<ConnectionsSortOption> {
+    try {
+        const storedPreference = await window.toolboxAPI.getSetting(CONNECTIONS_SORT_SETTING_KEY);
+        return coerceConnectionsSortOption(storedPreference);
+    } catch (error) {
+        captureMessage("Failed to read connections sort preference", "warning", { extra: { error } });
+        return DEFAULT_CONNECTIONS_SORT;
+    }
+}
 
 /**
  * Update footer connection information
@@ -327,19 +349,24 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
+        const sortOption = await getConnectionsSortPreference();
+        const sortedConnections = sortConnections(connections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
+                sortOption,
                 // Map persisted connections to UI-level data with isActive property
-                connections: connections.map(
+                connections: sortedConnections.map(
                     (conn: DataverseConnection): UIConnectionData => ({
                         id: conn.id,
                         name: conn.name,
                         url: conn.url,
                         environment: conn.environment,
                         authenticationType: conn.authenticationType,
+                        lastUsedAt: conn.lastUsedAt,
+                        createdAt: conn.createdAt,
                         // If highlightConnectionId is set (tool-specific modal), use it to mark as active
                         // Otherwise, mark none as active since there's no global active connection
                         isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
@@ -513,17 +540,23 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
+        const sortOption = await getConnectionsSortPreference();
+        const sortedConnections = sortConnections(connections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
-                connections: connections.map((conn: DataverseConnection) => ({
+                sortOption,
+                connections: sortedConnections.map((conn: DataverseConnection) => ({
                     id: conn.id,
                     name: conn.name,
                     url: conn.url,
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
+                    lastUsedAt: conn.lastUsedAt,
+                    createdAt: conn.createdAt,
+                    isActive: false,
                 })),
             },
         });
@@ -1321,16 +1354,14 @@ export async function loadSidebarConnections(): Promise<void> {
         const selectedAuthType = authFilter?.value || "";
 
         // Get saved sort preference or default
-        const savedSort = await window.toolboxAPI.getSetting("connectionsSort");
-        const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
-
-        // Set the dropdown value if we have a saved preference
-        if (sortSelect && savedSort && !sortSelect.value) {
-            sortSelect.value = savedSort as string;
+        const savedSort = await getConnectionsSortPreference();
+        if (sortSelect) {
+            sortSelect.value = savedSort;
         }
+        const sortOption = sortSelect ? coerceConnectionsSortOption(sortSelect.value) : savedSort;
 
         // Apply filters
-        let filteredConnections = connections.filter((conn: DataverseConnection) => {
+        const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
             if (searchTerm) {
                 const haystacks: string[] = [conn.name || "", conn.url || ""];
@@ -1352,28 +1383,9 @@ export async function loadSidebarConnections(): Promise<void> {
             return true;
         });
 
-        // Sort connections based on selected option
-        filteredConnections = filteredConnections.sort((a: DataverseConnection, b: DataverseConnection) => {
-            switch (sortOption) {
-                case "name-asc":
-                    return a.name.localeCompare(b.name);
-                case "name-desc":
-                    return b.name.localeCompare(a.name);
-                case "environment": {
-                    // Sort by environment type: Dev -> Test -> UAT -> Production
-                    const envOrder = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
-                    const aOrder = envOrder[a.environment] || 999;
-                    const bOrder = envOrder[b.environment] || 999;
-                    if (aOrder !== bOrder) return aOrder - bOrder;
-                    // Secondary sort by name if same environment
-                    return a.name.localeCompare(b.name);
-                }
-                default:
-                    return a.name.localeCompare(b.name);
-            }
-        });
+        const sortedConnections = sortConnections(filteredConnections, sortOption);
 
-        if (filteredConnections.length === 0) {
+        if (sortedConnections.length === 0) {
             if (connections.length === 0) {
                 connectionsList.innerHTML = `
                     <div class="empty-state">
@@ -1393,7 +1405,7 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        connectionsList.innerHTML = filteredConnections
+        connectionsList.innerHTML = sortedConnections
             .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
@@ -1432,7 +1444,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 const connectionId = target.getAttribute("data-connection-id");
                 if (!connectionId) return;
 
-                const conn = filteredConnections.find((c: DataverseConnection) => c.id === connectionId);
+                const conn = sortedConnections.find((c: DataverseConnection) => c.id === connectionId);
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
@@ -1488,7 +1500,9 @@ export async function loadSidebarConnections(): Promise<void> {
             (sortSelect as any)._pptbBound = true;
             sortSelect.addEventListener("change", async () => {
                 // Save sort preference
-                await window.toolboxAPI.setSetting("connectionsSort", sortSelect.value);
+                const selectedSort = coerceConnectionsSortOption(sortSelect.value);
+                sortSelect.value = selectedSort;
+                await window.toolboxAPI.setSetting(CONNECTIONS_SORT_SETTING_KEY, selectedSort);
                 loadSidebarConnections();
             });
         }

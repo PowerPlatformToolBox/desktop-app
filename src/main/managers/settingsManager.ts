@@ -26,6 +26,7 @@ export class SettingsManager {
                 cspConsents: {}, // Track CSP consent for each tool
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
+                connectionsSort: "last-used",
             },
         });
 

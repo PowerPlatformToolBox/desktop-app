@@ -58,6 +58,8 @@ export interface UIConnectionData {
     environment: DataverseConnection["environment"];
     authenticationType: AuthenticationType;
     isActive: boolean;
+    lastUsedAt?: string;
+    createdAt?: string;
 }
 
 /**

@@ -72,8 +72,10 @@ export function updatePinIconsForTheme(): void {
  */
 export function updateConnectionIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const iconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-    const iconEditPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
+    const cacheBuster = `?t=${Date.now()}`;
+    const iconPath = (isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg") + cacheBuster;
+    const iconEditPath = (isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg") + cacheBuster;
+    const moreIconPath = (isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg") + cacheBuster;
 
     // Update all connection action icons in sidebar
     const connectionsList = document.getElementById("sidebar-connections-list");
@@ -83,6 +85,9 @@ export function updateConnectionIconsForTheme(): void {
         });
         connectionsList.querySelectorAll('[data-action="delete"] img').forEach((img) => {
             (img as HTMLImageElement).src = iconPath;
+        });
+        connectionsList.querySelectorAll(".tool-more-icon").forEach((img) => {
+            (img as HTMLImageElement).src = moreIconPath;
         });
     }
 }
@@ -112,6 +117,7 @@ export function updateToolSidebarIconsForTheme(): void {
     const trashIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
     const starIconPath = isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
     const starFilledIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
+    const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
 
     const toolsList = document.getElementById("sidebar-tools-list");
@@ -137,6 +143,16 @@ export function updateToolSidebarIconsForTheme(): void {
         (img as HTMLImageElement).src = (isFavorited ? starFilledIconPath : starIconPath) + cacheBuster;
     });
 
+    // Update inline favorite icons rendered for installed tools list (no button wrapper)
+    toolsList.querySelectorAll(".tool-favorite-icon").forEach((img) => {
+        (img as HTMLImageElement).src = starFilledIconPath + cacheBuster;
+    });
+
+    // Update "more" menu icons
+    toolsList.querySelectorAll(".tool-more-icon").forEach((img) => {
+        (img as HTMLImageElement).src = moreIconPath + cacheBuster;
+    });
+
     // Update default tool icons (fallback icons only)
     toolsList.querySelectorAll(".tool-item-icon-img").forEach((img) => {
         const currentSrc = (img as HTMLImageElement).src;
@@ -155,6 +171,7 @@ export function updateMarketplaceIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const cacheBuster = `?t=${Date.now()}`;
     const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+    const installIconPath = (isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg") + cacheBuster;
 
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
@@ -170,6 +187,11 @@ export function updateMarketplaceIconsForTheme(): void {
                 this.src = defaultToolIcon;
             };
         }
+    });
+
+    // Update install buttons to match theme
+    marketplaceList.querySelectorAll(".install-button img").forEach((img) => {
+        (img as HTMLImageElement).src = installIconPath;
     });
 }
 
@@ -194,7 +216,8 @@ function updateHomepageIconForTheme(): void {
  */
 export function updateFilterIconsForTheme(): void {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const filterIconPath = isDarkTheme ? "icons/dark/filter.svg" : "icons/light/filter.svg";
+    const cacheBuster = `?t=${Date.now()}`;
+    const filterIconPath = (isDarkTheme ? "icons/dark/filter.svg" : "icons/light/filter.svg") + cacheBuster;
 
     const toolsFilterButton = document.getElementById("tools-filter-btn");
     if (toolsFilterButton) {
@@ -215,6 +238,14 @@ export function updateFilterIconsForTheme(): void {
     const marketplaceFilterButton = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterButton) {
         const filterImg = marketplaceFilterButton.querySelector("img") as HTMLImageElement | null;
+        if (filterImg) {
+            filterImg.src = filterIconPath;
+        }
+    }
+
+    const settingsFilterButton = document.getElementById("settings-filter-btn");
+    if (settingsFilterButton) {
+        const filterImg = settingsFilterButton.querySelector("img") as HTMLImageElement | null;
         if (filterImg) {
             filterImg.src = filterIconPath;
         }

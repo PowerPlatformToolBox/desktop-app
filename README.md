@@ -23,24 +23,35 @@
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml" alt="Prod Release">
       <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml/badge.svg"/>
     </a>
+    <a href="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml" alt="Tool Update Status">
+      <img src="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml/badge.svg" />
+    </a>
+</p>
+
+<p align="center">
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/blob/master/LICENSE" alt="License">
       <img src="https://img.shields.io/github/license/PowerPlatformToolBox/desktop-app"/>
     </a>
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/github-code-scanning/codeql" alt="CodeQL">
       <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/github-code-scanning/codeql/badge.svg"/>
     </a>
-</p>
-
-<p align="center">
-    <a href="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml" alt="Tool Update Status">
-      <img src="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml/badge.svg" />
-    </a>
     <a href="https://www.powerplatformtoolbox.com" alt="Website">
       <img src="https://img.shields.io/website?url=https%3A%2F%2Fwww.powerplatformtoolbox.com" />
     </a>
-    <a href="https://github.com/PowerPlatformToolBox/desktop-app" alt="GitHub Stars">
+    
+</p>
+
+<p align="center">
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app" alt="Downloads">
+      <img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/PowerPlatformToolBox/desktop-app/total">
+  </a>
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app" alt="GitHub Stars">
       <img src="https://img.shields.io/github/stars/PowerPlatformToolBox/desktop-app?label=github%20stars" />
-    </a>
+  </a>
+  <a href="https://github.com/PowerPlatformToolBox/desktop-app" alt="GitHub Release">
+      <img alt="GitHub Release" src="https://img.shields.io/github/v/release/PowerPlatformToolBox/desktop-app">
+
+  </a>
 </p>
 
 <p align="center">
