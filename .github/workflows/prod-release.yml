@@ -20,16 +20,16 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
-                      config: electron-builder-linux.json
+                      config: buildScripts/electron-builder-linux.json
                       artifact_name: linux-release
                     - os: windows-latest
-                      config: electron-builder-win.json
+                      config: buildScripts/electron-builder-win.json
                       artifact_name: windows-x64-release
                     - os: windows-latest
-                      config: electron-builder-win-arm64.json
+                      config: buildScripts/electron-builder-win-arm64.json
                       artifact_name: windows-arm64-release
                     - os: macos-latest
-                      config: electron-builder-mac.json
+                      config: buildScripts/electron-builder-mac.json
                       artifact_name: macos-release
 
         steps:
