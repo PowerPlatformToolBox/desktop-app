@@ -2,6 +2,7 @@
 agent: agent
 name: "CreateReleaseNotes"
 description: "Generate release notes for the latest changes in the codebase."
+model: GPT-5.2 (copilot)
 ---
 
 You are writing GitHub Release notes for Power Platform ToolBox.
@@ -9,7 +10,7 @@ Version: ${input:newVersion}
 Compare tag: ${input:previousVersion}...${input:newVersion}
 Audience: end users + developers; keep it concise, scannable, and non-marketing.
 
-Produce sections with this structure:
+Produce sections with this structure and overwrite the RELEASE_NOTES.md file with the output.
 
 # Power Platform ToolBox ${input:newVersion}
 
