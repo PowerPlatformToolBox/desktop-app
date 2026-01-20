@@ -109,8 +109,8 @@ export function getConnectionSortingUtilitiesScript(): string {
             case "name-desc":
                 return nameB.localeCompare(nameA);
             case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] ?? Number.MAX_SAFE_INTEGER;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] ?? Number.MAX_SAFE_INTEGER;
+                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || Number.MAX_SAFE_INTEGER;
+                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || Number.MAX_SAFE_INTEGER;
                 if (aOrder !== bOrder) {
                     return aOrder - bOrder;
                 }
