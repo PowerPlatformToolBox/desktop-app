@@ -72,7 +72,15 @@ export function sortConnections<T extends DataverseConnection | UIConnectionData
 /**
  * Returns the JavaScript code for connection sorting utilities.
  * This is used for inline scripts in modal controllers.
- * Note: The sortConnections function expects a sanitized sortOption parameter.
+ * 
+ * The generated code includes:
+ * - `ENVIRONMENT_SORT_ORDER` - Environment priority map
+ * - `getLastUsedTimestamp(conn)` - Extract timestamp for sorting
+ * - `sortConnections(a, b, sortOption)` - Comparator function for Array.sort()
+ * 
+ * Note: The sortConnections comparator expects a pre-sanitized sortOption parameter
+ * (one of: "last-used", "name-asc", "name-desc", "environment").
+ * Modal controllers must validate/sanitize the sort option before calling.
  */
 export function getConnectionSortingUtilitiesScript(): string {
     return `
