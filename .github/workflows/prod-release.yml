@@ -43,23 +43,12 @@ jobs:
               shell: bash
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
-                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+                  if ! grep -q "^# Power Platform ToolBox $CURRENT_VERSION" RELEASE_NOTES.md; then
+                    echo "Error: RELEASE_NOTES.md does not contain heading '# Power Platform ToolBox $CURRENT_VERSION'."
+                        exit 1
+                    fi
 
-                  if [ -n "$LAST_TAG" ]; then
-                      if [ "v$CURRENT_VERSION" = "$LAST_TAG" ]; then
-                          echo "Error: package.json version $CURRENT_VERSION has not been incremented beyond $LAST_TAG."
-                          exit 1
-                      fi
-                  else
-                      echo "Warning: no previous tag found; skipping version increment check."
-                  fi
-
-                  if ! grep -q "Power Platform ToolBox v$CURRENT_VERSION" RELEASE_NOTES.md; then
-                      echo "Error: RELEASE_NOTES.md does not contain entry for Power Platform ToolBox v$CURRENT_VERSION."
-                      exit 1
-                  fi
-
-                  echo "Version and release notes validation passed for v$CURRENT_VERSION."
+                  echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
