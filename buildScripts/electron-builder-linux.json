@@ -1,10 +1,12 @@
 {
-    "extends": "./electron-builder-base.json",
+    "extends": "buildScripts/electron-builder-base.json",
     "linux": {
         "target": [
             {
                 "target": "AppImage",
-                "arch": ["x64"]
+                "arch": [
+                    "x64"
+                ]
             }
         ],
         "category": "Development",
