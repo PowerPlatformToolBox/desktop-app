@@ -8,6 +8,7 @@ export interface SelectMultiConnectionModalChannelIds {
 
 export interface ConnectionListData {
     connections: UIConnectionData[];
+    sortOption?: "last-used" | "name-asc" | "name-desc" | "environment";
 }
 
 /**
@@ -43,6 +44,13 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
     let allConnections = [];
+    const DEFAULT_SORT_OPTION = "last-used";
+    const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
+    const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
+    let injectedSortOption = DEFAULT_SORT_OPTION;
+    if (sortSelect) {
+        injectedSortOption = sanitizeSortOption(sortSelect.value);
+    }
 
     const formatAuthType = (authType) => {
         const labels = {
@@ -53,13 +61,43 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         return labels[authType] || authType;
     };
 
+    const getLastUsedTimestamp = (conn) => {
+        if (!conn) {
+            return 0;
+        }
+
+        if (conn.lastUsedAt) {
+            const parsedLastUsed = Date.parse(conn.lastUsedAt);
+            if (!Number.isNaN(parsedLastUsed)) {
+                return parsedLastUsed;
+            }
+        }
+
+        if (conn.createdAt) {
+            const parsedCreated = Date.parse(conn.createdAt);
+            if (!Number.isNaN(parsedCreated)) {
+                return parsedCreated;
+            }
+        }
+
+        return 0;
+    };
+
     const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
 
     const sortConnections = (a, b, sortOption) => {
+        const resolvedSort = sanitizeSortOption(sortOption);
         const nameA = (a.name || "");
         const nameB = (b.name || "");
 
-        switch (sortOption) {
+        switch (resolvedSort) {
+            case "last-used": {
+                const diff = getLastUsedTimestamp(b) - getLastUsedTimestamp(a);
+                if (diff !== 0) {
+                    return diff;
+                }
+                return nameA.localeCompare(nameB);
+            }
             case "name-desc":
                 return nameB.localeCompare(nameA);
             case "environment": {
@@ -80,7 +118,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
         const selectedAuth = authFilter?.value || "";
-        const selectedSort = sortSelect?.value || "name-asc";
+        const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -109,8 +147,18 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         return filtered;
     };
 
-    const renderConnections = (connectionsData) => {
-        allConnections = connectionsData || [];
+    const renderConnections = (connectionsData, options = {}) => {
+        if (Array.isArray(connectionsData)) {
+            allConnections = connectionsData;
+        }
+
+        if (options.sortOption) {
+            injectedSortOption = sanitizeSortOption(options.sortOption);
+            if (sortSelect) {
+                sortSelect.value = injectedSortOption;
+            }
+        }
+
         const connections = getFilteredConnections();
         
         if (allConnections.length === 0) {
@@ -315,7 +363,10 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
     envFilter?.addEventListener('change', () => renderConnections(allConnections));
     authFilter?.addEventListener('change', () => renderConnections(allConnections));
-    sortSelect?.addEventListener('change', () => renderConnections(allConnections));
+    sortSelect?.addEventListener('change', () => {
+        injectedSortOption = sanitizeSortOption(sortSelect.value);
+        renderConnections(allConnections);
+    });
 
     // Listen for messages from main process
     if (modalBridge?.onMessage) {
@@ -346,7 +397,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             }
             
             if (payload.channel === CHANNELS.populateConnections) {
-                renderConnections(payload.data?.connections || []);
+                renderConnections(payload.data?.connections || [], { sortOption: payload.data?.sortOption });
             }
         });
     } else {

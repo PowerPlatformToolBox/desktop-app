@@ -37,6 +37,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean): ModalViewTem
                 <div class="modal-filter-section">
                     <div class="modal-filter-title">Sort By</div>
                     <select id="select-connection-sort" class="modal-filter-select">
+                        <option value="last-used">Last Used</option>
                         <option value="name-asc">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
                         <option value="environment">Environment Type</option>
