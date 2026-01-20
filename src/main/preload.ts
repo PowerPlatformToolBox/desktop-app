@@ -3,6 +3,7 @@ import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
+    FILESYSTEM_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -10,6 +11,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -96,7 +98,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getAllToolSecondaryConnections: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_ALL_TOOL_SECONDARY_CONNECTIONS),
 
     // Recently used tools - Only for PPTB UI
-    addLastUsedTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, toolId),
+    addLastUsedTool: (entry: LastUsedToolUpdate) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, entry),
     getLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS),
     clearLastUsedTools: () => ipcRenderer.invoke(SETTINGS_CHANNELS.CLEAR_LAST_USED_TOOLS),
 
@@ -107,8 +109,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
-        saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
-        selectPath: (options?: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
             // Convert any functions to promises and execute all in parallel
@@ -120,6 +120,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
+    },
+
+    // FileSystem namespace - filesystem operations
+    fileSystem: {
+        readText: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.READ_TEXT, path),
+        readBinary: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.READ_BINARY, path),
+        exists: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.EXISTS, path),
+        stat: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.STAT, path),
+        readDirectory: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.READ_DIRECTORY, path),
+        writeText: (path: string, content: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.WRITE_TEXT, path, content),
+        createDirectory: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, path),
+        saveFile: (defaultPath: string, content: unknown) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: unknown) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.SELECT_PATH, options),
     },
 
     // External URL - Only for PPTB UI
@@ -211,8 +224,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
         getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
             ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
-            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(entityLogicalName: string, relatedPath: P, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget) as Promise<EntityRelatedMetadataResponse<P>>,
         getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
         publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") =>

@@ -1,0 +1,24 @@
+{
+    "extends": "./electron-builder-base.json",
+    "mac": {
+        "target": [
+            {
+                "target": "zip",
+                "arch": ["x64", "arm64"]
+            },
+            {
+                "target": "dmg",
+                "arch": ["x64", "arm64"]
+            }
+        ],
+        "category": "public.app-category.developer-tools",
+        "icon": "icons/icon.icns",
+        "identity": null,
+        "gatekeeperAssess": false,
+        "hardenedRuntime": false,
+        "type": "distribution"
+    },
+    "dmg": {
+        "sign": false
+    }
+}

@@ -18,7 +18,19 @@ jobs:
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
+                include:
+                    - os: ubuntu-latest
+                      config: electron-builder-linux.json
+                      artifact_name: linux-release
+                    - os: windows-latest
+                      config: electron-builder-win.json
+                      artifact_name: windows-x64-release
+                    - os: windows-latest
+                      config: electron-builder-win-arm64.json
+                      artifact_name: windows-arm64-release
+                    - os: macos-latest
+                      config: electron-builder-mac.json
+                      artifact_name: macos-release
 
         steps:
             - name: Checkout main branch
@@ -81,7 +93,7 @@ jobs:
 
             - name: Package application (Ubuntu)
               if: matrix.os == 'ubuntu-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -94,7 +106,7 @@ jobs:
 
             - name: Package application (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -107,7 +119,7 @@ jobs:
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -138,7 +150,7 @@ jobs:
               if: matrix.os == 'ubuntu-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: linux-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.AppImage
                       build/*.snap
@@ -151,7 +163,7 @@ jobs:
               if: matrix.os == 'windows-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.exe
                       build/*.msi
@@ -162,7 +174,7 @@ jobs:
               if: matrix.os == 'macos-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: macos-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.dmg
                       build/*.pkg

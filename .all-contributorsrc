@@ -63,6 +63,13 @@
             "avatar_url": "https://avatars.githubusercontent.com/u/1198698?v=4",
             "profile": "https://www.larshildebrandt.de/",
             "contributions": ["code", "design", "ideas", "plugin"]
+        },
+        {
+            "login": "darkwheel",
+            "name": "darkwheel",
+            "avatar_url": "https://avatars.githubusercontent.com/u/37546897?v=4",
+            "profile": "https://github.com/darkwheel",
+            "contributions": ["bug", "code", "maintenance"]
         }
     ],
     "contributorsPerLine": 7

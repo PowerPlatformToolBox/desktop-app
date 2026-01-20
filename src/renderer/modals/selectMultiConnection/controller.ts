@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
 export interface SelectMultiConnectionModalChannelIds {
     selectConnections: string;
@@ -8,6 +9,7 @@ export interface SelectMultiConnectionModalChannelIds {
 
 export interface ConnectionListData {
     connections: UIConnectionData[];
+    sortOption?: "last-used" | "name-asc" | "name-desc" | "environment";
 }
 
 /**
@@ -17,6 +19,7 @@ export interface ConnectionListData {
  */
 export function getSelectMultiConnectionModalControllerScript(channels: SelectMultiConnectionModalChannelIds, isSecondaryRequired: boolean = true): string {
     const serializedChannels = JSON.stringify(channels);
+    const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
 <script>
 (() => {
@@ -43,6 +46,13 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     let authenticatedPrimaryConnectionId = null;
     let authenticatedSecondaryConnectionId = null;
     let allConnections = [];
+    const DEFAULT_SORT_OPTION = "last-used";
+    const SORT_OPTIONS = new Set(["last-used", "name-asc", "name-desc", "environment"]);
+    const sanitizeSortOption = (value) => (value && SORT_OPTIONS.has(value) ? value : DEFAULT_SORT_OPTION);
+    let injectedSortOption = DEFAULT_SORT_OPTION;
+    if (sortSelect) {
+        injectedSortOption = sanitizeSortOption(sortSelect.value);
+    }
 
     const formatAuthType = (authType) => {
         const labels = {
@@ -52,35 +62,12 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         };
         return labels[authType] || authType;
     };
-
-    const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
-
-    const sortConnections = (a, b, sortOption) => {
-        const nameA = (a.name || "");
-        const nameB = (b.name || "");
-
-        switch (sortOption) {
-            case "name-desc":
-                return nameB.localeCompare(nameA);
-            case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || 999;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || 999;
-                if (aOrder !== bOrder) {
-                    return aOrder - bOrder;
-                }
-                return nameA.localeCompare(nameB);
-            }
-            case "name-asc":
-            default:
-                return nameA.localeCompare(nameB);
-        }
-    };
-
+${sortingUtilities}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
         const selectedAuth = authFilter?.value || "";
-        const selectedSort = sortSelect?.value || "name-asc";
+        const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -109,8 +96,18 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         return filtered;
     };
 
-    const renderConnections = (connectionsData) => {
-        allConnections = connectionsData || [];
+    const renderConnections = (connectionsData, options = {}) => {
+        if (Array.isArray(connectionsData)) {
+            allConnections = connectionsData;
+        }
+
+        if (options.sortOption) {
+            injectedSortOption = sanitizeSortOption(options.sortOption);
+            if (sortSelect) {
+                sortSelect.value = injectedSortOption;
+            }
+        }
+
         const connections = getFilteredConnections();
         
         if (allConnections.length === 0) {
@@ -225,7 +222,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
 
             // The connectReady message handler will update the UI based on success/failure
         } catch (error) {
-            console.error('Error connecting:', error);
+            captureException('Error connecting:', error);
             button.disabled = false;
             button.textContent = originalText;
         }
@@ -315,7 +312,10 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
     envFilter?.addEventListener('change', () => renderConnections(allConnections));
     authFilter?.addEventListener('change', () => renderConnections(allConnections));
-    sortSelect?.addEventListener('change', () => renderConnections(allConnections));
+    sortSelect?.addEventListener('change', () => {
+        injectedSortOption = sanitizeSortOption(sortSelect.value);
+        renderConnections(allConnections);
+    });
 
     // Listen for messages from main process
     if (modalBridge?.onMessage) {
@@ -341,12 +341,12 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
                         button.textContent = 'Connect';
                     }
                     // Optionally show an error message
-                    console.error('Authentication failed:', payload.data.error);
+                    captureException('Authentication failed:', payload.data.error);
                 }
             }
             
             if (payload.channel === CHANNELS.populateConnections) {
-                renderConnections(payload.data?.connections || []);
+                renderConnections(payload.data?.connections || [], { sortOption: payload.data?.sortOption });
             }
         });
     } else {

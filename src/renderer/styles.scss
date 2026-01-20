@@ -32,11 +32,28 @@
     --elevation-high: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
     --elevation-medium: 0 12px 28px -8px rgba(0, 0, 0, 0.3);
     --backdrop-blur: blur(28px);
+    --filter-btn-active-bg: var(--accent-color);
+    --filter-btn-active-color: #fff;
+    --filter-btn-active-border: var(--accent-color);
+    --activity-item-color: var(--text-color);
+    --activity-item-hover-bg: rgba(0, 0, 0, 0.05);
+    --activity-item-active-bg: rgba(0, 0, 0, 0.08);
+    --activity-item-active-border: var(--accent-color);
     /* Environment border colors - Light theme */
     --env-border-dev: #{$env-border-dev-light};
     --env-border-test: #{$env-border-test-light};
     --env-border-uat: #{$env-border-uat-light};
     --env-border-prod: #{$env-border-prod-light};
+
+    --env-badge-dev-bg: #{$env-badge-dev-light-bg};
+    --env-badge-test-bg: #{$env-badge-test-light-bg};
+    --env-badge-uat-bg: #{$env-badge-uat-light-bg};
+    --env-badge-prod-bg: #{$env-badge-prod-light-bg};
+
+    --env-badge-dev: #{$env-badge-dev-light};
+    --env-badge-test: #{$env-badge-test-light};
+    --env-badge-uat: #{$env-badge-uat-light};
+    --env-badge-prod: #{$env-badge-prod-light};
 }
 
 /* Dark theme */
@@ -57,6 +74,23 @@ body.dark-theme {
     --env-border-test: #{$env-border-test-dark};
     --env-border-uat: #{$env-border-uat-dark};
     --env-border-prod: #{$env-border-prod-dark};
+
+    --env-badge-dev-bg: #{$env-badge-dev-dark-bg};
+    --env-badge-test-bg: #{$env-badge-test-dark-bg};
+    --env-badge-uat-bg: #{$env-badge-uat-dark-bg};
+    --env-badge-prod-bg: #{$env-badge-prod-dark-bg};
+
+    --env-badge-dev: #{$env-badge-dev-dark};
+    --env-badge-test: #{$env-badge-test-dark};
+    --env-badge-uat: #{$env-badge-uat-dark};
+    --env-badge-prod: #{$env-badge-prod-dark};
+    --filter-btn-active-bg: rgba(255, 255, 255, 0.18);
+    --filter-btn-active-color: #f3f2f1;
+    --filter-btn-active-border: rgba(255, 255, 255, 0.4);
+    --activity-item-color: #ffffff;
+    --activity-item-hover-bg: rgba(255, 255, 255, 0.1);
+    --activity-item-active-bg: rgba(255, 255, 255, 0.05);
+    --activity-item-active-border: var(--accent-color);
 }
 
 * {
@@ -162,21 +196,21 @@ body {
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: white; /* Always white */
+    color: var(--activity-item-color);
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
 }
 
 .activity-item:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--activity-item-color);
+    background: var(--activity-item-hover-bg);
 }
 
 .activity-item.active {
-    color: white;
-    border-left-color: var(--primary-color);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--activity-item-color);
+    border-left-color: var(--activity-item-active-border);
+    background: var(--activity-item-active-bg);
 }
 /* Removed empty .activity-icon ruleset */
 
@@ -432,7 +466,9 @@ body {
     border-radius: 10px;
     padding: 16px 18px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .settings-section-card:hover {
@@ -768,23 +804,23 @@ body.dark-theme .settings-section-card {
 }
 
 .connection-env-badge.env-dev {
-    background-color: color-mix(in srgb, var(--env-border-dev) 20%, transparent);
-    color: var(--env-border-dev);
+    background-color: var(--env-badge-dev-bg);
+    color: var(--env-badge-dev);
 }
 
 .connection-env-badge.env-test {
-    background-color: color-mix(in srgb, var(--env-border-test) 20%, transparent);
-    color: var(--env-border-test);
+    background-color: var(--env-badge-test-bg);
+    color: var(--env-badge-test);
 }
 
 .connection-env-badge.env-uat {
-    background-color: color-mix(in srgb, var(--env-border-uat) 20%, transparent);
-    color: var(--env-border-uat);
+    background-color: var(--env-badge-uat-bg);
+    color: var(--env-badge-uat);
 }
 
 .connection-env-badge.env-production {
-    background-color: color-mix(in srgb, var(--env-border-prod) 20%, transparent);
-    color: var(--env-border-prod);
+    background-color: var(--env-badge-prod-bg);
+    color: var(--env-badge-prod);
 }
 
 .connection-env-badge.env-sandbox {
@@ -1308,7 +1344,7 @@ body.dark-theme .settings-section-card {
     right: 0;
     bottom: 0;
     width: 100%;
-    height: calc(100% - var(--app-footer-height));
+    height: 100%;
     background: var(--bg-color);
 }
 
@@ -1367,7 +1403,9 @@ body.dark-theme .settings-section-card {
     cursor: pointer;
     color: var(--text-color);
     opacity: 0.7;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -1486,7 +1524,9 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
 }
 
 .tool-tab:hover .tool-tab-close {
@@ -1508,7 +1548,9 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1756,9 +1798,19 @@ body.dark-theme .settings-section-card {
 
 .search-filter-btn:active,
 .search-filter-btn.active {
-    background-color: var(--accent-color);
-    color: white;
-    border-color: var(--accent-color);
+    background-color: var(--filter-btn-active-bg);
+    color: var(--filter-btn-active-color);
+    border-color: var(--filter-btn-active-border);
+}
+
+body.light-theme .search-filter-btn:active img,
+body.light-theme .search-filter-btn.active img {
+    filter: brightness(0) invert(1);
+}
+
+body.dark-theme .search-filter-btn:active img,
+body.dark-theme .search-filter-btn.active img {
+    filter: none;
 }
 
 /* Filter dropdown - VSCode style */
@@ -1905,7 +1957,10 @@ body.dark-theme .settings-section-card {
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
 }
 
 .tool-item-pptb-local {
@@ -1977,7 +2032,9 @@ body.dark-theme .settings-section-card {
     border: none;
     cursor: pointer;
     padding: 2px 4px;
-    transition: transform 0.2s, opacity 0.2s;
+    transition:
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2164,7 +2221,10 @@ body.dark-theme .settings-section-card {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
 }
 
 .marketplace-item-pptb:hover {
@@ -2223,17 +2283,78 @@ body.dark-theme .settings-section-card {
 
 /* Install Button Styles */
 .install-button {
-    background: var(--primary-gradient);
-    color: white;
-    padding: 5px;
-    border: none;
-    border-radius: 4px;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background-color: var(--sidebar-bg);
+    color: var(--text-color);
+    padding: 0;
     cursor: pointer;
-    outline: none;
-    transition: all 0.15s ease-in-out;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
 }
-.install-button:hover {
-    background: var(--primary-gradient-hover);
+
+body.dark-theme .install-button {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.install-button img {
+    width: 18px;
+    height: 18px;
+}
+
+.install-button:hover,
+.install-button:focus-visible {
+    background-color: var(--filter-btn-active-bg);
+    border-color: var(--filter-btn-active-border);
+    color: var(--filter-btn-active-color);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+body.light-theme .install-button:hover img,
+body.light-theme .install-button:focus-visible img {
+    filter: brightness(0) invert(1);
+}
+
+.install-button:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--filter-btn-active-border) 40%, transparent);
+}
+
+.install-button.is-loading {
+    background-color: color-mix(in srgb, var(--filter-btn-active-bg) 60%, transparent);
+    border-color: var(--filter-btn-active-border);
+    pointer-events: none;
+}
+
+.install-button.is-loading img {
+    display: none;
+}
+
+.install-button-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--filter-btn-active-border);
+    border-top-color: transparent;
+    animation: install-button-spin 0.8s linear infinite;
+}
+
+@keyframes install-button-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .marketplace-item-installed-icon {
@@ -2312,8 +2433,10 @@ body.dark-theme .settings-section-card {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    cursor: pointer;
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
     margin-bottom: 10px;
 }
 
@@ -2871,8 +2994,8 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
-        radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
+    background:
+        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%), radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
 body.dark-theme #tool-detail-modal .modal-content.tool-detail-modern {
@@ -3205,7 +3328,7 @@ body.dark-theme .modern-markdown code {
     background: linear-gradient(135deg, #6a00ff 0%, #8b00ff 100%);
     color: white;
     padding: 2px 8px;
-    border-radius: 3px;
+    border-radius: 999px;
     font-size: 10px;
     font-weight: 600;
     display: inline-flex;
@@ -3660,7 +3783,9 @@ fluent-badge {
     border-radius: 3px;
     font-size: 13px;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
+    transition:
+        background-color 0.2s,
+        color 0.2s;
     white-space: nowrap;
 }
 
@@ -3753,14 +3878,28 @@ fluent-badge {
 #footer-toggle-terminal-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     margin-left: auto;
-    padding: 4px 8px;
+    padding: 4px 10px;
+    min-width: auto;
 }
 
 #footer-toggle-terminal-btn svg {
     width: 16px;
     height: 16px;
+}
+
+#footer-toggle-terminal-btn .footer-terminal-toggle-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#footer-toggle-terminal-btn[aria-pressed="true"] {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.dark-theme #footer-toggle-terminal-btn[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.08);
 }
 
 /* Dark theme specific */
@@ -4009,7 +4148,9 @@ body.dark-theme .csp-warning ul {
     align-items: flex-start;
     gap: 12px;
     animation: slideInRight 0.3s ease-out;
-    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    transition:
+        opacity 0.2s ease-out,
+        transform 0.2s ease-out;
     max-width: 100%;
 }
 

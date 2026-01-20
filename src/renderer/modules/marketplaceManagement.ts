@@ -3,6 +3,7 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "../../common/types";
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
@@ -73,12 +74,12 @@ export async function loadToolsLibrary(): Promise<void> {
                     repository: tool.repository,
                     website: tool.website,
                     createdAt: tool.createdAt, // Use createdAt for new tool detection
-                } as ToolDetail),
+                }) as ToolDetail,
         );
 
-        console.log(`Loaded ${toolLibrary.length} tools from registry`);
+        logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
-        console.error("Failed to load tools from registry:", error);
+        captureMessage("Failed to load tools from registry:", "error", { extra: { error } });
         toolLibrary = [];
         // Error will be shown in the marketplace UI
     }
@@ -273,8 +274,8 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
-                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
             </div>
@@ -298,8 +299,8 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}">
-                            <img width="20" height="20" src="${defaultInstallIcon}" alt="Install" /></button>`
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
             </div>
@@ -348,7 +349,8 @@ export async function loadMarketplace(): Promise<void> {
             // Disable button and show loading state
             buttonElement.setAttribute("disabled", "true");
             const originalHtml = buttonElement.innerHTML;
-            buttonElement.innerHTML = "Installing...";
+            buttonElement.classList.add("is-loading");
+            buttonElement.innerHTML = '<span class="install-button-spinner" aria-hidden="true"></span>';
 
             try {
                 // Use registry-based installation
@@ -365,6 +367,7 @@ export async function loadMarketplace(): Promise<void> {
                 await loadSidebarTools();
             } catch (error) {
                 buttonElement.removeAttribute("disabled");
+                buttonElement.classList.remove("is-loading");
                 buttonElement.innerHTML = originalHtml;
                 window.toolboxAPI.utils.showNotification({
                     title: "Installation Failed",
@@ -482,7 +485,7 @@ export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Pr
             height: TOOL_DETAIL_MODAL_DIMENSIONS.height,
         });
     } catch (error) {
-        console.error("Failed to open tool detail modal", error);
+        captureMessage("Failed to open tool detail modal", "error", { extra: { error } });
         await window.toolboxAPI.utils.showNotification({
             title: "Tool Details",
             body: `Unable to open modal: ${formatError(error)}`,
@@ -513,7 +516,7 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
                 return;
             }
             void window.toolboxAPI.openExternal(url).catch((error) => {
-                console.error("Failed to open review link", error);
+                captureMessage("Failed to open review link", "error", { extra: { error } });
             });
             break;
         }
@@ -524,7 +527,7 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
                 return;
             }
             void window.toolboxAPI.openExternal(url).catch((error) => {
-                console.error("Failed to open repository link", error);
+                captureMessage("Failed to open repository link", "error", { extra: { error } });
             });
             break;
         }
@@ -535,7 +538,7 @@ function handleToolDetailModalMessage(payload: ModalWindowMessagePayload): void 
                 return;
             }
             void window.toolboxAPI.openExternal(url).catch((error) => {
-                console.error("Failed to open website link", error);
+                captureMessage("Failed to open website link", "error", { extra: { error } });
             });
             break;
         }

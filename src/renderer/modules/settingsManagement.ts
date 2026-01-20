@@ -52,6 +52,9 @@ export async function loadSidebarSettings(): Promise<void> {
 
         if (matchingOption) {
             terminalFontSelect.value = terminalFont;
+            if (customFontContainer) {
+                customFontContainer.style.display = "none";
+            }
         } else {
             // Custom font - set dropdown to "custom" and populate input
             terminalFontSelect.value = "custom";
@@ -158,11 +161,4 @@ export async function saveSidebarSettings(): Promise<void> {
  */
 export function getOriginalSettings(): SettingsState {
     return originalSettings;
-}
-
-/**
- * Set original settings (used when settings are updated programmatically)
- */
-export function setOriginalSettings(settings: SettingsState): void {
-    originalSettings = settings;
 }

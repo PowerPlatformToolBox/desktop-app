@@ -3,6 +3,7 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
@@ -164,7 +165,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Create lookup for menu actions
         const toolLookup = new Map(sortedTools.map((t) => [t.id, t]));
 
-        console.log(`Loaded ${sortedTools.length} installed tools`);
+        logInfo(`Loaded ${sortedTools.length} installed tools`);
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
@@ -348,7 +349,7 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
     } catch (error) {
-        console.error("Failed to load sidebar tools:", error);
+        captureMessage("Failed to load sidebar tools:", "error", { extra: { error } });
         toolsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading tools</p>

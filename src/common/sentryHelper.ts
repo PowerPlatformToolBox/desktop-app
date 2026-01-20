@@ -51,7 +51,7 @@ export function setSentryMachineId(id: string): void {
     // Also set as a tag for easier filtering
     sentryModule.setTag("machine_id", id);
 
-    console.log(`[Sentry] Machine ID set: ${id}`);
+    logInfo(`[Sentry] Machine ID set: ${id}`);
 }
 
 /**
@@ -83,7 +83,7 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
 /**
  * Start a new Sentry span for performance monitoring
  * Use this for important operations like tool loading, connection testing, etc.
- * 
+ *
  * Note: Returns a simple transaction-like object that's compatible with both old and new Sentry APIs
  */
 export function startTransaction(name: string, op: string, data?: Record<string, unknown>): SentryTransaction | undefined {
@@ -103,26 +103,36 @@ export function startTransaction(name: string, op: string, data?: Record<string,
             if (!finished) {
                 finished = true;
                 const duration = Date.now() - startTime;
-                
-                // Add breadcrumb with timing information
-                addBreadcrumb(
-                    `Operation ${name} finished`,
-                    "performance",
-                    status === "ok" ? "info" : "error",
-                    {
-                        operation: name,
-                        op,
-                        duration_ms: duration,
-                        status,
-                        ...data,
-                    }
-                );
+
+                // Add breadcrumb with timing information (use debug level to avoid creating Issues)
+                addBreadcrumb(`Operation ${name} finished`, "performance", "debug", {
+                    operation: name,
+                    op,
+                    duration_ms: duration,
+                    status,
+                    ...data,
+                });
+
+                // Log to structured logger instead
+                logDebug(`Operation ${name} completed: ${duration}ms`, {
+                    operation: name,
+                    op,
+                    duration_ms: duration,
+                    status,
+                    ...data,
+                });
             }
         },
     };
 
     // Add breadcrumb for operation start
     addBreadcrumb(`Operation ${name} started`, "performance", "debug", {
+        operation: name,
+        op,
+        ...data,
+    });
+
+    logDebug(`Operation ${name} started`, {
         operation: name,
         op,
         ...data,
@@ -188,11 +198,12 @@ export function captureException(
 
 /**
  * Capture a message with enhanced context
- * Use this for important informational messages or warnings
+ * Use this ONLY for error/warning level messages that should appear as Issues
+ * For info/debug messages, use the logInfo/logDebug functions instead
  */
 export function captureMessage(
     message: string,
-    level: "fatal" | "error" | "warning" | "info" | "debug" = "info",
+    level: "fatal" | "error" | "warning" = "error",
     context?: {
         tags?: Record<string, string>;
         extra?: Record<string, unknown>;
@@ -200,15 +211,11 @@ export function captureMessage(
 ): void {
     if (!sentryModule) return;
 
-    // Log using the appropriate structured logger
+    // Log using the appropriate structured logger for full traceability
     const logData = {
         ...context?.extra,
         ...context?.tags,
     };
-
-    if (process.env.NODE_ENV !== "production") {
-        console.log(message, logData);
-    }
 
     switch (level) {
         case "fatal":
@@ -220,27 +227,18 @@ export function captureMessage(
         case "warning":
             logWarn(message, logData);
             break;
-        case "debug":
-            logDebug(message, logData);
-            break;
-        case "info":
-        default:
-            logInfo(message, logData);
-            break;
     }
 
+    // Create Sentry Issue with machine ID context
     sentryModule.withScope((scope: SentryScope) => {
-        // Add machine ID to scope
         scope.setTag("machine_id", machineId || "unknown");
 
-        // Add any custom tags
         if (context?.tags) {
             Object.entries(context.tags).forEach(([key, value]) => {
                 scope.setTag(key, value);
             });
         }
 
-        // Add any custom extra data
         if (context?.extra) {
             Object.entries(context.extra).forEach(([key, value]) => {
                 scope.setExtra(key, value);

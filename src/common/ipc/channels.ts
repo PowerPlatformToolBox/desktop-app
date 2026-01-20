@@ -97,8 +97,6 @@ export const TERMINAL_CHANNELS = {
 export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
-    SAVE_FILE: "save-file",
-    SELECT_PATH: "select-path",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
     HIDE_LOADING: "hide-loading",
@@ -107,6 +105,19 @@ export const UTIL_CHANNELS = {
     SHOW_MODAL_WINDOW: "show-modal-window",
     CLOSE_MODAL_WINDOW: "close-modal-window",
     SEND_MODAL_MESSAGE: "send-modal-message",
+} as const;
+
+// Filesystem-related IPC channels
+export const FILESYSTEM_CHANNELS = {
+    READ_TEXT: "filesystem:read-text",
+    READ_BINARY: "filesystem:read-binary",
+    EXISTS: "filesystem:exists",
+    STAT: "filesystem:stat",
+    READ_DIRECTORY: "filesystem:read-directory",
+    WRITE_TEXT: "filesystem:write-text",
+    CREATE_DIRECTORY: "filesystem:create-directory",
+    SAVE_FILE: "filesystem:save-file",
+    SELECT_PATH: "filesystem:select-path",
 } as const;
 
 // Auto-update-related IPC channels

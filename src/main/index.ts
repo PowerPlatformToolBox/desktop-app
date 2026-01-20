@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, setSentryMachineId } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -49,18 +49,19 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
 
-    captureMessage("[Sentry] Initialized in main process with tracing and logging");
+    logInfo("[Sentry] Initialized in main process with tracing and logging");
     addBreadcrumb("Main process Sentry initialized", "init", "info");
 } else {
-    captureMessage("[Sentry] Telemetry disabled - no DSN configured");
+    logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
+    FILESYSTEM_CHANNELS,
     MODAL_WINDOW_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
@@ -68,7 +69,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -83,6 +84,9 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+
+// Constants
+const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -102,6 +106,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
+    private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
@@ -312,13 +317,22 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
-        ipcMain.removeHandler(UTIL_CHANNELS.SAVE_FILE);
-        ipcMain.removeHandler(UTIL_CHANNELS.SELECT_PATH);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+
+        // Filesystem handlers
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_BINARY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.EXISTS);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.STAT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_DIRECTORY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.WRITE_TEXT);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.CREATE_DIRECTORY);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.SAVE_FILE);
+        ipcMain.removeHandler(FILESYSTEM_CHANNELS.SELECT_PATH);
 
         // Modal window internal channels
         ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
@@ -434,6 +448,78 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
+            // Determine authentication strategy based on token state
+            // Similar to DataverseManager, we proactively refresh tokens expiring within 5 minutes
+            let tokenState: "valid" | "needs-refresh" | "needs-auth" = "needs-auth";
+
+            if (connection.accessToken && connection.tokenExpiry) {
+                const expiryDate = new Date(connection.tokenExpiry);
+
+                // Validate date parsing
+                if (isNaN(expiryDate.getTime())) {
+                    logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
+                    tokenState = "needs-auth";
+                } else {
+                    const now = new Date();
+                    const timeUntilExpiry = expiryDate.getTime() - now.getTime();
+
+                    // Token is valid if it won't expire in the next 5 minutes (300,000ms)
+                    if (timeUntilExpiry > 5 * 60 * 1000) {
+                        tokenState = "valid";
+                    } else {
+                        // Token is expired or expiring soon - needs refresh
+                        tokenState = "needs-refresh";
+                    }
+                }
+            } else if (connection.refreshToken) {
+                // No access token but has refresh token - try to refresh
+                tokenState = "needs-refresh";
+            }
+
+            // Handle valid token - reuse it
+            if (tokenState === "valid") {
+                // Connection has a valid token with sufficient time remaining, no need to re-authenticate
+                // Just update the lastUsedAt timestamp
+                this.connectionsManager.updateConnection(id, {
+                    lastUsedAt: new Date().toISOString(),
+                });
+
+                logInfo(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
+
+                // Emit event to notify that connection is active
+                this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                return;
+            }
+
+            // Handle token refresh - attempt to refresh expired/expiring token
+            if (tokenState === "needs-refresh" && connection.refreshToken) {
+                logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update the connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(id, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    // Clear notification tracking since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    logInfo(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
+                    return;
+                } catch (error) {
+                    // Token refresh failed, fall through to full authentication
+                    logInfo(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
+                }
+            }
+
+            // No valid token exists or refresh failed, proceed with full authentication
+            logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
+
             // Authenticate based on the authentication type
             try {
                 let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
@@ -448,6 +534,10 @@ class ToolBoxApp {
                     case "usernamePassword":
                         authResult = await this.authManager.authenticateUsernamePassword(connection);
                         break;
+                    case "connectionString":
+                        // Connection string should have been parsed to its actual auth type
+                        // This shouldn't happen, but handle it gracefully
+                        throw new Error("Connection string must be parsed before authentication. Please edit the connection to set a specific authentication type.");
                     default:
                         throw new Error("Invalid authentication type");
                 }
@@ -690,8 +780,13 @@ class ToolBoxApp {
         });
 
         // Recently used tools
-        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, toolId: string) => {
-            this.settingsManager.addLastUsedTool(toolId);
+        ipcMain.handle(SETTINGS_CHANNELS.ADD_LAST_USED_TOOL, (_, payload: LastUsedToolUpdate | string) => {
+            if (typeof payload === "string") {
+                this.settingsManager.addLastUsedTool({ toolId: payload });
+                return;
+            }
+
+            this.settingsManager.addLastUsedTool(payload);
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_LAST_USED_TOOLS, () => {
@@ -728,15 +823,6 @@ class ToolBoxApp {
         // Clipboard handler
         ipcMain.handle(UTIL_CHANNELS.COPY_TO_CLIPBOARD, (_, text) => {
             this.api.copyToClipboard(text);
-        });
-
-        // Save file handler
-        ipcMain.handle(UTIL_CHANNELS.SAVE_FILE, async (_, defaultPath, content) => {
-            return await this.api.saveFile(defaultPath, content);
-        });
-
-        ipcMain.handle(UTIL_CHANNELS.SELECT_PATH, async (_, options) => {
-            return await this.api.selectPath(options);
         });
 
         // Show loading handler (overlay window above BrowserViews)
@@ -782,6 +868,52 @@ class ToolBoxApp {
             await shell.openExternal(url);
         });
 
+        // Filesystem handlers
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (_, filePath: string) => {
+            const { readText } = await import("./utilities/filesystem.js");
+            return await readText(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (_, filePath: string) => {
+            const { readBinary } = await import("./utilities/filesystem.js");
+            return await readBinary(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (_, filePath: string) => {
+            const { exists } = await import("./utilities/filesystem.js");
+            return await exists(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (_, filePath: string) => {
+            const { stat } = await import("./utilities/filesystem.js");
+            return await stat(filePath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (_, dirPath: string) => {
+            const { readDirectory } = await import("./utilities/filesystem.js");
+            return await readDirectory(dirPath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (_, filePath: string, content: string) => {
+            const { writeText } = await import("./utilities/filesystem.js");
+            return await writeText(filePath, content);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (_, dirPath: string) => {
+            const { createDirectory } = await import("./utilities/filesystem.js");
+            return await createDirectory(dirPath);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer) => {
+            const { saveFile } = await import("./utilities/filesystem.js");
+            return await saveFile(defaultPath, content);
+        });
+
+        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (_, options) => {
+            const { selectPath } = await import("./utilities/filesystem.js");
+            return await selectPath(options);
+        });
+
         // Modal BrowserWindow internal channels (modal preload -> main)
         ipcMain.handle(MODAL_WINDOW_CHANNELS.CLOSE, () => {
             this.modalWindowManager?.hideModal();
@@ -794,8 +926,8 @@ class ToolBoxApp {
         });
 
         // Terminal handlers
-        ipcMain.handle(TERMINAL_CHANNELS.CREATE_TERMINAL, async (_, toolId, options) => {
-            return await this.terminalManager.createTerminal(toolId, options);
+        ipcMain.handle(TERMINAL_CHANNELS.CREATE_TERMINAL, async (_, toolId, instanceId, options) => {
+            return await this.terminalManager.createTerminal(toolId, instanceId ?? null, options);
         });
 
         ipcMain.handle(TERMINAL_CHANNELS.EXECUTE_COMMAND, async (_, terminalId, command) => {
@@ -810,8 +942,8 @@ class ToolBoxApp {
             return this.terminalManager.getTerminal(terminalId);
         });
 
-        ipcMain.handle(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, (_, toolId) => {
-            return this.terminalManager.getToolTerminals(toolId);
+        ipcMain.handle(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, (_, toolId, instanceId) => {
+            return this.terminalManager.getToolTerminals(toolId, instanceId ?? null);
         });
 
         ipcMain.handle(TERMINAL_CHANNELS.GET_ALL_TERMINALS, () => {
@@ -1016,7 +1148,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA,
-            async (event, entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
+            async (event, entityLogicalName: string, relatedPath: EntityRelatedMetadataPath, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1131,23 +1263,39 @@ class ToolBoxApp {
      */
     private createMenu(): void {
         const isMac = process.platform === "darwin";
+        const isToolOpened = this.toolWindowManager?.getActiveToolId() !== null;
+        const favoriteTools = (this.settingsManager.getFavoriteTools() || []).slice(0, 5);
+        const recentTools = (this.settingsManager.getLastUsedTools() || []).slice(-10).reverse();
+        const favoriteSubmenuItems = this.buildFavoriteToolShortcutMenuItems(favoriteTools);
+        const recentSubmenuItems = this.buildRecentToolShortcutMenuItems(recentTools);
+
+        const fileSubmenu: MenuItemConstructorOptions[] = [
+            {
+                label: "Open Recent",
+                submenu: recentSubmenuItems.length > 0 ? recentSubmenuItems : [{ label: "No recent tools", enabled: false }],
+            },
+            {
+                label: "Open Favorite",
+                submenu: favoriteSubmenuItems.length > 0 ? favoriteSubmenuItems : [{ label: "No favorite tools", enabled: false }],
+            },
+            { type: "separator" },
+            isMac ? { role: "close" } : { role: "quit" },
+        ];
 
         const template: any[] = [
             // App menu (macOS only)
             ...(isMac
                 ? [
                       {
-                          label: app.name,
+                          label: "Power Platform ToolBox",
                           submenu: [
-                              { role: "about" },
-                              { type: "separator" },
                               { role: "services" },
                               { type: "separator" },
-                              { role: "hide" },
+                              { label: "Hide Power Platform ToolBox", role: "hide" },
                               { role: "hideOthers" },
                               { role: "unhide" },
                               { type: "separator" },
-                              { role: "quit" },
+                              { label: "Quit Power Platform ToolBox", role: "quit" },
                           ],
                       },
                   ]
@@ -1156,7 +1304,7 @@ class ToolBoxApp {
             // File menu
             {
                 label: "File",
-                submenu: [isMac ? { role: "close" } : { role: "quit" }],
+                submenu: fileSubmenu,
             },
 
             // Edit menu
@@ -1231,43 +1379,59 @@ class ToolBoxApp {
                             await shell.openExternal("https://docs.powerplatformtoolbox.com/");
                         },
                     },
-                    { type: "separator" },
                     {
-                        label: "Tool Feedback",
-                        accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                        label: "Join our Discord community!",
                         click: async () => {
-                            const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
-                            if (repositoryUrl) {
-                                await shell.openExternal(repositoryUrl);
-                            } else {
-                                dialog.showMessageBox(this.mainWindow!, {
-                                    type: "info",
-                                    title: "Tool Feedback",
-                                    message: "No active tool or repository URL not available for this tool.",
-                                    buttons: ["OK"],
-                                });
-                            }
-                        },
-                    },
-                    {
-                        label: "Toggle Tool DevTools",
-                        accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
-                        click: () => {
-                            if (this.toolWindowManager) {
-                                const opened = this.toolWindowManager.openDevToolsForActiveTool();
-                                if (!opened) {
-                                    // Show notification if no active tool
-                                    dialog.showMessageBox(this.mainWindow!, {
-                                        type: "info",
-                                        title: "No Active Tool",
-                                        message: "No tool is currently open. Please open a tool first to access its DevTools.",
-                                        buttons: ["OK"],
-                                    });
-                                }
-                            }
+                            await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                         },
                     },
                     { type: "separator" },
+                    ...(isToolOpened
+                        ? [
+                              {
+                                  label: "Tool Feedback",
+                                  accelerator: isMac ? "Alt+Command+F" : "Ctrl+Shift+F",
+                                  click: async () => {
+                                      const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
+                                      if (repositoryUrl) {
+                                          await shell.openExternal(repositoryUrl);
+                                      } else {
+                                          const result = await dialog.showMessageBox(this.mainWindow!, {
+                                              type: "info",
+                                              title: "Tool Feedback",
+                                              message: "The tool creator has not provided specific support links for this tool.",
+                                              detail: "To share feedback or raise concerns, you can join the Power Platform ToolBox community Discord directly.",
+                                              buttons: ["Open Discord", "Close"],
+                                              defaultId: 0,
+                                              cancelId: 1,
+                                          });
+                                          if (result.response === 0) {
+                                              await shell.openExternal("https://discord.gg/efwAu9sXyJ");
+                                          }
+                                      }
+                                  },
+                              },
+                              {
+                                  label: "Toggle Tool DevTools",
+                                  accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
+                                  click: () => {
+                                      if (this.toolWindowManager) {
+                                          const opened = this.toolWindowManager.openDevToolsForActiveTool();
+                                          if (!opened) {
+                                              // Show notification if no active tool
+                                              dialog.showMessageBox(this.mainWindow!, {
+                                                  type: "info",
+                                                  title: "No Active Tool",
+                                                  message: "No tool is currently open. Please open a tool first to access its DevTools.",
+                                                  buttons: ["OK"],
+                                              });
+                                          }
+                                      }
+                                  },
+                              },
+                              { type: "separator" },
+                          ]
+                        : []),
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
@@ -1296,6 +1460,86 @@ class ToolBoxApp {
 
         const menu = Menu.buildFromTemplate(template);
         Menu.setApplicationMenu(menu);
+    }
+
+    private buildFavoriteToolShortcutMenuItems(toolIds: string[]): MenuItemConstructorOptions[] {
+        if (!toolIds || toolIds.length === 0) {
+            return [];
+        }
+
+        return toolIds.map((toolId) => {
+            const tool = this.toolManager.getTool(toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(toolId);
+            const label = tool?.name || manifest?.name || toolId;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () => this.sendToolLaunchRequest(toolId, "favorite"),
+            };
+        });
+    }
+
+    private buildRecentToolShortcutMenuItems(entries: LastUsedToolEntry[]): MenuItemConstructorOptions[] {
+        if (!entries || entries.length === 0) {
+            return [];
+        }
+
+        return entries.map((entry) => {
+            const tool = this.toolManager.getTool(entry.toolId);
+            const manifest = tool ? null : this.toolManager.getInstalledManifestSync(entry.toolId);
+            const baseLabel = tool?.name || manifest?.name || entry.toolId;
+            const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;
+            const label = connectionLabel ? `${baseLabel} (${connectionLabel})` : baseLabel;
+            const enabled = Boolean(tool || manifest);
+
+            return {
+                label,
+                enabled,
+                click: () =>
+                    this.sendToolLaunchRequest(entry.toolId, "recent", {
+                        primaryConnectionId: entry.primaryConnection?.id ?? null,
+                        secondaryConnectionId: entry.secondaryConnection?.id ?? null,
+                    }),
+            };
+        });
+    }
+
+    private sendToolLaunchRequest(toolId: string, source: "recent" | "favorite", connectionContext?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:launch-tool",
+            data: {
+                toolId,
+                source,
+                primaryConnectionId: connectionContext?.primaryConnectionId ?? null,
+                secondaryConnectionId: connectionContext?.secondaryConnectionId ?? null,
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+    }
+
+    /**
+     * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
+     * This method cancels any pending menu recreation and schedules a new one after a short delay.
+     */
+    private debouncedCreateMenu(): void {
+        // Clear any existing timeout
+        if (this.menuCreationTimeout) {
+            clearTimeout(this.menuCreationTimeout);
+        }
+
+        // Schedule menu creation after a short delay
+        this.menuCreationTimeout = setTimeout(() => {
+            this.createMenu();
+            this.menuCreationTimeout = null;
+        }, MENU_CREATION_DEBOUNCE_MS);
     }
 
     /**
@@ -1352,7 +1596,12 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager);
+        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager, this.terminalManager);
+
+        // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
+        this.toolWindowManager.setOnActiveToolChanged(() => {
+            this.debouncedCreateMenu();
+        });
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
