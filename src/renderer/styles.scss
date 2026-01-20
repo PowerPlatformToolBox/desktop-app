@@ -35,6 +35,10 @@
     --filter-btn-active-bg: var(--accent-color);
     --filter-btn-active-color: #fff;
     --filter-btn-active-border: var(--accent-color);
+    --activity-item-color: var(--text-color);
+    --activity-item-hover-bg: rgba(0, 0, 0, 0.05);
+    --activity-item-active-bg: rgba(0, 0, 0, 0.08);
+    --activity-item-active-border: var(--accent-color);
     /* Environment border colors - Light theme */
     --env-border-dev: #{$env-border-dev-light};
     --env-border-test: #{$env-border-test-light};
@@ -83,6 +87,10 @@ body.dark-theme {
     --filter-btn-active-bg: rgba(255, 255, 255, 0.18);
     --filter-btn-active-color: #f3f2f1;
     --filter-btn-active-border: rgba(255, 255, 255, 0.4);
+    --activity-item-color: #ffffff;
+    --activity-item-hover-bg: rgba(255, 255, 255, 0.1);
+    --activity-item-active-bg: rgba(255, 255, 255, 0.05);
+    --activity-item-active-border: var(--accent-color);
 }
 
 * {
@@ -188,21 +196,21 @@ body {
     background: transparent;
     border: none;
     border-left: 2px solid transparent;
-    color: white; /* Always white */
+    color: var(--activity-item-color);
     cursor: pointer;
     transition: all 0.2s;
     position: relative;
 }
 
 .activity-item:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--activity-item-color);
+    background: var(--activity-item-hover-bg);
 }
 
 .activity-item.active {
-    color: white;
-    border-left-color: var(--primary-color);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--activity-item-color);
+    border-left-color: var(--activity-item-active-border);
+    background: var(--activity-item-active-bg);
 }
 /* Removed empty .activity-icon ruleset */
 
