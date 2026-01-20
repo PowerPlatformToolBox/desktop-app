@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
 export interface SelectConnectionModalChannelIds {
     selectConnection: string;
@@ -16,6 +17,7 @@ export interface ConnectionListData {
  */
 export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds): string {
     const serializedChannels = JSON.stringify(channels);
+    const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
 <script>
 (() => {
@@ -55,60 +57,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
         };
         return labels[authType] || authType;
     };
-
-    const getLastUsedTimestamp = (conn) => {
-        if (!conn) {
-            return 0;
-        }
-
-        if (conn.lastUsedAt) {
-            const parsedLastUsed = Date.parse(conn.lastUsedAt);
-            if (!Number.isNaN(parsedLastUsed)) {
-                return parsedLastUsed;
-            }
-        }
-
-        if (conn.createdAt) {
-            const parsedCreated = Date.parse(conn.createdAt);
-            if (!Number.isNaN(parsedCreated)) {
-                return parsedCreated;
-            }
-        }
-
-        return 0;
-    };
-
-    const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
-
-    const sortConnections = (a, b, sortOption) => {
-        const resolvedSort = sanitizeSortOption(sortOption);
-        const nameA = (a.name || "");
-        const nameB = (b.name || "");
-
-        switch (resolvedSort) {
-            case "last-used": {
-                const diff = getLastUsedTimestamp(b) - getLastUsedTimestamp(a);
-                if (diff !== 0) {
-                    return diff;
-                }
-                return nameA.localeCompare(nameB);
-            }
-            case "name-desc":
-                return nameB.localeCompare(nameA);
-            case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || 999;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || 999;
-                if (aOrder !== bOrder) {
-                    return aOrder - bOrder;
-                }
-                return nameA.localeCompare(nameB);
-            }
-            case "name-asc":
-            default:
-                return nameA.localeCompare(nameB);
-        }
-    };
-
+${sortingUtilities}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";

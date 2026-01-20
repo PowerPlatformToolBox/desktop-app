@@ -14,6 +14,7 @@ import { getSelectConnectionModalControllerScript } from "../modals/selectConnec
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
 import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
+import { sortConnections } from "../utils/connectionSorting";
 import {
     closeBrowserWindowModal,
     offBrowserWindowModalClosed,
@@ -143,12 +144,6 @@ let editingConnectionId: string | null = null;
 
 const CONNECTIONS_SORT_SETTING_KEY = "connectionsSort";
 const DEFAULT_CONNECTIONS_SORT: ConnectionsSortOption = "last-used";
-const ENVIRONMENT_SORT_ORDER: Record<DataverseConnection["environment"], number> = {
-    Dev: 1,
-    Test: 2,
-    UAT: 3,
-    Production: 4,
-};
 
 function coerceConnectionsSortOption(value: unknown): ConnectionsSortOption {
     if (value === "last-used" || value === "name-asc" || value === "name-desc" || value === "environment") {
@@ -166,49 +161,6 @@ async function getConnectionsSortPreference(): Promise<ConnectionsSortOption> {
         captureMessage("Failed to read connections sort preference", "warning", { extra: { error } });
         return DEFAULT_CONNECTIONS_SORT;
     }
-}
-
-function getLastUsedTimestamp(conn: DataverseConnection): number {
-    if (conn.lastUsedAt) {
-        const parsedLastUsed = Date.parse(conn.lastUsedAt);
-        if (!Number.isNaN(parsedLastUsed)) {
-            return parsedLastUsed;
-        }
-    }
-
-    const parsedCreated = conn.createdAt ? Date.parse(conn.createdAt) : NaN;
-    if (!Number.isNaN(parsedCreated)) {
-        return parsedCreated;
-    }
-
-    return 0;
-}
-
-function sortConnections(connections: DataverseConnection[], sortOption: ConnectionsSortOption): DataverseConnection[] {
-    return [...connections].sort((a, b) => {
-        switch (sortOption) {
-            case "last-used": {
-                const diff = getLastUsedTimestamp(b) - getLastUsedTimestamp(a);
-                if (diff !== 0) {
-                    return diff;
-                }
-                return a.name.localeCompare(b.name);
-            }
-            case "name-desc":
-                return b.name.localeCompare(a.name);
-            case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] ?? Number.MAX_SAFE_INTEGER;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] ?? Number.MAX_SAFE_INTEGER;
-                if (aOrder !== bOrder) {
-                    return aOrder - bOrder;
-                }
-                return a.name.localeCompare(b.name);
-            }
-            case "name-asc":
-            default:
-                return a.name.localeCompare(b.name);
-        }
-    });
 }
 
 /**
