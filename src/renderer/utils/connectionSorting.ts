@@ -12,6 +12,12 @@ export const ENVIRONMENT_SORT_ORDER: Record<string, number> = {
 };
 
 /**
+ * Fallback value for unknown environments in sorting
+ * (should never occur given strict TypeScript types)
+ */
+const UNKNOWN_ENVIRONMENT_SORT_ORDER = 999;
+
+/**
  * Get the timestamp to use for last-used sorting.
  * Falls back to createdAt if lastUsedAt is not available or invalid.
  * Returns 0 if neither timestamp is available.
@@ -49,8 +55,8 @@ export function sortConnections<T extends DataverseConnection | UIConnectionData
             case "name-desc":
                 return b.name.localeCompare(a.name);
             case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] ?? Number.MAX_SAFE_INTEGER;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] ?? Number.MAX_SAFE_INTEGER;
+                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] ?? UNKNOWN_ENVIRONMENT_SORT_ORDER;
+                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] ?? UNKNOWN_ENVIRONMENT_SORT_ORDER;
                 if (aOrder !== bOrder) {
                     return aOrder - bOrder;
                 }
@@ -71,6 +77,7 @@ export function sortConnections<T extends DataverseConnection | UIConnectionData
 export function getConnectionSortingUtilitiesScript(): string {
     return `
     const ENVIRONMENT_SORT_ORDER = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
+    const UNKNOWN_ENVIRONMENT_SORT_ORDER = 999;
 
     const getLastUsedTimestamp = (conn) => {
         if (!conn) {
@@ -109,8 +116,8 @@ export function getConnectionSortingUtilitiesScript(): string {
             case "name-desc":
                 return nameB.localeCompare(nameA);
             case "environment": {
-                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || Number.MAX_SAFE_INTEGER;
-                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || Number.MAX_SAFE_INTEGER;
+                const aOrder = ENVIRONMENT_SORT_ORDER[a.environment] || UNKNOWN_ENVIRONMENT_SORT_ORDER;
+                const bOrder = ENVIRONMENT_SORT_ORDER[b.environment] || UNKNOWN_ENVIRONMENT_SORT_ORDER;
                 if (aOrder !== bOrder) {
                     return aOrder - bOrder;
                 }
