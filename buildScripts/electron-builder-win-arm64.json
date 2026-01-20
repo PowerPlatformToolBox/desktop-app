@@ -1,5 +1,5 @@
 {
-    "extends": "./electron-builder-base.json",
+    "extends": "buildScripts/electron-builder-base.json",
     "win": {
         "target": [
             {
