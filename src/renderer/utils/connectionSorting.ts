@@ -66,6 +66,7 @@ export function sortConnections<T extends DataverseConnection | UIConnectionData
 /**
  * Returns the JavaScript code for connection sorting utilities.
  * This is used for inline scripts in modal controllers.
+ * Note: The sortConnections function expects a sanitized sortOption parameter.
  */
 export function getConnectionSortingUtilitiesScript(): string {
     return `
@@ -94,11 +95,10 @@ export function getConnectionSortingUtilitiesScript(): string {
     };
 
     const sortConnections = (a, b, sortOption) => {
-        const resolvedSort = sanitizeSortOption(sortOption);
         const nameA = (a.name || "");
         const nameB = (b.name || "");
 
-        switch (resolvedSort) {
+        switch (sortOption) {
             case "last-used": {
                 const diff = getLastUsedTimestamp(b) - getLastUsedTimestamp(a);
                 if (diff !== 0) {
