@@ -214,7 +214,6 @@ export class DataverseManager {
         const entitySetName = this.getEntitySetName(entityName);
 
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
-        console.log("FetchXML Query URL:", url);
         // Request formatted values and all annotations (for lookups, aliases, etc.)
         const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as FetchXmlResult;
