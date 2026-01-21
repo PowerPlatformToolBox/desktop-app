@@ -87,27 +87,8 @@ export class AuthManager {
 
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
-            // Start local HTTP server and wait for it to be ready, then open browser
-            const authCode = await this.listenForAuthCode(port, authCodeUrl);
-
-            // Exchange authorization code for tokens
-            const tokenRequest = {
-                code: authCode,
-                scopes: scopes,
-                redirectUri: redirectUri,
-            };
-
-            const response = await this.msalApp.acquireTokenByCode(tokenRequest);
-
-            const authResult = {
-                accessToken: response.accessToken,
-                // MSAL Node does not expose refresh tokens directly. The homeAccountId is returned here for account identification in future token operations.
-                refreshToken: response.account?.homeAccountId,
-                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
-            };
-
-            // Validate user has access to the environment by performing a WhoAmI check
-            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            // Start local HTTP server and wait for auth code, then validate before showing success
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri);
 
             return authResult;
         } catch (error) {
@@ -300,6 +281,157 @@ export class AuthManager {
      */
     private escapeHtml(text: string): string {
         return text.replace(/[&<>"'/]/g, (char) => AuthManager.HTML_ESCAPE_MAP[char]);
+    }
+
+    /**
+     * Start a local HTTP server to listen for OAuth redirect, validate access, then show success/error
+     * This method performs token exchange and environment validation BEFORE showing the success page
+     */
+    private async listenForAuthCodeAndValidate(
+        port: number,
+        authCodeUrl: string,
+        connection: DataverseConnection,
+        scopes: string[],
+        redirectUri: string,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+        // Close any existing server before starting a new one
+        await this.closeActiveServer();
+
+        return new Promise((resolve, reject) => {
+            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date }) => {
+                this.performImmediateCleanup("Authentication server closed after successful auth");
+                resolve(authResult);
+            };
+
+            const cleanupAndReject = (error: Error) => {
+                this.performImmediateCleanup("Authentication server closed after error");
+                reject(error);
+            };
+
+            const server = http.createServer(async (req, res) => {
+                const reqUrl = new URL(req.url || "", `http://localhost:${port}`);
+                const code = reqUrl.searchParams.get("code");
+                const error = reqUrl.searchParams.get("error");
+                const errorDescription = reqUrl.searchParams.get("error_description");
+
+                if (error) {
+                    // Escape HTML to prevent XSS
+                    const safeError = this.escapeHtml(errorDescription || error || "Unknown error");
+                    res.writeHead(400, { "Content-Type": "text/html" });
+                    res.end(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #d13438;">Authentication Failed</h1>
+                <p>${safeError}</p>
+                <p>You can close this window and return to the application.</p>
+              </body>
+            </html>
+          `);
+                    cleanupAndReject(new Error(errorDescription || error));
+                    return;
+                }
+
+                if (code) {
+                    // Show a "Validating..." message while we check environment access
+                    res.writeHead(200, { "Content-Type": "text/html" });
+                    res.write(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #0078d4;">Validating Access...</h1>
+                <p>Please wait while we verify your permissions.</p>
+              </body>
+            </html>
+          `);
+
+                    try {
+                        // Exchange authorization code for tokens
+                        const tokenRequest = {
+                            code: code,
+                            scopes: scopes,
+                            redirectUri: redirectUri,
+                        };
+
+                        if (!this.msalApp) {
+                            throw new Error("MSAL app not initialized");
+                        }
+
+                        const response = await this.msalApp.acquireTokenByCode(tokenRequest);
+
+                        const authResult = {
+                            accessToken: response.accessToken,
+                            refreshToken: response.account?.homeAccountId,
+                            expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                        };
+
+                        // Validate user has access to the environment by performing a WhoAmI check
+                        // This happens BEFORE showing the success message
+                        await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+                        // Validation successful - now show success page
+                        res.write(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #107c10;">Authentication Successful!</h1>
+                <p>You can close this window and return to the application.</p>
+                <script>window.close();</script>
+              </body>
+            </html>
+          `);
+                        res.end();
+
+                        cleanupAndResolve(authResult);
+                    } catch (validationError) {
+                        // Validation failed - show error page
+                        const safeError = this.escapeHtml((validationError as Error).message);
+                        res.write(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #d13438;">Authentication Failed</h1>
+                <p>${safeError}</p>
+                <p>You can close this window and return to the application.</p>
+              </body>
+            </html>
+          `);
+                        res.end();
+
+                        cleanupAndReject(validationError as Error);
+                    }
+                    return;
+                }
+
+                res.writeHead(400, { "Content-Type": "text/html" });
+                res.end(`
+          <html>
+            <body style="font-family: system-ui; text-align: center; padding: 50px;">
+              <h1>Invalid Request</h1>
+              <p>No authorization code received.</p>
+            </body>
+          </html>
+        `);
+            });
+
+            // Allow Node.js to exit even if the server is still running
+            server.unref();
+
+            // Track the server instance and timeout BEFORE starting the server
+            this.activeServer = server;
+            this.activePort = port;
+            this.activeServerTimeout = setTimeout(() => {
+                cleanupAndReject(new Error("Authentication timeout - no response received within 5 minutes"));
+            }, AuthManager.AUTH_TIMEOUT_MS);
+
+            server.listen(port, "localhost", () => {
+                logInfo(`Listening for OAuth redirect on ${redirectUri}`);
+                // Server is ready, now open the browser
+                shell.openExternal(authCodeUrl).catch((err) => {
+                    cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
+                });
+            });
+
+            server.on("error", (err) => {
+                cleanupAndReject(new Error(`Failed to start local server: ${err.message}`));
+            });
+        });
     }
 
     /**
