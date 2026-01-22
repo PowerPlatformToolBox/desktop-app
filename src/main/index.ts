@@ -526,7 +526,7 @@ class ToolBoxApp {
 
                 switch (connection.authenticationType) {
                     case "interactive":
-                        authResult = await this.authManager.authenticateInteractive(connection, this.mainWindow || undefined);
+                        authResult = await this.authManager.authenticateInteractive(connection);
                         break;
                     case "clientSecret":
                         authResult = await this.authManager.authenticateClientSecret(connection);
@@ -561,7 +561,7 @@ class ToolBoxApp {
         // Test connection handler
         ipcMain.handle(CONNECTION_CHANNELS.TEST_CONNECTION, async (_, connection) => {
             try {
-                await this.authManager.testConnection(connection, this.mainWindow || undefined);
+                await this.authManager.testConnection(connection);
                 return { success: true };
             } catch (error) {
                 return { success: false, error: (error as Error).message };

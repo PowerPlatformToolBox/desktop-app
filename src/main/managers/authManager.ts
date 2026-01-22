@@ -58,7 +58,7 @@ export class AuthManager {
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "common";
         this.msalApp = this.initializeMsal(clientId, tenantId);
@@ -95,8 +95,8 @@ export class AuthManager {
             captureMessage("Interactive authentication failed:", "error", {
                 extra: { error },
             });
-            // Show error in a modal dialog
-            this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
+            // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
+            // No need to show modal dialog as it causes UI conflicts
             throw new Error(`Authentication failed: ${(error as Error).message}`);
         }
     }
@@ -456,7 +456,7 @@ export class AuthManager {
     /**
      * Test connection by verifying the URL and attempting a simple authenticated request
      */
-    async testConnection(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<boolean> {
+    async testConnection(connection: DataverseConnection): Promise<boolean> {
         try {
             // First, validate the URL format
             if (!connection.url || !connection.url.startsWith("https://")) {
@@ -468,7 +468,7 @@ export class AuthManager {
 
             switch (connection.authenticationType) {
                 case "interactive": {
-                    const interactiveResult = await this.authenticateInteractive(connection, parentWindow);
+                    const interactiveResult = await this.authenticateInteractive(connection);
                     accessToken = interactiveResult.accessToken;
                     break;
                 }
