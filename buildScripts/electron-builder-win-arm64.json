@@ -7,6 +7,12 @@
                 "arch": [
                     "arm64"
                 ]
+            },
+            {
+                "target": "zip",
+                "arch": [
+                    "arm64"
+                ]
             }
         ],
         "icon": "icons/icon.ico"

@@ -120,10 +120,33 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
+            - name: Sign Windows artifacts with Azure Trusted Signing
+              if: matrix.os == 'windows-latest'
+              uses: azure/artifact-signing-action@v1
+              with:
+                  azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+                  endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+                  signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
+                  certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+                  files-folder: ${{ github.workspace }}/build
+                  files-folder-filter: exe,msi
+                  files-folder-recurse: false
+                  timestamp-rfc3161: http://timestamp.acs.microsoft.com
+                  timestamp-digest: SHA256
+                  description: Power Platform ToolBox (Insider)
+                  description-url: https://github.com/PowerPlatformToolBox/desktop-app
+
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
-              run: node ./buildScripts/package.js --config=${{ matrix.config }}
+              shell: bash
               env:
+                  MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+                  MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -132,14 +155,24 @@ jobs:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-                  # Skip code signing if no certificate is configured
-                  # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
-                  CSC_IDENTITY_AUTO_DISCOVERY: false
-                  # Explicitly disable all code signing
-                  CSC_LINK: ""
-                  CSC_KEY_PASSWORD: ""
-                  # Use ad-hoc signing
                   DEBUG: electron-builder
+              run: |
+                  if [[ -z "$MACOS_CERT_P12" || -z "$MACOS_CERT_PASSWORD" || -z "$APPLE_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
+                    echo "Mac signing secrets are not configured."
+                    exit 1
+                  fi
+
+                  CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
+                  echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+                  chmod 600 "$CERT_PATH"
+
+                  export CSC_LINK="$CERT_PATH"
+                  export CSC_KEY_PASSWORD="$MACOS_CERT_PASSWORD"
+                  export APPLE_ID="$APPLE_ID"
+                  export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
+                  export APPLE_TEAM_ID="$APPLE_TEAM_ID"
+
+                  node ./buildScripts/package.js --config=${{ matrix.config }}
 
             - name: Remove quarantine attributes (macOS)
               if: matrix.os == 'macos-latest'
@@ -158,6 +191,7 @@ jobs:
                       build/*.pkg
                       build/*.exe
                       build/*.msi
+                      build/*.zip
                       build/*.AppImage
                       build/*.yml
                   retention-days: 30
@@ -204,7 +238,7 @@ jobs:
 
                   # Copy installer files and latest*.yml files (needed for electron-updater)
                   # Exclude builder-debug.yml files (duplicate names across platforms)
-                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
 
                   echo "✅ Release files prepared"
                   ls -lh release-files/
@@ -282,12 +316,9 @@ jobs:
                       ## 📦 Installation
 
                       Choose the appropriate installer for your platform:
-                      - **Windows**: Download the `.exe` file
-                      - **macOS**: Download the `.dmg` file
-                        - ⚠️ **Important for macOS users**: This build is not notarized or signed with an Apple Developer certificate
-                        - After mounting the DMG, you may see a "damaged" or "unidentified developer" warning
-                        - **To install**: Right-click (or Control+click) the app and select "Open", then click "Open" in the dialog
-                        - Or use Terminal: `xattr -cr "/Applications/Power Platform ToolBox.app"`
+                      - **Windows**: Download the `.exe` installer or the portable `.zip`
+                      - **macOS**: Download the `.dmg` (signed + notarized) or `.zip`
+                        - Open the DMG and drag the app to Applications as usual—no Gatekeeper bypass needed
                       - **Linux**: Download the `.AppImage` file
 
                       ## 🔗 Links
