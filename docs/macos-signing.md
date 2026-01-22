@@ -1,18 +1,18 @@
 # macOS Code Signing and Notarization
 
-The stable release workflow now signs and notarizes the macOS build artifacts so end users can install the app without bypassing Gatekeeper. This document explains how to supply the required credentials and verify the output.
+The stable release and nightly insider workflows now sign and notarize the macOS build artifacts so end users can install the app without bypassing Gatekeeper. This document explains how to supply the required credentials and verify the output.
 
 ## Secrets expected by GitHub Actions
 
-| Secret                        | Description                                                                                         |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------- |
-| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 | pbcopy` to capture it. |
-| `MACOS_CERT_PASSWORD`         | Password used when exporting the `.p12`.                                                            |
-| `APPLE_ID`                    | Apple ID (email) associated with the Developer ID certificate.                                      |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                     |
-| `APPLE_TEAM_ID`               | Ten-character Team ID for the Apple Developer account.                                              |
+| Secret                        | Description                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 \| pbcopy` to capture it. |
+| `MACOS_CERT_PASSWORD`         | Password used when exporting the `.p12`.                                                                                      |
+| `APPLE_ID`                    | Apple ID (email) associated with the Developer ID certificate.                                                                |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                                               |
+| `APPLE_TEAM_ID`               | Ten-character Team ID for the Apple Developer account.                                                                        |
 
-Add these secrets at either the repository or organization level before triggering the `Stable Release` workflow. The workflow decodes the certificate into the runner's temp directory and injects the credentials via environment variables consumed by Electron Builder and the notarization hook.
+Add these secrets at either the repository or organization level before triggering the `Stable Release` or `Insider Pre-Release` workflows. Each workflow decodes the certificate into the runner's temp directory and injects the credentials via environment variables consumed by Electron Builder and the notarization hook.
 
 ## How the pipeline signs macOS artifacts
 
@@ -21,7 +21,7 @@ Add these secrets at either the repository or organization level before triggeri
 3. During the `Package application (macOS)` job step, the workflow decodes the certificate, sets `CSC_LINK`/`CSC_KEY_PASSWORD`, and exports the Apple credentials.
 4. Electron Builder signs the `.app`, `.zip`, and `.dmg` with the Developer ID certificate.
 5. After signing, `buildScripts/notarize.js` runs `@electron/notarize` to notarize the `.app` bundle using the Apple ID + app-specific password and waits for notarization to complete.
-6. The notarized `.dmg`/`.zip` files are uploaded as artifacts.
+6. The notarized `.dmg`/`.zip` files are uploaded as artifacts for both stable and nightly releases.
 
 ## Local validation steps
 
