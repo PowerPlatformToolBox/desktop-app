@@ -29,8 +29,8 @@ To validate a locally produced build before committing:
 
 ```bash
 pnpm run package:mac
-codesign --verify --deep --strict dist/mac/Power\ Platform\ ToolBox.app
-spctl --assess --type exec dist/mac/Power\ Platform\ ToolBox.app
+codesign --verify --deep --strict build/mac/Power\ Platform\ ToolBox.app
+spctl --assess --type exec build/mac/Power\ Platform\ ToolBox.app
 ```
 
 For notarization status, run:
