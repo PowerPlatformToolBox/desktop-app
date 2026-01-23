@@ -107,8 +107,8 @@ export class DataverseManager {
                 }
             }
 
-            return { connection, accessToken: connection.accessToken };
-        }
+        return { connection, accessToken: connection.accessToken };
+    }
 
     /**
      * Create a new record in Dataverse
