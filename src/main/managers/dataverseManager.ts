@@ -597,8 +597,10 @@ export class DataverseManager {
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`;
 
         // Build the reference to the related record
+        // Ensure baseUrl doesn't have trailing slash to avoid double slashes
+        const baseUrl = connection.url.endsWith('/') ? connection.url.slice(0, -1) : connection.url;
         const body = {
-            "@odata.id": `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`,
+            "@odata.id": `${baseUrl}/api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`,
         };
 
         await this.makeHttpRequest(url, "POST", accessToken, body);
