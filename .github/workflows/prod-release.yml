@@ -117,7 +117,7 @@ jobs:
                   signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
-                  files-folder-filter: exe,msi
+                  files-folder-filter: exe,msi,zip
                   files-folder-recurse: false
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
@@ -126,8 +126,13 @@ jobs:
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
-              run: node ./buildScripts/package.js --config=${{ matrix.config }}
+              shell: bash
               env:
+                  MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+                  MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -136,14 +141,27 @@ jobs:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-                  # Skip code signing if no certificate is configured
-                  # Note: package.json sets "identity": null and dmg "sign": false to prevent DMG corruption
-                  CSC_IDENTITY_AUTO_DISCOVERY: false
-                  # Explicitly disable all code signing
-                  CSC_LINK: ""
-                  CSC_KEY_PASSWORD: ""
-                  # Use ad-hoc signing
                   DEBUG: electron-builder
+              run: |
+                  if [[ -z "$MACOS_CERT_P12" || -z "$MACOS_CERT_PASSWORD" || -z "$APPLE_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
+                      echo "Mac signing secrets are not configured."
+                      exit 1
+                  fi
+
+                  CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
+                  echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+                  chmod 600 "$CERT_PATH"
+
+                  export CSC_LINK="$CERT_PATH"
+                  export CSC_KEY_PASSWORD="$MACOS_CERT_PASSWORD"
+                  export APPLE_ID="$APPLE_ID"
+                  export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
+                  export APPLE_TEAM_ID="$APPLE_TEAM_ID"
+
+                  # Ensure certificate cleanup happens even if build fails
+                  trap 'rm -f "$CERT_PATH"' EXIT
+
+                  node ./buildScripts/package.js --config=${{ matrix.config }}
 
             - name: Remove quarantine attributes (macOS)
               if: matrix.os == 'macos-latest'
@@ -174,6 +192,7 @@ jobs:
                   path: |
                       build/*.exe
                       build/*.msi
+                      build/*.zip
                       build/*.yml
                   retention-days: 90
 

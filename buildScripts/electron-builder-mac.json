@@ -19,12 +19,15 @@
         ],
         "category": "public.app-category.developer-tools",
         "icon": "icons/icon.icns",
-        "identity": null,
-        "gatekeeperAssess": false,
-        "hardenedRuntime": false,
+        "identity": "Developer ID Application",
+        "gatekeeperAssess": true,
+        "hardenedRuntime": true,
+        "entitlements": "buildScripts/entitlements.mac.plist",
+        "entitlementsInherit": "buildScripts/entitlements.mac.plist",
         "type": "distribution"
     },
     "dmg": {
-        "sign": false
-    }
+        "sign": true
+    },
+    "afterSign": "buildScripts/notarize.js"
 }
