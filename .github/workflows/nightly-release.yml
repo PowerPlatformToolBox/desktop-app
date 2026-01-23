@@ -182,6 +182,16 @@ jobs:
               run: |
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 
+            - name: Submit macOS notarization request
+              if: matrix.os == 'macos-latest'
+              shell: bash
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  node ./buildScripts/notarize.js submit --app="build/mac/Power Platform ToolBox.app" --output="build/notarization-info.json"
+
             - name: Cleanup macOS signing certificate
               if: ${{ always() && matrix.os == 'macos-latest' }}
               shell: bash
@@ -211,12 +221,18 @@ jobs:
                       build/*.zip
                       build/*.AppImage
                       build/*.yml
+                      build/notarization-info.json
                   retention-days: 30
 
-    create-release:
+    create-release-draft:
         needs: [check-commits, build]
         if: needs.check-commits.outputs.should_build == 'true'
         runs-on: ubuntu-latest
+        outputs:
+            new_version: ${{ steps.version.outputs.new_version }}
+            tag_name: ${{ steps.version.outputs.tag_name }}
+            release_name: ${{ steps.version.outputs.release_name }}
+            whatsnew: ${{ steps.whatsnew.outputs.commits }}
 
         steps:
             - name: Checkout dev branch
@@ -237,46 +253,20 @@ jobs:
                   DATE_TAG=$(date +%Y%m%d)
                   NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+                  echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
                   echo "release_name=Insider Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT
-              shell: bash
-
-            - name: Download all artifacts
-              uses: actions/download-artifact@v4
-              with:
-                  path: artifacts
-
-            - name: Display structure of downloaded files
-              run: ls -R artifacts
-
-            - name: Prepare release files
-              run: |
-                  echo "📦 Preparing release files..."
-                  mkdir -p release-files
-
-                  # Copy installer files and latest*.yml files (needed for electron-updater)
-                  # Exclude builder-debug.yml files (duplicate names across platforms)
-                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
-
-                  echo "✅ Release files prepared"
-                  ls -lh release-files/
               shell: bash
 
             - name: Delete old pre-releases
               run: |
                   echo "🗑️ Deleting old pre-releases..."
-
-                  # Get all pre-releases (not full releases) - using higher limit to capture more
-                  # Note: gh release list returns releases sorted by creation date (newest first); skips first 2 pre-releases
                   gh release list --limit 1000 --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | awk 'NR>2' | while IFS= read -r TAG; do
                     if [ -n "$TAG" ]; then
                       echo "Deleting pre-release: $TAG"
                       gh release delete "$TAG" --yes --cleanup-tag || echo "⚠️ Failed to delete $TAG (may not exist or already deleted)"
                     fi
                   done
-
                   echo "✅ Pre-release cleanup completed"
-
-                  # Wait a moment for GitHub API to process deletions
                   echo "⏳ Waiting for deletion to propagate..."
                   sleep 5
               env:
@@ -285,7 +275,6 @@ jobs:
             - name: Generate what's new
               id: whatsnew
               run: |
-                  # Get last 10 commits since last tag (avoid SIGPIPE with direct limit)
                   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
                   if [ -n "$LAST_TAG" ]; then
                     COMMITS=$(git log --oneline --no-merges -10 "$LAST_TAG"..HEAD)
@@ -293,19 +282,17 @@ jobs:
                     COMMITS=$(git log --oneline --no-merges -10)
                   fi
 
-                  # Format commits as markdown bullets
                   WHATSNEW=$(echo "$COMMITS" | sed 's/^/- /')
 
-                  # Use multiline output syntax for GitHub Actions
                   echo "commits<<EOF" >> $GITHUB_OUTPUT
                   echo "$WHATSNEW" >> $GITHUB_OUTPUT
                   echo "EOF" >> $GITHUB_OUTPUT
               shell: bash
 
-            - name: Create pre-release
+            - name: Create draft release
               uses: softprops/action-gh-release@v2
               with:
-                  tag_name: v${{ steps.version.outputs.new_version }}
+                  tag_name: ${{ steps.version.outputs.tag_name }}
                   name: ${{ steps.version.outputs.release_name }}
                   body: |
                       # 👀 Insider Pre-Release
@@ -334,8 +321,138 @@ jobs:
 
                       Choose the appropriate installer for your platform:
                       - **Windows**: Download the `.exe` installer or the portable `.zip`
+                      - **macOS**: Download the `.dmg` (signed) or `.zip`
+                      - **Linux**: Download the `.AppImage` file
+
+                      ## 🔗 Links
+
+                      - [View commits](${{ github.server_url }}/${{ github.repository }}/commits/dev)
+                      - [Report an issue](${{ github.server_url }}/${{ github.repository }}/issues/new)
+
+                      ---
+                      *This release was automatically generated by the nightly insider packaging workflow.*
+                  prerelease: true
+                  draft: true
+                  fail_on_unmatched_files: false
+                  make_latest: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    mac-notarization:
+        needs: [check-commits, build, create-release-draft]
+        if: needs.check-commits.outputs.should_build == 'true'
+        runs-on: macos-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Download macOS artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: macos-build
+                  path: notarize
+
+            - name: Wait for notarization acceptance
+              shell: bash
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  node ./buildScripts/notarize.js wait --info="notarize/build/notarization-info.json" --timeout-hours=12 --interval-minutes=5
+
+            - name: Staple macOS artifacts
+              shell: bash
+              run: |
+                  shopt -s nullglob
+                  for file in notarize/build/*.dmg notarize/build/*.pkg notarize/build/*.zip; do
+                      if [[ -f "$file" ]]; then
+                          echo "Stapling $(basename "$file")"
+                          xcrun stapler staple "$file"
+                      fi
+                  done
+
+            - name: Upload stapled macOS artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-build
+                  path: |
+                      notarize/build/*.dmg
+                      notarize/build/*.pkg
+                      notarize/build/*.zip
+                      notarize/build/*.yml
+                      notarize/build/notarization-info.json
+                  retention-days: 30
+                  overwrite: true
+
+    publish-release:
+        needs: [check-commits, build, create-release-draft, mac-notarization]
+        if: needs.check-commits.outputs.should_build == 'true'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout dev branch
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+
+            - name: Display structure of downloaded files
+              run: ls -R artifacts
+
+            - name: Prepare release files
+              run: |
+                  echo "📦 Preparing release files..."
+                  mkdir -p release-files
+
+                  find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+
+                  echo "✅ Release files prepared"
+                  ls -lh release-files/
+              shell: bash
+
+            - name: Publish release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ needs.create-release-draft.outputs.tag_name }}
+                  name: ${{ needs.create-release-draft.outputs.release_name }}
+                  body: |
+                      # 👀 Insider Pre-Release
+
+                      ## 📋 What's New
+
+                      ${{ needs.create-release-draft.outputs.whatsnew }}
+
+                      ## TESTING PURPOSES ONLY - NOT FOR PRODUCTION USE
+
+                      **Version:** ${{ needs.create-release-draft.outputs.new_version }}
+                      **Branch:** dev
+                      **Commits:** ${{ needs.check-commits.outputs.commit_count }} in the last 24 hours
+                      **Build Date:** ${{ github.run_id }}
+
+                      ## ⚠️ Pre-release Warning
+
+                      This is an automated insider build from the development branch. It may contain:
+                      - 🐛 Bugs and instability
+                      - 🚧 Incomplete features
+                      - 💥 Breaking changes
+
+                      **Not recommended for production use!**
+
+                      ## 📦 Installation
+
+                      Choose the appropriate installer for your platform:
+                      - **Windows**: Download the `.exe` installer or the portable `.zip`
                       - **macOS**: Download the `.dmg` (signed + notarized) or `.zip`
-                        - Open the DMG and drag the app to Applications as usual—no Gatekeeper bypass needed
                       - **Linux**: Download the `.AppImage` file
 
                       ## 🔗 Links

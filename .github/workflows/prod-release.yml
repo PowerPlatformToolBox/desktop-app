@@ -5,13 +5,42 @@ on:
         types: [closed]
         branches:
             - main
-    workflow_dispatch: # Allow manual trigger
+    workflow_dispatch:
 
 permissions:
     contents: write
 
 jobs:
-    release:
+    preflight:
+        if: >
+            ${{ github.event.pull_request.merged == true ||
+            github.event_name == 'workflow_dispatch' }}
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout main branch
+              uses: actions/checkout@v4
+              with:
+                  ref: main
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Validate version bump and release notes
+              shell: bash
+              run: |
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  if ! grep -q "^# Power Platform ToolBox $CURRENT_VERSION" RELEASE_NOTES.md; then
+                    echo "Error: RELEASE_NOTES.md does not contain heading '# Power Platform ToolBox $CURRENT_VERSION'."
+                    exit 1
+                  fi
+
+                  echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
+
+    build:
+        needs: preflight
         if: >
             ${{ github.event.pull_request.merged == true ||
             github.event_name == 'workflow_dispatch' }}
@@ -38,17 +67,6 @@ jobs:
               with:
                   ref: main
                   fetch-depth: 0
-
-            - name: Validate version bump and release notes
-              shell: bash
-              run: |
-                  CURRENT_VERSION=$(node -p "require('./package.json').version")
-                  if ! grep -q "^# Power Platform ToolBox $CURRENT_VERSION" RELEASE_NOTES.md; then
-                    echo "Error: RELEASE_NOTES.md does not contain heading '# Power Platform ToolBox $CURRENT_VERSION'."
-                        exit 1
-                    fi
-
-                  echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -168,6 +186,16 @@ jobs:
               run: |
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 
+            - name: Submit macOS notarization request
+              if: matrix.os == 'macos-latest'
+              shell: bash
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  node ./buildScripts/notarize.js submit --app="build/mac/Power Platform ToolBox.app" --output="build/notarization-info.json"
+
             - name: Cleanup macOS signing certificate
               if: ${{ always() && matrix.os == 'macos-latest' }}
               shell: bash
@@ -220,10 +248,102 @@ jobs:
                       build/*.pkg
                       build/*.yml
                       build/*.zip
+                      build/notarization-info.json
                   retention-days: 90
 
-    create-release:
-        needs: release
+    create-release-draft:
+        needs: [preflight, build]
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.info.outputs.version }}
+            tag_name: ${{ steps.info.outputs.tag_name }}
+            release_name: ${{ steps.info.outputs.release_name }}
+
+        steps:
+            - name: Checkout main branch
+              uses: actions/checkout@v4
+              with:
+                  ref: main
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Get version details
+              id: info
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+                  echo "release_name=Power Platform ToolBox v$VERSION" >> $GITHUB_OUTPUT
+              shell: bash
+
+            - name: Create draft release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ steps.info.outputs.tag_name }}
+                  name: ${{ steps.info.outputs.release_name }}
+                  body_path: RELEASE_NOTES.md
+                  draft: true
+                  prerelease: false
+                  fail_on_unmatched_files: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    mac-notarization:
+        needs: [build, create-release-draft]
+        runs-on: macos-latest
+
+        steps:
+            - name: Checkout main branch
+              uses: actions/checkout@v4
+              with:
+                  ref: main
+                  fetch-depth: 0
+
+            - name: Download macOS artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: macos-release
+                  path: notarize
+
+            - name: Wait for notarization acceptance
+              shell: bash
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  node ./buildScripts/notarize.js wait --info="notarize/build/notarization-info.json" --timeout-hours=24 --interval-minutes=5
+
+            - name: Staple macOS artifacts
+              shell: bash
+              run: |
+                  shopt -s nullglob
+                  for file in notarize/build/*.dmg notarize/build/*.pkg notarize/build/*.zip; do
+                      if [[ -f "$file" ]]; then
+                          echo "Stapling $(basename "$file")"
+                          xcrun stapler staple "$file"
+                      fi
+                  done
+
+            - name: Upload stapled macOS artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-release
+                  path: |
+                      notarize/build/*.dmg
+                      notarize/build/*.pkg
+                      notarize/build/*.zip
+                      notarize/build/*.yml
+                      notarize/build/notarization-info.json
+                  retention-days: 90
+                  overwrite: true
+
+    publish-release:
+        needs: [build, create-release-draft, mac-notarization]
         runs-on: ubuntu-latest
 
         steps:
@@ -238,23 +358,6 @@ jobs:
               with:
                   node-version: "20"
 
-            - name: Get version and PR info
-              id: info
-              run: |
-                  VERSION=$(node -p "require('./package.json').version")
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
-                  echo "release_name=Power Platform ToolBox v$VERSION" >> $GITHUB_OUTPUT
-
-                  # Get PR title and body
-                  PR_TITLE="${{ github.event.pull_request.title }}"
-                  PR_NUMBER="${{ github.event.pull_request.number }}"
-                  PR_URL="${{ github.event.pull_request.html_url }}"
-
-                  echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT
-                  echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-                  echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-              shell: bash
-
             - name: Download all artifacts
               uses: actions/download-artifact@v4
               with:
@@ -268,19 +371,17 @@ jobs:
                   echo "📦 Preparing release files..."
                   mkdir -p release-files
 
-                  # Copy installer files and latest*.yml files (needed for electron-updater)
-                  # Exclude builder-debug.yml files (duplicate names across platforms)
                   find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
 
                   echo "✅ Release files prepared"
                   ls -lh release-files/
               shell: bash
 
-            - name: Create stable release
+            - name: Publish stable release
               uses: softprops/action-gh-release@v2
               with:
-                  tag_name: v${{ steps.info.outputs.version }}
-                  name: ${{ steps.info.outputs.release_name }}
+                  tag_name: ${{ needs.create-release-draft.outputs.tag_name }}
+                  name: ${{ needs.create-release-draft.outputs.release_name }}
                   body_path: RELEASE_NOTES.md
                   files: |
                       release-files/*

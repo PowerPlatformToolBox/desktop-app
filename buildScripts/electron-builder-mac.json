@@ -29,6 +29,5 @@
     },
     "dmg": {
         "sign": true
-    },
-    "afterSign": "./buildScripts/notarize.js"
+    }
 }
