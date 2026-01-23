@@ -217,12 +217,26 @@ main().catch((error) => {
     process.stderr.write(`${message}\n`);
     process.exitCode = 1;
 });
-const { notarize } = require("@electron/notarize");
-
 const MAX_NOTARIZE_ATTEMPTS = 3;
 const RETRY_DELAY_BASE_MS = 30000; // 30 seconds base delay, increases with attempts
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let notarizeModule;
+const ensureNotarizeModule = () => {
+    if (notarizeModule) {
+        return notarizeModule;
+    }
+
+    try {
+        const imported = require("@electron/notarize");
+        notarizeModule = imported.notarize;
+        return notarizeModule;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`@electron/notarize is required when running as an electron-builder hook. Install dependencies before packaging. Original error: ${message}`);
+    }
+};
 
 const shouldRetryNotarization = (error) => {
     if (!error) {
@@ -259,6 +273,7 @@ module.exports = async function notarizeApp(context) {
     }
 
     const appName = context.packager.appInfo.productFilename;
+    const notarize = ensureNotarizeModule();
 
     let lastError;
 
