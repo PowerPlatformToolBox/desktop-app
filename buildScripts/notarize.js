@@ -54,6 +54,38 @@ const runNotarytool = (args) => {
     return execFileSync("xcrun", ["notarytool", ...args], { encoding: "utf8" }).trim();
 };
 
+const prepareSubmissionAsset = (inputPath) => {
+    const resolvedPath = path.resolve(inputPath);
+
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`Cannot submit for notarization because the asset path does not exist: ${resolvedPath}`);
+    }
+
+    const stats = fs.lstatSync(resolvedPath);
+
+    if (!stats.isDirectory()) {
+        return { assetPath: resolvedPath, cleanup: null, displayPath: resolvedPath };
+    }
+
+    const zipPath = `${resolvedPath}.zip`;
+    if (fs.existsSync(zipPath)) {
+        fs.rmSync(zipPath, { force: true });
+    }
+
+    process.stdout.write(`Packaging ${resolvedPath} into ${zipPath} for notarization...\n`);
+    execFileSync("ditto", ["-c", "-k", "--keepParent", resolvedPath, zipPath]);
+
+    return {
+        assetPath: zipPath,
+        cleanup: () => {
+            if (fs.existsSync(zipPath)) {
+                fs.rmSync(zipPath, { force: true });
+            }
+        },
+        displayPath: resolvedPath,
+    };
+};
+
 const submit = () => {
     const defaultAppPath = path.resolve("build", "mac", "Power Platform ToolBox.app");
     const appPath = path.resolve(getArg("--app", defaultAppPath));
@@ -61,15 +93,20 @@ const submit = () => {
     const outputPath = path.resolve(getArg("--output", path.resolve("build", "notarization-info.json")));
     const bundleId = getArg("--bundle-id", "com.powerplatform.toolbox");
 
-    if (!fs.existsSync(appPath)) {
-        throw new Error(`Cannot submit for notarization because the app path does not exist: ${appPath}`);
-    }
-
     const { appleId, applePassword, teamId } = ensureAppleCreds();
+    const { assetPath, cleanup, displayPath } = prepareSubmissionAsset(appPath);
 
-    process.stdout.write(`Submitting ${appPath} for notarization (bundleId: ${bundleId}) without waiting...\n`);
+    process.stdout.write(`Submitting ${displayPath} for notarization (bundleId: ${bundleId}) without waiting...\n`);
 
-    const resultRaw = runNotarytool(["submit", appPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--no-wait", "--output-format", "json"]);
+    let resultRaw;
+
+    try {
+        resultRaw = runNotarytool(["submit", assetPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--no-wait", "--output-format", "json"]);
+    } finally {
+        if (cleanup) {
+            cleanup();
+        }
+    }
 
     const parsed = JSON.parse(resultRaw);
     const submissionId = parsed.id;
@@ -78,6 +115,7 @@ const submit = () => {
         bundleId,
         status: parsed.status,
         appPath,
+        submittedAsset: assetPath,
         submittedAt: new Date().toISOString(),
     };
 
