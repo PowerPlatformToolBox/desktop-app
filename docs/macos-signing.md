@@ -4,13 +4,13 @@ The stable release and nightly insider workflows now sign and notarize the macOS
 
 ## Secrets expected by GitHub Actions
 
-| Secret                        | Description                                                                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 | pbcopy` to capture it.  |
-| `MACOS_CERT_PASSWORD`         | Password used when exporting the `.p12`.                                                                                      |
-| `APPLE_ID`                    | Apple ID (email) associated with the Developer ID certificate.                                                                |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                                               |
-| `APPLE_TEAM_ID`               | Ten-character Team ID for the Apple Developer account.                                                                        |
+| Secret                        | Description                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------- |
+| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 | pbcopy` to capture it. |
+| `MACOS_CERT_PASSWORD`         | Password used when exporting the `.p12`.                                                            |
+| `APPLE_ID`                    | Apple ID (email) associated with the Developer ID certificate.                                      |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                     |
+| `APPLE_TEAM_ID`               | Ten-character Team ID for the Apple Developer account.                                              |
 
 Add these secrets at either the repository or organization level before triggering the `Stable Release` or `Insider Pre-Release` workflows. Each workflow decodes the certificate into the runner's temp directory and injects the credentials via environment variables consumed by Electron Builder and the notarization hook.
 
@@ -18,10 +18,10 @@ Add these secrets at either the repository or organization level before triggeri
 
 1. `buildScripts/electron-builder-mac.json` enables the Hardened Runtime, entitlements, and references `buildScripts/notarize.js`.
 2. `buildScripts/entitlements.mac.plist` contains the minimal entitlements needed for the app's Electron runtime.
-3. During the `Package application (macOS)` job step, the workflow decodes the certificate, sets `CSC_LINK`/`CSC_KEY_PASSWORD`, and exports the Apple credentials.
-4. Electron Builder signs the `.app`, `.zip`, and `.dmg` with the Developer ID certificate.
+3. The workflow runs a dedicated `Prepare macOS signing certificate` step that decodes the `.p12` into the runner's temp directory, writes the Apple credentials plus `CSC_LINK`/`CSC_KEY_PASSWORD` into `$GITHUB_ENV`, and remembers the fully qualified cert path for cleanup.
+4. Electron Builder signs the `.app`, `.zip`, and `.dmg` with the Developer ID certificate using the exported environment variables.
 5. After signing, `buildScripts/notarize.js` runs `@electron/notarize` to notarize the `.app` bundle using the Apple ID + app-specific password and waits for notarization to complete.
-6. The notarized `.dmg`/`.zip` files are uploaded as artifacts for both stable and nightly releases.
+6. A follow-up cleanup step always deletes the temporary `.p12`, and the notarized `.dmg`/`.zip` files are uploaded as artifacts for both stable and nightly releases.
 
 ## Local validation steps
 

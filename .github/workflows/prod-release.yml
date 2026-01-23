@@ -117,14 +117,14 @@ jobs:
                   signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
-                  files-folder-filter: exe,msi,zip
+                  files-folder-filter: exe,msi
                   files-folder-recurse: false
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
                   description: Power Platform ToolBox
                   description-url: https://github.com/PowerPlatformToolBox/desktop-app
 
-            - name: Package application (macOS)
+            - name: Prepare macOS signing certificate
               if: matrix.os == 'macos-latest'
               shell: bash
               env:
@@ -133,6 +133,29 @@ jobs:
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
                   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  if [[ -z "$MACOS_CERT_P12" || -z "$MACOS_CERT_PASSWORD" || -z "$APPLE_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
+                    echo "Mac signing secrets are not configured."
+                    exit 1
+                  fi
+
+                  CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
+                  printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+                  chmod 600 "$CERT_PATH"
+
+                  {
+                    echo "CSC_LINK=$CERT_PATH"
+                    echo "CSC_KEY_PASSWORD=$MACOS_CERT_PASSWORD"
+                    echo "APPLE_ID=$APPLE_ID"
+                    echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
+                    echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+                    echo "MACOS_CERT_PATH=$CERT_PATH"
+                  } >> "$GITHUB_ENV"
+
+            - name: Package application (macOS)
+              if: matrix.os == 'macos-latest'
+              shell: bash
+              env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -143,25 +166,16 @@ jobs:
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
                   DEBUG: electron-builder
               run: |
-                  if [[ -z "$MACOS_CERT_P12" || -z "$MACOS_CERT_PASSWORD" || -z "$APPLE_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
-                      echo "Mac signing secrets are not configured."
-                      exit 1
-                  fi
-
-                  CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
-                  echo "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
-                  chmod 600 "$CERT_PATH"
-
-                  export CSC_LINK="$CERT_PATH"
-                  export CSC_KEY_PASSWORD="$MACOS_CERT_PASSWORD"
-                  export APPLE_ID="$APPLE_ID"
-                  export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
-                  export APPLE_TEAM_ID="$APPLE_TEAM_ID"
-
-                  # Ensure certificate cleanup happens even if build fails
-                  trap 'rm -f "$CERT_PATH"' EXIT
-
                   node ./buildScripts/package.js --config=${{ matrix.config }}
+
+            - name: Cleanup macOS signing certificate
+              if: ${{ always() && matrix.os == 'macos-latest' }}
+              shell: bash
+              run: |
+                  if [[ -n "${MACOS_CERT_PATH:-}" && -f "$MACOS_CERT_PATH" ]]; then
+                    rm -f "$MACOS_CERT_PATH"
+                    echo "Removed temporary macOS signing certificate."
+                  fi
 
             - name: Remove quarantine attributes (macOS)
               if: matrix.os == 'macos-latest'
