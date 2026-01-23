@@ -565,4 +565,54 @@ export class DataverseManager {
         const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
         await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
     }
+
+    /**
+     * Associate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityName - Logical name of the related entity
+     * @param relatedEntityId - GUID of the related record
+     */
+    async associate(
+        connectionId: string,
+        primaryEntityName: string,
+        primaryEntityId: string,
+        relationshipName: string,
+        relatedEntityName: string,
+        relatedEntityId: string,
+    ): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+        const relatedEntitySetName = this.getEntitySetName(relatedEntityName);
+
+        // Build the URL for the association
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`;
+
+        // Build the reference to the related record
+        const body = {
+            "@odata.id": `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`,
+        };
+
+        await this.makeHttpRequest(url, "POST", accessToken, body);
+    }
+
+    /**
+     * Disassociate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityId - GUID of the related record to disassociate
+     */
+    async disassociate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+
+        // Build the URL for the disassociation
+        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`;
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
 }

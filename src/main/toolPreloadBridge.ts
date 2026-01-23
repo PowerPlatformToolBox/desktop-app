@@ -169,6 +169,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
+        associate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
+        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
     },
 
     // Utils API
@@ -263,6 +267,10 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
     updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
     getEntitySetName: (entityLogicalName: string) => ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
+    associate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
+    disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
 });
 
 captureMessage("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
