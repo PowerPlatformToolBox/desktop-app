@@ -6,7 +6,7 @@ The stable release and nightly insider workflows now sign and notarize the macOS
 
 | Secret                        | Description                                                                                                                   |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 \| pbcopy` to capture it. |
+| `MACOS_CERT_P12`              | Base64-encoded contents of the Developer ID Application `.p12` certificate. Run `base64 -i cert.p12 | pbcopy` to capture it.  |
 | `MACOS_CERT_PASSWORD`         | Password used when exporting the `.p12`.                                                                                      |
 | `APPLE_ID`                    | Apple ID (email) associated with the Developer ID certificate.                                                                |
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                                               |
