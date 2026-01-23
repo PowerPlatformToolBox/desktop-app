@@ -22,13 +22,22 @@ module.exports = async function notarizeApp(context) {
 
     const appName = context.packager.appInfo.productFilename;
 
-    await notarize({
-        appBundleId: "com.powerplatform.toolbox",
-        appPath: `${appOutDir}/${appName}.app`,
-        appleId,
-        appleIdPassword: applePassword,
-        teamId,
-    });
+    try {
+        await notarize({
+            appBundleId: "com.powerplatform.toolbox",
+            appPath: `${appOutDir}/${appName}.app`,
+            appleId,
+            appleIdPassword: applePassword,
+            teamId,
+        });
 
-    process.stdout.write(`Submitted notarization request for ${appName}.app\n`);
+        process.stdout.write(`Submitted notarization request for ${appName}.app\n`);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`Notarization failed for ${appName}.app: ${errorMessage}\n`);
+        if (error && typeof error === "object" && "stack" in error && typeof error.stack === "string") {
+            process.stderr.write(`${error.stack}\n`);
+        }
+        throw error;
+    }
 };

@@ -158,8 +158,8 @@ jobs:
                   DEBUG: electron-builder
               run: |
                   if [[ -z "$MACOS_CERT_P12" || -z "$MACOS_CERT_PASSWORD" || -z "$APPLE_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" || -z "$APPLE_TEAM_ID" ]]; then
-                    echo "Mac signing secrets are not configured."
-                    exit 1
+                      echo "Mac signing secrets are not configured."
+                      exit 1
                   fi
 
                   CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
@@ -171,6 +171,9 @@ jobs:
                   export APPLE_ID="$APPLE_ID"
                   export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
                   export APPLE_TEAM_ID="$APPLE_TEAM_ID"
+
+                  # Ensure certificate cleanup happens even if build fails
+                  trap 'rm -f "$CERT_PATH"' EXIT
 
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 

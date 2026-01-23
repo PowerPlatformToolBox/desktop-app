@@ -158,6 +158,9 @@ jobs:
                   export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
                   export APPLE_TEAM_ID="$APPLE_TEAM_ID"
 
+                  # Ensure certificate cleanup happens even if build fails
+                  trap 'rm -f "$CERT_PATH"' EXIT
+
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 
             - name: Remove quarantine attributes (macOS)
