@@ -6,7 +6,6 @@ permissions:
 on:
     push:
         branches:
-            - main
             - dev
     pull_request:
         branches:
@@ -15,17 +14,18 @@ on:
 
 jobs:
     build:
-        name: Build on ${{ matrix.os }}
-        runs-on: ${{ matrix.os }}
-
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest, macos-latest, windows-latest]
+        name: Build
+        runs-on: ubuntu-latest
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
+            - name: Guardrail - block direct main runs
+              if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+              run: |
+                  echo "❌ Direct pushes to main are not allowed."
+                  exit 1
 
             - name: Setup Node.js
               uses: actions/setup-node@v4

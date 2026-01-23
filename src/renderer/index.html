@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
@@ -103,6 +103,7 @@
                         <div class="filter-section">
                             <div class="filter-section-title">Sort By</div>
                             <select id="connections-sort-select" class="filter-dropdown-select">
+                                <option value="last-used">Last Used</option>
                                 <option value="name-asc">Name (A-Z)</option>
                                 <option value="name-desc">Name (Z-A)</option>
                                 <option value="environment">Environment Type</option>
@@ -283,17 +284,6 @@
                                     <div class="settings-field">
                                         <div class="settings-field-header">
                                             <div>
-                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
-                                                <span class="setting-hint">Automatically check for new builds</span>
-                                            </div>
-                                            <div class="setting-checkbox-group">
-                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-field">
-                                        <div class="settings-field-header">
-                                            <div>
                                                 <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
                                                 <span class="setting-hint">Expose the Debug activity to quickly test tools</span>
                                             </div>
@@ -352,6 +342,32 @@
                                         <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
                                     </div>
                                     <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
+                                </div>
+                            </section>
+
+                            <section class="settings-section-card">
+                                <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Updates</p>
+                                    <p class="settings-section-description">Check for the latest version of Power Platform ToolBox.</p>
+                                </div>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <div class="settings-field-header">
+                                            <div>
+                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
+                                                <span class="setting-hint">Automatically check for new builds</span>
+                                            </div>
+                                            <div class="setting-checkbox-group">
+                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="settings-field">
+                                        <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary">
+                                            <span id="check-updates-btn-text">Check for Updates</span>
+                                        </button>
+                                        <div id="update-status-message" class="setting-hint" style="display: none; margin-top: 8px"></div>
+                                    </div>
                                 </div>
                             </section>
 
@@ -427,7 +443,7 @@
 
                             <!-- New Tools Notification Bar -->
                             <div class="new-tools-notification" id="new-tools-notification" style="display: none">
-                                <img class="new-tools-icon" src="icons/dark/star-filled.svg" alt="New tool icon" />
+                                <img id="new-tools-icon" class="new-tools-icon" src="icons/dark/star-filled.svg" alt="New tool icon" />
                                 <span class="new-tools-label">New!</span>
                                 <span class="new-tools-message" id="new-tools-message"></span>
                             </div>
@@ -612,6 +628,14 @@
                 <span id="connection-status" class="connection-status">No active connection</span>
             </div>
             <div class="footer-content-right">
+                <button type="button" class="fluent-button fluent-button-secondary" id="footer-toggle-terminal-btn" title="Show terminal" aria-pressed="false">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <rect x="1.75" y="3" width="12.5" height="10" rx="1.5" stroke="currentColor" stroke-width="1" />
+                        <path d="M4.5 7.25L6.25 8.75L4.5 10.25" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M7.75 10.75H10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+                    </svg>
+                    <span class="footer-terminal-toggle-label">Show Terminal</span>
+                </button>
                 <span id="secondary-connection-status" class="secondary-connection-status"></span>
             </div>
         </footer>

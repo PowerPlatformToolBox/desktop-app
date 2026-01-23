@@ -11,8 +11,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
-import { captureMessage } from "../common/sentryHelper";
+import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { logInfo } from "../common/sentryHelper";
+import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;
@@ -31,7 +32,7 @@ const toolContextReady = new Promise<void>((resolve) => {
 ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge new context with existing to preserve all fields
     toolContext = { ...toolContext, ...context };
-    captureMessage("[ToolPreloadBridge] Received tool context update:", context);
+    logInfo("[ToolPreloadBridge] Received tool context update", context);
     // Resolve the promise so any pending API calls can proceed (only once)
     if (resolveToolContext) {
         resolveToolContext();
@@ -77,6 +78,16 @@ async function ensureToolContext(): Promise<string> {
         throw new Error("Tool context not initialized properly");
     }
     return toolContext.toolId;
+}
+
+async function getToolIdentifiers(): Promise<{ toolId: string; instanceId: string | null }> {
+    await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+    if (!toolContext || typeof toolContext.toolId !== "string") {
+        throw new Error("Tool context not initialized properly");
+    }
+
+    const instanceId = typeof toolContext.instanceId === "string" ? toolContext.instanceId : null;
+    return { toolId: toolContext.toolId, instanceId };
 }
 
 // Helper to make IPC calls and return promises
@@ -159,8 +170,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
         getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
-        getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
-            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+        getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(entityLogicalName: string, relatedPath: P, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget) as Promise<EntityRelatedMetadataResponse<P>>,
         getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
         queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
         publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
@@ -180,8 +191,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showNotification: (options: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
         openExternal: (url: string) => ipcInvoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
-        saveFile: (defaultPath: string, content: unknown) => ipcInvoke(UTIL_CHANNELS.SAVE_FILE, defaultPath, content),
-        selectPath: (options?: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SELECT_PATH, options),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         showLoading: (message?: string) => ipcInvoke(UTIL_CHANNELS.SHOW_LOADING, message),
         hideLoading: () => ipcInvoke(UTIL_CHANNELS.HIDE_LOADING),
@@ -191,18 +200,31 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         },
     },
 
+    // FileSystem API
+    fileSystem: {
+        readText: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_TEXT, path),
+        readBinary: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_BINARY, path),
+        exists: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.EXISTS, path),
+        stat: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.STAT, path),
+        readDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_DIRECTORY, path),
+        writeText: (path: string, content: string) => ipcInvoke(FILESYSTEM_CHANNELS.WRITE_TEXT, path, content),
+        createDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, path),
+        saveFile: (defaultPath: string, content: unknown) => ipcInvoke(FILESYSTEM_CHANNELS.SAVE_FILE, defaultPath, content),
+        selectPath: (options?: Record<string, unknown>) => ipcInvoke(FILESYSTEM_CHANNELS.SELECT_PATH, options),
+    },
+
     // Terminal API
     terminal: {
         create: async (options: Record<string, unknown>) => {
-            const toolId = await ensureToolContext();
-            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, options);
+            const { toolId, instanceId } = await getToolIdentifiers();
+            return ipcInvoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, instanceId, options);
         },
         execute: (terminalId: string, command: string) => ipcInvoke(TERMINAL_CHANNELS.EXECUTE_COMMAND, terminalId, command),
         close: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.CLOSE_TERMINAL, terminalId),
         get: (terminalId: string) => ipcInvoke(TERMINAL_CHANNELS.GET_TERMINAL, terminalId),
         list: async () => {
-            const toolId = await ensureToolContext();
-            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId);
+            const { toolId, instanceId } = await getToolIdentifiers();
+            return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId, instanceId);
         },
         listAll: () => ipcInvoke(TERMINAL_CHANNELS.GET_ALL_TERMINALS),
         setVisibility: (terminalId: string, visible: boolean) => ipcInvoke(TERMINAL_CHANNELS.SET_VISIBILITY, terminalId, visible),
@@ -257,8 +279,8 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
     getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_METADATA, entityLogicalName, searchByLogicalName, selectColumns, connectionTarget),
     getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_ALL_ENTITIES_METADATA, selectColumns, connectionTarget),
-    getEntityRelatedMetadata: (entityLogicalName: string, relatedPath: string, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
-        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget),
+    getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(entityLogicalName: string, relatedPath: P, selectColumns?: string[], connectionTarget?: "primary" | "secondary") =>
+        ipcInvoke(DATAVERSE_CHANNELS.GET_ENTITY_RELATED_METADATA, entityLogicalName, relatedPath, selectColumns, connectionTarget) as Promise<EntityRelatedMetadataResponse<P>>,
     getSolutions: (selectColumns: string[], connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SOLUTIONS, selectColumns, connectionTarget),
     queryData: (odataQuery: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.QUERY_DATA, odataQuery, connectionTarget),
     publishCustomizations: (tableLogicalName?: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS, tableLogicalName, connectionTarget),
@@ -273,4 +295,4 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
 });
 
-captureMessage("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
+logInfo("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");

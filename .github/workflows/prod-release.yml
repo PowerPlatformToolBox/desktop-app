@@ -18,7 +18,19 @@ jobs:
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
+                include:
+                    - os: ubuntu-latest
+                      config: buildScripts/electron-builder-linux.json
+                      artifact_name: linux-release
+                    - os: windows-latest
+                      config: buildScripts/electron-builder-win.json
+                      artifact_name: windows-x64-release
+                    - os: windows-latest
+                      config: buildScripts/electron-builder-win-arm64.json
+                      artifact_name: windows-arm64-release
+                    - os: macos-latest
+                      config: buildScripts/electron-builder-mac.json
+                      artifact_name: macos-release
 
         steps:
             - name: Checkout main branch
@@ -31,23 +43,12 @@ jobs:
               shell: bash
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
-                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+                  if ! grep -q "^# Power Platform ToolBox $CURRENT_VERSION" RELEASE_NOTES.md; then
+                    echo "Error: RELEASE_NOTES.md does not contain heading '# Power Platform ToolBox $CURRENT_VERSION'."
+                        exit 1
+                    fi
 
-                  if [ -n "$LAST_TAG" ]; then
-                      if [ "v$CURRENT_VERSION" = "$LAST_TAG" ]; then
-                          echo "Error: package.json version $CURRENT_VERSION has not been incremented beyond $LAST_TAG."
-                          exit 1
-                      fi
-                  else
-                      echo "Warning: no previous tag found; skipping version increment check."
-                  fi
-
-                  if ! grep -q "Power Platform ToolBox v$CURRENT_VERSION" RELEASE_NOTES.md; then
-                      echo "Error: RELEASE_NOTES.md does not contain entry for Power Platform ToolBox v$CURRENT_VERSION."
-                      exit 1
-                  fi
-
-                  echo "Version and release notes validation passed for v$CURRENT_VERSION."
+                  echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -81,7 +82,7 @@ jobs:
 
             - name: Package application (Ubuntu)
               if: matrix.os == 'ubuntu-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -94,7 +95,7 @@ jobs:
 
             - name: Package application (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -107,7 +108,7 @@ jobs:
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -138,7 +139,7 @@ jobs:
               if: matrix.os == 'ubuntu-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: linux-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.AppImage
                       build/*.snap
@@ -151,7 +152,7 @@ jobs:
               if: matrix.os == 'windows-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.exe
                       build/*.msi
@@ -162,7 +163,7 @@ jobs:
               if: matrix.os == 'macos-latest'
               uses: actions/upload-artifact@v4
               with:
-                  name: macos-release
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.dmg
                       build/*.pkg

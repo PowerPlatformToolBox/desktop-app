@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -29,10 +29,7 @@ if (sentryConfig) {
                 enableLongTask: true,
                 enableInp: true,
             }),
-            Sentry.replayIntegration({
-                maskAllText: true,
-                blockAllMedia: true,
-            }),
+            Sentry.replayIntegration(),
             // Context lines integration for better error context
             Sentry.contextLinesIntegration(),
         ],
@@ -59,28 +56,27 @@ if (sentryConfig) {
     // Initialize the helper with the Sentry module
     initializeSentryHelper(Sentry);
 
-    console.log("[Sentry] Initialized in renderer process with tracing and logging");
+    logInfo("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
 
     // Machine ID will be set via IPC from main process after settings are loaded
 } else {
-    console.log("[Sentry] Telemetry disabled - no DSN configured");
+    logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { Theme } from "../../common/types";
 import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
-import { setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
-import { saveSidebarSettings, setOriginalSettings } from "./settingsManagement";
+import { saveSidebarSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, initializeTabScrollButtons, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -264,6 +260,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up terminal toggle button
         setupTerminalPanel();
 
+        // Set up periodic token expiry checking for active tool connections
+        setupTokenExpiryCheck();
+
         addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
@@ -407,6 +406,21 @@ function setupSidebarButtons(): void {
     if (sidebarSaveSettingsBtn) {
         sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
     }
+
+    // Sidebar check for updates button
+    const sidebarCheckForUpdatesBtn = document.getElementById("sidebar-check-for-updates-btn");
+    if (sidebarCheckForUpdatesBtn) {
+        sidebarCheckForUpdatesBtn.addEventListener("click", async () => {
+            try {
+                await handleCheckForUpdates();
+            } catch (error) {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { phase: "check_for_updates" },
+                    level: "error",
+                });
+            }
+        });
+    }
 }
 
 /**
@@ -537,68 +551,29 @@ function setupDebugSection(): void {
  * Set up settings change listeners
  */
 function setupSettingsListeners(): void {
-    // Theme selector
-    const themeSelect = document.getElementById("sidebar-theme-select") as HTMLSelectElement | null;
-    if (themeSelect) {
-        themeSelect.addEventListener("change", async () => {
-            const theme = themeSelect.value as Theme;
-            if (theme) {
-                await window.toolboxAPI.updateUserSettings({ theme });
-                applyTheme(theme);
-                setOriginalSettings({ theme });
-            }
-        });
-    }
-
     // Terminal font selector
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as HTMLSelectElement | null;
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
 
+    const toggleCustomFontVisibility = (): void => {
+        if (!customFontContainer) {
+            return;
+        }
+
+        const isCustomSelected = terminalFontSelect?.value === "custom";
+        customFontContainer.style.display = isCustomSelected ? "block" : "none";
+
+        if (isCustomSelected && customFontInput) {
+            customFontInput.focus();
+        }
+    };
+
     if (terminalFontSelect) {
-        terminalFontSelect.addEventListener("change", async () => {
-            const terminalFont = terminalFontSelect.value;
-
-            if (customFontContainer) {
-                if (terminalFont === "custom") {
-                    customFontContainer.style.display = "block";
-                    if (customFontInput && customFontInput.value.trim()) {
-                        await window.toolboxAPI.updateUserSettings({ terminalFont: customFontInput.value.trim() });
-                        applyTerminalFont(customFontInput.value.trim());
-                        setOriginalSettings({ terminalFont: customFontInput.value.trim() });
-                    }
-                } else {
-                    customFontContainer.style.display = "none";
-                    await window.toolboxAPI.updateUserSettings({ terminalFont });
-                    applyTerminalFont(terminalFont);
-                    setOriginalSettings({ terminalFont });
-                }
-            } else if (terminalFont && terminalFont !== "custom") {
-                await window.toolboxAPI.updateUserSettings({ terminalFont });
-                applyTerminalFont(terminalFont);
-                setOriginalSettings({ terminalFont });
-            }
-        });
+        terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
     }
 
-    // Custom font input
-    if (customFontInput) {
-        const applyCustomFont = async () => {
-            const customFont = customFontInput.value.trim();
-            if (customFont) {
-                await window.toolboxAPI.updateUserSettings({ terminalFont: customFont });
-                applyTerminalFont(customFont);
-                setOriginalSettings({ terminalFont: customFont });
-            }
-        };
-
-        customFontInput.addEventListener("blur", applyCustomFont);
-        customFontInput.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") {
-                applyCustomFont();
-            }
-        });
-    }
+    toggleCustomFontVisibility();
 }
 
 /**
@@ -710,7 +685,7 @@ function setupAuthenticationListeners(): void {
     });
 
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
-        console.log("Token expired for connection:", data);
+        logInfo("Token expired for connection:", data);
 
         showPPTBNotification({
             title: "Connection Token Expired",
@@ -764,7 +739,21 @@ function setupLoadingScreenListeners(): void {
 function setupToolboxEventListeners(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
-        console.log("ToolBox Event:", payload);
+        logInfo("ToolBox Event:", { payload });
+
+        if (payload.event === "menu:launch-tool") {
+            const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
+            if (toolId) {
+                void launchTool(toolId, {
+                    source: payload.data?.source,
+                    primaryConnectionId: payload.data?.primaryConnectionId ?? null,
+                    secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
+                });
+            } else {
+                console.warn("Menu launch event missing toolId", payload);
+            }
+            return;
+        }
 
         // Handle notifications
         if (payload.event === "notification:shown") {
@@ -779,24 +768,27 @@ function setupToolboxEventListeners(): void {
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
-            console.log("Connection event detected, reloading connections...");
+            logInfo("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => {
                 captureException(err instanceof Error ? err : new Error(String(err)), {
                     tags: { phase: "connection_reload" },
                     level: "warning",
                 });
             });
-            updateFooterConnection().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "footer_update" },
-                    level: "warning",
+            // Update active tool connection status to reflect changes
+            import("./toolManagement").then(({ updateActiveToolConnectionStatus }) => {
+                updateActiveToolConnectionStatus().catch((err) => {
+                    captureException(err instanceof Error ? err : new Error(String(err)), {
+                        tags: { phase: "footer_update" },
+                        level: "warning",
+                    });
                 });
             });
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
-            console.log("Tool event detected, reloading tools...");
+            logInfo("Tool event detected, reloading tools...");
             loadSidebarTools().catch((err) => {
                 captureException(err instanceof Error ? err : new Error(String(err)), {
                     tags: { phase: "tools_reload" },
@@ -835,7 +827,7 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: Math.round(rect.height),
             };
-            console.log("[Renderer] Sending tool panel bounds:", bounds);
+            logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
             console.warn("[Renderer] Tool panel content element not found");
@@ -929,4 +921,38 @@ function setupFilterDropdownToggles(): void {
             e.stopPropagation();
         });
     });
+}
+
+// Store the interval ID for potential cleanup
+// Note: This interval runs for the lifetime of the application, so cleanup is not currently needed
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Set up periodic token expiry checking for active tool connections
+ * Checks every minute if the active tool's connection token has expired
+ */
+function setupTokenExpiryCheck(): void {
+    // Check immediately on setup
+    void checkActiveToolTokenExpiry();
+
+    // Then check every 60 seconds
+    // Note: This interval runs for the lifetime of the application
+    tokenExpiryCheckInterval = setInterval(() => {
+        void checkActiveToolTokenExpiry();
+    }, 60000); // Check every minute
+}
+
+/**
+ * Check if the active tool's connection token has expired and update the footer
+ */
+async function checkActiveToolTokenExpiry(): Promise<void> {
+    try {
+        // Import updateActiveToolConnectionStatus to refresh the footer status
+        const { updateActiveToolConnectionStatus } = await import("./toolManagement");
+        await updateActiveToolConnectionStatus();
+    } catch (error) {
+        // Silently fail - this is a background check
+        logInfo("Token expiry check failed:", { error });
+    }
 }

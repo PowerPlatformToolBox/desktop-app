@@ -4,8 +4,10 @@
  */
 
 import AnsiToHtml from "ansi-to-html";
+import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
 import type { TerminalTab } from "../types/index";
+import { getToolInstanceDisplayName } from "./toolManagement";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml(ANSI_CONVERTER_CONFIG);
@@ -18,34 +20,26 @@ let activeTerminalId: string | null = null;
  * Set up terminal panel UI and event handlers
  */
 export function setupTerminalPanel(): void {
-    const toggleBtn = document.getElementById("footer-toggle-terminal-btn");
+    const toggleBtn = document.getElementById("footer-toggle-terminal-btn") as HTMLButtonElement | null;
     const terminalPanel = document.getElementById("terminal-panel");
     const terminalPanelClose = document.getElementById("terminal-panel-close");
     const resizeHandle = document.getElementById("terminal-resize-handle");
 
-    if (toggleBtn && terminalPanel) {
+    if (toggleBtn) {
         toggleBtn.addEventListener("click", () => {
-            const isVisible = terminalPanel.style.display !== "none";
-            if (isVisible) {
-                terminalPanel.style.display = "none";
-                if (resizeHandle) resizeHandle.style.display = "none";
-                // Notify main process to adjust BrowserView bounds for full height
-                window.api.send("terminal-visibility-changed", false);
+            if (isTerminalPanelVisible()) {
+                hideTerminalPanel();
             } else {
-                terminalPanel.style.display = "flex";
-                if (resizeHandle) resizeHandle.style.display = "block";
-                // Notify main process to adjust BrowserView bounds for terminal
-                window.api.send("terminal-visibility-changed", true);
+                showTerminalPanel();
             }
         });
+
+        updateTerminalFooterToggle(isTerminalPanelVisible());
     }
 
-    if (terminalPanelClose && terminalPanel) {
+    if (terminalPanelClose) {
         terminalPanelClose.addEventListener("click", () => {
-            terminalPanel.style.display = "none";
-            if (resizeHandle) resizeHandle.style.display = "none";
-            // Notify main process to adjust BrowserView bounds for full height
-            window.api.send("terminal-visibility-changed", false);
+            hideTerminalPanel();
         });
     }
 
@@ -66,10 +60,7 @@ export function setupTerminalPanel(): void {
         document.addEventListener("mousemove", (e) => {
             if (!isResizing) return;
             const deltaY = startY - e.clientY;
-            const newHeight = Math.max(
-                TERMINAL_RESIZE_CONFIG.MIN_HEIGHT,
-                Math.min(startHeight + deltaY, window.innerHeight * TERMINAL_RESIZE_CONFIG.MAX_HEIGHT_RATIO)
-            );
+            const newHeight = Math.max(TERMINAL_RESIZE_CONFIG.MIN_HEIGHT, Math.min(startHeight + deltaY, window.innerHeight * TERMINAL_RESIZE_CONFIG.MAX_HEIGHT_RATIO));
             terminalPanel.style.height = `${newHeight}px`;
         });
 
@@ -86,7 +77,7 @@ export function setupTerminalPanel(): void {
  * Handle terminal created event
  */
 export function handleTerminalCreated(terminal: any): void {
-    console.log("Terminal created:", terminal);
+    logInfo("Terminal created:", { terminal });
     createTerminalTab(terminal);
     showTerminalPanel();
 }
@@ -95,7 +86,7 @@ export function handleTerminalCreated(terminal: any): void {
  * Handle terminal closed event
  */
 export function handleTerminalClosed(data: any): void {
-    console.log("Terminal closed:", data);
+    logInfo("Terminal closed:", data);
     removeTerminalTab(data.terminalId);
 }
 
@@ -111,7 +102,7 @@ export function handleTerminalOutput(data: any): void {
  * Handle terminal command completed event
  */
 export function handleTerminalCommandCompleted(result: any): void {
-    console.log("Terminal command completed:", result);
+    logInfo("Terminal command completed:", result);
     // Output is already displayed via terminal:output events
 }
 
@@ -132,23 +123,17 @@ function createTerminalTab(terminal: any): void {
 
     if (!terminalTabs || !terminalPanelContent) return;
 
+    const displayName = getTerminalDisplayName(terminal);
+
     // Create tab element
     const tabElement = document.createElement("button");
     tabElement.className = "terminal-tab";
     tabElement.dataset.terminalId = terminal.id;
 
     const tabLabel = document.createElement("span");
-    tabLabel.textContent = terminal.name;
+    tabLabel.textContent = displayName;
+    tabLabel.title = displayName;
     tabElement.appendChild(tabLabel);
-
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "terminal-tab-close";
-    closeBtn.innerHTML = "×";
-    closeBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        await window.toolboxAPI.terminal.close(terminal.id);
-    });
-    tabElement.appendChild(closeBtn);
 
     tabElement.addEventListener("click", () => {
         switchTerminalTab(terminal.id);
@@ -178,14 +163,15 @@ function createTerminalTab(terminal: any): void {
             }
         })
         .catch((error: Error) => {
-            console.error("Failed to apply terminal font:", error);
+            captureMessage("Failed to apply terminal font:", "error", { extra: { error } });
         });
 
     // Store terminal tab
     openTerminals.set(terminal.id, {
         id: terminal.id,
-        name: terminal.name,
+        name: displayName,
         toolId: terminal.toolId,
+        toolInstanceId: terminal.toolInstanceId ?? null,
         element: tabElement,
         outputElement: outputContent,
     });
@@ -266,6 +252,25 @@ function appendTerminalOutput(terminalId: string, output: string): void {
     terminal.outputElement.scrollTop = terminal.outputElement.scrollHeight;
 }
 
+function getTerminalDisplayName(terminal: any): string {
+    if (terminal && typeof terminal.toolInstanceId === "string") {
+        const connectedTabName = getToolInstanceDisplayName(terminal.toolInstanceId);
+        if (connectedTabName) {
+            return connectedTabName;
+        }
+    }
+
+    if (terminal && typeof terminal.name === "string" && terminal.name.trim().length > 0) {
+        return terminal.name;
+    }
+
+    if (terminal && typeof terminal.toolId === "string" && terminal.toolId.trim().length > 0) {
+        return terminal.toolId;
+    }
+
+    return "Terminal";
+}
+
 /**
  * Show terminal panel
  */
@@ -273,13 +278,17 @@ function showTerminalPanel(): void {
     const terminalPanel = document.getElementById("terminal-panel");
     const resizeHandle = document.getElementById("terminal-resize-handle");
 
-    if (terminalPanel) {
-        terminalPanel.style.display = "flex";
+    if (!terminalPanel) {
+        updateTerminalFooterToggle(false);
+        return;
     }
+
+    terminalPanel.style.display = "flex";
     if (resizeHandle) {
         resizeHandle.style.display = "block";
     }
 
+    updateTerminalFooterToggle(true);
     // Notify main process to adjust BrowserView bounds for terminal
     window.api.send("terminal-visibility-changed", true);
 }
@@ -291,13 +300,51 @@ function hideTerminalPanel(): void {
     const terminalPanel = document.getElementById("terminal-panel");
     const resizeHandle = document.getElementById("terminal-resize-handle");
 
-    if (terminalPanel) {
-        terminalPanel.style.display = "none";
+    if (!terminalPanel) {
+        updateTerminalFooterToggle(false);
+        return;
     }
+
+    terminalPanel.style.display = "none";
     if (resizeHandle) {
         resizeHandle.style.display = "none";
     }
 
+    updateTerminalFooterToggle(false);
     // Notify main process to adjust BrowserView bounds for full height
     window.api.send("terminal-visibility-changed", false);
+}
+
+/**
+ * Determine whether the terminal panel is currently visible
+ */
+function isTerminalPanelVisible(): boolean {
+    const terminalPanel = document.getElementById("terminal-panel");
+    if (!terminalPanel) {
+        return false;
+    }
+
+    if (terminalPanel.style.display) {
+        return terminalPanel.style.display !== "none";
+    }
+
+    return window.getComputedStyle(terminalPanel).display !== "none";
+}
+
+/**
+ * Update the footer toggle button to reflect the current visibility state
+ */
+function updateTerminalFooterToggle(isVisible: boolean): void {
+    const toggleBtn = document.getElementById("footer-toggle-terminal-btn");
+    if (!toggleBtn) {
+        return;
+    }
+
+    toggleBtn.setAttribute("aria-pressed", isVisible ? "true" : "false");
+    toggleBtn.setAttribute("title", isVisible ? "Hide terminal" : "Show terminal");
+
+    const label = toggleBtn.querySelector(".footer-terminal-toggle-label");
+    if (label) {
+        label.textContent = isVisible ? "Hide Terminal" : "Show Terminal";
+    }
 }

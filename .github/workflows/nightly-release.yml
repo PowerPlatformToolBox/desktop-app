@@ -38,7 +38,19 @@ jobs:
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
+                include:
+                    - os: ubuntu-latest
+                      config: buildScripts/electron-builder-linux.json
+                      artifact_name: linux-build
+                    - os: windows-latest
+                      config: buildScripts/electron-builder-win.json
+                      artifact_name: windows-x64-build
+                    - os: windows-latest
+                      config: buildScripts/electron-builder-win-arm64.json
+                      artifact_name: windows-arm64-build
+                    - os: macos-latest
+                      config: buildScripts/electron-builder-mac.json
+                      artifact_name: macos-build
 
         steps:
             - name: Checkout dev branch
@@ -84,7 +96,7 @@ jobs:
 
             - name: Package application (Ubuntu)
               if: matrix.os == 'ubuntu-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -97,7 +109,7 @@ jobs:
 
             - name: Package application (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -110,7 +122,7 @@ jobs:
 
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
-              run: pnpm run package
+              run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -140,7 +152,7 @@ jobs:
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{ matrix.os }}-build
+                  name: ${{ matrix.artifact_name }}
                   path: |
                       build/*.dmg
                       build/*.pkg
@@ -222,10 +234,10 @@ jobs:
             - name: Generate what's new
               id: whatsnew
               run: |
-                  # Get last 5-10 commits since last tag
+                  # Get last 10 commits since last tag (avoid SIGPIPE with direct limit)
                   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
                   if [ -n "$LAST_TAG" ]; then
-                    COMMITS=$(git log --oneline --no-merges "$LAST_TAG"..HEAD | head -10)
+                    COMMITS=$(git log --oneline --no-merges -10 "$LAST_TAG"..HEAD)
                   else
                     COMMITS=$(git log --oneline --no-merges -10)
                   fi

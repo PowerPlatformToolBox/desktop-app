@@ -1,7 +1,6 @@
-import { clipboard, dialog } from "electron";
+import { clipboard } from "electron";
 import { EventEmitter } from "events";
-import * as fs from "fs";
-import { NotificationOptions, SelectPathOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../common/types";
+import { NotificationOptions, ToolBoxEvent, ToolBoxEventPayload } from "../../common/types";
 
 /**
  * ToolBox API that provides events and functionality to tools
@@ -27,56 +26,6 @@ export class ToolBoxUtilityManager extends EventEmitter {
      */
     copyToClipboard(text: string): void {
         clipboard.writeText(text);
-    }
-
-    /**
-     * Save file dialog and write content
-     */
-    async saveFile(defaultPath: string, content: string | Buffer): Promise<string | null> {
-        const result = await dialog.showSaveDialog({
-            defaultPath,
-            filters: [
-                { name: "All Files", extensions: ["*"] },
-                { name: "Text Files", extensions: ["txt"] },
-                { name: "JSON Files", extensions: ["json"] },
-                { name: "XML Files", extensions: ["xml"] },
-                { name: "CSV Files", extensions: ["csv"] },
-            ],
-        });
-
-        if (result.canceled || !result.filePath) {
-            return null;
-        }
-
-        try {
-            fs.writeFileSync(result.filePath, content);
-            return result.filePath;
-        } catch (error) {
-            throw new Error(`Failed to save file: ${(error as Error).message}`);
-        }
-    }
-
-    /**
-     * Open a system dialog to select a file or folder
-     */
-    async selectPath(options?: SelectPathOptions): Promise<string | null> {
-        const selectionType = options?.type ?? "file";
-        const properties: Array<"openFile" | "openDirectory" | "promptToCreate" | "createDirectory"> = selectionType === "folder" ? ["openDirectory", "createDirectory"] : ["openFile"];
-
-        const result = await dialog.showOpenDialog({
-            title: options?.title,
-            message: options?.message,
-            buttonLabel: options?.buttonLabel,
-            defaultPath: options?.defaultPath,
-            filters: selectionType === "file" ? options?.filters : undefined,
-            properties,
-        });
-
-        if (result.canceled || result.filePaths.length === 0) {
-            return null;
-        }
-
-        return result.filePaths[0];
     }
 
     /**

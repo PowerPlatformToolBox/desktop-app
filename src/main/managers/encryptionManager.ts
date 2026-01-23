@@ -48,7 +48,9 @@ export class EncryptionManager {
             const buffer = Buffer.from(encrypted, "base64");
             return safeStorage.decryptString(buffer);
         } catch (error) {
-            console.error("Failed to decrypt data:", error);
+            captureMessage("Failed to decrypt data:", "error", {
+                extra: { error },
+            });
             // If decryption fails, it might be plain text from before encryption was added
             // Return as-is for backwards compatibility
             return encrypted;

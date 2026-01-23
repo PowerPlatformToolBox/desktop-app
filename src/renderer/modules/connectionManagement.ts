@@ -3,7 +3,9 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import type { DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import { captureMessage, logInfo } from "../../common/sentryHelper";
+import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
@@ -12,6 +14,7 @@ import { getSelectConnectionModalControllerScript } from "../modals/selectConnec
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
 import { getSelectMultiConnectionModalView } from "../modals/selectMultiConnection/view";
+import { sortConnections } from "../utils/connectionSorting";
 import {
     closeBrowserWindowModal,
     offBrowserWindowModalClosed,
@@ -22,7 +25,7 @@ import {
 } from "./browserWindowModals";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
-type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword";
+type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
 
 interface ConnectionFormPayload {
     id?: string;
@@ -36,6 +39,9 @@ interface ConnectionFormPayload {
     username?: string;
     password?: string;
     optionalClientId?: string;
+    interactiveUsername?: string;
+    interactiveTenantId?: string;
+    connectionString?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -136,6 +142,27 @@ let highlightConnectionId: string | null = null;
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
 
+const CONNECTIONS_SORT_SETTING_KEY = "connectionsSort";
+const DEFAULT_CONNECTIONS_SORT: ConnectionsSortOption = "last-used";
+
+function coerceConnectionsSortOption(value: unknown): ConnectionsSortOption {
+    if (value === "last-used" || value === "name-asc" || value === "name-desc" || value === "environment") {
+        return value as ConnectionsSortOption;
+    }
+
+    return DEFAULT_CONNECTIONS_SORT;
+}
+
+async function getConnectionsSortPreference(): Promise<ConnectionsSortOption> {
+    try {
+        const storedPreference = await window.toolboxAPI.getSetting(CONNECTIONS_SORT_SETTING_KEY);
+        return coerceConnectionsSortOption(storedPreference);
+    } catch (error) {
+        captureMessage("Failed to read connections sort preference", "warning", { extra: { error } });
+        return DEFAULT_CONNECTIONS_SORT;
+    }
+}
+
 /**
  * Update footer connection information
  */
@@ -155,7 +182,7 @@ export async function updateFooterConnection(): Promise<void> {
             footerChangeBtn.style.display = "none";
         }
     } catch (error) {
-        console.error("Error updating footer connection:", error);
+        captureMessage("Error updating footer connection:", "error", { extra: { error } });
     }
 }
 
@@ -312,7 +339,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
             resolveHandler(connectionId);
         }
     } catch (error) {
-        console.error("Error connecting to selected connection:", error);
+        captureMessage("Error connecting to selected connection:", "error", { extra: { error } });
         await signalSelectConnectionReady();
 
         // Don't close modal on error - let user try again or cancel
@@ -322,19 +349,24 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
+        const sortOption = await getConnectionsSortPreference();
+        const sortedConnections = sortConnections(connections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
+                sortOption,
                 // Map persisted connections to UI-level data with isActive property
-                connections: connections.map(
+                connections: sortedConnections.map(
                     (conn: DataverseConnection): UIConnectionData => ({
                         id: conn.id,
                         name: conn.name,
                         url: conn.url,
                         environment: conn.environment,
                         authenticationType: conn.authenticationType,
+                        lastUsedAt: conn.lastUsedAt,
+                        createdAt: conn.createdAt,
                         // If highlightConnectionId is set (tool-specific modal), use it to mark as active
                         // Otherwise, mark none as active since there's no global active connection
                         isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
@@ -343,7 +375,7 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
             },
         });
     } catch (error) {
-        console.error("Failed to populate connections:", error);
+        captureMessage("Failed to populate connections:", "error", { extra: { error } });
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -441,7 +473,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 },
             });
         } catch (error) {
-            console.error("Error authenticating connection:", error);
+            captureMessage("Error authenticating connection:", "error", { extra: { error } });
             // Send failure message back to modal
             await sendBrowserWindowModalMessage({
                 channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
@@ -472,7 +504,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
             }
         } catch (error) {
-            console.error("Error confirming multi-connections:", error);
+            captureMessage("Error confirming multi-connections:", "error", { extra: { error } });
         }
         return;
     }
@@ -500,7 +532,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             resolveHandler({ primaryConnectionId, secondaryConnectionId });
         }
     } catch (error) {
-        console.error("Error selecting multi-connections:", error);
+        captureMessage("Error selecting multi-connections:", "error", { extra: { error } });
         await signalSelectMultiConnectionReady();
     }
 }
@@ -508,22 +540,28 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
 async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
+        const sortOption = await getConnectionsSortPreference();
+        const sortedConnections = sortConnections(connections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
-                connections: connections.map((conn: DataverseConnection) => ({
+                sortOption,
+                connections: sortedConnections.map((conn: DataverseConnection) => ({
                     id: conn.id,
                     name: conn.name,
                     url: conn.url,
                     environment: conn.environment,
                     authenticationType: conn.authenticationType,
+                    lastUsedAt: conn.lastUsedAt,
+                    createdAt: conn.createdAt,
+                    isActive: false,
                 })),
             },
         });
     } catch (error) {
-        console.error("Failed to populate multi-connections:", error);
+        captureMessage("Failed to populate multi-connections:", "error", { extra: { error } });
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -539,16 +577,16 @@ async function signalSelectMultiConnectionReady(): Promise<void> {
  * Load connections list in the connections view
  */
 export async function loadConnections(): Promise<void> {
-    console.log("loadConnections() called");
+    logInfo("loadConnections() called");
     const connectionsList = document.getElementById("connections-list");
     if (!connectionsList) {
-        console.error("connections-list element not found");
+        captureMessage("connections-list element not found", "error");
         return;
     }
 
     try {
         const connections = await window.toolboxAPI.connections.getAll();
-        console.log("Loaded connections:", connections);
+        logInfo("Loaded connections:", { connections });
 
         if (connections.length === 0) {
             connectionsList.innerHTML = `
@@ -599,7 +637,7 @@ export async function loadConnections(): Promise<void> {
                 } else if (action === "disconnect") {
                     // Disconnect action is no longer needed as there's no global active connection
                     // Tools have their own per-instance connections
-                    console.log("Disconnect action is deprecated - connections are per-tool-instance");
+                    logInfo("Disconnect action is deprecated - connections are per-tool-instance");
                 } else if (action === "edit" && connectionId) {
                     editConnection(connectionId);
                 } else if (action === "delete" && connectionId) {
@@ -612,7 +650,7 @@ export async function loadConnections(): Promise<void> {
         const activeConn = connections.find((c: any) => c.isActive);
         updateFooterConnectionStatus(activeConn || null);
     } catch (error) {
-        console.error("Error loading connections:", error);
+        captureMessage("Error loading connections:", "error", { extra: { error } });
         connectionsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading connections</p>
@@ -705,7 +743,7 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        console.error("Token refresh failed:", error);
+        captureMessage("Token refresh failed:", "error", { extra: { error } });
 
         // If refresh fails, notify user to re-authenticate
         await window.toolboxAPI.utils.showNotification({
@@ -744,7 +782,7 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
         await closeBrowserWindowModal();
         await loadConnections();
     } catch (error) {
-        console.error("Error adding connection:", error);
+        captureMessage("Error adding connection:", "error", { extra: { error } });
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Add Connection",
             body: (error as Error).message,
@@ -838,7 +876,7 @@ export function initializeEditConnectionModalBridge(): void {
  * Edit a connection by ID
  */
 export async function editConnection(id: string): Promise<void> {
-    console.log("editConnection called with id:", id);
+    logInfo("editConnection called with id:", { connectionId: id });
     editingConnectionId = id;
     initializeEditConnectionModalBridge();
     await showBrowserWindowModal({
@@ -884,7 +922,7 @@ function buildEditConnectionModalHtml(): string {
 
 async function handlePopulateEditConnectionRequest(): Promise<void> {
     if (!editingConnectionId) {
-        console.error("No connection ID to edit");
+        captureMessage("No connection ID to edit", "error");
         return;
     }
 
@@ -899,7 +937,7 @@ async function handlePopulateEditConnectionRequest(): Promise<void> {
             data: connection,
         });
     } catch (error) {
-        console.error("Failed to populate connection for editing:", error);
+        captureMessage("Failed to populate connection for editing:", "error", { extra: { error } });
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Load Connection",
             body: (error as Error).message,
@@ -945,7 +983,7 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         await loadConnections();
         await loadSidebarConnections();
     } catch (error) {
-        console.error("Error updating connection:", error);
+        captureMessage("Error updating connection:", "error", { extra: { error } });
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Update Connection",
             body: (error as Error).message,
@@ -971,13 +1009,13 @@ async function setEditConnectionTestFeedback(message?: string): Promise<void> {
  * Delete a connection by ID
  */
 export async function deleteConnection(id: string): Promise<void> {
-    console.log("deleteConnection called with id:", id);
+    logInfo("deleteConnection called with id:", { connectionId: id });
     if (!confirm("Are you sure you want to delete this connection?")) {
         return;
     }
 
     try {
-        console.log("Calling window.toolboxAPI.deleteConnection");
+        logInfo("Calling window.toolboxAPI.deleteConnection");
         await window.toolboxAPI.connections.delete(id);
 
         await window.toolboxAPI.utils.showNotification({
@@ -988,7 +1026,7 @@ export async function deleteConnection(id: string): Promise<void> {
 
         await loadConnections();
     } catch (error) {
-        console.error("Error deleting connection:", error);
+        captureMessage("Error deleting connection:", "error", { extra: { error } });
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Delete Connection",
             body: (error as Error).message,
@@ -1002,6 +1040,36 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Connection form data is unavailable.";
     }
 
+    const authType = normalizeAuthenticationType(formPayload.authenticationType);
+
+    // Special validation for connection string
+    if (authType === "connectionString") {
+        const connectionString = sanitizeInput(formPayload.connectionString);
+        if (!connectionString) {
+            return "Please provide a connection string.";
+        }
+
+        // Try to parse the connection string
+        const parsed = parseConnectionString(connectionString);
+        if (!parsed || !parsed.url) {
+            return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
+        }
+
+        // Validate URL format
+        const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+        if (!dynamicsUrlPattern.test(parsed.url)) {
+            return "Connection string URL must contain .crm*.dynamics pattern (e.g., https://orgname.crm.dynamics.com).";
+        }
+
+        // Connection name is still required for add/edit modes even with connection string
+        if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
+            return "Please provide a connection name.";
+        }
+
+        return null;
+    }
+
+    // Standard validation for non-connection-string types
     if (!sanitizeInput(formPayload.url)) {
         return "Please provide an environment URL.";
     }
@@ -1016,8 +1084,6 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
         return "Please provide a connection name.";
     }
-
-    const authType = normalizeAuthenticationType(formPayload.authenticationType);
 
     if (authType === "clientSecret") {
         if (!sanitizeInput(formPayload.clientId) || !sanitizeInput(formPayload.clientSecret) || !sanitizeInput(formPayload.tenantId)) {
@@ -1034,8 +1100,39 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 
 function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
+
+    // Handle connection string specially
+    if (authenticationType === "connectionString") {
+        const connectionString = sanitizeInput(formPayload.connectionString);
+        const parsed = parseConnectionString(connectionString);
+
+        if (!parsed || !parsed.url) {
+            throw new Error("Invalid connection string format");
+        }
+
+        // Build connection from parsed data
+        const connection: DataverseConnection = {
+            id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
+            name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
+            url: parsed.url,
+            environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
+            authenticationType: parsed.authenticationType!,
+            createdAt: new Date().toISOString(),
+        };
+
+        // Add auth-specific fields from parsed connection string
+        if (parsed.clientId) connection.clientId = parsed.clientId;
+        if (parsed.clientSecret) connection.clientSecret = parsed.clientSecret;
+        if (parsed.tenantId) connection.tenantId = parsed.tenantId;
+        if (parsed.username) connection.username = parsed.username;
+        if (parsed.password) connection.password = parsed.password;
+
+        return connection;
+    }
+
+    // Standard connection building for non-connection-string types
     const connection: DataverseConnection = {
-        id: mode === "add" ? Date.now().toString() : mode === "edit" ? formPayload.id ?? "" : "test",
+        id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
         environment: mode === "add" || mode === "edit" ? normalizeEnvironment(formPayload.environment) : "Test",
@@ -1056,9 +1153,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
             connection.clientId = optionalClientId;
         }
     } else if (authenticationType === "interactive") {
+        // Interactive OAuth with optional username (login_hint), clientId, and tenantId
+        const interactiveUsername = sanitizeInput(formPayload.interactiveUsername);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        // Explicitly set clientId to undefined when empty to ensure it gets cleared in updates
-        connection.clientId = optionalClientId ? optionalClientId : undefined;
+        const interactiveTenantId = sanitizeInput(formPayload.interactiveTenantId);
+
+        connection.username = interactiveUsername || undefined;
+        connection.clientId = optionalClientId || undefined;
+        connection.tenantId = interactiveTenantId || undefined;
     }
 
     return connection;
@@ -1080,17 +1182,18 @@ function normalizeEnvironment(value?: string): ConnectionEnvironment {
     return map[normalized] || "Dev";
 }
 
-function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword") {
+function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePassword" | "connectionString") {
     const labels: Record<string, string> = {
         interactive: "Microsoft Login",
         clientSecret: "Client Secret",
         usernamePassword: "Username/Password",
+        connectionString: "Connection String",
     };
     return labels[authType] || authType;
 }
 
 function normalizeAuthenticationType(value?: string): ConnectionAuthenticationType {
-    if (value === "clientSecret" || value === "usernamePassword") {
+    if (value === "clientSecret" || value === "usernamePassword" || value === "connectionString") {
         return value;
     }
     return "interactive";
@@ -1156,19 +1259,31 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     // Position menu near the anchor
     const anchorRect = anchor.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
-    let top = anchorRect.bottom + 4;
-    let left = anchorRect.left;
+    const sidebar = document.getElementById("sidebar");
+    const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
 
-    // Adjust if menu goes off-screen
-    if (left + menuRect.width > window.innerWidth) {
-        left = window.innerWidth - menuRect.width - 8;
+    // Prefer opening to the left to avoid overlapping BrowserView on the right
+    let left = anchorRect.left - menuRect.width + anchorRect.width;
+    let top = anchorRect.bottom + 6;
+
+    // Clamp within sidebar bounds to prevent overlapping with tool BrowserView
+    const margin = 6;
+    if (left < sidebarRect.left + margin) {
+        left = sidebarRect.left + margin;
     }
-    if (top + menuRect.height > window.innerHeight) {
-        top = anchorRect.top - menuRect.height - 4;
+    if (left + menuRect.width > sidebarRect.right - margin) {
+        left = sidebarRect.right - margin - menuRect.width;
     }
 
-    menu.style.top = `${top}px`;
+    if (top + menuRect.height > sidebarRect.bottom - margin) {
+        top = anchorRect.top - menuRect.height - margin;
+    }
+    if (top < sidebarRect.top + margin) {
+        top = sidebarRect.top + margin;
+    }
+
     menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
 
     // Add event listeners
     menu.querySelectorAll(".context-menu-item").forEach((item) => {
@@ -1239,16 +1354,14 @@ export async function loadSidebarConnections(): Promise<void> {
         const selectedAuthType = authFilter?.value || "";
 
         // Get saved sort preference or default
-        const savedSort = await window.toolboxAPI.getSetting("connectionsSort");
-        const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
-
-        // Set the dropdown value if we have a saved preference
-        if (sortSelect && savedSort && !sortSelect.value) {
-            sortSelect.value = savedSort as string;
+        const savedSort = await getConnectionsSortPreference();
+        if (sortSelect) {
+            sortSelect.value = savedSort;
         }
+        const sortOption = sortSelect ? coerceConnectionsSortOption(sortSelect.value) : savedSort;
 
         // Apply filters
-        let filteredConnections = connections.filter((conn: DataverseConnection) => {
+        const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
             if (searchTerm) {
                 const haystacks: string[] = [conn.name || "", conn.url || ""];
@@ -1270,28 +1383,9 @@ export async function loadSidebarConnections(): Promise<void> {
             return true;
         });
 
-        // Sort connections based on selected option
-        filteredConnections = filteredConnections.sort((a: DataverseConnection, b: DataverseConnection) => {
-            switch (sortOption) {
-                case "name-asc":
-                    return a.name.localeCompare(b.name);
-                case "name-desc":
-                    return b.name.localeCompare(a.name);
-                case "environment": {
-                    // Sort by environment type: Dev -> Test -> UAT -> Production
-                    const envOrder = { Dev: 1, Test: 2, UAT: 3, Production: 4 };
-                    const aOrder = envOrder[a.environment] || 999;
-                    const bOrder = envOrder[b.environment] || 999;
-                    if (aOrder !== bOrder) return aOrder - bOrder;
-                    // Secondary sort by name if same environment
-                    return a.name.localeCompare(b.name);
-                }
-                default:
-                    return a.name.localeCompare(b.name);
-            }
-        });
+        const sortedConnections = sortConnections(filteredConnections, sortOption);
 
-        if (filteredConnections.length === 0) {
+        if (sortedConnections.length === 0) {
             if (connections.length === 0) {
                 connectionsList.innerHTML = `
                     <div class="empty-state">
@@ -1311,7 +1405,7 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        connectionsList.innerHTML = filteredConnections
+        connectionsList.innerHTML = sortedConnections
             .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
@@ -1350,7 +1444,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 const connectionId = target.getAttribute("data-connection-id");
                 if (!connectionId) return;
 
-                const conn = filteredConnections.find((c: DataverseConnection) => c.id === connectionId);
+                const conn = sortedConnections.find((c: DataverseConnection) => c.id === connectionId);
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
@@ -1406,11 +1500,13 @@ export async function loadSidebarConnections(): Promise<void> {
             (sortSelect as any)._pptbBound = true;
             sortSelect.addEventListener("change", async () => {
                 // Save sort preference
-                await window.toolboxAPI.setSetting("connectionsSort", sortSelect.value);
+                const selectedSort = coerceConnectionsSortOption(sortSelect.value);
+                sortSelect.value = selectedSort;
+                await window.toolboxAPI.setSetting(CONNECTIONS_SORT_SETTING_KEY, selectedSort);
                 loadSidebarConnections();
             });
         }
     } catch (error) {
-        console.error("Failed to load connections:", error);
+        captureMessage("Failed to load connections:", "error", { extra: { error } });
     }
 }

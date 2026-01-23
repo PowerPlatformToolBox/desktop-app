@@ -1,0 +1,21 @@
+{
+    "extends": "buildScripts/electron-builder-base.json",
+    "win": {
+        "target": [
+            {
+                "target": "nsis",
+                "arch": [
+                    "arm64"
+                ]
+            }
+        ],
+        "icon": "icons/icon.ico"
+    },
+    "nsis": {
+        "oneClick": false,
+        "perMachine": true,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": false,
+        "createStartMenuShortcut": false
+    }
+}

@@ -4,6 +4,72 @@
  */
 
 /**
+ * Update UI elements for check for updates button
+ */
+function updateCheckForUpdatesUI(state: "idle" | "checking" | "available" | "not-available" | "error", message?: string): void {
+    const button = document.getElementById("sidebar-check-for-updates-btn") as HTMLButtonElement;
+    const buttonText = document.getElementById("check-updates-btn-text");
+    const statusMessage = document.getElementById("update-status-message");
+
+    if (!button || !buttonText || !statusMessage) {
+        return;
+    }
+
+    switch (state) {
+        case "checking":
+            button.disabled = true;
+            buttonText.textContent = "Checking...";
+            statusMessage.textContent = "Checking for updates...";
+            statusMessage.style.color = "var(--neutral-foreground-rest)";
+            statusMessage.style.display = "block";
+            break;
+        case "available":
+            button.disabled = false;
+            buttonText.textContent = "Check for Updates";
+            statusMessage.textContent = message || "Update available! A download prompt will appear.";
+            statusMessage.style.color = "var(--accent-fill-rest)";
+            statusMessage.style.display = "block";
+            break;
+        case "not-available":
+            button.disabled = false;
+            buttonText.textContent = "Check for Updates";
+            statusMessage.textContent = message || "You are running the latest version.";
+            statusMessage.style.color = "var(--neutral-foreground-rest)";
+            statusMessage.style.display = "block";
+            break;
+        case "error":
+            button.disabled = false;
+            buttonText.textContent = "Check for Updates";
+            statusMessage.textContent = message || "Failed to check for updates.";
+            statusMessage.style.color = "var(--error-fill-rest)";
+            statusMessage.style.display = "block";
+            break;
+        case "idle":
+        default:
+            button.disabled = false;
+            buttonText.textContent = "Check for Updates";
+            statusMessage.style.display = "none";
+            break;
+    }
+}
+
+/**
+ * Handle manual check for updates from settings sidebar button
+ * This function manages the UI state for the Settings sidebar "Check for Updates" button
+ */
+export async function handleCheckForUpdates(): Promise<void> {
+    updateCheckForUpdatesUI("checking");
+
+    try {
+        await window.toolboxAPI.checkForUpdates();
+        // Note: The actual result will be communicated via event listeners
+        // which are set up in setupAutoUpdateListeners()
+    } catch (error) {
+        updateCheckForUpdatesUI("error", `Error: ${(error as Error).message}`);
+    }
+}
+
+/**
  * Show update status message
  */
 export function showUpdateStatus(message: string, type: "info" | "success" | "error"): void {
@@ -59,7 +125,9 @@ export function updateProgress(percent: number): void {
 }
 
 /**
- * Check for updates
+ * Check for updates (legacy function for non-Settings UI)
+ * This function manages the update-status div element used elsewhere in the app
+ * For Settings sidebar button, use handleCheckForUpdates() instead
  */
 export async function checkForUpdates(): Promise<void> {
     hideUpdateStatus();
@@ -79,14 +147,17 @@ export async function checkForUpdates(): Promise<void> {
 export function setupAutoUpdateListeners(): void {
     window.toolboxAPI.onUpdateChecking(() => {
         showUpdateStatus("Checking for updates...", "info");
+        updateCheckForUpdatesUI("checking");
     });
 
     window.toolboxAPI.onUpdateAvailable((info: any) => {
         showUpdateStatus(`Update available: Version ${info.version}`, "success");
+        updateCheckForUpdatesUI("available", `Update available: Version ${info.version}`);
     });
 
     window.toolboxAPI.onUpdateNotAvailable(() => {
         showUpdateStatus("You are running the latest version", "success");
+        updateCheckForUpdatesUI("not-available", "You are running the latest version");
     });
 
     window.toolboxAPI.onUpdateDownloadProgress((progress: any) => {
@@ -98,10 +169,12 @@ export function setupAutoUpdateListeners(): void {
     window.toolboxAPI.onUpdateDownloaded((info: any) => {
         hideUpdateProgress();
         showUpdateStatus(`Update downloaded: Version ${info.version}. Restart to install.`, "success");
+        updateCheckForUpdatesUI("idle");
     });
 
     window.toolboxAPI.onUpdateError((error: string) => {
         hideUpdateProgress();
         showUpdateStatus(`Update error: ${error}`, "error");
+        updateCheckForUpdatesUI("error", `Update error: ${error}`);
     });
 }

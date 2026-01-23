@@ -26,6 +26,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const interactiveFields = document.getElementById("interactive-fields");
     const clientSecretFields = document.getElementById("client-secret-fields");
     const usernamePasswordFields = document.getElementById("username-password-fields");
+    const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const saveButton = document.getElementById("confirm-connection-btn");
     const testFeedback = document.getElementById("connection-test-feedback");
@@ -38,7 +39,8 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (interactiveFields) interactiveFields.style.display = authType === "interactive" ? "flex" : "none";
         if (clientSecretFields) clientSecretFields.style.display = authType === "clientSecret" ? "flex" : "none";
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
-        if (testButton) testButton.style.display = authType === "interactive" ? "none" : "inline-flex";
+        if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
+        if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
     };
 
     const updateTestFeedback = (message) => {
@@ -72,10 +74,13 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         authenticationType: authTypeSelect?.value || "interactive",
         clientId: getInputValue("connection-client-id"),
         clientSecret: getInputValue("connection-client-secret"),
-        tenantId: getInputValue("connection-tenant-id"),
-        username: getInputValue("connection-username"),
+        tenantId: getInputValue("connection-tenant-id-cs"),
+        username: getInputValue("connection-username-up"),
         password: getInputValue("connection-password"),
         optionalClientId: getInputValue("connection-optional-client-id"),
+        interactiveUsername: getInputValue("connection-username"),
+        interactiveTenantId: getInputValue("connection-tenant-id"),
+        connectionString: getInputValue("connection-string-input"),
     });
 
     const populateFormData = (connection) => {
@@ -94,12 +99,14 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (connection.authenticationType === "clientSecret") {
             setInputValue("connection-client-id", connection.clientId);
             setInputValue("connection-client-secret", connection.clientSecret);
-            setInputValue("connection-tenant-id", connection.tenantId);
+            setInputValue("connection-tenant-id-cs", connection.tenantId);
         } else if (connection.authenticationType === "usernamePassword") {
-            setInputValue("connection-username", connection.username);
+            setInputValue("connection-username-up", connection.username);
             setInputValue("connection-password", connection.password);
         } else if (connection.authenticationType === "interactive") {
+            setInputValue("connection-username", connection.username);
             setInputValue("connection-optional-client-id", connection.clientId);
+            setInputValue("connection-tenant-id", connection.tenantId);
         }
         
         updateAuthVisibility();

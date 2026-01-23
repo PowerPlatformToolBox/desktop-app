@@ -1,6 +1,6 @@
 {
   "name": "powerplatform-toolbox",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
   "scripts": {
@@ -12,6 +12,10 @@
     "lint": "eslint src --ext .ts",
     "start": "electron .",
     "package": "pnpm run build && node ./buildScripts/package.js",
+    "package:win": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-win.json",
+    "package:win-arm64": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-win-arm64.json",
+    "package:mac": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-mac.json",
+    "package:linux": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-linux.json",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"
@@ -58,40 +62,6 @@
     "uuid": "^13.0.0"
   },
   "build": {
-    "appId": "com.powerplatform.toolbox",
-    "productName": "Power Platform ToolBox",
-    "artifactName": "Power-Platform-ToolBox-${version}-${arch}-${os}.${ext}",
-    "directories": {
-      "output": "build"
-    },
-    "files": [
-      "dist/**/*",
-      "assets/**/*",
-      "package.json"
-    ],
-    "publish": {
-      "provider": "github",
-      "owner": "PowerPlatformToolBox",
-      "repo": "desktop-app"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "icons/icon.ico"
-    },
-    "mac": {
-      "target": [
-        "zip",
-        "dmg"
-      ],
-      "category": "public.app-category.developer-tools",
-      "icon": "icons/icon.icns",
-      "identity": null,
-      "gatekeeperAssess": false,
-      "hardenedRuntime": false,
-      "type": "distribution"
-    },
-    "dmg": {
-      "sign": false
-    }
+    "extends": null
   }
 }

@@ -3,7 +3,7 @@ import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage } from "../../common/sentryHelper";
+import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 
@@ -35,16 +35,16 @@ export class AuthManager {
     /**
      * Initialize MSAL for interactive authentication
      */
-    private initializeMsal(clientId?: string): PublicClientApplication {
+    private initializeMsal(clientId: string, tenantId: string): PublicClientApplication {
         const msalConfig = {
             auth: {
-                clientId: clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d", // Default Azure CLI client ID
-                authority: "https://login.microsoftonline.com/common",
+                clientId, 
+                authority: `https://login.microsoftonline.com/${tenantId}`,
             },
             system: {
                 loggerOptions: {
                     loggerCallback(loglevel: LogLevel, message: string) {
-                        captureMessage(message);
+                        logWarn(message);
                     },
                     piiLoggingEnabled: false,
                     logLevel: LogLevel.Warning,
@@ -59,8 +59,9 @@ export class AuthManager {
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
     async authenticateInteractive(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
-        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        this.msalApp = this.initializeMsal(clientId);
+        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
+        const tenantId = connection.tenantId || "common";
+        this.msalApp = this.initializeMsal(clientId, tenantId);
 
         try {
             // Find an available port for the OAuth redirect server
@@ -69,11 +70,20 @@ export class AuthManager {
 
             const scopes = [`${connection.url}/.default`];
 
-            // Create authorization URL
-            const authCodeUrlParameters = {
+            // Create authorization URL with optional login_hint
+            const authCodeUrlParameters: {
+                scopes: string[];
+                redirectUri: string;
+                loginHint?: string;
+            } = {
                 scopes: scopes,
                 redirectUri: redirectUri,
             };
+
+            // Add login_hint if username is provided (for OAuth MFA)
+            if (connection.username) {
+                authCodeUrlParameters.loginHint = connection.username;
+            }
 
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
@@ -96,7 +106,9 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
-            console.error("Interactive authentication failed:", error);
+            captureMessage("Interactive authentication failed:", "error", {
+                extra: { error },
+            });
             // Show error in a modal dialog
             this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
             throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -150,7 +162,7 @@ export class AuthManager {
                 // Force close any remaining connections after graceful shutdown attempt
                 server.closeAllConnections();
                 if (logMessage) {
-                    captureMessage(logMessage);
+                    logInfo(logMessage);
                 }
             });
         }
@@ -176,7 +188,7 @@ export class AuthManager {
                 server.close(() => {
                     // Force close any remaining connections after graceful shutdown attempt
                     server.closeAllConnections();
-                    captureMessage("Authentication server closed and port released");
+                    logInfo("Authentication server closed and port released");
                     resolve();
                 });
             } else {
@@ -265,7 +277,7 @@ export class AuthManager {
             }, AuthManager.AUTH_TIMEOUT_MS);
 
             server.listen(port, "localhost", () => {
-                captureMessage(`Listening for OAuth redirect on ${redirectUri}`);
+                logInfo(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser
                 shell.openExternal(authCodeUrl).catch((err) => {
                     cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
@@ -326,7 +338,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Client secret authentication failed:", error);
+            captureMessage("Client secret authentication failed:", "error", {
+                extra: { error },
+            });
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -372,7 +386,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Username/password authentication failed:", error);
+            captureMessage("Username/password authentication failed:", "error", {
+                extra: { error },
+            });
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -412,6 +428,9 @@ export class AuthManager {
                     accessToken = passwordResult.accessToken;
                     break;
                 }
+                case "connectionString":
+                    // Connection string should have been parsed to its actual auth type
+                    throw new Error("Connection string must be parsed before testing. Please check the connection configuration.");
                 default:
                     throw new Error("Invalid authentication type");
             }
@@ -428,7 +447,9 @@ export class AuthManager {
 
             throw new Error("Connection test failed: Unable to verify identity");
         } catch (error) {
-            console.error("Test connection failed:", error);
+            captureMessage("Test connection failed:", "error", {
+                extra: { error },
+            });
             throw error;
         }
     }
@@ -543,7 +564,9 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            console.error("Token refresh failed:", error);
+            captureMessage("Token refresh failed:", "error", {
+                extra: { error },
+            });
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }

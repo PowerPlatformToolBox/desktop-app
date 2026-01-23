@@ -109,8 +109,8 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     <div class="modal-body">
         <div class="info-message">
             This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
-        isSecondaryRequired ? "both connections" : "at least a primary connection"
-    } to continue.
+                isSecondaryRequired ? "both connections" : "at least a primary connection"
+            } to continue.
         </div>
         
         <div class="modal-search-container">
@@ -126,6 +126,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
                 <div class="modal-filter-section">
                     <div class="modal-filter-title">Sort By</div>
                     <select id="multi-connection-sort" class="modal-filter-select">
+                        <option value="last-used">Last Used</option>
                         <option value="name-asc">Name (A-Z)</option>
                         <option value="name-desc">Name (Z-A)</option>
                         <option value="environment">Environment Type</option>

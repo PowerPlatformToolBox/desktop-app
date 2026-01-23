@@ -11,6 +11,7 @@ declare namespace ToolBoxAPI {
      */
     export interface ToolContext {
         toolId: string | null;
+        instanceId?: string | null;
         connectionUrl: string | null;
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
@@ -123,6 +124,7 @@ declare namespace ToolBoxAPI {
         id: string;
         name: string;
         toolId: string;
+        toolInstanceId?: string | null;
         shell: string;
         cwd: string;
         isVisible: boolean;
@@ -180,16 +182,6 @@ declare namespace ToolBoxAPI {
         copyToClipboard: (text: string) => Promise<void>;
 
         /**
-         * Open a save file dialog and write content
-         */
-        saveFile: (defaultPath: string, content: any) => Promise<string | null>;
-
-        /**
-         * Open a native dialog to select either a file or a folder and return the chosen path
-         */
-        selectPath: (options?: SelectPathOptions) => Promise<string | null>;
-
-        /**
          * Get the current UI theme (light or dark)
          */
         getCurrentTheme: () => Promise<"light" | "dark">;
@@ -218,6 +210,65 @@ declare namespace ToolBoxAPI {
          * Hide the loading screen in the tool's context
          */
         hideLoading: () => Promise<void>;
+    }
+
+    /**
+     * FileSystem namespace - filesystem operations for tools
+     */
+    export interface FileSystemAPI {
+        /**
+         * Read a file as UTF-8 text
+         * Ideal for configs (pcfconfig.json, package.json)
+         */
+        readText: (path: string) => Promise<string>;
+
+        /**
+         * Read a file as raw binary data (Buffer)
+         * For images, ZIPs, manifests that need to be hashed, uploaded, or parsed as non-text
+         * Returns a Node.js Buffer which Electron can properly serialize over IPC
+         * Tools can convert to ArrayBuffer using buffer.buffer if needed
+         */
+        readBinary: (path: string) => Promise<Buffer>;
+
+        /**
+         * Check if a file or directory exists
+         * Lightweight existence check before attempting reads/writes
+         */
+        exists: (path: string) => Promise<boolean>;
+
+        /**
+         * Get file or directory metadata
+         * Confirms users picked the correct folder/file and shows info in UI
+         */
+        stat: (path: string) => Promise<{ type: "file" | "directory"; size: number; mtime: string }>;
+
+        /**
+         * Read directory contents
+         * Enumerate folder contents when tools need to show selectable files or validate structure
+         */
+        readDirectory: (path: string) => Promise<Array<{ name: string; type: "file" | "directory" }>>;
+
+        /**
+         * Write text content to a file
+         * Save generated files (manifests, logs) without forcing users through save dialog
+         */
+        writeText: (path: string, content: string) => Promise<void>;
+
+        /**
+         * Create a directory (recursive)
+         * Ensure target folders exist before writing scaffolding artifacts
+         */
+        createDirectory: (path: string) => Promise<void>;
+
+        /**
+         * Open a save file dialog and write content
+         */
+        saveFile: (defaultPath: string, content: any) => Promise<string | null>;
+
+        /**
+         * Open a native dialog to select either a file or a folder and return the chosen path
+         */
+        selectPath: (options?: SelectPathOptions) => Promise<string | null>;
     }
 
     /**
@@ -322,6 +373,11 @@ declare namespace ToolBoxAPI {
          * Utility functions
          */
         utils: UtilsAPI;
+
+        /**
+         * Filesystem operations
+         */
+        fileSystem: FileSystemAPI;
 
         /**
          * Tool-specific settings (context-aware)
