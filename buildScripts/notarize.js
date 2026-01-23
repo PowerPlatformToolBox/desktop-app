@@ -69,7 +69,7 @@ const submit = () => {
 
     process.stdout.write(`Submitting ${appPath} for notarization (bundleId: ${bundleId}) without waiting...\n`);
 
-    const resultRaw = runNotarytool(["submit", appPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--bundle-id", bundleId, "--no-wait", "--output-format", "json"]);
+    const resultRaw = runNotarytool(["submit", appPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--no-wait", "--output-format", "json"]);
 
     const parsed = JSON.parse(resultRaw);
     const submissionId = parsed.id;
