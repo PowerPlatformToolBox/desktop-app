@@ -131,7 +131,7 @@ jobs:
                   signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
-                  files-folder-filter: exe,msi
+                  files-folder-filter: exe,msi,zip
                   files-folder-recurse: false
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
