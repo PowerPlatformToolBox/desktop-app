@@ -22,13 +22,13 @@
         "identity": "Developer ID Application",
         "gatekeeperAssess": true,
         "hardenedRuntime": true,
-        "entitlements": "buildScripts/entitlements.mac.plist",
-        "entitlementsInherit": "buildScripts/entitlements.mac.plist",
+        "entitlements": "./buildScripts/entitlements.mac.plist",
+        "entitlementsInherit": "./buildScripts/entitlements.mac.plist",
         "type": "distribution",
         "notarize": false
     },
     "dmg": {
         "sign": true
     },
-    "afterSign": "buildScripts/notarize.js"
+    "afterSign": "./buildScripts/notarize.js"
 }
