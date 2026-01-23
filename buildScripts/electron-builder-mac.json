@@ -24,7 +24,8 @@
         "hardenedRuntime": true,
         "entitlements": "buildScripts/entitlements.mac.plist",
         "entitlementsInherit": "buildScripts/entitlements.mac.plist",
-        "type": "distribution"
+        "type": "distribution",
+        "notarize": false
     },
     "dmg": {
         "sign": true
