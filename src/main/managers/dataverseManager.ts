@@ -57,47 +57,58 @@ export class DataverseManager {
         this.authManager = authManager;
     }
 
-    /**
-     * Get a connection by ID and ensure it has a valid access token
-     * @param connectionId The ID of the connection to use
-     */
-    private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
-        const connection = this.connectionsManager.getConnectionById(connectionId);
-        if (!connection) {
-            throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
+        /**
+         * Build a properly formatted API URL by combining base URL and path
+         * Ensures no double slashes between base URL and path
+         */
+        private buildApiUrl(connection: DataverseConnection, path: string): string {
+            // Ensure base URL doesn't end with slash and path doesn't start with slash
+            const baseUrl = connection.url.replace(/\/$/, "");
+            const cleanPath = path.replace(/^\//, "");
+            return `${baseUrl}/${cleanPath}`;
         }
 
-        if (!connection.accessToken) {
-            throw new Error("No access token found. Please reconnect to the environment.");
-        }
+        /**
+         * Get a connection by ID and ensure it has a valid access token
+         * @param connectionId The ID of the connection to use
+         */
+        private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
+            const connection = this.connectionsManager.getConnectionById(connectionId);
+            if (!connection) {
+                throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
+            }
 
-        // Check if token is expired
-        if (connection.tokenExpiry) {
-            const expiryDate = new Date(connection.tokenExpiry);
-            const now = new Date();
+            if (!connection.accessToken) {
+                throw new Error("No access token found. Please reconnect to the environment.");
+            }
 
-            // Refresh if token expires in the next 5 minutes
-            if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
-                if (connection.refreshToken) {
-                    try {
-                        const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                        this.connectionsManager.updateConnectionTokens(connection.id, {
-                            accessToken: authResult.accessToken,
-                            refreshToken: authResult.refreshToken,
-                            expiresOn: authResult.expiresOn,
-                        });
-                        return { connection, accessToken: authResult.accessToken };
-                    } catch (error) {
-                        throw new Error(`Failed to refresh token: ${(error as Error).message}`);
+            // Check if token is expired
+            if (connection.tokenExpiry) {
+                const expiryDate = new Date(connection.tokenExpiry);
+                const now = new Date();
+
+                // Refresh if token expires in the next 5 minutes
+                if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
+                    if (connection.refreshToken) {
+                        try {
+                            const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                            this.connectionsManager.updateConnectionTokens(connection.id, {
+                                accessToken: authResult.accessToken,
+                                refreshToken: authResult.refreshToken,
+                                expiresOn: authResult.expiresOn,
+                            });
+                            return { connection, accessToken: authResult.accessToken };
+                        } catch (error) {
+                            throw new Error(`Failed to refresh token: ${(error as Error).message}`);
+                        }
+                    } else {
+                        throw new Error("Access token expired and no refresh token available. Please reconnect.");
                     }
-                } else {
-                    throw new Error("Access token expired and no refresh token available. Please reconnect.");
                 }
             }
-        }
 
-        return { connection, accessToken: connection.accessToken };
-    }
+            return { connection, accessToken: connection.accessToken };
+        }
 
     /**
      * Create a new record in Dataverse
@@ -105,7 +116,7 @@ export class DataverseManager {
     async create(connectionId: string, entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}`);
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, record);
 
@@ -126,7 +137,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
         if (columns && columns.length > 0) {
             url += `?$select=${columns.join(",")}`;
         }
@@ -141,7 +152,7 @@ export class DataverseManager {
     async update(connectionId: string, entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "PATCH", accessToken, record);
     }
@@ -152,7 +163,7 @@ export class DataverseManager {
     async delete(connectionId: string, entityLogicalName: string, id: string): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
@@ -212,7 +223,7 @@ export class DataverseManager {
         // Convert entity name to entity set name (pluralized)
         const entitySetName = this.getEntitySetName(entityName);
 
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`);
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
         const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
@@ -241,7 +252,7 @@ export class DataverseManager {
     ): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/`);
 
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
@@ -280,7 +291,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -301,7 +312,7 @@ export class DataverseManager {
         // Default to lightweight columns if selectColumns is not provided or empty
         const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`);
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
@@ -339,7 +350,7 @@ export class DataverseManager {
             .filter((segment) => segment.trim().length > 0)
             .map((segment) => encodeURIComponent(segment))
             .join("/");
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -361,7 +372,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`);
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: Record<string, unknown>[] };
@@ -382,7 +393,7 @@ export class DataverseManager {
         const query = odataQuery.trim();
         const cleanQuery = query.startsWith("?") ? query.substring(1) : query;
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}`);
         if (cleanQuery) {
             url += `/${cleanQuery}`;
         }
@@ -502,7 +513,7 @@ export class DataverseManager {
         const trimmedName = tableLogicalName?.trim();
         const publishSingleTable = Boolean(trimmedName);
         const actionName = publishSingleTable ? "PublishXml" : "PublishAllXml";
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${actionName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${actionName}`);
         const body = publishSingleTable ? { ParameterXml: this.buildEntityPublishXml(trimmedName!) } : undefined;
 
         await this.makeHttpRequest(url, "POST", accessToken, body);
@@ -539,7 +550,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`);
         const response = await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
         const responseData = response.data as Record<string, unknown>;
         return responseData.Ids as string[];
@@ -568,7 +579,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`);
         await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
     }
 
@@ -589,18 +600,32 @@ export class DataverseManager {
         relatedEntityName: string,
         relatedEntityId: string,
     ): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityName || !relatedEntityName.trim()) {
+            throw new Error("relatedEntityName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
         const relatedEntitySetName = this.getEntitySetName(relatedEntityName);
 
         // Build the URL for the association
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`);
 
         // Build the reference to the related record
-        // Ensure baseUrl doesn't have trailing slash to avoid double slashes
-        const baseUrl = connection.url.endsWith('/') ? connection.url.slice(0, -1) : connection.url;
         const body = {
-            "@odata.id": `${baseUrl}/api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`,
+            "@odata.id": this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`),
         };
 
         await this.makeHttpRequest(url, "POST", accessToken, body);
@@ -615,11 +640,24 @@ export class DataverseManager {
      * @param relatedEntityId - GUID of the related record to disassociate
      */
     async disassociate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
 
         // Build the URL for the disassociation
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`);
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
