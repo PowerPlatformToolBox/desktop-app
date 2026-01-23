@@ -23,6 +23,8 @@ module.exports = async function notarizeApp(context) {
     const appName = context.packager.appInfo.productFilename;
 
     try {
+        process.stdout.write(`Submitting notarization request for ${appName}.app (this can take a few minutes)...\n`);
+
         await notarize({
             appBundleId: "com.powerplatform.toolbox",
             appPath: `${appOutDir}/${appName}.app`,
@@ -31,7 +33,7 @@ module.exports = async function notarizeApp(context) {
             teamId,
         });
 
-        process.stdout.write(`Submitted notarization request for ${appName}.app\n`);
+        process.stdout.write(`Notarization completed for ${appName}.app\n`);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         process.stderr.write(`Notarization failed for ${appName}.app: ${errorMessage}\n`);
