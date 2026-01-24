@@ -309,6 +309,19 @@ jobs:
                   name: macos-release
                   path: notarize
 
+            - name: Locate notarization info
+              id: notarize-info
+              shell: bash
+              run: |
+                INFO_FILE=$(find notarize -name "notarization-info.json" | head -n 1)
+                if [[ -z "$INFO_FILE" ]]; then
+                  echo "Notarization info file not found within downloaded artifacts." >&2
+                  find notarize -maxdepth 3 -type f || true
+                  exit 1
+                fi
+
+                echo "info_path=$INFO_FILE" >> $GITHUB_OUTPUT
+
             - name: Wait for notarization acceptance
               shell: bash
               env:
@@ -316,7 +329,7 @@ jobs:
                   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
                   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
               run: |
-                  node ./buildScripts/notarize.js wait --info="notarize/build/notarization-info.json" --timeout-hours=24 --interval-minutes=5
+                node ./buildScripts/notarize.js wait --info="${{ steps.notarize-info.outputs.info_path }}" --timeout-hours=24 --interval-minutes=5
 
             - name: Staple macOS artifacts
               shell: bash
