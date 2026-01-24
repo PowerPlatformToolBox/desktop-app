@@ -55,7 +55,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
@@ -1637,32 +1637,47 @@ class ToolBoxApp {
     /**
      * Show About dialog with version and environment info
      * Includes machine ID and other important information for Sentry tracing
+     * Uses modal window for text selection support
      */
     private showAboutDialog(): void {
-        if (this.mainWindow) {
+        if (this.mainWindow && this.modalWindowManager) {
             const appVersion = app.getVersion();
             const machineId = this.machineIdManager.getMachineId();
             const locale = app.getLocale();
 
-            const message = `Power Platform ToolBox
-            Version: ${appVersion}
-            Machine ID: ${machineId}
+            // Get current theme
+            const settings = this.settingsManager.getUserSettings();
+            const theme = settings.theme || "system";
+            const isDarkTheme = theme === "system" ? nativeTheme.shouldUseDarkColors : theme === "dark";
 
-            Environment:
-            Electron: ${process.versions.electron}
-            Node.js: ${process.versions.node}
-            Chromium: ${process.versions.chrome}
+            // Prepare modal data
+            const modalData = {
+                appVersion,
+                machineId,
+                electronVersion: process.versions.electron,
+                nodeVersion: process.versions.node,
+                chromiumVersion: process.versions.chrome,
+                platform: process.platform,
+                arch: process.arch,
+                osVersion: process.getSystemVersion(),
+                locale,
+                isDarkTheme,
+            };
 
-            System:
-            OS: ${process.platform} ${process.arch}
-            OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}
+            // Generate modal HTML using the utility function
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { generateAboutModalHtml } = require("./utilities/aboutModal");
+            const html = generateAboutModalHtml(modalData);
 
-            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
+            const modalOptions: ModalWindowOptions = {
+                id: "about-modal",
+                html,
+                width: 600,
+                height: 500,
+                resizable: false,
+            };
 
-            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
-                clipboard.writeText(message);
-            }
+            this.modalWindowManager.showModal(modalOptions);
         }
     }
 
