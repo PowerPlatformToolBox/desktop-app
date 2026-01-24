@@ -27,6 +27,20 @@ const shouldRetry = (error) => {
     );
 };
 
+const isLogUnavailableError = (error) => {
+    if (!error) {
+        return false;
+    }
+
+    const message = typeof error === "string" ? error : error.message || "";
+
+    if (!message) {
+        return false;
+    }
+
+    return message.includes("Submission log is not yet available") || message.includes("submissionId does not exist");
+};
+
 const getArg = (name, defaultValue) => {
     const prefix = `${name}=`;
     const match = process.argv.find((arg) => arg.startsWith(prefix));
@@ -182,6 +196,17 @@ const waitForStatus = async () => {
             process.stdout.write(`Notarization still in progress (attempt ${attempt}/${maxAttempts}). Checking again in ${intervalMinutes} minutes...\n`);
             await sleep(nextDelayMs);
         } catch (error) {
+            if (isLogUnavailableError(error)) {
+                if (attempt === maxAttempts) {
+                    throw new Error(`Timed out waiting for notarization ${info.submissionId} after ${timeoutHours} hours (submission log never became available).`);
+                }
+
+                const nextDelayMs = intervalMinutes * 60 * 1000;
+                process.stdout.write(`Submission log not ready yet (attempt ${attempt}/${maxAttempts}). Checking again in ${intervalMinutes} minutes...\n`);
+                await sleep(nextDelayMs);
+                continue;
+            }
+
             if (!shouldRetry(error)) {
                 throw error;
             }
