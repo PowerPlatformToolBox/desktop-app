@@ -93,10 +93,6 @@
 
 <hr />
 
-> [!IMPORTANT]
-> macOS users: If you see a "damaged" or "unidentified developer" warning after installation, run the following command in the terminal to mark the app as safe:
-> `xattr -cr "/Applications/Power Platform ToolBox.app"`
-
 - [Known Issues](#known-issues)
 - [Features Overview](#features-overview)
 - [Releases \& Downloads](#releases--downloads)
@@ -112,7 +108,7 @@
 
 ## Known Issues
 
-- Auto-Update does not work for macOS users as it needs Apple Developer Id (still working through that process)
+- No open issues currently tracked for installers. Please report problems on GitHub so we can investigate quickly.
 
 ## Features Overview
 
@@ -142,8 +138,8 @@ Power Platform ToolBox releases are published on GitHub:
 
 Visit the [Releases page](https://github.com/PowerPlatformToolBox/desktop-app/releases) to download:
 
-- **Windows**: `.exe` installer (x64 and ARM64 available)
-- **macOS**: `.dmg` installer (Universal binary with x64 and ARM64)
+- **Windows**: `.exe` installer (x64/ARM64) or portable `.zip` (no admin rights required)
+- **macOS**: Signed & notarized `.dmg` (universal) or `.zip` archive
 - **Linux**: `.AppImage` (x64)
 
 ### Building from Source

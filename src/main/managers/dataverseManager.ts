@@ -181,6 +181,7 @@ export class DataverseManager {
             businessunit: "businessunits",
             systemuser: "systemusers",
             usersettingscollection: "usersettingscollection",
+            principalobjectaccess: "principalobjectaccessset",
         };
 
         const lowerName = entityLogicalName.toLowerCase();
@@ -222,7 +223,6 @@ export class DataverseManager {
 
         // Convert entity name to entity set name (pluralized)
         const entitySetName = this.getEntitySetName(entityName);
-
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`);
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
