@@ -597,6 +597,73 @@ declare namespace DataverseAPI {
          * );
          */
         disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
+         * Deploy (import) a solution to the Dataverse environment
+         *
+         * @param base64SolutionContent - Base64-encoded solution zip file content
+         * @param options - Optional import settings to customize the deployment
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the ImportJobId for tracking the import progress
+         *
+         * @example
+         * // Read solution file and deploy with default options
+         * const solutionFile = await toolboxAPI.filesystem.readBinary('/path/to/solution.zip');
+         * const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+         * const result = await dataverseAPI.deploySolution(base64Content);
+         * console.log('Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution with custom options
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     publishWorkflows: true,
+         *     overwriteUnmanagedCustomizations: false,
+         *     skipProductUpdateDependencies: false,
+         *     convertToManaged: false
+         * });
+         * console.log('Solution deployment started. Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution with specific import job ID for tracking
+         * const importJobId = crypto.randomUUID();
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     importJobId: importJobId,
+         *     publishWorkflows: true
+         * });
+         * console.log('Tracking import with job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     publishWorkflows: true
+         * }, 'secondary');
+         */
+        deploySolution: (
+            base64SolutionContent: string,
+            options?: {
+                /**
+                 * Optional GUID to track the import job. If not provided, Dataverse generates one.
+                 */
+                importJobId?: string;
+                /**
+                 * Whether to publish workflows after import. Default is undefined (Dataverse decides).
+                 */
+                publishWorkflows?: boolean;
+                /**
+                 * Whether to overwrite existing unmanaged customizations. Default is undefined (Dataverse decides).
+                 */
+                overwriteUnmanagedCustomizations?: boolean;
+                /**
+                 * Whether to skip dependency checks for product updates. Default is undefined (Dataverse decides).
+                 */
+                skipProductUpdateDependencies?: boolean;
+                /**
+                 * Whether to convert the solution to managed. Default is undefined (Dataverse decides).
+                 */
+                convertToManaged?: boolean;
+            },
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ ImportJobId: string }>;
     }
 }
 

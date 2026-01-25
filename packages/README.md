@@ -271,6 +271,35 @@ await dataverseAPI.publishCustomizations();
 await dataverseAPI.publishCustomizations("account");
 ```
 
+### Deploy Solutions
+
+```typescript
+// Read solution file and convert to base64
+const solutionFile = await toolboxAPI.filesystem.readBinary("/path/to/MySolution.zip");
+const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+
+// Deploy solution with default options
+const result = await dataverseAPI.deploySolution(base64Content);
+console.log("Solution deployment started. Import Job ID:", result.ImportJobId);
+
+// Deploy solution with custom options
+const result = await dataverseAPI.deploySolution(base64Content, {
+    publishWorkflows: true,
+    overwriteUnmanagedCustomizations: false,
+    skipProductUpdateDependencies: false,
+    convertToManaged: false,
+});
+console.log("Import Job ID:", result.ImportJobId);
+
+// Deploy with a specific import job ID for tracking
+const importJobId = crypto.randomUUID();
+const result = await dataverseAPI.deploySolution(base64Content, {
+    importJobId: importJobId,
+    publishWorkflows: true,
+});
+console.log("Tracking import with job ID:", result.ImportJobId);
+```
+
 ## API Reference
 
 The Power Platform ToolBox exposes two main APIs to tools:
@@ -431,6 +460,11 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     -   Supports both bound and unbound operations
 -   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
     -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
+-   **deploySolution(base64SolutionContent: string, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary")**: Promise<{ImportJobId: string}>
+    -   Deploys (imports) a solution to the Dataverse environment
+    -   Takes a base64-encoded solution zip file
+    -   Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, etc.)
+    -   Returns an ImportJobId for tracking the import progress
 
 ### Security Notes
 
