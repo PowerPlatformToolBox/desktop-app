@@ -275,7 +275,7 @@ await dataverseAPI.publishCustomizations("account");
 
 ```typescript
 // Read solution file and convert to base64
-const solutionFile = await toolboxAPI.filesystem.readBinary("/path/to/MySolution.zip");
+const solutionFile = await toolboxAPI.fileSystem.readBinary("/path/to/MySolution.zip");
 const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
 
 // Deploy solution with default options
