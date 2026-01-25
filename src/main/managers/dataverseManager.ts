@@ -562,7 +562,10 @@ export class DataverseManager {
 
         // Add optional parameters if provided
         if (options?.importJobId) {
-            parameters.ImportJobId = options.importJobId;
+            const trimmedJobId = options.importJobId.trim();
+            if (trimmedJobId) {
+                parameters.ImportJobId = trimmedJobId;
+            }
         }
         if (options?.publishWorkflows !== undefined) {
             parameters.PublishWorkflows = options.publishWorkflows;
