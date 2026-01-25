@@ -58,7 +58,7 @@ export class AuthManager {
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "common";
         this.msalApp = this.initializeMsal(clientId, tenantId);
@@ -87,30 +87,16 @@ export class AuthManager {
 
             const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
-            // Start local HTTP server and wait for it to be ready, then open browser
-            const authCode = await this.listenForAuthCode(port, authCodeUrl);
+            // Start local HTTP server and wait for auth code, then validate before showing success
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri);
 
-            // Exchange authorization code for tokens
-            const tokenRequest = {
-                code: authCode,
-                scopes: scopes,
-                redirectUri: redirectUri,
-            };
-
-            const response = await this.msalApp.acquireTokenByCode(tokenRequest);
-
-            return {
-                accessToken: response.accessToken,
-                // MSAL Node does not expose refresh tokens directly. The homeAccountId is returned here for account identification in future token operations.
-                refreshToken: response.account?.homeAccountId,
-                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
-            };
+            return authResult;
         } catch (error) {
             captureMessage("Interactive authentication failed:", "error", {
                 extra: { error },
             });
-            // Show error in a modal dialog
-            this.showErrorDialog(`Authentication failed: ${(error as Error).message}`, parentWindow);
+            // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
+            // No need to show modal dialog as it causes UI conflicts
             throw new Error(`Authentication failed: ${(error as Error).message}`);
         }
     }
@@ -198,17 +184,30 @@ export class AuthManager {
     }
 
     /**
-     * Start a local HTTP server to listen for OAuth redirect and extract authorization code
+     * Escape HTML special characters to prevent XSS
      */
-    private async listenForAuthCode(port: number, authCodeUrl: string): Promise<string> {
+    private escapeHtml(text: string): string {
+        return text.replace(/[&<>"'/]/g, (char) => AuthManager.HTML_ESCAPE_MAP[char]);
+    }
+
+    /**
+     * Start a local HTTP server to listen for OAuth redirect, validate access, then show success/error
+     * This method performs token exchange and environment validation BEFORE showing the success page
+     */
+    private async listenForAuthCodeAndValidate(
+        port: number,
+        authCodeUrl: string,
+        connection: DataverseConnection,
+        scopes: string[],
+        redirectUri: string,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
-        return new Promise((resolve, reject) => {
-            const redirectUri = `http://localhost:${port}`;
 
-            const cleanupAndResolve = (code: string) => {
+        return new Promise((resolve, reject) => {
+            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date }) => {
                 this.performImmediateCleanup("Authentication server closed after successful auth");
-                resolve(code);
+                resolve(authResult);
             };
 
             const cleanupAndReject = (error: Error) => {
@@ -216,7 +215,7 @@ export class AuthManager {
                 reject(error);
             };
 
-            const server = http.createServer((req, res) => {
+            const server = http.createServer(async (req, res) => {
                 const reqUrl = new URL(req.url || "", `http://localhost:${port}`);
                 const code = reqUrl.searchParams.get("code");
                 const error = reqUrl.searchParams.get("error");
@@ -240,8 +239,43 @@ export class AuthManager {
                 }
 
                 if (code) {
+                    // Show a "Validating..." message while we check environment access
                     res.writeHead(200, { "Content-Type": "text/html" });
-                    res.end(`
+                    res.write(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #0078d4;">Validating Access...</h1>
+                <p>Please wait while we verify your permissions.</p>
+              </body>
+            </html>
+          `);
+
+                    try {
+                        // Exchange authorization code for tokens
+                        const tokenRequest = {
+                            code: code,
+                            scopes: scopes,
+                            redirectUri: redirectUri,
+                        };
+
+                        if (!this.msalApp) {
+                            throw new Error("MSAL app not initialized");
+                        }
+
+                        const response = await this.msalApp.acquireTokenByCode(tokenRequest);
+
+                        const authResult = {
+                            accessToken: response.accessToken,
+                            refreshToken: response.account?.homeAccountId,
+                            expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                        };
+
+                        // Validate user has access to the environment by performing a WhoAmI check
+                        // This happens BEFORE showing the success message
+                        await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+                        // Validation successful - now show success page
+                        res.write(`
             <html>
               <body style="font-family: system-ui; text-align: center; padding: 50px;">
                 <h1 style="color: #107c10;">Authentication Successful!</h1>
@@ -250,7 +284,25 @@ export class AuthManager {
               </body>
             </html>
           `);
-                    cleanupAndResolve(code);
+                        res.end();
+
+                        cleanupAndResolve(authResult);
+                    } catch (validationError) {
+                        // Validation failed - show error page
+                        const safeError = this.escapeHtml((validationError as Error).message);
+                        res.write(`
+            <html>
+              <body style="font-family: system-ui; text-align: center; padding: 50px;">
+                <h1 style="color: #d13438;">Authentication Failed</h1>
+                <p>${safeError}</p>
+                <p>You can close this window and return to the application.</p>
+              </body>
+            </html>
+          `);
+                        res.end();
+
+                        cleanupAndReject(validationError as Error);
+                    }
                     return;
                 }
 
@@ -269,7 +321,6 @@ export class AuthManager {
             server.unref();
 
             // Track the server instance and timeout BEFORE starting the server
-            // to ensure cleanup handlers have access to them in case of early events
             this.activeServer = server;
             this.activePort = port;
             this.activeServerTimeout = setTimeout(() => {
@@ -288,13 +339,6 @@ export class AuthManager {
                 cleanupAndReject(new Error(`Failed to start local server: ${err.message}`));
             });
         });
-    }
-
-    /**
-     * Escape HTML special characters to prevent XSS
-     */
-    private escapeHtml(text: string): string {
-        return text.replace(/[&<>"'/]/g, (char) => AuthManager.HTML_ESCAPE_MAP[char]);
     }
 
     /**
@@ -332,11 +376,16 @@ export class AuthManager {
                 throw new Error(data.error_description || data.error);
             }
 
-            return {
+            const authResult = {
                 accessToken: data.access_token,
                 refreshToken: undefined, // Client credentials flow doesn't provide refresh tokens
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+            return authResult;
         } catch (error) {
             captureMessage("Client secret authentication failed:", "error", {
                 extra: { error },
@@ -380,11 +429,16 @@ export class AuthManager {
                 throw new Error(data.error_description || data.error);
             }
 
-            return {
+            const authResult = {
                 accessToken: data.access_token,
                 refreshToken: data.refresh_token,
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+
+            return authResult;
         } catch (error) {
             captureMessage("Username/password authentication failed:", "error", {
                 extra: { error },
@@ -402,7 +456,7 @@ export class AuthManager {
     /**
      * Test connection by verifying the URL and attempting a simple authenticated request
      */
-    async testConnection(connection: DataverseConnection, parentWindow?: BrowserWindow): Promise<boolean> {
+    async testConnection(connection: DataverseConnection): Promise<boolean> {
         try {
             // First, validate the URL format
             if (!connection.url || !connection.url.startsWith("https://")) {
@@ -414,7 +468,7 @@ export class AuthManager {
 
             switch (connection.authenticationType) {
                 case "interactive": {
-                    const interactiveResult = await this.authenticateInteractive(connection, parentWindow);
+                    const interactiveResult = await this.authenticateInteractive(connection);
                     accessToken = interactiveResult.accessToken;
                     break;
                 }
@@ -533,6 +587,34 @@ export class AuthManager {
 
             req.end();
         });
+    }
+
+    /**
+     * Validate user has access to the environment by performing a WhoAmI check
+     * @param connection The connection to validate
+     * @param accessToken The access token to use for the WhoAmI call
+     * @throws Error if the user does not have access to the environment
+     */
+    private async validateEnvironmentAccess(connection: DataverseConnection, accessToken: string): Promise<void> {
+        try {
+            const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
+            const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
+            const data = JSON.parse(response);
+
+            // If we get a UserId back, the user has access to the environment
+            if (!data.UserId) {
+                throw new Error("Unable to verify user identity in the selected environment");
+            }
+
+            logInfo("Environment access validated successfully", { userId: data.UserId });
+        } catch (error) {
+            // Enhance error message for permission-related failures
+            const errorMessage = (error as Error).message;
+            if (errorMessage.includes("401") || errorMessage.includes("403")) {
+                throw new Error("You do not have permission to access this environment. Please verify the user account matches the selected environment.");
+            }
+            throw new Error(`Environment access validation failed: ${errorMessage}`);
+        }
     }
 
     /**
