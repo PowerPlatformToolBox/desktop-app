@@ -298,6 +298,32 @@ const result = await dataverseAPI.deploySolution(base64Content, {
     publishWorkflows: true,
 });
 console.log("Tracking import with job ID:", result.ImportJobId);
+
+// Track the import progress
+const status = await dataverseAPI.getImportJobStatus(result.ImportJobId);
+console.log("Import progress:", status.progress + "%");
+console.log("Started:", status.startedon);
+
+// Poll for completion
+async function waitForImport(importJobId: string) {
+    while (true) {
+        const status = await dataverseAPI.getImportJobStatus(importJobId);
+        console.log(`Progress: ${status.progress}%`);
+
+        if (status.completedon) {
+            console.log("Import completed at:", status.completedon);
+            if (status.data) {
+                console.log("Import details:", status.data);
+            }
+            break;
+        }
+
+        // Wait 2 seconds before checking again
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+}
+
+await waitForImport(result.ImportJobId);
 ```
 
 ## API Reference
@@ -465,6 +491,10 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     -   Takes a base64-encoded solution zip file
     -   Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, etc.)
     -   Returns an ImportJobId for tracking the import progress
+-   **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary")**: Promise<Record<string, unknown>>
+    -   Gets the status of a solution import job
+    -   Returns import job details including progress, completion status, and error information
+    -   Use to track the progress of a solution deployment initiated with deploySolution
 
 ### Security Notes
 

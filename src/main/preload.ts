@@ -250,6 +250,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             },
             connectionTarget?: "primary" | "secondary",
         ) => ipcRenderer.invoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
     },
 });
 

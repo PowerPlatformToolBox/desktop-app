@@ -589,6 +589,29 @@ export class DataverseManager {
         return result as { ImportJobId: string };
     }
 
+    /**
+     * Get the status of a solution import job
+     * @param connectionId - Connection ID to use
+     * @param importJobId - GUID of the import job to track
+     * @returns Promise containing the import job details including progress, status, and error information
+     */
+    async getImportJobStatus(connectionId: string, importJobId: string): Promise<Record<string, unknown>> {
+        if (!importJobId || !importJobId.trim()) {
+            throw new Error("importJobId parameter cannot be empty");
+        }
+
+        return this.retrieve(connectionId, "importjob", importJobId.trim(), [
+            "importjobid",
+            "progress",
+            "completedon",
+            "startedon",
+            "data",
+            "solutionname",
+            "createdon",
+            "modifiedon",
+        ]);
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {

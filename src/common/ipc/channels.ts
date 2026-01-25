@@ -149,6 +149,7 @@ export const DATAVERSE_CHANNELS = {
     ASSOCIATE: "dataverse.associate",
     DISASSOCIATE: "dataverse.disassociate",
     DEPLOY_SOLUTION: "dataverse.deploySolution",
+    GET_IMPORT_JOB_STATUS: "dataverse.getImportJobStatus",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

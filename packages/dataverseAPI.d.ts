@@ -664,6 +664,50 @@ declare namespace DataverseAPI {
             },
             connectionTarget?: "primary" | "secondary",
         ) => Promise<{ ImportJobId: string }>;
+
+        /**
+         * Get the status of a solution import job
+         *
+         * @param importJobId - GUID of the import job to track (returned from deploySolution)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing import job details including progress, status, and error information
+         *
+         * @example
+         * // Deploy and track solution import
+         * const deployResult = await dataverseAPI.deploySolution(base64Content);
+         * const importJobId = deployResult.ImportJobId;
+         *
+         * // Poll for status
+         * const status = await dataverseAPI.getImportJobStatus(importJobId);
+         * console.log('Import progress:', status.progress + '%');
+         * console.log('Started:', status.startedon);
+         * console.log('Completed:', status.completedon);
+         * if (status.data) {
+         *     console.log('Import details:', status.data);
+         * }
+         *
+         * @example
+         * // Check import status with polling
+         * async function waitForImport(importJobId: string) {
+         *     while (true) {
+         *         const status = await dataverseAPI.getImportJobStatus(importJobId);
+         *         console.log(`Progress: ${status.progress}%`);
+         *
+         *         if (status.completedon) {
+         *             console.log('Import completed!');
+         *             break;
+         *         }
+         *
+         *         // Wait 2 seconds before checking again
+         *         await new Promise(resolve => setTimeout(resolve, 2000));
+         *     }
+         * }
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const status = await dataverseAPI.getImportJobStatus(importJobId, 'secondary');
+         */
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
     }
 }
 

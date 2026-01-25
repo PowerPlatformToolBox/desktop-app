@@ -372,6 +372,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ASSOCIATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS);
     }
 
     /**
@@ -1336,6 +1337,22 @@ class ToolBoxApp {
                 }
             },
         );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, async (event, importJobId: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getImportJobStatus(connectionId, importJobId);
+            } catch (error) {
+                throw new Error(`Dataverse getImportJobStatus failed: ${(error as Error).message}`);
+            }
+        });
     }
     /**
      * Create application menu

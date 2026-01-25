@@ -195,6 +195,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             },
             connectionTarget?: "primary" | "secondary",
         ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
     },
 
     // Utils API
@@ -315,6 +316,7 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         },
         connectionTarget?: "primary" | "secondary",
     ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
+    getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
 });
 
 logInfo("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
