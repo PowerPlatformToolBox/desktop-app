@@ -371,6 +371,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ASSOCIATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
     }
 
     /**
@@ -1302,6 +1303,36 @@ class ToolBoxApp {
                     return await this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
                 } catch (error) {
                     throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DEPLOY_SOLUTION,
+            async (
+                event,
+                base64SolutionContent: string,
+                options?: {
+                    importJobId?: string;
+                    publishWorkflows?: boolean;
+                    overwriteUnmanagedCustomizations?: boolean;
+                    skipProductUpdateDependencies?: boolean;
+                    convertToManaged?: boolean;
+                },
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.deploySolution(connectionId, base64SolutionContent, options);
+                } catch (error) {
+                    throw new Error(`Dataverse deploySolution failed: ${(error as Error).message}`);
                 }
             },
         );

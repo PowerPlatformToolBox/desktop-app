@@ -148,6 +148,7 @@ export const DATAVERSE_CHANNELS = {
     GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
     ASSOCIATE: "dataverse.associate",
     DISASSOCIATE: "dataverse.disassociate",
+    DEPLOY_SOLUTION: "dataverse.deploySolution",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

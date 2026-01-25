@@ -184,6 +184,17 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
         disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
+        deploySolution: (
+            base64SolutionContent: string,
+            options?: {
+                importJobId?: string;
+                publishWorkflows?: boolean;
+                overwriteUnmanagedCustomizations?: boolean;
+                skipProductUpdateDependencies?: boolean;
+                convertToManaged?: boolean;
+            },
+            connectionTarget?: "primary" | "secondary",
+        ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
     },
 
     // Utils API
@@ -293,6 +304,17 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
         ipcInvoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
     disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
+    deploySolution: (
+        base64SolutionContent: string,
+        options?: {
+            importJobId?: string;
+            publishWorkflows?: boolean;
+            overwriteUnmanagedCustomizations?: boolean;
+            skipProductUpdateDependencies?: boolean;
+            convertToManaged?: boolean;
+        },
+        connectionTarget?: "primary" | "secondary",
+    ) => ipcInvoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
 });
 
 logInfo("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
