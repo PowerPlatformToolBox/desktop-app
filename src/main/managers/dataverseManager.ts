@@ -534,6 +534,84 @@ export class DataverseManager {
         return `<importexportxml><entities><entity>${escapedName}</entity></entities></importexportxml>`;
     }
 
+    /**
+     * Deploy (import) a solution to the Dataverse environment
+     * @param connectionId - Connection ID to use
+     * @param base64SolutionContent - Base64-encoded solution zip file content
+     * @param options - Optional import settings
+     * @returns Promise containing the ImportJobId for tracking the import progress
+     */
+    async deploySolution(
+        connectionId: string,
+        base64SolutionContent: string,
+        options?: {
+            importJobId?: string;
+            publishWorkflows?: boolean;
+            overwriteUnmanagedCustomizations?: boolean;
+            skipProductUpdateDependencies?: boolean;
+            convertToManaged?: boolean;
+        },
+    ): Promise<{ ImportJobId: string }> {
+        if (!base64SolutionContent || !base64SolutionContent.trim()) {
+            throw new Error("base64SolutionContent parameter cannot be empty");
+        }
+
+        const parameters: Record<string, unknown> = {
+            CustomizationFile: base64SolutionContent.trim(),
+        };
+
+        // Add optional parameters if provided
+        if (options?.importJobId) {
+            const trimmedJobId = options.importJobId.trim();
+            if (trimmedJobId) {
+                parameters.ImportJobId = trimmedJobId;
+            }
+        }
+        if (options?.publishWorkflows !== undefined) {
+            parameters.PublishWorkflows = options.publishWorkflows;
+        }
+        if (options?.overwriteUnmanagedCustomizations !== undefined) {
+            parameters.OverwriteUnmanagedCustomizations = options.overwriteUnmanagedCustomizations;
+        }
+        if (options?.skipProductUpdateDependencies !== undefined) {
+            parameters.SkipProductUpdateDependencies = options.skipProductUpdateDependencies;
+        }
+        if (options?.convertToManaged !== undefined) {
+            parameters.ConvertToManaged = options.convertToManaged;
+        }
+
+        const result = await this.execute(connectionId, {
+            operationName: "ImportSolution",
+            operationType: "action",
+            parameters,
+        });
+
+        return result as { ImportJobId: string };
+    }
+
+    /**
+     * Get the status of a solution import job
+     * @param connectionId - Connection ID to use
+     * @param importJobId - GUID of the import job to track
+     * @returns Promise containing the import job details including progress, status, and error information
+     */
+    async getImportJobStatus(connectionId: string, importJobId: string): Promise<Record<string, unknown>> {
+        if (!importJobId || !importJobId.trim()) {
+            throw new Error("importJobId parameter cannot be empty");
+        }
+
+        return this.retrieve(connectionId, "importjob", importJobId.trim(), [
+            "importjobid",
+            "progress",
+            "completedon",
+            "startedon",
+            "data",
+            "solutionname",
+            "createdon",
+            "modifiedon",
+        ]);
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {

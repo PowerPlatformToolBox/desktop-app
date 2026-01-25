@@ -597,6 +597,117 @@ declare namespace DataverseAPI {
          * );
          */
         disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
+         * Deploy (import) a solution to the Dataverse environment
+         *
+         * @param base64SolutionContent - Base64-encoded solution zip file content
+         * @param options - Optional import settings to customize the deployment
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the ImportJobId for tracking the import progress
+         *
+         * @example
+         * // Read solution file and deploy with default options
+         * const solutionFile = await toolboxAPI.filesystem.readBinary('/path/to/solution.zip');
+         * const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+         * const result = await dataverseAPI.deploySolution(base64Content);
+         * console.log('Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution with custom options
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     publishWorkflows: true,
+         *     overwriteUnmanagedCustomizations: false,
+         *     skipProductUpdateDependencies: false,
+         *     convertToManaged: false
+         * });
+         * console.log('Solution deployment started. Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution with specific import job ID for tracking
+         * const importJobId = crypto.randomUUID();
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     importJobId: importJobId,
+         *     publishWorkflows: true
+         * });
+         * console.log('Tracking import with job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     publishWorkflows: true
+         * }, 'secondary');
+         */
+        deploySolution: (
+            base64SolutionContent: string,
+            options?: {
+                /**
+                 * Optional GUID to track the import job. If not provided, Dataverse generates one.
+                 */
+                importJobId?: string;
+                /**
+                 * Whether to publish workflows after import. Default is undefined (Dataverse decides).
+                 */
+                publishWorkflows?: boolean;
+                /**
+                 * Whether to overwrite existing unmanaged customizations. Default is undefined (Dataverse decides).
+                 */
+                overwriteUnmanagedCustomizations?: boolean;
+                /**
+                 * Whether to skip dependency checks for product updates. Default is undefined (Dataverse decides).
+                 */
+                skipProductUpdateDependencies?: boolean;
+                /**
+                 * Whether to convert the solution to managed. Default is undefined (Dataverse decides).
+                 */
+                convertToManaged?: boolean;
+            },
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ ImportJobId: string }>;
+
+        /**
+         * Get the status of a solution import job
+         *
+         * @param importJobId - GUID of the import job to track (returned from deploySolution)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing import job details including progress, status, and error information
+         *
+         * @example
+         * // Deploy and track solution import
+         * const deployResult = await dataverseAPI.deploySolution(base64Content);
+         * const importJobId = deployResult.ImportJobId;
+         *
+         * // Poll for status
+         * const status = await dataverseAPI.getImportJobStatus(importJobId);
+         * console.log('Import progress:', status.progress + '%');
+         * console.log('Started:', status.startedon);
+         * console.log('Completed:', status.completedon);
+         * if (status.data) {
+         *     console.log('Import details:', status.data);
+         * }
+         *
+         * @example
+         * // Check import status with polling
+         * async function waitForImport(importJobId: string) {
+         *     while (true) {
+         *         const status = await dataverseAPI.getImportJobStatus(importJobId);
+         *         console.log(`Progress: ${status.progress}%`);
+         *
+         *         if (status.completedon) {
+         *             console.log('Import completed!');
+         *             break;
+         *         }
+         *
+         *         // Wait 2 seconds before checking again
+         *         await new Promise(resolve => setTimeout(resolve, 2000));
+         *     }
+         * }
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const status = await dataverseAPI.getImportJobStatus(importJobId, 'secondary');
+         */
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
     }
 }
 

@@ -271,6 +271,61 @@ await dataverseAPI.publishCustomizations();
 await dataverseAPI.publishCustomizations("account");
 ```
 
+### Deploy Solutions
+
+```typescript
+// Read solution file and convert to base64
+const solutionFile = await toolboxAPI.fileSystem.readBinary("/path/to/MySolution.zip");
+const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+
+// Deploy solution with default options
+const result = await dataverseAPI.deploySolution(base64Content);
+console.log("Solution deployment started. Import Job ID:", result.ImportJobId);
+
+// Deploy solution with custom options
+const result = await dataverseAPI.deploySolution(base64Content, {
+    publishWorkflows: true,
+    overwriteUnmanagedCustomizations: false,
+    skipProductUpdateDependencies: false,
+    convertToManaged: false,
+});
+console.log("Import Job ID:", result.ImportJobId);
+
+// Deploy with a specific import job ID for tracking
+const importJobId = crypto.randomUUID();
+const result = await dataverseAPI.deploySolution(base64Content, {
+    importJobId: importJobId,
+    publishWorkflows: true,
+});
+console.log("Tracking import with job ID:", result.ImportJobId);
+
+// Track the import progress
+const status = await dataverseAPI.getImportJobStatus(result.ImportJobId);
+console.log("Import progress:", status.progress + "%");
+console.log("Started:", status.startedon);
+
+// Poll for completion
+async function waitForImport(importJobId: string) {
+    while (true) {
+        const status = await dataverseAPI.getImportJobStatus(importJobId);
+        console.log(`Progress: ${status.progress}%`);
+
+        if (status.completedon) {
+            console.log("Import completed at:", status.completedon);
+            if (status.data) {
+                console.log("Import details:", status.data);
+            }
+            break;
+        }
+
+        // Wait 2 seconds before checking again
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+}
+
+await waitForImport(result.ImportJobId);
+```
+
 ## API Reference
 
 The Power Platform ToolBox exposes two main APIs to tools:
@@ -431,6 +486,15 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     -   Supports both bound and unbound operations
 -   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
     -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
+-   **deploySolution(base64SolutionContent: string, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary")**: Promise<{ImportJobId: string}>
+    -   Deploys (imports) a solution to the Dataverse environment
+    -   Takes a base64-encoded solution zip file
+    -   Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, etc.)
+    -   Returns an ImportJobId for tracking the import progress
+-   **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary")**: Promise<Record<string, unknown>>
+    -   Gets the status of a solution import job
+    -   Returns import job details including progress, completion status, and error information
+    -   Use to track the progress of a solution deployment initiated with deploySolution
 
 ### Security Notes
 
