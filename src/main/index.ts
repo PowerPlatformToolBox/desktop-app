@@ -369,6 +369,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.ASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
     }
 
     /**
@@ -1257,6 +1259,52 @@ class ToolBoxApp {
                 throw new Error(`Dataverse getEntitySetName failed: ${(error as Error).message}`);
             }
         });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.ASSOCIATE,
+            async (
+                event,
+                primaryEntityName: string,
+                primaryEntityId: string,
+                relationshipName: string,
+                relatedEntityName: string,
+                relatedEntityId: string,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse associate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DISASSOCIATE,
+            async (event, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
+                }
+            },
+        );
     }
     /**
      * Create application menu

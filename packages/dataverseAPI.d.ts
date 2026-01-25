@@ -508,6 +508,95 @@ declare namespace DataverseAPI {
          * console.log(entitySetName); // Output: "opportunities"
          */
         getEntitySetName: (entityLogicalName: string) => Promise<string>;
+
+        /**
+         * Associate two records in a many-to-many relationship
+         *
+         * @param primaryEntityName - Logical name of the primary entity (e.g., 'systemuser', 'team')
+         * @param primaryEntityId - GUID of the primary record
+         * @param relationshipName - Logical name of the N-to-N relationship (e.g., 'systemuserroles_association', 'teammembership_association')
+         * @param relatedEntityName - Logical name of the related entity (e.g., 'role', 'systemuser')
+         * @param relatedEntityId - GUID of the related record
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Assign a security role to a user
+         * await dataverseAPI.associate(
+         *     'systemuser',
+         *     'user-guid-here',
+         *     'systemuserroles_association',
+         *     'role',
+         *     'role-guid-here'
+         * );
+         *
+         * @example
+         * // Add a user to a team
+         * await dataverseAPI.associate(
+         *     'team',
+         *     'team-guid-here',
+         *     'teammembership_association',
+         *     'systemuser',
+         *     'user-guid-here'
+         * );
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.associate(
+         *     'systemuser',
+         *     'user-guid',
+         *     'systemuserroles_association',
+         *     'role',
+         *     'role-guid',
+         *     'secondary'
+         * );
+         */
+        associate: (
+            primaryEntityName: string,
+            primaryEntityId: string,
+            relationshipName: string,
+            relatedEntityName: string,
+            relatedEntityId: string,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
+
+        /**
+         * Disassociate two records in a many-to-many relationship
+         *
+         * @param primaryEntityName - Logical name of the primary entity (e.g., 'systemuser', 'team')
+         * @param primaryEntityId - GUID of the primary record
+         * @param relationshipName - Logical name of the N-to-N relationship (e.g., 'systemuserroles_association', 'teammembership_association')
+         * @param relatedEntityId - GUID of the related record to disassociate
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Remove a security role from a user
+         * await dataverseAPI.disassociate(
+         *     'systemuser',
+         *     'user-guid-here',
+         *     'systemuserroles_association',
+         *     'role-guid-here'
+         * );
+         *
+         * @example
+         * // Remove a user from a team
+         * await dataverseAPI.disassociate(
+         *     'team',
+         *     'team-guid-here',
+         *     'teammembership_association',
+         *     'user-guid-here'
+         * );
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.disassociate(
+         *     'systemuser',
+         *     'user-guid',
+         *     'systemuserroles_association',
+         *     'role-guid',
+         *     'secondary'
+         * );
+         */
+        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
     }
 }
 
