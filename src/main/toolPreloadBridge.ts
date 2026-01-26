@@ -185,7 +185,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
         deploySolution: (
-            base64SolutionContent: string,
+            base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
             options?: {
                 importJobId?: string;
                 publishWorkflows?: boolean;

@@ -1312,7 +1312,7 @@ class ToolBoxApp {
             DATAVERSE_CHANNELS.DEPLOY_SOLUTION,
             async (
                 event,
-                base64SolutionContent: string,
+                base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
                 options?: {
                     importJobId?: string;
                     publishWorkflows?: boolean;

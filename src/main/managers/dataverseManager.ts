@@ -57,55 +57,55 @@ export class DataverseManager {
         this.authManager = authManager;
     }
 
-        /**
-         * Build a properly formatted API URL by combining base URL and path
-         * Ensures no double slashes between base URL and path
-         */
-        private buildApiUrl(connection: DataverseConnection, path: string): string {
-            // Ensure base URL doesn't end with slash and path doesn't start with slash
-            const baseUrl = connection.url.replace(/\/$/, "");
-            const cleanPath = path.replace(/^\//, "");
-            return `${baseUrl}/${cleanPath}`;
+    /**
+     * Build a properly formatted API URL by combining base URL and path
+     * Ensures no double slashes between base URL and path
+     */
+    private buildApiUrl(connection: DataverseConnection, path: string): string {
+        // Ensure base URL doesn't end with slash and path doesn't start with slash
+        const baseUrl = connection.url.replace(/\/$/, "");
+        const cleanPath = path.replace(/^\//, "");
+        return `${baseUrl}/${cleanPath}`;
+    }
+
+    /**
+     * Get a connection by ID and ensure it has a valid access token
+     * @param connectionId The ID of the connection to use
+     */
+    private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
+        const connection = this.connectionsManager.getConnectionById(connectionId);
+        if (!connection) {
+            throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
-        /**
-         * Get a connection by ID and ensure it has a valid access token
-         * @param connectionId The ID of the connection to use
-         */
-        private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
-            const connection = this.connectionsManager.getConnectionById(connectionId);
-            if (!connection) {
-                throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
-            }
+        if (!connection.accessToken) {
+            throw new Error("No access token found. Please reconnect to the environment.");
+        }
 
-            if (!connection.accessToken) {
-                throw new Error("No access token found. Please reconnect to the environment.");
-            }
+        // Check if token is expired
+        if (connection.tokenExpiry) {
+            const expiryDate = new Date(connection.tokenExpiry);
+            const now = new Date();
 
-            // Check if token is expired
-            if (connection.tokenExpiry) {
-                const expiryDate = new Date(connection.tokenExpiry);
-                const now = new Date();
-
-                // Refresh if token expires in the next 5 minutes
-                if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
-                    if (connection.refreshToken) {
-                        try {
-                            const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                            this.connectionsManager.updateConnectionTokens(connection.id, {
-                                accessToken: authResult.accessToken,
-                                refreshToken: authResult.refreshToken,
-                                expiresOn: authResult.expiresOn,
-                            });
-                            return { connection, accessToken: authResult.accessToken };
-                        } catch (error) {
-                            throw new Error(`Failed to refresh token: ${(error as Error).message}`);
-                        }
-                    } else {
-                        throw new Error("Access token expired and no refresh token available. Please reconnect.");
+            // Refresh if token expires in the next 5 minutes
+            if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
+                if (connection.refreshToken) {
+                    try {
+                        const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                        this.connectionsManager.updateConnectionTokens(connection.id, {
+                            accessToken: authResult.accessToken,
+                            refreshToken: authResult.refreshToken,
+                            expiresOn: authResult.expiresOn,
+                        });
+                        return { connection, accessToken: authResult.accessToken };
+                    } catch (error) {
+                        throw new Error(`Failed to refresh token: ${(error as Error).message}`);
                     }
+                } else {
+                    throw new Error("Access token expired and no refresh token available. Please reconnect.");
                 }
             }
+        }
 
         return { connection, accessToken: connection.accessToken };
     }
@@ -543,7 +543,7 @@ export class DataverseManager {
      */
     async deploySolution(
         connectionId: string,
-        base64SolutionContent: string,
+        base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
         options?: {
             importJobId?: string;
             publishWorkflows?: boolean;
@@ -552,12 +552,13 @@ export class DataverseManager {
             convertToManaged?: boolean;
         },
     ): Promise<{ ImportJobId: string }> {
-        if (!base64SolutionContent || !base64SolutionContent.trim()) {
-            throw new Error("base64SolutionContent parameter cannot be empty");
-        }
-
+        const normalizedContent = this.normalizeSolutionContent(base64SolutionContent);
+        const resolvedPublishWorkflows = options?.publishWorkflows ?? false;
+        const resolvedOverwriteCustomizations = options?.overwriteUnmanagedCustomizations ?? false;
         const parameters: Record<string, unknown> = {
-            CustomizationFile: base64SolutionContent.trim(),
+            CustomizationFile: normalizedContent,
+            PublishWorkflows: resolvedPublishWorkflows,
+            OverwriteUnmanagedCustomizations: resolvedOverwriteCustomizations,
         };
 
         // Add optional parameters if provided
@@ -566,12 +567,6 @@ export class DataverseManager {
             if (trimmedJobId) {
                 parameters.ImportJobId = trimmedJobId;
             }
-        }
-        if (options?.publishWorkflows !== undefined) {
-            parameters.PublishWorkflows = options.publishWorkflows;
-        }
-        if (options?.overwriteUnmanagedCustomizations !== undefined) {
-            parameters.OverwriteUnmanagedCustomizations = options.overwriteUnmanagedCustomizations;
         }
         if (options?.skipProductUpdateDependencies !== undefined) {
             parameters.SkipProductUpdateDependencies = options.skipProductUpdateDependencies;
@@ -589,6 +584,33 @@ export class DataverseManager {
         return result as { ImportJobId: string };
     }
 
+    /** Normalize solution payload input to a base64 string accepted by Dataverse */
+    private normalizeSolutionContent(content: string | ArrayBuffer | ArrayBufferView): string {
+        if (typeof content === "string") {
+            const trimmed = content.trim();
+            if (!trimmed) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return trimmed;
+        }
+
+        if (ArrayBuffer.isView(content)) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString("base64");
+        }
+
+        if (content instanceof ArrayBuffer) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content).toString("base64");
+        }
+
+        throw new Error("base64SolutionContent must be a base64 string, ArrayBuffer, or ArrayBufferView");
+    }
+
     /**
      * Get the status of a solution import job
      * @param connectionId - Connection ID to use
@@ -600,16 +622,7 @@ export class DataverseManager {
             throw new Error("importJobId parameter cannot be empty");
         }
 
-        return this.retrieve(connectionId, "importjob", importJobId.trim(), [
-            "importjobid",
-            "progress",
-            "completedon",
-            "startedon",
-            "data",
-            "solutionname",
-            "createdon",
-            "modifiedon",
-        ]);
+        return this.retrieve(connectionId, "importjob", importJobId.trim(), ["importjobid", "progress", "completedon", "startedon", "data", "solutionname", "createdon", "modifiedon"]);
     }
 
     /** Create multiple records in Dataverse */
@@ -670,14 +683,7 @@ export class DataverseManager {
      * @param relatedEntityName - Logical name of the related entity
      * @param relatedEntityId - GUID of the related record
      */
-    async associate(
-        connectionId: string,
-        primaryEntityName: string,
-        primaryEntityId: string,
-        relationshipName: string,
-        relatedEntityName: string,
-        relatedEntityId: string,
-    ): Promise<void> {
+    async associate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string): Promise<void> {
         if (!primaryEntityName || !primaryEntityName.trim()) {
             throw new Error("primaryEntityName parameter cannot be empty");
         }

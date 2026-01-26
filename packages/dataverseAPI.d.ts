@@ -46,6 +46,11 @@ declare namespace DataverseAPI {
     }
 
     /**
+     * Supported inputs for solution deployment payloads
+     */
+    export type SolutionContentInput = string | ArrayBuffer | ArrayBufferView;
+
+    /**
      * Record creation result
      */
     export interface CreateResult {
@@ -601,21 +606,20 @@ declare namespace DataverseAPI {
         /**
          * Deploy (import) a solution to the Dataverse environment
          *
-         * @param base64SolutionContent - Base64-encoded solution zip file content
+         * @param solutionContent - Base64-encoded solution zip string or binary data (Buffer, Uint8Array, ArrayBuffer)
          * @param options - Optional import settings to customize the deployment
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the ImportJobId for tracking the import progress
          *
          * @example
          * // Read solution file and deploy with default options
-         * const solutionFile = await toolboxAPI.filesystem.readBinary('/path/to/solution.zip');
-         * const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
-         * const result = await dataverseAPI.deploySolution(base64Content);
+         * const solutionFile = await toolboxAPI.fileSystem.readBinary('/path/to/solution.zip');
+         * const result = await dataverseAPI.deploySolution(solutionFile);
          * console.log('Import Job ID:', result.ImportJobId);
          *
          * @example
          * // Deploy solution with custom options
-         * const result = await dataverseAPI.deploySolution(base64Content, {
+         * const result = await dataverseAPI.deploySolution(solutionFile, {
          *     publishWorkflows: true,
          *     overwriteUnmanagedCustomizations: false,
          *     skipProductUpdateDependencies: false,
@@ -624,8 +628,9 @@ declare namespace DataverseAPI {
          * console.log('Solution deployment started. Import Job ID:', result.ImportJobId);
          *
          * @example
-         * // Deploy solution with specific import job ID for tracking
+         * // Deploy solution using a manually encoded base64 string with specific import job ID
          * const importJobId = crypto.randomUUID();
+         * const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
          * const result = await dataverseAPI.deploySolution(base64Content, {
          *     importJobId: importJobId,
          *     publishWorkflows: true
@@ -634,23 +639,23 @@ declare namespace DataverseAPI {
          *
          * @example
          * // Multi-connection tool using secondary connection
-         * const result = await dataverseAPI.deploySolution(base64Content, {
+         * const result = await dataverseAPI.deploySolution(solutionFile, {
          *     publishWorkflows: true
          * }, 'secondary');
          */
         deploySolution: (
-            base64SolutionContent: string,
+            solutionContent: SolutionContentInput,
             options?: {
                 /**
                  * Optional GUID to track the import job. If not provided, Dataverse generates one.
                  */
                 importJobId?: string;
                 /**
-                 * Whether to publish workflows after import. Default is undefined (Dataverse decides).
+                 * Whether to publish workflows after import. Defaults to false when omitted.
                  */
                 publishWorkflows?: boolean;
                 /**
-                 * Whether to overwrite existing unmanaged customizations. Default is undefined (Dataverse decides).
+                 * Whether to overwrite existing unmanaged customizations. Defaults to false when omitted.
                  */
                 overwriteUnmanagedCustomizations?: boolean;
                 /**
