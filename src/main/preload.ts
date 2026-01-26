@@ -122,10 +122,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
     },
 
-    // Troubleshooting - Only for PPTB UI
-    checkSupabaseConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY),
-    checkRegistryFile: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_REGISTRY_FILE),
-    checkFallbackApi: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_FALLBACK_API),
+    // Troubleshooting namespace - organized like other features
+    troubleshooting: {
+        checkSupabaseConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY),
+        checkRegistryFile: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_REGISTRY_FILE),
+        checkFallbackApi: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_FALLBACK_API),
+    },
 
     // FileSystem namespace - filesystem operations
     fileSystem: {

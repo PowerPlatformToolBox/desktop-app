@@ -8,11 +8,6 @@ import { getTroubleshootingModalControllerScript } from "../modals/troubleshooti
 import { getTroubleshootingModalView } from "../modals/troubleshooting/view";
 import { showBrowserWindowModal } from "./browserWindowModals";
 
-const TROUBLESHOOTING_MODAL_CHANNELS = {
-    runChecks: "troubleshooting:run-checks",
-    checkResult: "troubleshooting:check-result",
-} as const;
-
 const TROUBLESHOOTING_MODAL_DIMENSIONS = {
     width: 600,
     height: 550,
@@ -42,9 +37,7 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
 
 function buildTroubleshootingModalHtml(isDarkTheme: boolean): string {
     const { styles, body } = getTroubleshootingModalView({ isDarkTheme });
-    const controllerScript = getTroubleshootingModalControllerScript({
-        channels: TROUBLESHOOTING_MODAL_CHANNELS,
-    });
+    const controllerScript = getTroubleshootingModalControllerScript();
 
     return `
 <!DOCTYPE html>

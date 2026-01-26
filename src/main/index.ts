@@ -1704,7 +1704,7 @@ class ToolBoxApp {
         try {
             // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
-            if (tools && tools.length >= 0) {
+            if (tools && Array.isArray(tools)) {
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
             return { success: false, message: "Unable to fetch tools from registry" };
@@ -1751,9 +1751,11 @@ class ToolBoxApp {
         // TODO: Add actual fallback API check when endpoint is provided
         // Example: Test connectivity to a secondary API endpoint like GitHub raw content
         // or a CDN fallback for tool registry
+        const FALLBACK_CHECK_URL = "https://api.github.com/zen";
+
         try {
             // For now, we'll check if we can reach GitHub as a basic internet connectivity check
-            const response = await fetch("https://api.github.com/zen", {
+            const response = await fetch(FALLBACK_CHECK_URL, {
                 method: "GET",
                 headers: { "User-Agent": "PowerPlatformToolBox" },
             });

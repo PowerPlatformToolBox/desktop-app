@@ -1,18 +1,7 @@
-export interface TroubleshootingModalChannelIds {
-    runChecks: string;
-    checkResult: string;
-}
-
-export interface TroubleshootingModalControllerConfig {
-    channels: TroubleshootingModalChannelIds;
-}
-
-export function getTroubleshootingModalControllerScript(config: TroubleshootingModalControllerConfig): string {
-    const serialized = JSON.stringify(config);
+export function getTroubleshootingModalControllerScript(): string {
     return `
 <script>
 (() => {
-    const CONFIG = ${serialized};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -80,14 +69,14 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             // Check Supabase connectivity
             setCheckStatus("check-supabase", "loading", "Checking Supabase API...");
             try {
-                const supabaseResult = await window.toolboxAPI.checkSupabaseConnectivity();
+                const supabaseResult = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();
                 if (supabaseResult.success) {
-                    setCheckStatus("check-supabase", "success", "✓ Connected to Supabase successfully");
+                    setCheckStatus("check-supabase", "success", \`✓ \${supabaseResult.message || "Connected to Supabase successfully"}\`);
                 } else {
-                    setCheckStatus("check-supabase", "error", "✗ " + (supabaseResult.message || "Failed to connect to Supabase"));
+                    setCheckStatus("check-supabase", "error", \`✗ \${supabaseResult.message || "Failed to connect to Supabase"}\`);
                 }
             } catch (error) {
-                setCheckStatus("check-supabase", "error", "✗ Error checking Supabase: " + error.message);
+                setCheckStatus("check-supabase", "error", \`✗ Error checking Supabase: \${error.message}\`);
             }
 
             // Small delay between checks for better UX
@@ -96,14 +85,14 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             // Check registry file
             setCheckStatus("check-registry", "loading", "Checking local registry file...");
             try {
-                const registryResult = await window.toolboxAPI.checkRegistryFile();
+                const registryResult = await window.toolboxAPI.troubleshooting.checkRegistryFile();
                 if (registryResult.success) {
-                    setCheckStatus("check-registry", "success", "✓ Registry file loaded with " + registryResult.toolCount + " tools");
+                    setCheckStatus("check-registry", "success", \`✓ Registry accessible with \${registryResult.toolCount} tools\`);
                 } else {
-                    setCheckStatus("check-registry", "error", "✗ " + (registryResult.message || "Registry file not found or invalid"));
+                    setCheckStatus("check-registry", "error", \`✗ \${registryResult.message || "Registry not found or invalid"}\`);
                 }
             } catch (error) {
-                setCheckStatus("check-registry", "error", "✗ Error checking registry: " + error.message);
+                setCheckStatus("check-registry", "error", \`✗ Error checking registry: \${error.message}\`);
             }
 
             await new Promise(resolve => setTimeout(resolve, 300));
@@ -111,14 +100,14 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             // Check fallback API (placeholder for future implementation)
             setCheckStatus("check-fallback", "loading", "Checking fallback API...");
             try {
-                const fallbackResult = await window.toolboxAPI.checkFallbackApi();
+                const fallbackResult = await window.toolboxAPI.troubleshooting.checkFallbackApi();
                 if (fallbackResult.success) {
-                    setCheckStatus("check-fallback", "success", "✓ " + (fallbackResult.message || "Fallback API is accessible"));
+                    setCheckStatus("check-fallback", "success", \`✓ \${fallbackResult.message || "Fallback API is accessible"}\`);
                 } else {
-                    setCheckStatus("check-fallback", "error", "✗ " + (fallbackResult.message || "Fallback API check failed"));
+                    setCheckStatus("check-fallback", "error", \`✗ \${fallbackResult.message || "Fallback API check failed"}\`);
                 }
             } catch (error) {
-                setCheckStatus("check-fallback", "error", "✗ Error checking fallback API: " + error.message);
+                setCheckStatus("check-fallback", "error", \`✗ Error checking fallback API: \${error.message}\`);
             }
 
         } finally {
