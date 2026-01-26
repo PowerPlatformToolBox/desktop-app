@@ -3,7 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureMessage, logDebug, logInfo } from "../../common/sentryHelper";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
@@ -910,7 +910,7 @@ function handleEditConnectionModalMessage(payload: ModalWindowMessagePayload): v
 function buildEditConnectionModalHtml(): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
-    console.debug("Building edit connection modal HTML, isDarkTheme:", isDarkTheme);
+    logDebug("Building edit connection modal HTML", { isDarkTheme });
 
     const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
     const { styles, body } = getEditConnectionModalView(isDarkTheme);

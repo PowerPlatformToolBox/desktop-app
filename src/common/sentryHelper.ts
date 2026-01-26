@@ -24,6 +24,31 @@ let machineId: string | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sentryModule: any = null;
 
+// Environment detection - determines if we're in development mode
+let isDevelopment = false;
+
+/**
+ * Detect if we're running in development mode
+ * This checks both NODE_ENV and whether the app is packaged (Electron main process)
+ */
+function detectEnvironment(): boolean {
+    // Check NODE_ENV first
+    if (process.env.NODE_ENV === "development") {
+        return true;
+    }
+
+    // Try to detect if we're in Electron main process and check if app is packaged
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { app } = require("electron");
+        return !app.isPackaged;
+    } catch {
+        // Not in main process or electron not available
+        // Default to production mode for safety
+        return false;
+    }
+}
+
 /**
  * Initialize the Sentry helper with the Sentry module
  * Call this from main or renderer after importing the appropriate Sentry module
@@ -31,6 +56,7 @@ let sentryModule: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function initializeSentryHelper(sentry: any): void {
     sentryModule = sentry;
+    isDevelopment = detectEnvironment();
 }
 
 /**
@@ -314,14 +340,15 @@ export function wrapAsyncOperation<T>(
  * Use this at critical points in the application flow
  */
 export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>): void {
+    // Always log to console for local debugging
+    // eslint-disable-next-line no-console
+    console.log(`[Checkpoint] ${checkpoint}`, data ? JSON.stringify(data, null, 2) : "");
+
     // Log to Sentry using structured logger
     logInfo(`Checkpoint: ${checkpoint}`, data);
 
     // Add as breadcrumb for context
     addBreadcrumb(checkpoint, "checkpoint", "info", data);
-
-    // Also log to console for local debugging
-    console.log(`[Checkpoint] ${checkpoint}`, data ? JSON.stringify(data, null, 2) : "");
 }
 
 /**
@@ -352,9 +379,17 @@ export function clearScope(): void {
 /**
  * Log a trace message to Sentry
  * Use for detailed diagnostic information
+ * Note: Only sent to Sentry in development mode
  */
 export function logTrace(message: string, data?: Record<string, unknown>): void {
-    if (!sentryModule || !sentryModule.logger) return;
+    // Always log to console for debugging
+    if (isDevelopment) {
+        // eslint-disable-next-line no-console
+        console.debug(`[TRACE] ${message}`, data || "");
+    }
+
+    // Only send to Sentry in development mode to reduce noise
+    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
 
     sentryModule.logger.trace(message, {
         ...data,
@@ -365,9 +400,17 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
 /**
  * Log a debug message to Sentry
  * Use for debugging information during development
+ * Note: Only sent to Sentry in development mode
  */
 export function logDebug(message: string, data?: Record<string, unknown>): void {
-    if (!sentryModule || !sentryModule.logger) return;
+    // Always log to console for debugging
+    if (isDevelopment) {
+        // eslint-disable-next-line no-console
+        console.debug(`[DEBUG] ${message}`, data || "");
+    }
+
+    // Only send to Sentry in development mode to reduce noise
+    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
 
     sentryModule.logger.debug(message, {
         ...data,
@@ -378,8 +421,13 @@ export function logDebug(message: string, data?: Record<string, unknown>): void 
 /**
  * Log an info message to Sentry
  * Use for general informational messages
+ * Note: Sent to Sentry in all environments, but creates breadcrumbs not Issues
  */
 export function logInfo(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.info(`[INFO] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.info(message, {
@@ -391,8 +439,13 @@ export function logInfo(message: string, data?: Record<string, unknown>): void {
 /**
  * Log a warning message to Sentry
  * Use for warning conditions that should be reviewed
+ * Note: Sent to Sentry in all environments
  */
 export function logWarn(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.warn(`[WARN] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.warn(message, {
@@ -404,8 +457,13 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
 /**
  * Log an error message to Sentry
  * Use for error conditions that need attention
+ * Note: Sent to Sentry in all environments
  */
 export function logError(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.error(`[ERROR] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.error(message, {
@@ -417,8 +475,13 @@ export function logError(message: string, data?: Record<string, unknown>): void 
 /**
  * Log a fatal error message to Sentry
  * Use for critical errors that require immediate attention
+ * Note: Sent to Sentry in all environments
  */
 export function logFatal(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.error(`[FATAL] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.fatal(message, {
