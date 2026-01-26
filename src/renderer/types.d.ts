@@ -26,6 +26,13 @@ declare global {
             invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
             send: (channel: string, ...args: unknown[]) => void;
         };
+        /** Modal bridge API for modal windows */
+        modalBridge?: {
+            close: () => Promise<void>;
+            send: (channel: string, data?: unknown) => void;
+            onMessage: (handler: (payload: unknown) => void) => void;
+            offMessage: (handler: (payload: unknown) => void) => void;
+        };
     }
 }
 
