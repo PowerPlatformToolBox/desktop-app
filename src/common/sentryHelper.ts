@@ -30,8 +30,9 @@ let isDevelopment = false;
 /**
  * Detect if we're running in development mode
  * This checks both NODE_ENV and whether the app is packaged (Electron main process)
+ * @returns true if in development mode, false otherwise
  */
-function detectEnvironment(): boolean {
+function isDevelopmentEnvironment(): boolean {
     // Check NODE_ENV first
     if (process.env.NODE_ENV === "development") {
         return true;
@@ -56,7 +57,7 @@ function detectEnvironment(): boolean {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function initializeSentryHelper(sentry: any): void {
     sentryModule = sentry;
-    isDevelopment = detectEnvironment();
+    isDevelopment = isDevelopmentEnvironment();
 }
 
 /**
@@ -382,7 +383,7 @@ export function clearScope(): void {
  * Note: Only sent to Sentry in development mode
  */
 export function logTrace(message: string, data?: Record<string, unknown>): void {
-    // Always log to console for debugging
+    // Log to console in development mode only (very verbose)
     if (isDevelopment) {
         // eslint-disable-next-line no-console
         console.debug(`[TRACE] ${message}`, data || "");
@@ -403,7 +404,7 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
  * Note: Only sent to Sentry in development mode
  */
 export function logDebug(message: string, data?: Record<string, unknown>): void {
-    // Always log to console for debugging
+    // Log to console in development mode only (verbose)
     if (isDevelopment) {
         // eslint-disable-next-line no-console
         console.debug(`[DEBUG] ${message}`, data || "");
