@@ -647,6 +647,14 @@ function setupApplicationEventListeners(): void {
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
     });
+
+    // Troubleshooting modal listener
+    window.api.on("open-troubleshooting-modal", async () => {
+        const { openTroubleshootingModal } = await import("./troubleshootingManagement");
+        const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
+        const isDarkTheme = currentTheme === "dark";
+        await openTroubleshootingModal(isDarkTheme);
+    });
 }
 
 /**

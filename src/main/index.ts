@@ -858,6 +858,19 @@ class ToolBoxApp {
             return theme;
         });
 
+        // Troubleshooting handlers
+        ipcMain.handle(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY, async () => {
+            return await this.checkSupabaseConnectivity();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_REGISTRY_FILE, async () => {
+            return await this.checkRegistryFile();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_FALLBACK_API, async () => {
+            return await this.checkFallbackApi();
+        });
+
         // Event history handler
         ipcMain.handle(UTIL_CHANNELS.GET_EVENT_HISTORY, (_, limit) => {
             return this.api.getEventHistory(limit);
@@ -1439,6 +1452,12 @@ class ToolBoxApp {
                         },
                     },
                     {
+                        label: "Troubleshooting",
+                        click: () => {
+                            this.showTroubleshootingModal();
+                        },
+                    },
+                    {
                         label: "Toggle ToolBox DevTools",
                         accelerator: isMac ? "Alt+Command+I" : "Ctrl+Shift+I",
                         click: () => {
@@ -1663,6 +1682,96 @@ class ToolBoxApp {
             if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
             }
+        }
+    }
+
+    /**
+     * Show Troubleshooting modal
+     * Displays a modal for diagnosing connectivity and configuration issues
+     */
+    private showTroubleshootingModal(): void {
+        if (!this.mainWindow) return;
+
+        // Send message to renderer to open the troubleshooting modal
+        this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    /**
+     * Check Supabase connectivity
+     * Tests if the Supabase API is accessible
+     */
+    private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
+        try {
+            // Use the toolRegistryManager to check connectivity by fetching tools
+            const tools = await this.toolManager.registryManager.fetchToolsFromSupabase();
+            if (tools && tools.length >= 0) {
+                return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
+            }
+            return { success: false, message: "Unable to fetch tools from Supabase" };
+        } catch (error) {
+            captureException(error as Error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
+            };
+        }
+    }
+
+    /**
+     * Check if the local registry file exists and is valid
+     */
+    private async checkRegistryFile(): Promise<{ success: boolean; message?: string; toolCount?: number }> {
+        try {
+            const registry = this.toolManager.registryManager.getRegistry();
+            if (registry && registry.tools && Array.isArray(registry.tools)) {
+                return {
+                    success: true,
+                    message: `Registry file is valid`,
+                    toolCount: registry.tools.length,
+                };
+            }
+            return { success: false, message: "Registry file is empty or invalid" };
+        } catch (error) {
+            captureException(error as Error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to load registry file",
+            };
+        }
+    }
+
+    /**
+     * Check fallback API connectivity
+     * Placeholder for future implementation - currently returns a not implemented message
+     * TODO: Replace with actual fallback API endpoint when available
+     */
+    private async checkFallbackApi(): Promise<{ success: boolean; message?: string }> {
+        // Placeholder implementation
+        // TODO: Add actual fallback API check when endpoint is provided
+        // Example: Test connectivity to a secondary API endpoint like GitHub raw content
+        // or a CDN fallback for tool registry
+        try {
+            // For now, we'll check if we can reach GitHub as a basic internet connectivity check
+            const response = await fetch("https://api.github.com/zen", {
+                method: "GET",
+                headers: { "User-Agent": "PowerPlatformToolBox" },
+            });
+
+            if (response.ok) {
+                return {
+                    success: true,
+                    message: "Internet connectivity check passed (GitHub API accessible)",
+                };
+            }
+            return {
+                success: false,
+                message: `Fallback check failed: HTTP ${response.status}`,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Network error during fallback check",
+            };
         }
     }
 
