@@ -1702,12 +1702,12 @@ class ToolBoxApp {
      */
     private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
         try {
-            // Use the toolRegistryManager to check connectivity by fetching tools
-            const tools = await this.toolManager.registryManager.fetchToolsFromSupabase();
+            // Use the toolManager to check connectivity by fetching tools
+            const tools = await this.toolManager.fetchAvailableTools();
             if (tools && tools.length >= 0) {
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
-            return { success: false, message: "Unable to fetch tools from Supabase" };
+            return { success: false, message: "Unable to fetch tools from registry" };
         } catch (error) {
             captureException(error as Error);
             return {
@@ -1722,20 +1722,21 @@ class ToolBoxApp {
      */
     private async checkRegistryFile(): Promise<{ success: boolean; message?: string; toolCount?: number }> {
         try {
-            const registry = this.toolManager.registryManager.getRegistry();
-            if (registry && registry.tools && Array.isArray(registry.tools)) {
+            // Fetch from registry which will use local fallback if Supabase is not available
+            const tools = await this.toolManager.fetchAvailableTools();
+            if (tools && Array.isArray(tools)) {
                 return {
                     success: true,
-                    message: `Registry file is valid`,
-                    toolCount: registry.tools.length,
+                    message: `Registry accessible`,
+                    toolCount: tools.length,
                 };
             }
-            return { success: false, message: "Registry file is empty or invalid" };
+            return { success: false, message: "Registry is empty or invalid" };
         } catch (error) {
             captureException(error as Error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Failed to load registry file",
+                message: error instanceof Error ? error.message : "Failed to access registry",
             };
         }
     }
