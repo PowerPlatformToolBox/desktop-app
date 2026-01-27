@@ -4,19 +4,29 @@
  */
 
 import { captureMessage } from "../../common/sentryHelper";
+import type { ModalWindowMessagePayload } from "../../common/types";
 import { getTroubleshootingModalControllerScript } from "../modals/troubleshooting/controller";
 import { getTroubleshootingModalView } from "../modals/troubleshooting/view";
-import { showBrowserWindowModal } from "./browserWindowModals";
+import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+
+const TROUBLESHOOTING_MODAL_CHANNELS = {
+    runCheck: "troubleshooting:run-check",
+    checkResult: "troubleshooting:check-result",
+} as const;
 
 const TROUBLESHOOTING_MODAL_DIMENSIONS = {
     width: 600,
     height: 550,
 };
 
+let troubleshootingModalHandlersRegistered = false;
+
 /**
  * Open troubleshooting modal
  */
 export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<void> {
+    initializeTroubleshootingModalBridge();
+
     try {
         const modalHtml = buildTroubleshootingModalHtml(isDarkTheme);
         await showBrowserWindowModal({
@@ -35,9 +45,68 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
     }
 }
 
+function initializeTroubleshootingModalBridge(): void {
+    if (troubleshootingModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleTroubleshootingModalMessage);
+    onBrowserWindowModalClosed(handleTroubleshootingModalClosed);
+    troubleshootingModalHandlersRegistered = true;
+}
+
+async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayload): Promise<void> {
+    if (!payload || typeof payload.channel !== "string") return;
+
+    if (payload.channel === TROUBLESHOOTING_MODAL_CHANNELS.runCheck) {
+        const data = (payload.data ?? {}) as { checkType?: string };
+        const checkType = data.checkType;
+
+        if (!checkType) return;
+
+        try {
+            let result;
+            switch (checkType) {
+                case "supabase":
+                    result = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();
+                    break;
+                case "registry":
+                    result = await window.toolboxAPI.troubleshooting.checkRegistryFile();
+                    break;
+                case "fallback":
+                    result = await window.toolboxAPI.troubleshooting.checkFallbackApi();
+                    break;
+                default:
+                    return;
+            }
+
+            // Send result back to modal
+            await sendBrowserWindowModalMessage({
+                channel: TROUBLESHOOTING_MODAL_CHANNELS.checkResult,
+                data: { checkType, result },
+            });
+        } catch (error) {
+            // Send error back to modal
+            await sendBrowserWindowModalMessage({
+                channel: TROUBLESHOOTING_MODAL_CHANNELS.checkResult,
+                data: {
+                    checkType,
+                    result: {
+                        success: false,
+                        message: error instanceof Error ? error.message : String(error),
+                    },
+                },
+            });
+        }
+    }
+}
+
+function handleTroubleshootingModalClosed(): void {
+    // Cleanup if needed
+}
+
 function buildTroubleshootingModalHtml(isDarkTheme: boolean): string {
     const { styles, body } = getTroubleshootingModalView({ isDarkTheme });
-    const controllerScript = getTroubleshootingModalControllerScript();
+    const controllerScript = getTroubleshootingModalControllerScript({
+        channels: TROUBLESHOOTING_MODAL_CHANNELS,
+    });
 
     return `
 <!DOCTYPE html>

@@ -78,6 +78,15 @@ export interface EventsAPI {
 }
 
 /**
+ * Troubleshooting API namespace
+ */
+export interface TroubleshootingAPI {
+    checkSupabaseConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    checkRegistryFile: () => Promise<{ success: boolean; message?: string; toolCount?: number }>;
+    checkFallbackApi: () => Promise<{ success: boolean; message?: string }>;
+}
+
+/**
  * Dataverse API namespace
  */
 export interface DataverseAPI {
@@ -174,6 +183,9 @@ export interface ToolboxAPI {
 
     // Utils namespace
     utils: UtilsAPI;
+
+    // Troubleshooting namespace
+    troubleshooting: TroubleshootingAPI;
 
     // FileSystem namespace
     fileSystem: FileSystemAPI;

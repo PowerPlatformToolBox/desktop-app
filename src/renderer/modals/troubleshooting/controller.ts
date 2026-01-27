@@ -1,7 +1,18 @@
-export function getTroubleshootingModalControllerScript(): string {
+export interface TroubleshootingModalChannelIds {
+    runCheck: string;
+    checkResult: string;
+}
+
+export interface TroubleshootingModalControllerConfig {
+    channels: TroubleshootingModalChannelIds;
+}
+
+export function getTroubleshootingModalControllerScript(config: TroubleshootingModalControllerConfig): string {
+    const serialized = JSON.stringify(config);
     return `
 <script>
 (() => {
+    const CONFIG = ${serialized};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -59,6 +70,46 @@ export function getTroubleshootingModalControllerScript(): string {
         setCheckStatus("check-fallback", "pending", "Ready to check");
     }
 
+    // Listen for check results from main process
+    modalBridge.onMessage?.((payload) => {
+        if (!payload || typeof payload !== "object") return;
+        if (payload.channel !== CONFIG.channels.checkResult) return;
+        
+        const data = payload.data || {};
+        const checkType = data.checkType;
+        const result = data.result || {};
+        
+        let checkId;
+        switch (checkType) {
+            case "supabase":
+                checkId = "check-supabase";
+                break;
+            case "registry":
+                checkId = "check-registry";
+                break;
+            case "fallback":
+                checkId = "check-fallback";
+                break;
+            default:
+                return;
+        }
+        
+        if (result.success) {
+            let message = result.message || "Check passed";
+            if (checkType === "registry" && result.toolCount !== undefined) {
+                message = \`✓ Registry accessible with \${result.toolCount} tools\`;
+            } else if (message.startsWith("✓")) {
+                // Message already has checkmark
+            } else {
+                message = \`✓ \${message}\`;
+            }
+            setCheckStatus(checkId, "success", message);
+        } else {
+            const message = result.message || "Check failed";
+            setCheckStatus(checkId, "error", \`✗ \${message}\`);
+        }
+    });
+
     async function runChecks() {
         if (isRunning) return;
         isRunning = true;
@@ -68,52 +119,28 @@ export function getTroubleshootingModalControllerScript(): string {
         try {
             // Check Supabase connectivity
             setCheckStatus("check-supabase", "loading", "Checking Supabase API...");
-            try {
-                const supabaseResult = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();
-                if (supabaseResult.success) {
-                    setCheckStatus("check-supabase", "success", \`✓ \${supabaseResult.message || "Connected to Supabase successfully"}\`);
-                } else {
-                    setCheckStatus("check-supabase", "error", \`✗ \${supabaseResult.message || "Failed to connect to Supabase"}\`);
-                }
-            } catch (error) {
-                setCheckStatus("check-supabase", "error", \`✗ Error checking Supabase: \${error.message}\`);
-            }
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "supabase" });
 
             // Small delay between checks for better UX
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Check registry file
-            setCheckStatus("check-registry", "loading", "Checking local registry file...");
-            try {
-                const registryResult = await window.toolboxAPI.troubleshooting.checkRegistryFile();
-                if (registryResult.success) {
-                    setCheckStatus("check-registry", "success", \`✓ Registry accessible with \${registryResult.toolCount} tools\`);
-                } else {
-                    setCheckStatus("check-registry", "error", \`✗ \${registryResult.message || "Registry not found or invalid"}\`);
-                }
-            } catch (error) {
-                setCheckStatus("check-registry", "error", \`✗ Error checking registry: \${error.message}\`);
-            }
+            setCheckStatus("check-registry", "loading", "Checking local registry...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "registry" });
 
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Check fallback API (placeholder for future implementation)
+            // Check fallback API
             setCheckStatus("check-fallback", "loading", "Checking fallback API...");
-            try {
-                const fallbackResult = await window.toolboxAPI.troubleshooting.checkFallbackApi();
-                if (fallbackResult.success) {
-                    setCheckStatus("check-fallback", "success", \`✓ \${fallbackResult.message || "Fallback API is accessible"}\`);
-                } else {
-                    setCheckStatus("check-fallback", "error", \`✗ \${fallbackResult.message || "Fallback API check failed"}\`);
-                }
-            } catch (error) {
-                setCheckStatus("check-fallback", "error", \`✗ Error checking fallback API: \${error.message}\`);
-            }
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "fallback" });
 
         } finally {
-            isRunning = false;
-            retryChecksBtn.disabled = false;
-            retryChecksBtn.textContent = "Retry Checks";
+            // Re-enable button after a delay to allow all checks to complete
+            setTimeout(() => {
+                isRunning = false;
+                retryChecksBtn.disabled = false;
+                retryChecksBtn.textContent = "Retry Checks";
+            }, 2000);
         }
     }
 
