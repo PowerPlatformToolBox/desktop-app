@@ -1486,6 +1486,13 @@ class ToolBoxApp {
                 role: "help",
                 submenu: [
                     {
+                        label: "Troubleshooting",
+                        click: () => {
+                            this.showTroubleshootingModal();
+                        },
+                    },
+                    { type: "separator" },
+                    {
                         label: "Learn More",
                         click: async () => {
                             await shell.openExternal("https://www.powerplatformtoolbox.com/");
@@ -1554,12 +1561,6 @@ class ToolBoxApp {
                         label: "ToolBox Feedback",
                         click: async () => {
                             await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
-                        },
-                    },
-                    {
-                        label: "Troubleshooting",
-                        click: () => {
-                            this.showTroubleshootingModal();
                         },
                     },
                     {
