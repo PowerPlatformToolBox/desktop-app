@@ -16,7 +16,7 @@ const TROUBLESHOOTING_MODAL_CHANNELS = {
 
 const TROUBLESHOOTING_MODAL_DIMENSIONS = {
     width: 600,
-    height: 550,
+    height: 700,
 };
 
 let troubleshootingModalHandlersRegistered = false;
@@ -64,17 +64,29 @@ async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayl
         try {
             let result;
             switch (checkType) {
+                case "user-settings":
+                    result = await window.toolboxAPI.troubleshooting.checkUserSettings();
+                    break;
+                case "tool-settings":
+                    result = await window.toolboxAPI.troubleshooting.checkToolSettings();
+                    break;
+                case "connections":
+                    result = await window.toolboxAPI.troubleshooting.checkConnections();
+                    break;
+                case "sentry":
+                    result = await window.toolboxAPI.troubleshooting.checkSentryLogging();
+                    break;
                 case "supabase":
                     result = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();
                     break;
                 case "registry":
                     result = await window.toolboxAPI.troubleshooting.checkRegistryFile();
                     break;
-                case "fallback":
-                    result = await window.toolboxAPI.troubleshooting.checkFallbackApi();
-                    break;
                 case "download":
                     result = await window.toolboxAPI.troubleshooting.checkToolDownload();
+                    break;
+                case "fallback":
+                    result = await window.toolboxAPI.troubleshooting.checkFallbackApi();
                     break;
                 default:
                     return;

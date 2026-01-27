@@ -203,6 +203,58 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
         </div>
         
         <div class="checks-section">
+            <h4>Configuration Checks</h4>
+            
+            <div class="check-item" id="check-user-settings">
+                <div class="check-status-icon pending" id="check-user-settings-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">User Settings</p>
+                    <p class="check-message" id="check-user-settings-message">Ready to check</p>
+                </div>
+            </div>
+
+            <div class="check-item" id="check-tool-settings">
+                <div class="check-status-icon pending" id="check-tool-settings-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">Tool Settings</p>
+                    <p class="check-message" id="check-tool-settings-message">Ready to check</p>
+                </div>
+            </div>
+
+            <div class="check-item" id="check-connections">
+                <div class="check-status-icon pending" id="check-connections-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">Connections Storage</p>
+                    <p class="check-message" id="check-connections-message">Ready to check</p>
+                </div>
+            </div>
+
+            <div class="check-item" id="check-sentry">
+                <div class="check-status-icon pending" id="check-sentry-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">Sentry Logging</p>
+                    <p class="check-message" id="check-sentry-message">Ready to check</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="checks-section">
             <h4>Connectivity Checks</h4>
             
             <div class="check-item" id="check-supabase">
@@ -229,18 +281,6 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
                 </div>
             </div>
 
-            <div class="check-item" id="check-fallback">
-                <div class="check-status-icon pending" id="check-fallback-icon">
-                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
-                    </svg>
-                </div>
-                <div class="check-content">
-                    <p class="check-name">Fallback API Connectivity</p>
-                    <p class="check-message" id="check-fallback-message">Ready to check</p>
-                </div>
-            </div>
-
             <div class="check-item" id="check-download">
                 <div class="check-status-icon pending" id="check-download-icon">
                     <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -250,6 +290,18 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
                 <div class="check-content">
                     <p class="check-name">Tool Download from GitHub Releases</p>
                     <p class="check-message" id="check-download-message">Ready to check</p>
+                </div>
+            </div>
+
+            <div class="check-item" id="check-fallback">
+                <div class="check-status-icon pending" id="check-fallback-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">Fallback API Connectivity</p>
+                    <p class="check-message" id="check-fallback-message">Ready to check</p>
                 </div>
             </div>
         </div>

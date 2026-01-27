@@ -107,8 +107,12 @@ export const UTIL_CHANNELS = {
     SEND_MODAL_MESSAGE: "send-modal-message",
     CHECK_SUPABASE_CONNECTIVITY: "check-supabase-connectivity",
     CHECK_REGISTRY_FILE: "check-registry-file",
-    CHECK_FALLBACK_API: "check-fallback-api",
+    CHECK_USER_SETTINGS: "check-user-settings",
+    CHECK_TOOL_SETTINGS: "check-tool-settings",
+    CHECK_CONNECTIONS: "check-connections",
+    CHECK_SENTRY_LOGGING: "check-sentry-logging",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
+    CHECK_FALLBACK_API: "check-fallback-api",
 } as const;
 
 // Filesystem-related IPC channels

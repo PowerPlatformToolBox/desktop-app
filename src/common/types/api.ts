@@ -83,8 +83,12 @@ export interface EventsAPI {
 export interface TroubleshootingAPI {
     checkSupabaseConnectivity: () => Promise<{ success: boolean; message?: string }>;
     checkRegistryFile: () => Promise<{ success: boolean; message?: string; toolCount?: number }>;
-    checkFallbackApi: () => Promise<{ success: boolean; message?: string }>;
+    checkUserSettings: () => Promise<{ success: boolean; message?: string }>;
+    checkToolSettings: () => Promise<{ success: boolean; message?: string }>;
+    checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
+    checkSentryLogging: () => Promise<{ success: boolean; message?: string }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
+    checkFallbackApi: () => Promise<{ success: boolean; message?: string }>;
 }
 
 /**

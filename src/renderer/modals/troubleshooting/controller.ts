@@ -65,10 +65,14 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
     }
 
     function resetChecks() {
+        setCheckStatus("check-user-settings", "pending", "Ready to check");
+        setCheckStatus("check-tool-settings", "pending", "Ready to check");
+        setCheckStatus("check-connections", "pending", "Ready to check");
+        setCheckStatus("check-sentry", "pending", "Ready to check");
         setCheckStatus("check-supabase", "pending", "Ready to check");
         setCheckStatus("check-registry", "pending", "Ready to check");
-        setCheckStatus("check-fallback", "pending", "Ready to check");
         setCheckStatus("check-download", "pending", "Ready to check");
+        setCheckStatus("check-fallback", "pending", "Ready to check");
     }
 
     // Listen for check results from main process
@@ -82,17 +86,29 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
         
         let checkId;
         switch (checkType) {
+            case "user-settings":
+                checkId = "check-user-settings";
+                break;
+            case "tool-settings":
+                checkId = "check-tool-settings";
+                break;
+            case "connections":
+                checkId = "check-connections";
+                break;
+            case "sentry":
+                checkId = "check-sentry";
+                break;
             case "supabase":
                 checkId = "check-supabase";
                 break;
             case "registry":
                 checkId = "check-registry";
                 break;
-            case "fallback":
-                checkId = "check-fallback";
-                break;
             case "download":
                 checkId = "check-download";
+                break;
+            case "fallback":
+                checkId = "check-fallback";
                 break;
             default:
                 return;
@@ -102,6 +118,8 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             let message = result.message || "Check passed";
             if (checkType === "registry" && result.toolCount !== undefined) {
                 message = \`✓ Registry accessible with \${result.toolCount} tools\`;
+            } else if (checkType === "connections" && result.connectionCount !== undefined) {
+                message = \`✓ \${result.message}\`;
             } else if (message.startsWith("✓")) {
                 // Message already has checkmark
             } else {
@@ -121,28 +139,39 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
         retryChecksBtn.textContent = "Running Checks...";
 
         try {
-            // Check Supabase connectivity
+            // Configuration checks
+            setCheckStatus("check-user-settings", "loading", "Checking user settings...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "user-settings" });
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            setCheckStatus("check-tool-settings", "loading", "Checking tool settings...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "tool-settings" });
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            setCheckStatus("check-connections", "loading", "Checking connections storage...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "connections" });
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            setCheckStatus("check-sentry", "loading", "Checking Sentry logging...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "sentry" });
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            // Connectivity checks
             setCheckStatus("check-supabase", "loading", "Checking Supabase API...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "supabase" });
-
-            // Small delay between checks for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Check registry file
             setCheckStatus("check-registry", "loading", "Checking local registry...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "registry" });
-
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Check fallback API
-            setCheckStatus("check-fallback", "loading", "Checking fallback API...");
-            modalBridge.send(CONFIG.channels.runCheck, { checkType: "fallback" });
-
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Check tool download
             setCheckStatus("check-download", "loading", "Testing tool download from GitHub...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "download" });
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Fallback API check (last)
+            setCheckStatus("check-fallback", "loading", "Checking fallback API...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "fallback" });
 
         } finally {
             // Re-enable button after a delay to allow all checks to complete
@@ -150,7 +179,7 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
                 isRunning = false;
                 retryChecksBtn.disabled = false;
                 retryChecksBtn.textContent = "Retry Checks";
-            }, 2500);
+            }, 3000);
         }
     }
 

@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -876,12 +876,28 @@ class ToolBoxApp {
             return await this.checkRegistryFile();
         });
 
-        ipcMain.handle(UTIL_CHANNELS.CHECK_FALLBACK_API, async () => {
-            return await this.checkFallbackApi();
+        ipcMain.handle(UTIL_CHANNELS.CHECK_USER_SETTINGS, async () => {
+            return await this.checkUserSettings();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_SETTINGS, async () => {
+            return await this.checkToolSettings();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_CONNECTIONS, async () => {
+            return await this.checkConnections();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_SENTRY_LOGGING, async () => {
+            return await this.checkSentryLogging();
         });
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD, async () => {
             return await this.checkToolDownload();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_FALLBACK_API, async () => {
+            return await this.checkFallbackApi();
         });
 
         // Event history handler
@@ -1811,11 +1827,21 @@ class ToolBoxApp {
             // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
+                logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
+            captureMessage("[Troubleshooting] Supabase returned invalid data", "warning", {
+                extra: { toolsType: typeof tools, toolsValue: tools },
+            });
             return { success: false, message: "Unable to fetch tools from registry" };
         } catch (error) {
-            captureException(error as Error);
+            captureException(error as Error, {
+                tags: { check: "supabase-connectivity" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
@@ -1831,15 +1857,25 @@ class ToolBoxApp {
             // Fetch from registry which will use local fallback if Supabase is not available
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
+                logInfo(`[Troubleshooting] Registry file check passed: ${tools.length} tools accessible`);
                 return {
                     success: true,
                     message: `Registry accessible`,
                     toolCount: tools.length,
                 };
             }
+            captureMessage("[Troubleshooting] Registry returned invalid data", "warning", {
+                extra: { toolsType: typeof tools, toolsValue: tools },
+            });
             return { success: false, message: "Registry is empty or invalid" };
         } catch (error) {
-            captureException(error as Error);
+            captureException(error as Error, {
+                tags: { check: "registry-file" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to access registry",
@@ -1867,16 +1903,32 @@ class ToolBoxApp {
             });
 
             if (response.ok) {
+                logInfo(`[Troubleshooting] Fallback API check passed: HTTP ${response.status}`);
                 return {
                     success: true,
                     message: "Internet connectivity check passed (GitHub API accessible)",
                 };
             }
+            captureMessage("[Troubleshooting] Fallback API returned non-OK status", "warning", {
+                extra: {
+                    url: FALLBACK_CHECK_URL,
+                    status: response.status,
+                    statusText: response.statusText,
+                },
+            });
             return {
                 success: false,
                 message: `Fallback check failed: HTTP ${response.status}`,
             };
         } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "fallback-api" },
+                extra: {
+                    url: FALLBACK_CHECK_URL,
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Network error during fallback check",
@@ -1891,11 +1943,12 @@ class ToolBoxApp {
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
         const TEST_TOOL_ID = "202ad1e1-c6cb-4c3c-80b2-ea46490c2b79";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
+        let testTool: { id: string; downloadUrl: string } | undefined;
 
         try {
             // Get the tool from registry
             const registry = await this.toolManager.fetchAvailableTools();
-            const testTool = registry.find((t) => t.id === TEST_TOOL_ID);
+            testTool = registry.find((t) => t.id === TEST_TOOL_ID);
 
             if (!testTool) {
                 return {
@@ -2001,10 +2054,239 @@ class ToolBoxApp {
                 // Ignore cleanup errors
             }
 
-            captureException(error as Error);
+            captureException(error as Error, {
+                tags: { check: "tool-download" },
+                extra: {
+                    testToolId: TEST_TOOL_ID,
+                    downloadUrl: testTool?.downloadUrl,
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error during download test",
+            };
+        }
+    }
+
+    /**
+     * Check user settings file
+     * Verifies that user settings can be loaded and are valid
+     */
+    private async checkUserSettings(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const settings = this.settingsManager.getUserSettings();
+            if (!settings) {
+                captureMessage("[Troubleshooting] User settings returned null or undefined", "error", {
+                    extra: { settingsValue: settings },
+                });
+                return {
+                    success: false,
+                    message: "User settings file could not be loaded",
+                };
+            }
+
+            // Verify essential settings exist
+            const hasTheme = settings.theme !== undefined;
+            const hasAutoUpdate = settings.autoUpdate !== undefined;
+
+            if (!hasTheme || !hasAutoUpdate) {
+                const missingFields = [];
+                if (!hasTheme) missingFields.push("theme");
+                if (!hasAutoUpdate) missingFields.push("autoUpdate");
+
+                captureMessage("[Troubleshooting] User settings missing required fields", "warning", {
+                    extra: {
+                        missingFields,
+                        settingsKeys: Object.keys(settings),
+                    },
+                });
+
+                return {
+                    success: false,
+                    message: `User settings missing required fields: ${missingFields.join(", ")}`,
+                };
+            }
+
+            logInfo(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
+            return {
+                success: true,
+                message: `User settings loaded successfully (${Object.keys(settings).length} properties)`,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "user-settings" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to load user settings",
+            };
+        }
+    }
+
+    /**
+     * Check tool settings storage
+     * Verifies that tool settings can be accessed
+     */
+    private async checkToolSettings(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const installedTools = this.toolManager.getAllTools();
+            let toolSettingsCount = 0;
+
+            // Try to read settings for each installed tool
+            for (const tool of installedTools) {
+                try {
+                    const toolSettings = this.settingsManager.getToolSettings(tool.id);
+                    if (toolSettings && Object.keys(toolSettings).length > 0) {
+                        toolSettingsCount++;
+                    }
+                } catch (toolError) {
+                    // Log individual tool setting errors but don't fail the check
+                    logInfo(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
+                }
+            }
+
+            logInfo(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
+            return {
+                success: true,
+                message: `Tool settings accessible (${toolSettingsCount} configured out of ${installedTools.length} loaded tools)`,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "tool-settings" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to access tool settings",
+            };
+        }
+    }
+
+    /**
+     * Check connections storage
+     * Verifies that connections can be loaded and are valid
+     */
+    private async checkConnections(): Promise<{ success: boolean; message?: string; connectionCount?: number }> {
+        try {
+            const connections = this.connectionsManager.getConnections();
+
+            if (!Array.isArray(connections)) {
+                captureMessage("[Troubleshooting] Connections is not an array", "error", {
+                    extra: {
+                        connectionsType: typeof connections,
+                        connectionsValue: connections,
+                    },
+                });
+                return {
+                    success: false,
+                    message: "Connections data is corrupted (not an array)",
+                };
+            }
+
+            // Verify connections have required fields
+            let validConnections = 0;
+            const invalidConnections = [];
+
+            for (const conn of connections) {
+                if (conn.id && conn.name && conn.url) {
+                    validConnections++;
+                } else {
+                    invalidConnections.push({
+                        id: conn.id || "missing",
+                        name: conn.name || "missing",
+                        hasUrl: !!conn.url,
+                    });
+                }
+            }
+
+            if (invalidConnections.length > 0) {
+                captureMessage("[Troubleshooting] Some connections have invalid structure", "warning", {
+                    extra: {
+                        totalConnections: connections.length,
+                        validConnections,
+                        invalidConnections,
+                    },
+                });
+            }
+
+            logInfo(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
+            return {
+                success: true,
+                message: `Connections loaded successfully (${validConnections} valid out of ${connections.length} total)`,
+                connectionCount: validConnections,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "connections" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to load connections",
+            };
+        }
+    }
+
+    /**
+     * Check Sentry logging functionality
+     * Tests if Sentry is configured and can send events
+     */
+    private async checkSentryLogging(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const sentryConfig = getSentryConfig();
+
+            if (!sentryConfig || !sentryConfig.dsn) {
+                logInfo("[Troubleshooting] Sentry is not configured (DSN missing)");
+                return {
+                    success: true,
+                    message: "Sentry telemetry disabled (no DSN configured)",
+                };
+            }
+
+            // Test Sentry by sending a test message
+            const testMessage = `[Troubleshooting] Sentry connectivity test at ${new Date().toISOString()}`;
+            captureMessage(testMessage, "warning", {
+                tags: {
+                    check: "sentry-logging",
+                    testEvent: "true",
+                },
+                extra: {
+                    machineId: this.machineIdManager.getMachineId(),
+                    appVersion: app.getVersion(),
+                    platform: process.platform,
+                    arch: process.arch,
+                },
+            });
+
+            logInfo("[Troubleshooting] Sentry test message sent successfully");
+            return {
+                success: true,
+                message: `Sentry configured and test event sent (DSN: ${sentryConfig.dsn.substring(0, 20)}...)`,
+            };
+        } catch (error) {
+            // Even if this fails, we want to capture it to Sentry
+            captureException(error as Error, {
+                tags: { check: "sentry-logging" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to test Sentry logging",
             };
         }
     }
