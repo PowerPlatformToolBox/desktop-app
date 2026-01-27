@@ -122,6 +122,18 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
     },
 
+    // Troubleshooting namespace - organized like other features
+    troubleshooting: {
+        checkSupabaseConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY),
+        checkRegistryFile: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_REGISTRY_FILE),
+        checkUserSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_USER_SETTINGS),
+        checkToolSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_SETTINGS),
+        checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
+        checkSentryLogging: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SENTRY_LOGGING),
+        checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
+        checkFallbackApi: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_FALLBACK_API),
+    },
+
     // FileSystem namespace - filesystem operations
     fileSystem: {
         readText: (path: string) => ipcRenderer.invoke(FILESYSTEM_CHANNELS.READ_TEXT, path),
