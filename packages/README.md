@@ -2,36 +2,36 @@
 
 TypeScript type definitions for Power Platform ToolBox APIs.
 
--   [@pptb/types](#pptbtypes)
-    -   [Installation](#installation)
-    -   [Overview](#overview)
-    -   [Usage](#usage)
-        -   [Include all type definitions](#include-all-type-definitions)
-        -   [Include specific API types](#include-specific-api-types)
-    -   [ToolBox API Examples](#toolbox-api-examples)
-        -   [Connections](#connections)
-        -   [Utilities](#utilities)
-        -   [Terminal Operations](#terminal-operations)
-        -   [Events](#events)
-    -   [Dataverse API Examples](#dataverse-api-examples)
-        -   [CRUD Operations](#crud-operations)
-        -   [FetchXML Queries](#fetchxml-queries)
-        -   [Metadata Operations](#metadata-operations)
-        -   [Execute Actions/Functions](#execute-actionsfunctions)
-    -   [API Reference](#api-reference)
-        -   [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
-            -   [Connections](#connections-1)
-            -   [Utils](#utils)
-            -   [Terminal](#terminal)
-            -   [Events](#events-1)
-        -   [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
-            -   [CRUD Operations](#crud-operations-1)
-            -   [Query Operations](#query-operations)
-            -   [Metadata Operations](#metadata-operations-1)
-            -   [Advanced Operations](#advanced-operations)
-        -   [Security Notes](#security-notes)
-    -   [Publishing the package to npm](#publishing-the-package-to-npm)
-    -   [License](#license)
+- [@pptb/types](#pptbtypes)
+    - [Installation](#installation)
+    - [Overview](#overview)
+    - [Usage](#usage)
+        - [Include all type definitions](#include-all-type-definitions)
+        - [Include specific API types](#include-specific-api-types)
+    - [ToolBox API Examples](#toolbox-api-examples)
+        - [Connections](#connections)
+        - [Utilities](#utilities)
+        - [Terminal Operations](#terminal-operations)
+        - [Events](#events)
+    - [Dataverse API Examples](#dataverse-api-examples)
+        - [CRUD Operations](#crud-operations)
+        - [FetchXML Queries](#fetchxml-queries)
+        - [Metadata Operations](#metadata-operations)
+        - [Execute Actions/Functions](#execute-actionsfunctions)
+    - [API Reference](#api-reference)
+        - [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
+            - [Connections](#connections-1)
+            - [Utils](#utils)
+            - [Terminal](#terminal)
+            - [Events](#events-1)
+        - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
+            - [CRUD Operations](#crud-operations-1)
+            - [Query Operations](#query-operations)
+            - [Metadata Operations](#metadata-operations-1)
+            - [Advanced Operations](#advanced-operations)
+        - [Security Notes](#security-notes)
+    - [Publishing the package to npm](#publishing-the-package-to-npm)
+    - [License](#license)
 
 ## Installation
 
@@ -271,6 +271,63 @@ await dataverseAPI.publishCustomizations();
 await dataverseAPI.publishCustomizations("account");
 ```
 
+### Deploy Solutions
+
+```typescript
+// Read solution file (returns Buffer/Uint8Array depending on runtime)
+const solutionFile = await toolboxAPI.fileSystem.readBinary("/path/to/MySolution.zip");
+
+// Deploy solution with default options (binary input is accepted)
+const result = await dataverseAPI.deploySolution(solutionFile);
+console.log("Solution deployment started. Import Job ID:", result.ImportJobId);
+
+// Deploy solution with custom options using the same binary payload
+const customResult = await dataverseAPI.deploySolution(solutionFile, {
+    publishWorkflows: true,
+    overwriteUnmanagedCustomizations: false,
+    skipProductUpdateDependencies: false,
+    convertToManaged: false,
+});
+console.log("Import Job ID:", customResult.ImportJobId);
+
+// Deploy with a specific import job ID using an explicitly encoded base64 string
+const importJobId = crypto.randomUUID();
+const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+const trackedResult = await dataverseAPI.deploySolution(base64Content, {
+    importJobId,
+    publishWorkflows: true,
+});
+console.log("Tracking import with job ID:", trackedResult.ImportJobId);
+
+// Track the import progress
+const status = await dataverseAPI.getImportJobStatus(result.ImportJobId);
+console.log("Import progress:", status.progress + "%");
+console.log("Started:", status.startedon);
+
+// Poll for completion
+async function waitForImport(importJobId: string) {
+    while (true) {
+        const status = await dataverseAPI.getImportJobStatus(importJobId);
+        console.log(`Progress: ${status.progress}%`);
+
+        if (status.completedon) {
+            console.log("Import completed at:", status.completedon);
+            if (status.data) {
+                console.log("Import details:", status.data);
+            }
+            break;
+        }
+
+        // Wait 2 seconds before checking again
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+}
+
+await waitForImport(result.ImportJobId);
+```
+
+> **Note:** `deploySolution` automatically supplies `PublishWorkflows` and `OverwriteUnmanagedCustomizations` with a default value of `false` when you do not specify them, aligning with Dataverse's ImportSolution requirements.
+
 ## API Reference
 
 The Power Platform ToolBox exposes two main APIs to tools:
@@ -281,39 +338,33 @@ Core platform features organized into namespaces:
 
 #### Connections
 
--   **getActiveConnection()**: Promise<DataverseConnection | null>
-    -   Returns the currently active Dataverse connection or null if none is active
+- **getActiveConnection()**: Promise<DataverseConnection | null>
+    - Returns the currently active Dataverse connection or null if none is active
 
 #### Utils
 
--   **showNotification(options: NotificationOptions)**: Promise<void>
+- **showNotification(options: NotificationOptions)**: Promise<void>
+    - Displays a ToolBox notification. `options.type` supports `info | success | warning | error` and `duration` in ms (0 = persistent)
 
-    -   Displays a ToolBox notification. `options.type` supports `info | success | warning | error` and `duration` in ms (0 = persistent)
+- **copyToClipboard(text: string)**: Promise<void>
+    - Copies the provided text into the system clipboard
 
--   **copyToClipboard(text: string)**: Promise<void>
+- **saveFile(defaultPath: string, content: any)**: Promise<string | null>
+    - Opens a save dialog and writes the content. Returns the saved file path or null if canceled
 
-    -   Copies the provided text into the system clipboard
+- **selectPath(options?: SelectPathOptions)**: Promise<string | null>
+    - Opens a native dialog to select either a file or folder (defaults to file)
+    - Supports custom titles, button labels, default paths, and filters when selecting files
+    - Returns the selected path or null if the user cancels
 
--   **saveFile(defaultPath: string, content: any)**: Promise<string | null>
+- **getCurrentTheme()**: Promise<"light" | "dark">
+    - Returns the current UI theme setting
 
-    -   Opens a save dialog and writes the content. Returns the saved file path or null if canceled
-
--   **selectPath(options?: SelectPathOptions)**: Promise<string | null>
-
-    -   Opens a native dialog to select either a file or folder (defaults to file)
-    -   Supports custom titles, button labels, default paths, and filters when selecting files
-    -   Returns the selected path or null if the user cancels
-
--   **getCurrentTheme()**: Promise<"light" | "dark">
-
-    -   Returns the current UI theme setting
-
--   **executeParallel(...operations)**: Promise<T[]>
-
-    -   Executes multiple async operations in parallel using Promise.all
-    -   Accepts promises or functions that return promises as variadic arguments
-    -   Returns an array of results in the same order as the operations
-    -   Example:
+- **executeParallel(...operations)**: Promise<T[]>
+    - Executes multiple async operations in parallel using Promise.all
+    - Accepts promises or functions that return promises as variadic arguments
+    - Returns an array of results in the same order as the operations
+    - Example:
         ```typescript
         const [account, contact, opportunities] = await toolboxAPI.utils.executeParallel(
             dataverseAPI.retrieve("account", id1),
@@ -322,65 +373,57 @@ Core platform features organized into namespaces:
         );
         ```
 
--   **showLoading(message?: string)**: Promise<void>
+- **showLoading(message?: string)**: Promise<void>
+    - Displays a loading overlay with spinner in the tool's context
+    - Optional message parameter (defaults to "Loading...")
+    - Example: `await toolboxAPI.utils.showLoading('Fetching records...');`
 
-    -   Displays a loading overlay with spinner in the tool's context
-    -   Optional message parameter (defaults to "Loading...")
-    -   Example: `await toolboxAPI.utils.showLoading('Fetching records...');`
-
--   **hideLoading()**: Promise<void>
-    -   Hides the loading overlay
-    -   Should be called in a finally block to ensure it's always hidden
+- **hideLoading()**: Promise<void>
+    - Hides the loading overlay
+    - Should be called in a finally block to ensure it's always hidden
 
 #### Terminal
 
--   **create(options: TerminalOptions)**: Promise<Terminal>
+- **create(options: TerminalOptions)**: Promise<Terminal>
+    - Creates a new terminal attached to the tool (tool ID is auto-determined)
 
-    -   Creates a new terminal attached to the tool (tool ID is auto-determined)
+- **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
+    - Executes a command in the specified terminal and returns its result
 
--   **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
+- **close(terminalId: string)**: Promise<void>
+    - Closes the specified terminal
 
-    -   Executes a command in the specified terminal and returns its result
+- **get(terminalId: string)**: Promise<Terminal | undefined>
+    - Gets a single terminal by id, if it exists
 
--   **close(terminalId: string)**: Promise<void>
+- **list()**: Promise<Terminal[]>
+    - Lists all terminals created by this tool
 
-    -   Closes the specified terminal
-
--   **get(terminalId: string)**: Promise<Terminal | undefined>
-
-    -   Gets a single terminal by id, if it exists
-
--   **list()**: Promise<Terminal[]>
-
-    -   Lists all terminals created by this tool
-
--   **setVisibility(terminalId: string, visible: boolean)**: Promise<void>
-    -   Shows or hides the terminal UI for the specified terminal id
+- **setVisibility(terminalId: string, visible: boolean)**: Promise<void>
+    - Shows or hides the terminal UI for the specified terminal id
 
 #### Events
 
--   **getHistory(limit?: number)**: Promise<ToolBoxEventPayload[]>
+- **getHistory(limit?: number)**: Promise<ToolBoxEventPayload[]>
+    - Returns recent ToolBox events for this tool, newest first. Use `limit` to cap the number of entries
 
-    -   Returns recent ToolBox events for this tool, newest first. Use `limit` to cap the number of entries
+- **on(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
+    - Subscribes to ToolBox events
+    - Events available:
+        - `tool:loaded` - A tool has been loaded
+        - `tool:unloaded` - A tool has been unloaded
+        - `connection:created` - A new connection was created
+        - `connection:updated` - An existing connection was updated
+        - `connection:deleted` - A connection was deleted
+        - `notification:shown` - A notification was displayed
+        - `terminal:created` - A new terminal was created
+        - `terminal:closed` - A terminal was closed
+        - `terminal:output` - Terminal produced output
+        - `terminal:command:completed` - A terminal command finished executing
+        - `terminal:error` - A terminal error occurred
 
--   **on(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
-
-    -   Subscribes to ToolBox events
-    -   Events available:
-        -   `tool:loaded` - A tool has been loaded
-        -   `tool:unloaded` - A tool has been unloaded
-        -   `connection:created` - A new connection was created
-        -   `connection:updated` - An existing connection was updated
-        -   `connection:deleted` - A connection was deleted
-        -   `notification:shown` - A notification was displayed
-        -   `terminal:created` - A new terminal was created
-        -   `terminal:closed` - A terminal was closed
-        -   `terminal:output` - Terminal produced output
-        -   `terminal:command:completed` - A terminal command finished executing
-        -   `terminal:error` - A terminal error occurred
-
--   **off(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
-    -   Removes a previously registered event listener
+- **off(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
+    - Removes a previously registered event listener
 
 ### Dataverse API (`window.dataverseAPI`)
 
@@ -388,55 +431,60 @@ Complete HTTP client for interacting with Microsoft Dataverse:
 
 #### CRUD Operations
 
--   **create(entityLogicalName: string, record: Record<string, unknown>)**: Promise<{id: string, ...}>
+- **create(entityLogicalName: string, record: Record<string, unknown>)**: Promise<{id: string, ...}>
+    - Creates a new record in Dataverse
+    - Returns the created record ID and any returned fields
 
-    -   Creates a new record in Dataverse
-    -   Returns the created record ID and any returned fields
+- **retrieve(entityLogicalName: string, id: string, columns?: string[])**: Promise<Record<string, unknown>>
+    - Retrieves a single record by ID
+    - Optional columns array to select specific fields
 
--   **retrieve(entityLogicalName: string, id: string, columns?: string[])**: Promise<Record<string, unknown>>
+- **update(entityLogicalName: string, id: string, record: Record<string, unknown>)**: Promise<void>
+    - Updates an existing record
 
-    -   Retrieves a single record by ID
-    -   Optional columns array to select specific fields
-
--   **update(entityLogicalName: string, id: string, record: Record<string, unknown>)**: Promise<void>
-
-    -   Updates an existing record
-
--   **delete(entityLogicalName: string, id: string)**: Promise<void>
-    -   Deletes a record
+- **delete(entityLogicalName: string, id: string)**: Promise<void>
+    - Deletes a record
 
 #### Query Operations
 
--   **fetchXmlQuery(fetchXml: string)**: Promise<{value: Record<string, unknown>[], ...}>
+- **fetchXmlQuery(fetchXml: string)**: Promise<{value: Record<string, unknown>[], ...}>
+    - Executes a FetchXML query
+    - Returns object with value array containing matching records
 
-    -   Executes a FetchXML query
-    -   Returns object with value array containing matching records
-
--   **retrieveMultiple(fetchXml: string)**: Promise<{value: Record<string, unknown>[], ...}>
-    -   Alias for fetchXmlQuery for backward compatibility
+- **retrieveMultiple(fetchXml: string)**: Promise<{value: Record<string, unknown>[], ...}>
+    - Alias for fetchXmlQuery for backward compatibility
 
 #### Metadata Operations
 
--   **getEntityMetadata(entityLogicalName: string)**: Promise<EntityMetadata>
+- **getEntityMetadata(entityLogicalName: string)**: Promise<EntityMetadata>
+    - Retrieves metadata for a specific entity
 
-    -   Retrieves metadata for a specific entity
-
--   **getAllEntitiesMetadata()**: Promise<{value: EntityMetadata[]}>
-    -   Retrieves metadata for all entities
+- **getAllEntitiesMetadata()**: Promise<{value: EntityMetadata[]}>
+    - Retrieves metadata for all entities
 
 #### Advanced Operations
 
--   **execute(request: ExecuteRequest)**: Promise<Record<string, unknown>>
-    -   Executes a Dataverse Web API action or function
-    -   Supports both bound and unbound operations
--   **publishCustomizations(tableLogicalName?: string)**: Promise<void>
-    -   Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
+- **execute(request: ExecuteRequest)**: Promise<Record<string, unknown>>
+    - Executes a Dataverse Web API action or function
+    - Supports both bound and unbound operations
+- **publishCustomizations(tableLogicalName?: string)**: Promise<void>
+    - Publishes pending customizations. When `tableLogicalName` is omitted it runs PublishAllXml; otherwise it publishes only the specified table.
+- **deploySolution(base64SolutionContent: string | ArrayBuffer | ArrayBufferView, options?: DeploySolutionOptions, connectionTarget?: "primary" | "secondary")**: Promise<{ImportJobId: string}>
+    - Deploys (imports) a solution to the Dataverse environment
+    - Accepts either a base64-encoded solution zip string or raw binary data (Buffer, ArrayBuffer, Uint8Array)
+    - Always supplies `PublishWorkflows` and `OverwriteUnmanagedCustomizations` booleans to Dataverse, defaulting to `false` when you omit them
+    - Supports optional parameters for customizing the import (publishWorkflows, overwriteUnmanagedCustomizations, skipProductUpdateDependencies, convertToManaged)
+    - Returns an ImportJobId for tracking the import progress
+- **getImportJobStatus(importJobId: string, connectionTarget?: "primary" | "secondary")**: Promise<Record<string, unknown>>
+    - Gets the status of a solution import job
+    - Returns import job details including progress, completion status, and error information
+    - Use to track the progress of a solution deployment initiated with deploySolution
 
 ### Security Notes
 
--   **Access Tokens**: Tools do NOT have direct access to access tokens. All Dataverse operations are authenticated automatically by the platform.
--   **Connection Context**: Tools only receive the connection URL, not sensitive credentials.
--   **Secure Storage**: All tokens and secrets are encrypted and managed by the platform.
+- **Access Tokens**: Tools do NOT have direct access to access tokens. All Dataverse operations are authenticated automatically by the platform.
+- **Connection Context**: Tools only receive the connection URL, not sensitive credentials.
+- **Secure Storage**: All tokens and secrets are encrypted and managed by the platform.
 
 For detailed examples and best practices, see the [Dataverse API Documentation](../docs/DATAVERSE_API.md).
 

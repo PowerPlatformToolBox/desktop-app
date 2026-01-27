@@ -10,8 +10,9 @@ if (sentryConfig) {
         environment: sentryConfig.environment,
         release: sentryConfig.release,
         tracesSampleRate: sentryConfig.tracesSampleRate,
-        // Enable Sentry logger for structured logging
-        enableLogs: true,
+        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
+        // In production, we rely on captureException/captureMessage for explicit error reporting
+        enableLogs: sentryConfig.environment === "development",
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
@@ -373,6 +374,10 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.ASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS);
     }
 
     /**
@@ -530,7 +535,7 @@ class ToolBoxApp {
 
                 switch (connection.authenticationType) {
                     case "interactive":
-                        authResult = await this.authManager.authenticateInteractive(connection, this.mainWindow || undefined);
+                        authResult = await this.authManager.authenticateInteractive(connection);
                         break;
                     case "clientSecret":
                         authResult = await this.authManager.authenticateClientSecret(connection);
@@ -565,7 +570,7 @@ class ToolBoxApp {
         // Test connection handler
         ipcMain.handle(CONNECTION_CHANNELS.TEST_CONNECTION, async (_, connection) => {
             try {
-                await this.authManager.testConnection(connection, this.mainWindow || undefined);
+                await this.authManager.testConnection(connection);
                 return { success: true };
             } catch (error) {
                 return { success: false, error: (error as Error).message };
@@ -1276,6 +1281,98 @@ class ToolBoxApp {
                 return this.dataverseManager.getEntitySetName(entityLogicalName);
             } catch (error) {
                 throw new Error(`Dataverse getEntitySetName failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.ASSOCIATE,
+            async (
+                event,
+                primaryEntityName: string,
+                primaryEntityId: string,
+                relationshipName: string,
+                relatedEntityName: string,
+                relatedEntityId: string,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse associate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DISASSOCIATE,
+            async (event, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DEPLOY_SOLUTION,
+            async (
+                event,
+                base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
+                options?: {
+                    importJobId?: string;
+                    publishWorkflows?: boolean;
+                    overwriteUnmanagedCustomizations?: boolean;
+                    skipProductUpdateDependencies?: boolean;
+                    convertToManaged?: boolean;
+                },
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.deploySolution(connectionId, base64SolutionContent, options);
+                } catch (error) {
+                    throw new Error(`Dataverse deploySolution failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, async (event, importJobId: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getImportJobStatus(connectionId, importJobId);
+            } catch (error) {
+                throw new Error(`Dataverse getImportJobStatus failed: ${(error as Error).message}`);
             }
         });
     }

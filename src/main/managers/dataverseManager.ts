@@ -58,6 +58,17 @@ export class DataverseManager {
     }
 
     /**
+     * Build a properly formatted API URL by combining base URL and path
+     * Ensures no double slashes between base URL and path
+     */
+    private buildApiUrl(connection: DataverseConnection, path: string): string {
+        // Ensure base URL doesn't end with slash and path doesn't start with slash
+        const baseUrl = connection.url.replace(/\/$/, "");
+        const cleanPath = path.replace(/^\//, "");
+        return `${baseUrl}/${cleanPath}`;
+    }
+
+    /**
      * Get a connection by ID and ensure it has a valid access token
      * @param connectionId The ID of the connection to use
      */
@@ -105,7 +116,7 @@ export class DataverseManager {
     async create(connectionId: string, entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}`);
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, record);
 
@@ -126,7 +137,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
         if (columns && columns.length > 0) {
             url += `?$select=${columns.join(",")}`;
         }
@@ -141,7 +152,7 @@ export class DataverseManager {
     async update(connectionId: string, entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "PATCH", accessToken, record);
     }
@@ -152,7 +163,7 @@ export class DataverseManager {
     async delete(connectionId: string, entityLogicalName: string, id: string): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
@@ -170,6 +181,7 @@ export class DataverseManager {
             businessunit: "businessunits",
             systemuser: "systemusers",
             usersettingscollection: "usersettingscollection",
+            principalobjectaccess: "principalobjectaccessset",
         };
 
         const lowerName = entityLogicalName.toLowerCase();
@@ -211,8 +223,7 @@ export class DataverseManager {
 
         // Convert entity name to entity set name (pluralized)
         const entitySetName = this.getEntitySetName(entityName);
-
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`);
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
         const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
@@ -241,7 +252,7 @@ export class DataverseManager {
     ): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/`);
 
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
@@ -280,7 +291,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -301,7 +312,7 @@ export class DataverseManager {
         // Default to lightweight columns if selectColumns is not provided or empty
         const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`);
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
@@ -339,7 +350,7 @@ export class DataverseManager {
             .filter((segment) => segment.trim().length > 0)
             .map((segment) => encodeURIComponent(segment))
             .join("/");
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -361,7 +372,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`);
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: Record<string, unknown>[] };
@@ -382,7 +393,7 @@ export class DataverseManager {
         const query = odataQuery.trim();
         const cleanQuery = query.startsWith("?") ? query.substring(1) : query;
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}`);
         if (cleanQuery) {
             url += `/${cleanQuery}`;
         }
@@ -502,7 +513,7 @@ export class DataverseManager {
         const trimmedName = tableLogicalName?.trim();
         const publishSingleTable = Boolean(trimmedName);
         const actionName = publishSingleTable ? "PublishXml" : "PublishAllXml";
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${actionName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${actionName}`);
         const body = publishSingleTable ? { ParameterXml: this.buildEntityPublishXml(trimmedName!) } : undefined;
 
         await this.makeHttpRequest(url, "POST", accessToken, body);
@@ -523,6 +534,97 @@ export class DataverseManager {
         return `<importexportxml><entities><entity>${escapedName}</entity></entities></importexportxml>`;
     }
 
+    /**
+     * Deploy (import) a solution to the Dataverse environment
+     * @param connectionId - Connection ID to use
+     * @param base64SolutionContent - Base64-encoded solution zip file content
+     * @param options - Optional import settings
+     * @returns Promise containing the ImportJobId for tracking the import progress
+     */
+    async deploySolution(
+        connectionId: string,
+        base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
+        options?: {
+            importJobId?: string;
+            publishWorkflows?: boolean;
+            overwriteUnmanagedCustomizations?: boolean;
+            skipProductUpdateDependencies?: boolean;
+            convertToManaged?: boolean;
+        },
+    ): Promise<{ ImportJobId: string }> {
+        const normalizedContent = this.normalizeSolutionContent(base64SolutionContent);
+        const resolvedPublishWorkflows = options?.publishWorkflows ?? false;
+        const resolvedOverwriteCustomizations = options?.overwriteUnmanagedCustomizations ?? false;
+        const parameters: Record<string, unknown> = {
+            CustomizationFile: normalizedContent,
+            PublishWorkflows: resolvedPublishWorkflows,
+            OverwriteUnmanagedCustomizations: resolvedOverwriteCustomizations,
+        };
+
+        // Add optional parameters if provided
+        if (options?.importJobId) {
+            const trimmedJobId = options.importJobId.trim();
+            if (trimmedJobId) {
+                parameters.ImportJobId = trimmedJobId;
+            }
+        }
+        if (options?.skipProductUpdateDependencies !== undefined) {
+            parameters.SkipProductUpdateDependencies = options.skipProductUpdateDependencies;
+        }
+        if (options?.convertToManaged !== undefined) {
+            parameters.ConvertToManaged = options.convertToManaged;
+        }
+
+        const result = await this.execute(connectionId, {
+            operationName: "ImportSolution",
+            operationType: "action",
+            parameters,
+        });
+
+        return result as { ImportJobId: string };
+    }
+
+    /** Normalize solution payload input to a base64 string accepted by Dataverse */
+    private normalizeSolutionContent(content: string | ArrayBuffer | ArrayBufferView): string {
+        if (typeof content === "string") {
+            const trimmed = content.trim();
+            if (!trimmed) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return trimmed;
+        }
+
+        if (ArrayBuffer.isView(content)) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString("base64");
+        }
+
+        if (content instanceof ArrayBuffer) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content).toString("base64");
+        }
+
+        throw new Error("base64SolutionContent must be a base64 string, ArrayBuffer, or ArrayBufferView");
+    }
+
+    /**
+     * Get the status of a solution import job
+     * @param connectionId - Connection ID to use
+     * @param importJobId - GUID of the import job to track
+     * @returns Promise containing the import job details including progress, status, and error information
+     */
+    async getImportJobStatus(connectionId: string, importJobId: string): Promise<Record<string, unknown>> {
+        if (!importJobId || !importJobId.trim()) {
+            throw new Error("importJobId parameter cannot be empty");
+        }
+
+        return this.retrieve(connectionId, "importjob", importJobId.trim(), ["importjobid", "progress", "completedon", "startedon", "data", "solutionname", "createdon", "modifiedon"]);
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {
@@ -539,7 +641,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`);
         const response = await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
         const responseData = response.data as Record<string, unknown>;
         return responseData.Ids as string[];
@@ -568,7 +670,79 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`);
         await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+    }
+
+    /**
+     * Associate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityName - Logical name of the related entity
+     * @param relatedEntityId - GUID of the related record
+     */
+    async associate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityName || !relatedEntityName.trim()) {
+            throw new Error("relatedEntityName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+        const relatedEntitySetName = this.getEntitySetName(relatedEntityName);
+
+        // Build the URL for the association
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`);
+
+        // Build the reference to the related record
+        const body = {
+            "@odata.id": this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`),
+        };
+
+        await this.makeHttpRequest(url, "POST", accessToken, body);
+    }
+
+    /**
+     * Disassociate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityId - GUID of the related record to disassociate
+     */
+    async disassociate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+
+        // Build the URL for the disassociation
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
     }
 }
