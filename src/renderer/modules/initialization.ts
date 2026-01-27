@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -17,8 +17,9 @@ if (sentryConfig) {
         tracesSampleRate: sentryConfig.tracesSampleRate,
         replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
         replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-        // Enable Sentry logger for structured logging
-        enableLogs: true,
+        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
+        // In production, we rely on captureException/captureMessage for explicit error reporting
+        enableLogs: sentryConfig.environment === "development",
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
@@ -96,7 +97,8 @@ export async function initializeApplication(): Promise<void> {
                     logCheckpoint("Machine ID set in renderer Sentry", { machineId: settings.machineId });
                 }
             } catch (error) {
-                console.warn("Failed to get machine ID for Sentry:", error);
+                // Use logWarn instead of console.warn for proper telemetry tracking
+                logWarn("Failed to get machine ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
             }
         }
 
@@ -750,7 +752,7 @@ function setupToolboxEventListeners(): void {
                     secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
                 });
             } else {
-                console.warn("Menu launch event missing toolId", payload);
+                logWarn("Menu launch event missing toolId", { payload });
             }
             return;
         }
@@ -830,7 +832,7 @@ function setupToolPanelBoundsListener(): void {
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
-            console.warn("[Renderer] Tool panel content element not found");
+            logWarn("[Renderer] Tool panel content element not found");
         }
     });
 }

@@ -3,7 +3,7 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -107,7 +107,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 const connection = await window.toolboxAPI.connections.getById(connectionId);
                 return connection ? connection.id : null;
             } catch (error) {
-                console.warn(`Failed to resolve connection ${connectionId}:`, error);
+                logWarn(`Failed to resolve connection ${connectionId}`, { error: error instanceof Error ? error.message : String(error) });
                 return null;
             }
         };

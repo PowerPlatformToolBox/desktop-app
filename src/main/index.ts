@@ -10,8 +10,9 @@ if (sentryConfig) {
         environment: sentryConfig.environment,
         release: sentryConfig.release,
         tracesSampleRate: sentryConfig.tracesSampleRate,
-        // Enable Sentry logger for structured logging
-        enableLogs: true,
+        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
+        // In production, we rely on captureException/captureMessage for explicit error reporting
+        enableLogs: sentryConfig.environment === "development",
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
