@@ -1888,7 +1888,7 @@ class ToolBoxApp {
      * Tests downloading a sample tool from GitHub releases
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const TEST_TOOL_ID = "pptb-standard-sample-tool";
+        const TEST_TOOL_ID = "202ad1e1-c6cb-4c3c-80b2-ea46490c2b79";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
 
         try {
