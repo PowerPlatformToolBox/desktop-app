@@ -108,6 +108,7 @@ export const UTIL_CHANNELS = {
     CHECK_SUPABASE_CONNECTIVITY: "check-supabase-connectivity",
     CHECK_REGISTRY_FILE: "check-registry-file",
     CHECK_FALLBACK_API: "check-fallback-api",
+    CHECK_TOOL_DOWNLOAD: "check-tool-download",
 } as const;
 
 // Filesystem-related IPC channels

@@ -127,6 +127,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkSupabaseConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY),
         checkRegistryFile: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_REGISTRY_FILE),
         checkFallbackApi: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_FALLBACK_API),
+        checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
     },
 
     // FileSystem namespace - filesystem operations

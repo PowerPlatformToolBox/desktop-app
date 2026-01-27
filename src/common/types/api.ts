@@ -84,6 +84,7 @@ export interface TroubleshootingAPI {
     checkSupabaseConnectivity: () => Promise<{ success: boolean; message?: string }>;
     checkRegistryFile: () => Promise<{ success: boolean; message?: string; toolCount?: number }>;
     checkFallbackApi: () => Promise<{ success: boolean; message?: string }>;
+    checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
 }
 
 /**

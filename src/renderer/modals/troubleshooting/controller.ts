@@ -68,6 +68,7 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
         setCheckStatus("check-supabase", "pending", "Ready to check");
         setCheckStatus("check-registry", "pending", "Ready to check");
         setCheckStatus("check-fallback", "pending", "Ready to check");
+        setCheckStatus("check-download", "pending", "Ready to check");
     }
 
     // Listen for check results from main process
@@ -89,6 +90,9 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
                 break;
             case "fallback":
                 checkId = "check-fallback";
+                break;
+            case "download":
+                checkId = "check-download";
                 break;
             default:
                 return;
@@ -134,13 +138,19 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             setCheckStatus("check-fallback", "loading", "Checking fallback API...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "fallback" });
 
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Check tool download
+            setCheckStatus("check-download", "loading", "Testing tool download from GitHub...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "download" });
+
         } finally {
             // Re-enable button after a delay to allow all checks to complete
             setTimeout(() => {
                 isRunning = false;
                 retryChecksBtn.disabled = false;
                 retryChecksBtn.textContent = "Retry Checks";
-            }, 2000);
+            }, 2500);
         }
     }
 

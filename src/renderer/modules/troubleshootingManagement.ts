@@ -73,6 +73,9 @@ async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayl
                 case "fallback":
                     result = await window.toolboxAPI.troubleshooting.checkFallbackApi();
                     break;
+                case "download":
+                    result = await window.toolboxAPI.troubleshooting.checkToolDownload();
+                    break;
                 default:
                     return;
             }

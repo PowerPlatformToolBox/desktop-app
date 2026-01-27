@@ -56,6 +56,10 @@ if (sentryConfig) {
 }
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import * as fs from "fs";
+import { createWriteStream } from "fs";
+import * as http from "http";
+import * as https from "https";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
@@ -869,6 +873,10 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_FALLBACK_API, async () => {
             return await this.checkFallbackApi();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD, async () => {
+            return await this.checkToolDownload();
         });
 
         // Event history handler
@@ -1774,6 +1782,131 @@ class ToolBoxApp {
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Network error during fallback check",
+            };
+        }
+    }
+
+    /**
+     * Check tool download capability
+     * Tests downloading a sample tool from GitHub releases
+     */
+    private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
+        const TEST_TOOL_ID = "pptb-standard-sample-tool";
+        const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
+
+        try {
+            // Get the tool from registry
+            const registry = await this.toolManager.fetchAvailableTools();
+            const testTool = registry.find((t) => t.id === TEST_TOOL_ID);
+
+            if (!testTool) {
+                return {
+                    success: false,
+                    message: `Test tool ${TEST_TOOL_ID} not found in registry`,
+                };
+            }
+
+            // Create temp directory
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            const downloadPath = path.join(tempDir, `${TEST_TOOL_ID}.tar.gz`);
+
+            // Try to download the tool
+            const downloadUrl = testTool.downloadUrl;
+            logInfo(`[Troubleshooting] Testing download from ${downloadUrl}`);
+
+            await new Promise<void>((resolve, reject) => {
+                const protocol = downloadUrl.startsWith("https") ? https : http;
+
+                const request = protocol.get(downloadUrl, (res) => {
+                    // Handle redirects
+                    if (res.statusCode === 302 || res.statusCode === 301) {
+                        const redirectUrl = res.headers.location;
+                        if (redirectUrl) {
+                            logInfo(`[Troubleshooting] Following redirect to ${redirectUrl}`);
+                            const redirectProtocol = redirectUrl.startsWith("https") ? https : http;
+                            redirectProtocol
+                                .get(redirectUrl, (redirectRes) => {
+                                    if (redirectRes.statusCode !== 200) {
+                                        reject(new Error(`Download failed: HTTP ${redirectRes.statusCode}`));
+                                        return;
+                                    }
+
+                                    const fileStream = createWriteStream(downloadPath);
+                                    redirectRes.pipe(fileStream);
+
+                                    fileStream.on("finish", () => {
+                                        fileStream.close();
+                                        resolve();
+                                    });
+
+                                    fileStream.on("error", (err) => {
+                                        fs.unlinkSync(downloadPath);
+                                        reject(err);
+                                    });
+                                })
+                                .on("error", reject);
+                        } else {
+                            reject(new Error("Redirect without location header"));
+                        }
+                    } else if (res.statusCode !== 200) {
+                        reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                    } else {
+                        const fileStream = createWriteStream(downloadPath);
+                        res.pipe(fileStream);
+
+                        fileStream.on("finish", () => {
+                            fileStream.close();
+                            resolve();
+                        });
+
+                        fileStream.on("error", (err) => {
+                            fs.unlinkSync(downloadPath);
+                            reject(err);
+                        });
+                    }
+                });
+
+                request.on("error", (err) => {
+                    reject(new Error(`Network error: ${err.message}`));
+                });
+
+                request.setTimeout(30000, () => {
+                    request.destroy();
+                    reject(new Error("Download timeout after 30 seconds"));
+                });
+            });
+
+            // Check if file was downloaded
+            const stats = fs.statSync(downloadPath);
+            const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+
+            // Clean up
+            fs.unlinkSync(downloadPath);
+            fs.rmdirSync(tempDir);
+
+            return {
+                success: true,
+                message: `Successfully downloaded test tool (${fileSizeMB} MB from GitHub releases)`,
+            };
+        } catch (error) {
+            // Clean up on error
+            try {
+                if (fs.existsSync(tempDir)) {
+                    const files = fs.readdirSync(tempDir);
+                    files.forEach((file) => fs.unlinkSync(path.join(tempDir, file)));
+                    fs.rmdirSync(tempDir);
+                }
+            } catch (cleanupError) {
+                // Ignore cleanup errors
+            }
+
+            captureException(error as Error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unknown error during download test",
             };
         }
     }
