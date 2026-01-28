@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryInstallId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -34,9 +34,9 @@ if (sentryConfig) {
             // Context lines integration for better error context
             Sentry.contextLinesIntegration(),
         ],
-        // Before sending events, add machine ID and additional context
+        // Before sending events, add install ID and additional context
         beforeSend(event) {
-            // Ensure machine ID is in tags
+            // Ensure install ID is in tags
             if (!event.tags) {
                 event.tags = {};
             }
@@ -60,7 +60,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
 
-    // Machine ID will be set via IPC from main process after settings are loaded
+    // Install ID will be set via IPC from main process after settings are loaded
 } else {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
@@ -88,17 +88,18 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
-        // Get machine ID from main process and set it in Sentry
+        // Get install ID from main process and set it in Sentry
         if (sentryConfig) {
             try {
                 const settings = await window.toolboxAPI.getUserSettings();
-                if (settings.machineId) {
-                    setSentryMachineId(settings.machineId);
-                    logCheckpoint("Machine ID set in renderer Sentry", { machineId: settings.machineId });
+                const installId = settings.installId || settings.machineId;
+                if (installId) {
+                    setSentryInstallId(installId);
+                    logCheckpoint("Install ID set in renderer Sentry", { installId });
                 }
             } catch (error) {
                 // Use logWarn instead of console.warn for proper telemetry tracking
-                logWarn("Failed to get machine ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
+                logWarn("Failed to get install ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
             }
         }
 

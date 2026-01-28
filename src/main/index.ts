@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryInstallId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -26,9 +26,9 @@ if (sentryConfig) {
             Sentry.localVariablesIntegration(),
             Sentry.modulesIntegration(),
         ],
-        // Before sending events, add machine ID and additional context
+        // Before sending events, add install ID and additional context
         beforeSend(event) {
-            // Ensure machine ID is in tags
+            // Ensure install ID is in tags
             if (!event.tags) {
                 event.tags = {};
             }
@@ -80,8 +80,8 @@ import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { InstallIdManager } from "./managers/installIdManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
-import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -96,7 +96,7 @@ const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation dur
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
-    private machineIdManager: MachineIdManager;
+    private installIdManager: InstallIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
@@ -118,19 +118,19 @@ class ToolBoxApp {
 
         try {
             this.settingsManager = new SettingsManager();
-            this.machineIdManager = new MachineIdManager(this.settingsManager);
+            this.installIdManager = new InstallIdManager(this.settingsManager);
 
-            // Initialize Sentry with machine ID as early as possible
+            // Initialize Sentry with install ID as early as possible
             if (sentryConfig) {
-                const machineId = this.machineIdManager.getMachineId();
-                setSentryMachineId(machineId);
-                logCheckpoint("Sentry machine ID configured", { machineId });
+                const installId = this.installIdManager.getInstallId();
+                setSentryInstallId(installId);
+                logCheckpoint("Sentry install ID configured", { installId });
             }
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials from environment variables or use defaults from constants
-            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
+            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
             this.authManager = new AuthManager();
@@ -1777,17 +1777,17 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
-     * Includes machine ID and other important information for Sentry tracing
+     * Includes install ID and other important information for Sentry tracing
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const machineId = this.machineIdManager.getMachineId();
+            const installId = this.installIdManager.getInstallId();
             const locale = app.getLocale();
 
             const message = `Power Platform ToolBox
             Version: ${appVersion}
-            Machine ID: ${machineId}
+            Install ID: ${installId}
 
             Environment:
             Electron: ${process.versions.electron}
@@ -1799,7 +1799,7 @@ class ToolBoxApp {
             OS Version: ${process.getSystemVersion()}
             Locale: ${locale}
 
-            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
+            Note: Install ID is used for telemetry and error tracking in Sentry.`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
@@ -2263,7 +2263,7 @@ class ToolBoxApp {
                     testEvent: "true",
                 },
                 extra: {
-                    machineId: this.machineIdManager.getMachineId(),
+                    installId: this.installIdManager.getInstallId(),
                     appVersion: app.getVersion(),
                     platform: process.platform,
                     arch: process.arch,

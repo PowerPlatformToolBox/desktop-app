@@ -5,6 +5,7 @@ This document outlines the logging and telemetry practices for the Power Platfor
 ## Overview
 
 The application uses a hybrid logging approach:
+
 1. **Console Logging**: All logs are written to the console for local debugging
 2. **Sentry Telemetry**: Structured logs are sent to Sentry for production monitoring (environment-aware)
 
@@ -13,14 +14,16 @@ The application uses a hybrid logging approach:
 ### Sentry Helper (`src/common/sentryHelper.ts`)
 
 The centralized logging module provides:
+
 - Environment-aware log routing
 - Console output for all log levels
 - Sentry integration with proper context
-- Machine ID tracking for all events
+- Install ID tracking for all events
 
 ### Environment Detection
 
 The logging system automatically detects the environment:
+
 - **Development**: `NODE_ENV=development` or unpacked Electron app
 - **Production**: Packaged Electron app
 
@@ -31,11 +34,13 @@ The logging system automatically detects the environment:
 **Use for**: Very detailed diagnostic information, typically only needed during development
 
 **Behavior**:
+
 - ✅ Always logged to console in development
 - ✅ Sent to Sentry ONLY in development
 - ❌ Not sent to Sentry in production (reduces noise)
 
 **Example**:
+
 ```typescript
 import { logTrace } from "../../common/sentryHelper";
 
@@ -47,11 +52,13 @@ logTrace("Processing user action", { actionType: "click", elementId: "submit-btn
 **Use for**: General debugging information useful during development
 
 **Behavior**:
+
 - ✅ Always logged to console in development
 - ✅ Sent to Sentry ONLY in development
 - ❌ Not sent to Sentry in production (reduces noise)
 
 **Example**:
+
 ```typescript
 import { logDebug } from "../../common/sentryHelper";
 
@@ -63,10 +70,12 @@ logDebug("Loading tool from registry", { toolId, version: "1.2.3" });
 **Use for**: Important application events that should be tracked in all environments
 
 **Behavior**:
+
 - ✅ Always logged to console in all environments
 - ✅ Sent to Sentry in all environments (as breadcrumbs, not Issues)
 
 **Example**:
+
 ```typescript
 import { logInfo } from "../../common/sentryHelper";
 
@@ -79,10 +88,12 @@ logInfo("Tool launched", { toolId: "tool-example", instanceId });
 **Use for**: Warning conditions that should be reviewed but don't prevent operation
 
 **Behavior**:
+
 - ✅ Always logged to console in all environments
 - ✅ Sent to Sentry in all environments
 
 **Example**:
+
 ```typescript
 import { logWarn } from "../../common/sentryHelper";
 
@@ -95,10 +106,12 @@ logWarn("Failed to resolve connection", { connectionId, error: error.message });
 **Use for**: Error conditions that need attention but may be recoverable
 
 **Behavior**:
+
 - ✅ Always logged to console in all environments
 - ✅ Sent to Sentry in all environments
 
 **Example**:
+
 ```typescript
 import { logError } from "../../common/sentryHelper";
 
@@ -111,10 +124,12 @@ logError("Connection test failed", { connectionId, statusCode: 401 });
 **Use for**: Critical errors that require immediate attention
 
 **Behavior**:
+
 - ✅ Always logged to console in all environments
 - ✅ Sent to Sentry in all environments
 
 **Example**:
+
 ```typescript
 import { logFatal } from "../../common/sentryHelper";
 
@@ -128,6 +143,7 @@ logFatal("Application initialization failed", { reason: "Cannot load settings" }
 **Use for**: Capturing caught exceptions with full context
 
 **Example**:
+
 ```typescript
 import { captureException } from "../../common/sentryHelper";
 
@@ -154,6 +170,7 @@ try {
 **Note**: Only use for error/warning/fatal levels. For info/debug, use log functions instead.
 
 **Example**:
+
 ```typescript
 import { captureMessage } from "../../common/sentryHelper";
 
@@ -175,6 +192,7 @@ captureMessage("Invalid configuration detected", "warning", {
 **Use for**: Adding context breadcrumbs that help recreate the sequence of events
 
 **Example**:
+
 ```typescript
 import { addBreadcrumb } from "../../common/sentryHelper";
 
@@ -189,11 +207,13 @@ addBreadcrumb("User initiated connection test", "user-action", "info", {
 **Use for**: Critical application flow checkpoints
 
 **Behavior**:
+
 - Logs to console
 - Logs to Sentry via logInfo
 - Adds a breadcrumb
 
 **Example**:
+
 ```typescript
 import { logCheckpoint } from "../../common/sentryHelper";
 
@@ -206,25 +226,27 @@ logCheckpoint("Tool system ready", { toolCount: tools.length });
 **Use for**: Wrapping critical async operations with automatic error capture and performance tracking
 
 **Example**:
+
 ```typescript
 import { wrapAsyncOperation } from "../../common/sentryHelper";
 
-const loadUserSettings = () => wrapAsyncOperation(
-    "loadUserSettings",
-    async () => {
-        const settings = await settingsManager.get();
-        return settings;
-    },
-    {
-        tags: { module: "settings" },
-        extra: { source: "initialization" },
-    }
-);
+const loadUserSettings = () =>
+    wrapAsyncOperation(
+        "loadUserSettings",
+        async () => {
+            const settings = await settingsManager.get();
+            return settings;
+        },
+        {
+            tags: { module: "settings" },
+            extra: { source: "initialization" },
+        },
+    );
 ```
 
 ## What NOT to Do
 
-### ❌ Don't Use console.* in Production Code
+### ❌ Don't Use console.\* in Production Code
 
 ```typescript
 // BAD - No telemetry, not environment-aware
@@ -238,7 +260,8 @@ logWarn("Connection failed", { connectionId, reason });
 logError("Tool crashed", { toolId, error: error.message });
 ```
 
-**Exception**: console.* can be used in:
+**Exception**: console.\* can be used in:
+
 - Injected script strings for modals (no access to sentryHelper)
 - Temporary debugging during development (with clear TODO comment)
 
@@ -293,11 +316,7 @@ Sentry.init({
     release: sentryConfig.release,
     // Only enable structured logging in development to reduce noise
     enableLogs: sentryConfig.environment === "development",
-    integrations: [
-        Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
-        Sentry.browserTracingIntegration(),
-        Sentry.replayIntegration(),
-    ],
+    integrations: [Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }), Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
 });
 ```
 
@@ -307,7 +326,7 @@ Sentry.init({
 2. **Easy Debugging**: All logs visible in console for local development
 3. **Environment-Aware**: Automatically adjusts verbosity based on environment
 4. **Centralized**: Single source of truth for logging configuration
-5. **Contextual**: Machine ID and tags automatically added to all events
+5. **Contextual**: Install ID and tags automatically added to all events
 6. **Performance Tracking**: Built-in support for operation timing and breadcrumbs
 
 ## Migration Guide
@@ -315,6 +334,7 @@ Sentry.init({
 If you find code using old logging patterns:
 
 ### Before
+
 ```typescript
 console.log("Loading tool:", toolId);
 console.warn("Connection expired");
@@ -322,6 +342,7 @@ Sentry.captureMessage("Tool loaded", "info"); // Creates Sentry Issue unnecessar
 ```
 
 ### After
+
 ```typescript
 import { logDebug, logWarn } from "../../common/sentryHelper";
 
@@ -333,6 +354,7 @@ logWarn("Connection expired", { connectionId }); // Console + Sentry always
 ## Questions?
 
 For questions about logging:
+
 1. Check this document first
 2. Review `src/common/sentryHelper.ts` for implementation details
 3. Look at existing usage in `src/main/index.ts` or `src/renderer/modules/initialization.ts`
