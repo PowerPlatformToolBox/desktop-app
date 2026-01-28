@@ -257,6 +257,18 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
         <div class="checks-section">
             <h4>Connectivity Checks</h4>
             
+            <div class="check-item" id="check-internet">
+                <div class="check-status-icon pending" id="check-internet-icon">
+                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </div>
+                <div class="check-content">
+                    <p class="check-name">Internet connectivity</p>
+                    <p class="check-message" id="check-internet-message">Ready to check</p>
+                </div>
+            </div>
+
             <div class="check-item" id="check-supabase">
                 <div class="check-status-icon pending" id="check-supabase-icon">
                     <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -290,18 +302,6 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
                 <div class="check-content">
                     <p class="check-name">Tool Download from GitHub Releases</p>
                     <p class="check-message" id="check-download-message">Ready to check</p>
-                </div>
-            </div>
-
-            <div class="check-item" id="check-fallback">
-                <div class="check-status-icon pending" id="check-fallback-icon">
-                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
-                    </svg>
-                </div>
-                <div class="check-content">
-                    <p class="check-name">Fallback API Connectivity</p>
-                    <p class="check-message" id="check-fallback-message">Ready to check</p>
                 </div>
             </div>
         </div>

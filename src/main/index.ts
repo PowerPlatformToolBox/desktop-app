@@ -896,8 +896,8 @@ class ToolBoxApp {
             return await this.checkToolDownload();
         });
 
-        ipcMain.handle(UTIL_CHANNELS.CHECK_FALLBACK_API, async () => {
-            return await this.checkFallbackApi();
+        ipcMain.handle(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY, async () => {
+            return await this.checkInternetConnectivity();
         });
 
         // Event history handler
@@ -1797,9 +1797,7 @@ class ToolBoxApp {
             System:
             OS: ${process.platform} ${process.arch}
             OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}
-
-            Note: Install ID is used for telemetry and error tracking in Sentry.`;
+            Locale: ${locale}`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
@@ -1854,20 +1852,39 @@ class ToolBoxApp {
      */
     private async checkRegistryFile(): Promise<{ success: boolean; message?: string; toolCount?: number }> {
         try {
-            // Fetch from registry which will use local fallback if Supabase is not available
-            const tools = await this.toolManager.fetchAvailableTools();
-            if (tools && Array.isArray(tools)) {
-                logInfo(`[Troubleshooting] Registry file check passed: ${tools.length} tools accessible`);
+            const toolsDirectory = path.join(app.getPath("userData"), "tools");
+
+            if (!fs.existsSync(toolsDirectory)) {
+                captureMessage("[Troubleshooting] Tools directory missing for local registry check", "warning", {
+                    extra: { toolsDirectory },
+                });
                 return {
-                    success: true,
-                    message: `Registry accessible`,
-                    toolCount: tools.length,
+                    success: false,
+                    message: "Tools directory not found. Launch a tool at least once to initialize it.",
                 };
             }
-            captureMessage("[Troubleshooting] Registry returned invalid data", "warning", {
-                extra: { toolsType: typeof tools, toolsValue: tools },
-            });
-            return { success: false, message: "Registry is empty or invalid" };
+
+            const manifestPath = path.join(toolsDirectory, "manifest.json");
+            if (!fs.existsSync(manifestPath)) {
+                captureMessage("[Troubleshooting] Local manifest file not found", "warning", {
+                    extra: { manifestPath },
+                });
+                return {
+                    success: false,
+                    message: "Local manifest file not found under tools directory",
+                };
+            }
+
+            const manifestRaw = fs.readFileSync(manifestPath, "utf-8");
+            const manifestJson = JSON.parse(manifestRaw);
+            const tools = Array.isArray(manifestJson?.tools) ? manifestJson.tools : [];
+
+            logInfo(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
+            return {
+                success: true,
+                message: `Local manifest found (${tools.length} recorded tools)`,
+                toolCount: tools.length,
+            };
         } catch (error) {
             captureException(error as Error, {
                 tags: { check: "registry-file" },
@@ -1878,60 +1895,53 @@ class ToolBoxApp {
             });
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Failed to access registry",
+                message: error instanceof Error ? error.message : "Failed to read local manifest",
             };
         }
     }
 
     /**
-     * Check fallback API connectivity
-     * Placeholder for future implementation - currently returns a not implemented message
-     * TODO: Replace with actual fallback API endpoint when available
+     * Check baseline internet connectivity by reaching GitHub
      */
-    private async checkFallbackApi(): Promise<{ success: boolean; message?: string }> {
-        // Placeholder implementation
-        // TODO: Add actual fallback API check when endpoint is provided
-        // Example: Test connectivity to a secondary API endpoint like GitHub raw content
-        // or a CDN fallback for tool registry
-        const FALLBACK_CHECK_URL = "https://api.github.com/zen";
+    private async checkInternetConnectivity(): Promise<{ success: boolean; message?: string }> {
+        const INTERNET_CHECK_URL = "https://api.github.com/zen";
 
         try {
-            // For now, we'll check if we can reach GitHub as a basic internet connectivity check
-            const response = await fetch(FALLBACK_CHECK_URL, {
+            const response = await fetch(INTERNET_CHECK_URL, {
                 method: "GET",
                 headers: { "User-Agent": "PowerPlatformToolBox" },
             });
 
             if (response.ok) {
-                logInfo(`[Troubleshooting] Fallback API check passed: HTTP ${response.status}`);
+                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
                 return {
                     success: true,
-                    message: "Internet connectivity check passed (GitHub API accessible)",
+                    message: "Internet connectivity verified via GitHub",
                 };
             }
-            captureMessage("[Troubleshooting] Fallback API returned non-OK status", "warning", {
+            captureMessage("[Troubleshooting] Internet connectivity check returned non-OK status", "warning", {
                 extra: {
-                    url: FALLBACK_CHECK_URL,
+                    url: INTERNET_CHECK_URL,
                     status: response.status,
                     statusText: response.statusText,
                 },
             });
             return {
                 success: false,
-                message: `Fallback check failed: HTTP ${response.status}`,
+                message: `Internet connectivity check failed: HTTP ${response.status}`,
             };
         } catch (error) {
             captureException(error as Error, {
-                tags: { check: "fallback-api" },
+                tags: { check: "internet-connectivity" },
                 extra: {
-                    url: FALLBACK_CHECK_URL,
+                    url: INTERNET_CHECK_URL,
                     errorMessage: error instanceof Error ? error.message : String(error),
                     errorStack: error instanceof Error ? error.stack : undefined,
                 },
             });
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Network error during fallback check",
+                message: error instanceof Error ? error.message : "Network error during internet connectivity check",
             };
         }
     }
@@ -1941,70 +1951,36 @@ class ToolBoxApp {
      * Tests downloading a sample tool from GitHub releases
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const TEST_TOOL_ID = "202ad1e1-c6cb-4c3c-80b2-ea46490c2b79";
+        const TEST_TOOL_DOWNLOAD_URL = "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
-        let testTool: { id: string; downloadUrl: string } | undefined;
+        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-1.0.9.tar.gz");
 
         try {
-            // Get the tool from registry
-            const registry = await this.toolManager.fetchAvailableTools();
-            testTool = registry.find((t) => t.id === TEST_TOOL_ID);
-
-            if (!testTool) {
-                return {
-                    success: false,
-                    message: `Test tool ${TEST_TOOL_ID} not found in registry`,
-                };
-            }
-
-            // Create temp directory
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            const downloadPath = path.join(tempDir, `${TEST_TOOL_ID}.tar.gz`);
-
-            // Try to download the tool
-            const downloadUrl = testTool.downloadUrl;
-            logInfo(`[Troubleshooting] Testing download from ${downloadUrl}`);
+            logInfo(`[Troubleshooting] Testing download from GitHub release: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
-                const protocol = downloadUrl.startsWith("https") ? https : http;
-
-                const request = protocol.get(downloadUrl, (res) => {
-                    // Handle redirects
-                    if (res.statusCode === 302 || res.statusCode === 301) {
-                        const redirectUrl = res.headers.location;
-                        if (redirectUrl) {
-                            logInfo(`[Troubleshooting] Following redirect to ${redirectUrl}`);
-                            const redirectProtocol = redirectUrl.startsWith("https") ? https : http;
-                            redirectProtocol
-                                .get(redirectUrl, (redirectRes) => {
-                                    if (redirectRes.statusCode !== 200) {
-                                        reject(new Error(`Download failed: HTTP ${redirectRes.statusCode}`));
-                                        return;
-                                    }
-
-                                    const fileStream = createWriteStream(downloadPath);
-                                    redirectRes.pipe(fileStream);
-
-                                    fileStream.on("finish", () => {
-                                        fileStream.close();
-                                        resolve();
-                                    });
-
-                                    fileStream.on("error", (err) => {
-                                        fs.unlinkSync(downloadPath);
-                                        reject(err);
-                                    });
-                                })
-                                .on("error", reject);
-                        } else {
-                            reject(new Error("Redirect without location header"));
+                const download = (url: string, redirectDepth = 0) => {
+                    const protocol = url.startsWith("https") ? https : http;
+                    const request = protocol.get(url, (res) => {
+                        if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
+                            if (redirectDepth > 5) {
+                                reject(new Error("Too many redirects while downloading test tool"));
+                                return;
+                            }
+                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                            download(res.headers.location, redirectDepth + 1);
+                            return;
                         }
-                    } else if (res.statusCode !== 200) {
-                        reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-                    } else {
+
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                            return;
+                        }
+
                         const fileStream = createWriteStream(downloadPath);
                         res.pipe(fileStream);
 
@@ -2014,51 +1990,51 @@ class ToolBoxApp {
                         });
 
                         fileStream.on("error", (err) => {
-                            fs.unlinkSync(downloadPath);
+                            if (fs.existsSync(downloadPath)) {
+                                fs.unlinkSync(downloadPath);
+                            }
                             reject(err);
                         });
-                    }
-                });
+                    });
 
-                request.on("error", (err) => {
-                    reject(new Error(`Network error: ${err.message}`));
-                });
+                    request.on("error", (err) => {
+                        reject(new Error(`Network error: ${err.message}`));
+                    });
 
-                request.setTimeout(30000, () => {
-                    request.destroy();
-                    reject(new Error("Download timeout after 30 seconds"));
-                });
+                    request.setTimeout(30000, () => {
+                        request.destroy();
+                        reject(new Error("Download timeout after 30 seconds"));
+                    });
+                };
+
+                download(TEST_TOOL_DOWNLOAD_URL);
             });
 
-            // Check if file was downloaded
             const stats = fs.statSync(downloadPath);
             const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-            // Clean up
             fs.unlinkSync(downloadPath);
-            fs.rmdirSync(tempDir);
+            fs.rmSync(tempDir, { recursive: true, force: true });
 
             return {
                 success: true,
-                message: `Successfully downloaded test tool (${fileSizeMB} MB from GitHub releases)`,
+                message: `Successfully downloaded GitHub release asset (${fileSizeMB} MB)`,
             };
         } catch (error) {
-            // Clean up on error
             try {
                 if (fs.existsSync(tempDir)) {
-                    const files = fs.readdirSync(tempDir);
-                    files.forEach((file) => fs.unlinkSync(path.join(tempDir, file)));
-                    fs.rmdirSync(tempDir);
+                    fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                // Ignore cleanup errors
+                captureMessage("[Troubleshooting] Failed to clean up download test artifacts", "warning", {
+                    extra: { cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) },
+                });
             }
 
             captureException(error as Error, {
                 tags: { check: "tool-download" },
                 extra: {
-                    testToolId: TEST_TOOL_ID,
-                    downloadUrl: testTool?.downloadUrl,
+                    downloadUrl: TEST_TOOL_DOWNLOAD_URL,
                     errorMessage: error instanceof Error ? error.message : String(error),
                     errorStack: error instanceof Error ? error.stack : undefined,
                 },

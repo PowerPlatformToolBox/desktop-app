@@ -131,7 +131,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
         checkSentryLogging: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SENTRY_LOGGING),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
-        checkFallbackApi: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_FALLBACK_API),
+        checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
     },
 
     // FileSystem namespace - filesystem operations

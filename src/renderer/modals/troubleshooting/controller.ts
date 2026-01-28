@@ -69,10 +69,10 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
         setCheckStatus("check-tool-settings", "pending", "Ready to check");
         setCheckStatus("check-connections", "pending", "Ready to check");
         setCheckStatus("check-sentry", "pending", "Ready to check");
+        setCheckStatus("check-internet", "pending", "Ready to check");
         setCheckStatus("check-supabase", "pending", "Ready to check");
         setCheckStatus("check-registry", "pending", "Ready to check");
         setCheckStatus("check-download", "pending", "Ready to check");
-        setCheckStatus("check-fallback", "pending", "Ready to check");
     }
 
     // Listen for check results from main process
@@ -107,8 +107,8 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             case "download":
                 checkId = "check-download";
                 break;
-            case "fallback":
-                checkId = "check-fallback";
+            case "internet":
+                checkId = "check-internet";
                 break;
             default:
                 return;
@@ -157,6 +157,10 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             await new Promise(resolve => setTimeout(resolve, 400));
 
             // Connectivity checks
+            setCheckStatus("check-internet", "loading", "Checking internet connectivity...");
+            modalBridge.send(CONFIG.channels.runCheck, { checkType: "internet" });
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             setCheckStatus("check-supabase", "loading", "Checking Supabase API...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "supabase" });
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -168,10 +172,6 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             setCheckStatus("check-download", "loading", "Testing tool download from GitHub...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "download" });
             await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Fallback API check (last)
-            setCheckStatus("check-fallback", "loading", "Checking fallback API...");
-            modalBridge.send(CONFIG.channels.runCheck, { checkType: "fallback" });
 
         } finally {
             // Re-enable button after a delay to allow all checks to complete

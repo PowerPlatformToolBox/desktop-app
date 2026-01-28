@@ -85,8 +85,8 @@ async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayl
                 case "download":
                     result = await window.toolboxAPI.troubleshooting.checkToolDownload();
                     break;
-                case "fallback":
-                    result = await window.toolboxAPI.troubleshooting.checkFallbackApi();
+                case "internet":
+                    result = await window.toolboxAPI.troubleshooting.checkInternetConnectivity();
                     break;
                 default:
                     return;
