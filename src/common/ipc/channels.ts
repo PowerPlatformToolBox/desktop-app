@@ -112,7 +112,7 @@ export const UTIL_CHANNELS = {
     CHECK_CONNECTIONS: "check-connections",
     CHECK_SENTRY_LOGGING: "check-sentry-logging",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
-    CHECK_FALLBACK_API: "check-fallback-api",
+    CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
 } as const;
 
 // Filesystem-related IPC channels

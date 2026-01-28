@@ -5,7 +5,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
-import { MachineIdManager } from "./machineIdManager";
+import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
 /**
@@ -36,10 +36,10 @@ export class ToolManager extends EventEmitter {
     private registryManager: ToolRegistryManager;
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, machineIdManager?: MachineIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, machineIdManager);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager);
         this.ensureToolsDirectory();
 
         // Forward registry events

@@ -1,6 +1,6 @@
 /**
  * Sentry helper utilities for enhanced logging and tracing
- * Provides utility functions to add context, breadcrumbs, and machine ID to all Sentry events
+ * Provides utility functions to add context, breadcrumbs, and install ID to all Sentry events
  *
  * NOTE: This helper can be used in both main and renderer processes, but must import
  * Sentry from the appropriate subpath in the calling code
@@ -19,7 +19,7 @@ export interface SentryTransaction {
     finish(): void;
 }
 
-let machineId: string | null = null;
+let installId: string | null = null;
 // Use any type for flexibility across different Sentry module versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sentryModule: any = null;
@@ -61,35 +61,35 @@ export function initializeSentryHelper(sentry: any): void {
 }
 
 /**
- * Set the machine ID to be included in all Sentry events
+ * Set the install ID to be included in all Sentry events
  * This should be called early in the application initialization
  */
-export function setSentryMachineId(id: string): void {
-    machineId = id;
+export function setSentryInstallId(id: string): void {
+    installId = id;
 
     if (!sentryModule) return;
 
     // Set as user context so it appears in all events
     sentryModule.setUser({
         id: id,
-        username: `machine-${id}`,
+        username: `install-${id}`,
     });
 
     // Also set as a tag for easier filtering
-    sentryModule.setTag("machine_id", id);
+    sentryModule.setTag("install_id", id);
 
-    logInfo(`[Sentry] Machine ID set: ${id}`);
+    logInfo(`[Sentry] Install ID set: ${id}`);
 }
 
 /**
- * Get the current machine ID
+ * Get the current install ID
  */
-export function getSentryMachineId(): string | null {
-    return machineId;
+export function getSentryInstallId(): string | null {
+    return installId;
 }
 
 /**
- * Add a breadcrumb with machine ID context
+ * Add a breadcrumb with install ID context
  * Breadcrumbs help recreate the sequence of events leading to an error
  */
 export function addBreadcrumb(message: string, category: string, level: "debug" | "info" | "warning" | "error" = "info", data?: Record<string, unknown>): void {
@@ -101,7 +101,7 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
         level,
         data: {
             ...data,
-            machine_id: machineId,
+            install_id: installId,
             timestamp: new Date().toISOString(),
         },
     });
@@ -197,8 +197,8 @@ export function captureException(
     }
 
     sentryModule.withScope((scope: SentryScope) => {
-        // Add machine ID to scope
-        scope.setTag("machine_id", machineId || "unknown");
+        // Add install ID to scope
+        scope.setTag("install_id", installId || "unknown");
 
         // Add any custom tags
         if (context?.tags) {
@@ -256,9 +256,9 @@ export function captureMessage(
             break;
     }
 
-    // Create Sentry Issue with machine ID context
+    // Create Sentry Issue with install ID context
     sentryModule.withScope((scope: SentryScope) => {
-        scope.setTag("machine_id", machineId || "unknown");
+        scope.setTag("install_id", installId || "unknown");
 
         if (context?.tags) {
             Object.entries(context.tags).forEach(([key, value]) => {
@@ -285,7 +285,7 @@ export function setContext(key: string, value: Record<string, unknown>): void {
 
     sentryModule.setContext(key, {
         ...value,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -394,7 +394,7 @@ export function logTrace(message: string, data?: Record<string, unknown>): void 
 
     sentryModule.logger.trace(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -415,7 +415,7 @@ export function logDebug(message: string, data?: Record<string, unknown>): void 
 
     sentryModule.logger.debug(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -433,7 +433,7 @@ export function logInfo(message: string, data?: Record<string, unknown>): void {
 
     sentryModule.logger.info(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -451,7 +451,7 @@ export function logWarn(message: string, data?: Record<string, unknown>): void {
 
     sentryModule.logger.warn(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -469,7 +469,7 @@ export function logError(message: string, data?: Record<string, unknown>): void 
 
     sentryModule.logger.error(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -487,6 +487,6 @@ export function logFatal(message: string, data?: Record<string, unknown>): void 
 
     sentryModule.logger.fatal(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }

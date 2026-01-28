@@ -9,7 +9,7 @@ import { pipeline } from "stream/promises";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
-import { MachineIdManager } from "./machineIdManager";
+import { InstallIdManager } from "./installIdManager";
 
 /**
  * Supabase database types
@@ -118,14 +118,14 @@ export class ToolRegistryManager extends EventEmitter {
     private supabase: SupabaseClient | null = null;
     private useLocalFallback: boolean = false;
     private localRegistryPath: string;
-    private machineIdManager: MachineIdManager | null = null;
+    private installIdManager: InstallIdManager | null = null;
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, machineIdManager?: MachineIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
         this.localRegistryPath = path.join(__dirname, "data", "registry.json");
-        this.machineIdManager = machineIdManager || null;
+        this.installIdManager = installIdManager || null;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -753,7 +753,7 @@ export class ToolRegistryManager extends EventEmitter {
 
     /**
      * Track tool usage for Monthly Active Users (MAU) analytics
-     * Records a unique machine-tool-month combination for MAU tracking
+     * Records a unique install-tool-month combination for MAU tracking
      * @param toolId - The unique identifier of the tool
      */
     async trackToolUsage(toolId: string): Promise<void> {
@@ -763,33 +763,33 @@ export class ToolRegistryManager extends EventEmitter {
             return;
         }
 
-        // Skip if no machine ID manager available
-        if (!this.machineIdManager) {
-            captureMessage(`[ToolRegistry] Skipping usage tracking (no MachineIdManager)`, "warning");
+        // Skip if no install ID manager available
+        if (!this.installIdManager) {
+            captureMessage(`[ToolRegistry] Skipping usage tracking (no InstallIdManager)`, "warning");
             return;
         }
 
         try {
             logInfo(`[ToolRegistry] Tracking usage for tool: ${toolId}`);
 
-            // Get the machine ID
-            const machineId = this.machineIdManager.getMachineId();
+            // Get the install ID
+            const installId = this.installIdManager.getInstallId();
 
             // Calculate current year-month for MAU tracking
             const now = new Date();
             const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
             // Insert or update the usage record
-            // This table should have a unique constraint on (tool_id, machine_id, year_month)
+            // This table should have a unique constraint on (tool_id, install_id, year_month)
             const { error: usageError } = await this.supabase.from("tool_usage_tracking").upsert(
                 {
                     tool_id: toolId,
-                    machine_id: machineId,
+                    install_id: installId,
                     year_month: yearMonth,
                     last_used_at: now.toISOString(),
                 },
                 {
-                    onConflict: "tool_id,machine_id,year_month",
+                    onConflict: "tool_id,install_id,year_month",
                 },
             );
 
