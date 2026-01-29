@@ -1,4 +1,4 @@
-import { LogLevel, PublicClientApplication } from "@azure/msal-node";
+import { LogLevel, PublicClientApplication, ConfidentialClientApplication } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
@@ -11,7 +11,10 @@ import { DATAVERSE_API_VERSION } from "../constants";
  * Manages authentication for Power Platform connections
  */
 export class AuthManager {
-    private msalApp: PublicClientApplication | null = null;
+    // MSAL instances per connection (isolated by connection ID)
+    private msalApps: Map<string, PublicClientApplication> = new Map();
+    // Confidential client instances per connection (isolated by connection ID)
+    private confidentialApps: Map<string, ConfidentialClientApplication> = new Map();
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
     private activePort: number | null = null;
@@ -33,35 +36,83 @@ export class AuthManager {
     }
 
     /**
-     * Initialize MSAL for interactive authentication
+     * Get or create ConfidentialClientApplication for client secret flow
+     * Uses connection ID to ensure each connection has its own isolated MSAL instance
+     * This prevents issues when multiple connections share the same clientId/tenantId
      */
-    private initializeMsal(clientId: string, tenantId: string): PublicClientApplication {
-        const msalConfig = {
-            auth: {
-                clientId, 
-                authority: `https://login.microsoftonline.com/${tenantId}`,
-            },
-            system: {
-                loggerOptions: {
-                    loggerCallback(loglevel: LogLevel, message: string) {
-                        logWarn(message);
-                    },
-                    piiLoggingEnabled: false,
-                    logLevel: LogLevel.Warning,
-                },
-            },
-        };
+    private getConfidentialApp(connectionId: string, clientId: string, clientSecret: string, tenantId: string): ConfidentialClientApplication {
+        const key = connectionId; // Use connection ID for isolation
 
-        return new PublicClientApplication(msalConfig);
+        if (!this.confidentialApps.has(key)) {
+            const msalConfig = {
+                auth: {
+                    clientId,
+                    clientSecret,
+                    authority: `https://login.microsoftonline.com/${tenantId}`,
+                },
+                system: {
+                    loggerOptions: {
+                        loggerCallback(loglevel: LogLevel, message: string) {
+                            logWarn(message);
+                        },
+                        piiLoggingEnabled: false,
+                        logLevel: LogLevel.Warning,
+                    },
+                },
+                cache: {
+                    // MSAL will use in-memory cache by default
+                    // This cache persists for the lifetime of the app process
+                },
+            };
+
+            this.confidentialApps.set(key, new ConfidentialClientApplication(msalConfig));
+        }
+
+        return this.confidentialApps.get(key)!;
+    }
+
+    /**
+     * Get or create MSAL instance for a given connection
+     * Uses connection ID to ensure each connection has its own isolated MSAL instance
+     * This prevents account cache collisions when testing with multiple users
+     */
+    private getMsalApp(connectionId: string, clientId: string, tenantId: string): PublicClientApplication {
+        const key = connectionId; // Use connection ID for isolation
+
+        if (!this.msalApps.has(key)) {
+            const msalConfig = {
+                auth: {
+                    clientId,
+                    authority: `https://login.microsoftonline.com/${tenantId}`,
+                },
+                system: {
+                    loggerOptions: {
+                        loggerCallback(loglevel: LogLevel, message: string) {
+                            logWarn(message);
+                        },
+                        piiLoggingEnabled: false,
+                        logLevel: LogLevel.Warning,
+                    },
+                },
+                cache: {
+                    // MSAL will use in-memory cache by default
+                    // This cache persists for the lifetime of the app process
+                },
+            };
+
+            this.msalApps.set(key, new PublicClientApplication(msalConfig));
+        }
+
+        return this.msalApps.get(key)!;
     }
 
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
-        const tenantId = connection.tenantId || "common";
-        this.msalApp = this.initializeMsal(clientId, tenantId);
+        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
+        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
 
         try {
             // Find an available port for the OAuth redirect server
@@ -85,10 +136,10 @@ export class AuthManager {
                 authCodeUrlParameters.loginHint = connection.username;
             }
 
-            const authCodeUrl = await this.msalApp.getAuthCodeUrl(authCodeUrlParameters);
+            const authCodeUrl = await msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for auth code, then validate before showing success
-            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri);
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
 
             return authResult;
         } catch (error) {
@@ -200,12 +251,13 @@ export class AuthManager {
         connection: DataverseConnection,
         scopes: string[],
         redirectUri: string,
-    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+        msalApp: PublicClientApplication,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
 
         return new Promise((resolve, reject) => {
-            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date }) => {
+            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }) => {
                 this.performImmediateCleanup("Authentication server closed after successful auth");
                 resolve(authResult);
             };
@@ -258,16 +310,17 @@ export class AuthManager {
                             redirectUri: redirectUri,
                         };
 
-                        if (!this.msalApp) {
-                            throw new Error("MSAL app not initialized");
-                        }
+                        const response = await msalApp.acquireTokenByCode(tokenRequest);
 
-                        const response = await this.msalApp.acquireTokenByCode(tokenRequest);
+                        if (!response.account) {
+                            throw new Error("No account information returned from authentication");
+                        }
 
                         const authResult = {
                             accessToken: response.accessToken,
-                            refreshToken: response.account?.homeAccountId,
+                            refreshToken: response.account.homeAccountId,
                             expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                            msalAccountId: response.account.homeAccountId,
                         };
 
                         // Validate user has access to the environment by performing a WhoAmI check
@@ -351,35 +404,32 @@ export class AuthManager {
     }
 
     /**
-     * Authenticate using client ID and secret
+     * Authenticate using client ID and secret with automatic token caching
+     * Uses ConfidentialClientApplication which handles token refresh automatically
      */
     async authenticateClientSecret(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
 
-        const tokenEndpoint = `https://login.microsoftonline.com/${connection.tenantId}/oauth2/v2.0/token`;
-        const scope = `${connection.url}/.default`;
-
-        const postData = new URLSearchParams({
-            client_id: connection.clientId,
-            client_secret: connection.clientSecret,
-            scope: scope,
-            grant_type: "client_credentials",
-        }).toString();
+        const confidentialApp = this.getConfidentialApp(connection.id, connection.clientId, connection.clientSecret, connection.tenantId);
+        const scopes = [`${connection.url}/.default`];
 
         try {
-            const response = await this.makeHttpsRequest(tokenEndpoint, postData);
-            const data = JSON.parse(response);
+            // MSAL ConfidentialClientApplication automatically caches tokens
+            // and only acquires new ones when expired
+            const response = await confidentialApp.acquireTokenByClientCredential({
+                scopes: scopes,
+            });
 
-            if (data.error) {
-                throw new Error(data.error_description || data.error);
+            if (!response) {
+                throw new Error("No response from token acquisition");
             }
 
             const authResult = {
-                accessToken: data.access_token,
+                accessToken: response.accessToken,
                 refreshToken: undefined, // Client credentials flow doesn't provide refresh tokens
-                expiresOn: new Date(Date.now() + data.expires_in * 1000),
+                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
 
             // Validate user has access to the environment by performing a WhoAmI check
@@ -410,7 +460,7 @@ export class AuthManager {
         }
 
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/common/oauth2/v2.0/token`;
+        const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
         const scope = `${connection.url}/.default`;
 
         const postData = new URLSearchParams({
@@ -618,11 +668,56 @@ export class AuthManager {
     }
 
     /**
+     * Acquire access token silently using MSAL's built-in token cache and refresh logic
+     * MSAL automatically handles token refresh if the access token is expired
+     * @param connection The connection to acquire token for
+     * @returns Promise with access token (MSAL handles refresh internally)
+     */
+    async acquireTokenSilently(connection: DataverseConnection): Promise<{ accessToken: string; expiresOn: Date }> {
+        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
+        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const scopes = [`${connection.url}/.default`];
+
+        // Get the account from MSAL cache
+        const accounts = await msalApp.getTokenCache().getAllAccounts();
+        const account = connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0]; // Fallback to first account if msalAccountId not set
+
+        if (!account) {
+            throw new Error("No cached account found. Please authenticate again.");
+        }
+
+        try {
+            // MSAL will automatically:
+            // 1. Return cached token if still valid
+            // 2. Refresh using refresh token if access token expired
+            // 3. Throw error if refresh token also expired
+            const response = await msalApp.acquireTokenSilent({
+                account: account,
+                scopes: scopes,
+            });
+
+            return {
+                accessToken: response.accessToken,
+                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+            };
+        } catch (error) {
+            // Silent acquisition failed - likely refresh token expired
+            captureMessage("Silent token acquisition failed - re-authentication required", "warning", {
+                extra: { error, connectionId: connection.id },
+            });
+            throw new Error("Token refresh failed. Please authenticate again.");
+        }
+    }
+
+    /**
      * Refresh an access token using a refresh token
+     * This is used for username/password flow and legacy interactive connections
+     * For modern interactive connections, use acquireTokenSilently() instead
      */
     async refreshAccessToken(connection: DataverseConnection, refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/common/oauth2/v2.0/token`;
+        const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
         const scope = `${connection.url}/.default`;
 
         const postData = new URLSearchParams({

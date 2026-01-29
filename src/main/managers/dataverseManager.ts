@@ -1,5 +1,6 @@
 import * as https from "https";
 import { DataverseConnection, ENTITY_RELATED_METADATA_BASE_PATHS, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../../common/types";
+import { captureMessage } from "../../common/sentryHelper";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -70,6 +71,7 @@ export class DataverseManager {
 
     /**
      * Get a connection by ID and ensure it has a valid access token
+     * Uses MSAL's automatic token refresh - no manual expiry checking needed
      * @param connectionId The ID of the connection to use
      */
     private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
@@ -78,36 +80,128 @@ export class DataverseManager {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
-        if (!connection.accessToken) {
-            throw new Error("No access token found. Please reconnect to the environment.");
+        // Strategy 1: Interactive auth with MSAL account - use silent token acquisition
+        // MSAL automatically handles token refresh if expired (no local server needed for refresh)
+        if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+            try {
+                const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                // Update connection with new token
+                connection.accessToken = tokenResult.accessToken;
+                connection.tokenExpiry = tokenResult.expiresOn.toISOString();
+                this.connectionsManager.updateConnection(connection.id, connection);
+
+                return { connection, accessToken: tokenResult.accessToken };
+            } catch (error) {
+                // Silent acquisition failed - re-auth required
+                const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
+                captureMessage("MSAL silent token acquisition failed", "error", {
+                    extra: { connectionId, connectionName: connection.name, error },
+                });
+                throw new Error(errorMessage);
+            }
         }
 
-        // Check if token is expired
-        if (connection.tokenExpiry) {
-            const expiryDate = new Date(connection.tokenExpiry);
-            const now = new Date();
+        // Strategy 2: Client secret flow - use MSAL's automatic token caching
+        // ConfidentialClientApplication handles token refresh automatically
+        if (connection.authenticationType === "clientSecret") {
+            // Check if token is expired or about to expire (within 5 minutes)
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
 
-            // Refresh if token expires in the next 5 minutes
-            if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
-                if (connection.refreshToken) {
-                    try {
-                        const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                        this.connectionsManager.updateConnectionTokens(connection.id, {
-                            accessToken: authResult.accessToken,
-                            refreshToken: authResult.refreshToken,
-                            expiresOn: authResult.expiresOn,
-                        });
-                        return { connection, accessToken: authResult.accessToken };
-                    } catch (error) {
-                        throw new Error(`Failed to refresh token: ${(error as Error).message}`);
-                    }
-                } else {
-                    throw new Error("Access token expired and no refresh token available. Please reconnect.");
+            if (needsRefresh || !connection.accessToken) {
+                try {
+                    // MSAL will return cached token if still valid, or acquire new one if expired
+                    const authResult = await this.authManager.authenticateClientSecret(connection);
+
+                    // Update connection with new token
+                    connection.accessToken = authResult.accessToken;
+                    connection.tokenExpiry = authResult.expiresOn.toISOString();
+                    this.connectionsManager.updateConnection(connection.id, connection);
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
+                    captureMessage("Client secret authentication failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
                 }
             }
         }
 
+        // Strategy 3: Username/Password flow - use refresh token if available
+        // Password flow provides refresh tokens that can be used without re-prompting for password
+        if (connection.authenticationType === "usernamePassword") {
+            // Check if token is expired or about to expire (within 5 minutes)
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+
+            if (needsRefresh && connection.refreshToken) {
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
+                    captureMessage("Username/password token refresh failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+        }
+
+        // Strategy 4: Legacy interactive connections without MSAL account ID
+        // Try to use existing refresh token via manual refresh
+        if (connection.authenticationType === "interactive" && !connection.msalAccountId && connection.refreshToken) {
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+
+            if (needsRefresh) {
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please sign in again.`;
+                    captureMessage("Legacy interactive token refresh failed", "warning", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+        }
+
+        // Fallback: use existing token if still valid
+        if (!connection.accessToken) {
+            throw new Error(`No access token found for '${connection.name}'. Please reconnect to the environment.`);
+        }
+
         return { connection, accessToken: connection.accessToken };
+    }
+
+    /**
+     * Check if a token is expiring within the specified time window
+     */
+    private isTokenExpiringWithin(tokenExpiry: string | undefined, milliseconds: number): boolean {
+        if (!tokenExpiry) return false;
+
+        const expiryDate = new Date(tokenExpiry);
+        const now = new Date();
+
+        return expiryDate.getTime() - now.getTime() < milliseconds;
     }
 
     /**

@@ -730,12 +730,15 @@ export async function connectToConnection(id: string): Promise<string> {
  */
 export async function handleReauthentication(connectionId: string): Promise<void> {
     try {
-        // First try to refresh using the refresh token
+        // Get connection details for better error messages
+        const connection = await window.toolboxAPI.connections.getById(connectionId);
+
+        // First try to refresh using the refresh token (MSAL or manual)
         await window.toolboxAPI.connections.refreshToken(connectionId);
 
         await window.toolboxAPI.utils.showNotification({
-            title: "Re-authenticated",
-            body: "Successfully refreshed your connection token.",
+            title: "Connection Refreshed",
+            body: `Successfully refreshed token for '${connection?.name || "connection"}'.`,
             type: "success",
         });
 
@@ -743,12 +746,22 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        captureMessage("Token refresh failed:", "error", { extra: { error } });
+        // Get connection details for error notification
+        const connection = await window.toolboxAPI.connections.getById(connectionId).catch(() => null);
+        const connectionName = connection?.name || "Unknown connection";
 
-        // If refresh fails, notify user to re-authenticate
+        captureMessage("Token refresh failed:", "error", {
+            extra: { error, connectionId, connectionName },
+        });
+
+        // Extract meaningful error message (strip generic parts)
+        const errorMessage = (error as Error).message || "Token refresh failed";
+        const cleanMessage = errorMessage.replace(/^Failed to refresh token for connection '[^']+': /, "");
+
+        // If refresh fails, notify user to re-authenticate with specific connection name
         await window.toolboxAPI.utils.showNotification({
-            title: "Re-authentication Needed",
-            body: "Token refresh failed. Please re-authenticate the connection.",
+            title: "Re-authentication Required",
+            body: `Connection '${connectionName}' needs re-authentication. ${cleanMessage}`,
             type: "error",
         });
 
