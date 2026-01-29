@@ -120,7 +120,7 @@ export class ConnectionsManager {
     /**
      * Update connection tokens with encryption (called after authentication/refresh)
      */
-    updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
+    updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }): void {
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -135,6 +135,11 @@ export class ConnectionsManager {
         connection.accessToken = this.encryptionManager.encrypt(authTokens.accessToken);
         connection.refreshToken = authTokens.refreshToken ? this.encryptionManager.encrypt(authTokens.refreshToken) : undefined;
         connection.tokenExpiry = authTokens.expiresOn.toISOString();
+
+        // Store MSAL account ID for silent token acquisition (not encrypted - just an identifier)
+        if (authTokens.msalAccountId !== undefined) {
+            connection.msalAccountId = authTokens.msalAccountId;
+        }
 
         this.store.set("connections", connections);
     }
