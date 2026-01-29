@@ -640,7 +640,7 @@ export class ToolManager extends EventEmitter {
         this.tools.set(toolId, tool);
         this.emit("tool:loaded", tool);
 
-        logInfo(`[ToolManager] [DEBUG] Local tool loaded: ${tool.name} (${toolId})`);
+        logInfo(`[ToolManager] [DEBUG] Local tool loaded: ${tool.name} (${toolId}) with features:`, { features: tool.features });
         return tool;
     }
 
