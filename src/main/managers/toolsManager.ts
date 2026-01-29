@@ -571,9 +571,9 @@ export class ToolManager extends EventEmitter {
      * The `features` object may contain a `multiConnection` property that specifies
      * multi-connection support:
      * - "required": Tool requires both primary and secondary connections
-     * - "optional": Tool requires primary connection, secondary is optional  
+     * - "optional": Tool requires primary connection, secondary is optional
      * - "none" or undefined: Tool uses single connection only (default)
-     * 
+     *
      * Example package.json:
      * ```json
      * {
