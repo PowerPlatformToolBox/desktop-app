@@ -76,6 +76,18 @@ export function updateToolbarButtonVisibility(): void {
 
 /**
  * Launch a tool by ID
+ * 
+ * This function handles launching tools of all types (registry-installed, npm, local).
+ * Multi-connection support is determined by reading the tool's features.multiConnection property:
+ * - "required": Shows multi-connection modal requiring both connections
+ * - "optional": Shows multi-connection modal with optional secondary connection
+ * - "none" or undefined: Shows standard single-connection modal
+ * 
+ * The multi-connection modal is shown only if connection IDs are not already provided
+ * (e.g., from a previous launch or from stored preferences).
+ * 
+ * Local development tools loaded via loadLocalTool() are handled identically to
+ * installed tools - their package.json features are read and respected.
  */
 export async function launchTool(toolId: string, options?: LaunchToolOptions): Promise<void> {
     try {

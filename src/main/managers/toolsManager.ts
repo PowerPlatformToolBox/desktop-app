@@ -566,6 +566,29 @@ export class ToolManager extends EventEmitter {
     /**
      * Load a tool from a local directory (DEBUG MODE ONLY - for tool developers)
      * This allows developers to test their tools without publishing to npm
+     * 
+     * The tool's package.json is read to extract metadata including the `features` field.
+     * The `features` object may contain a `multiConnection` property that specifies
+     * multi-connection support:
+     * - "required": Tool requires both primary and secondary connections
+     * - "optional": Tool requires primary connection, secondary is optional  
+     * - "none" or undefined: Tool uses single connection only (default)
+     * 
+     * Example package.json:
+     * ```json
+     * {
+     *   "name": "my-tool",
+     *   "version": "1.0.0",
+     *   "features": {
+     *     "multiConnection": "optional"
+     *   }
+     * }
+     * ```
+     * 
+     * Local tools are treated identically to installed tools during launch.
+     * The multi-connection modal will be shown automatically if the tool's
+     * features.multiConnection is set to "required" or "optional".
+     * 
      * @param localPath - Absolute path to the tool directory
      */
     async loadLocalTool(localPath: string): Promise<Tool> {
