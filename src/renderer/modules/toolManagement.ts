@@ -109,7 +109,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Determine multi-connection mode
         const multiConnectionMode = tool.features?.multiConnection || "none";
-        logInfo(`Tool multi-connection mode: ${multiConnectionMode}`, { toolId, features: tool.features });
+        logInfo("Tool multi-connection mode:", { toolId, multiConnectionMode, features: tool.features });
 
         const resolveConnectionId = async (connectionId: string | null): Promise<string | null> => {
             if (!connectionId) {
