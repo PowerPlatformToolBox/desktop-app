@@ -59,6 +59,36 @@ declare namespace DataverseAPI {
     }
 
     /**
+     * EntityReference for Function parameters
+     * User-friendly format that accepts entity logical name instead of requiring manual entity set name pluralization
+     *
+     * @example
+     * // User-friendly format (recommended)
+     * const target: EntityReference = {
+     *     entityLogicalName: 'account',
+     *     id: 'guid-here'
+     * };
+     *
+     * @example
+     * // Advanced format (also supported)
+     * const target = {
+     *     '@odata.id': 'accounts(guid-here)'
+     * };
+     */
+    export interface EntityReference {
+        /**
+         * Logical name of the entity (e.g., 'account', 'contact', 'systemuser')
+         * Will be automatically converted to entity set name (e.g., 'accounts', 'contacts', 'systemusers')
+         */
+        entityLogicalName: string;
+
+        /**
+         * GUID of the record
+         */
+        id: string;
+    }
+
+    /**
      * Execute operation request
      */
     export interface ExecuteRequest {
@@ -84,6 +114,112 @@ declare namespace DataverseAPI {
 
         /**
          * Parameters to pass to the operation
+         *
+         * ## For Functions (GET requests):
+         * Parameters are passed in the URL query string using parameter aliases.
+         *
+         * ### Parameter Types:
+         * - **Primitives**:
+         *   - Strings: Automatically wrapped in single quotes (e.g., 'Pacific Standard Time')
+         *   - Numbers: Passed as-is (e.g., 1033)
+         *   - Booleans: Lowercase true/false
+         *   - null: Passed as null
+         *
+         * - **EntityReference**:
+         *   - Recommended: `{ entityLogicalName: 'account', id: 'guid' }`
+         *   - Advanced: `{ '@odata.id': 'accounts(guid)' }`
+         *
+         * - **Enum values**:
+         *   - Must use Microsoft.Dynamics.CRM prefix format
+         *   - Single value: `"Microsoft.Dynamics.CRM.EntityFilters'Entity'"`
+         *   - Multiple values: `"Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'"`
+         *
+         * - **Complex objects**: Will be JSON serialized (e.g., PagingInfo)
+         * - **Arrays**: Will be JSON serialized
+         *
+         * ## For Actions (POST requests):
+         * All parameters are passed in the request body as JSON.
+         *
+         * @example
+         * // WhoAmI - Unbound function with no parameters
+         * {
+         *   operationName: 'WhoAmI',
+         *   operationType: 'function'
+         *   // No parameters needed
+         * }
+         *
+         * @example
+         * // RetrieveUserQueues - Bound function with boolean parameter
+         * {
+         *   entityName: 'systemuser',
+         *   entityId: 'user-guid-here',
+         *   operationName: 'RetrieveUserQueues',
+         *   operationType: 'function',
+         *   parameters: {
+         *     IncludePublic: true
+         *   }
+         * }
+         *
+         * @example
+         * // CalculateRollupField - Unbound function with EntityReference and string
+         * {
+         *   operationName: 'CalculateRollupField',
+         *   operationType: 'function',
+         *   parameters: {
+         *     Target: { entityLogicalName: 'account', id: 'account-guid-here' },
+         *     FieldName: 'new_totalrevenue'
+         *   }
+         * }
+         *
+         * @example
+         * // GetTimeZoneCodeByLocalizedName - Unbound function with string and number
+         * {
+         *   operationName: 'GetTimeZoneCodeByLocalizedName',
+         *   operationType: 'function',
+         *   parameters: {
+         *     LocalizedStandardName: 'Pacific Standard Time',
+         *     LocaleId: 1033
+         *   }
+         * }
+         *
+         * @example
+         * // RetrieveAllEntities - Unbound function with enum and boolean
+         * {
+         *   operationName: 'RetrieveAllEntities',
+         *   operationType: 'function',
+         *   parameters: {
+         *     EntityFilters: "Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'",
+         *     RetrieveAsIfPublished: false
+         *   }
+         * }
+         *
+         * @example
+         * // RetrieveAttributeChangeHistory - Unbound function with EntityReference, string, and complex object
+         * {
+         *   operationName: 'RetrieveAttributeChangeHistory',
+         *   operationType: 'function',
+         *   parameters: {
+         *     Target: { entityLogicalName: 'account', id: 'account-guid-here' },
+         *     AttributeLogicalName: 'name',
+         *     PagingInfo: {
+         *       PageNumber: 1,
+         *       Count: 10,
+         *       ReturnTotalRecordCount: true
+         *     }
+         *   }
+         * }
+         *
+         * @example
+         * // ImportSolution - Unbound action with parameters in body
+         * {
+         *   operationName: 'ImportSolution',
+         *   operationType: 'action',
+         *   parameters: {
+         *     CustomizationFile: 'base64-encoded-solution-zip',
+         *     PublishWorkflows: true,
+         *     OverwriteUnmanagedCustomizations: false
+         *   }
+         * }
          */
         parameters?: Record<string, unknown>;
     }

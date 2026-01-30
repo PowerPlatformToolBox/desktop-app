@@ -125,7 +125,7 @@ Currently, we're establishing the testing infrastructure. When adding new featur
 When adding new features:
 
 1. Update README.md if it affects user-facing functionality
-2. Update [TOOLBOX_DEV.md](TOOLBOX_DEV.md) for Tool Box related changes
+2. Update [TOOLBOX_DEV.md](TOOLBOX_DEV.md) for ToolBox related changes
 3. Update [ARCHITECTURE.md](ARCHITECTURE.md) for architectural changes
 4. Add inline code comments for complex logic
 5. Update type definitions in `packages/types/` & publish a new version to **npm**
