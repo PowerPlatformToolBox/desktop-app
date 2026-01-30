@@ -571,7 +571,10 @@ export class DataverseManager {
         // Handle EntityReference with entityLogicalName and id (user-friendly format)
         // Convert to @odata.id format internally
         if (typeof value === "object" && value !== null && "entityLogicalName" in value && "id" in value) {
-            const ref = value as { entityLogicalName: string; id: string };
+            const ref = value as { entityLogicalName: unknown; id: unknown };
+            if (typeof ref.entityLogicalName !== "string" || typeof ref.id !== "string") {
+                throw new Error("EntityReference must have string entityLogicalName and id properties");
+            }
             const entitySetName = this.getEntitySetName(ref.entityLogicalName);
             const odataRef = { "@odata.id": `${entitySetName}(${ref.id})` };
             return encodeURIComponent(JSON.stringify(odataRef));
@@ -598,7 +601,7 @@ export class DataverseManager {
             // Enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity'
             // Multi-value enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'
             // These should NOT be wrapped in quotes, just URL-encoded
-            if (value.includes("Microsoft.Dynamics.CRM.") && value.includes("'")) {
+            if (/^Microsoft\.Dynamics\.CRM\.\w+'.+'$/.test(value)) {
                 return encodeURIComponent(value);
             }
 
