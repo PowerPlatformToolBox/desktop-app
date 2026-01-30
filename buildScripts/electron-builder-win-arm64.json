@@ -9,6 +9,18 @@
                 ]
             },
             {
+                "target": "msi",
+                "arch": [
+                    "arm64"
+                ]
+            },
+            {
+                "target": "msiWrapped",
+                "arch": [
+                    "arm64"
+                ]
+            },
+            {
                 "target": "zip",
                 "arch": [
                     "arm64"
