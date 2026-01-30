@@ -266,13 +266,33 @@ export class DataverseManager {
 
         const method = request.operationType === "function" ? "GET" : "POST";
 
-        // For functions, parameters go in the URL
+        // For functions, parameters go in the URL using parameter aliases
+        // Format: FunctionName(Param1=@p0,Param2=@p1)?@p0=value1&@p1=value2
         if (request.operationType === "function" && request.parameters) {
-            const params = new URLSearchParams();
-            Object.entries(request.parameters).forEach(([key, value]) => {
-                params.append(key, JSON.stringify(value));
-            });
-            url += `?${params.toString()}`;
+            const paramNames = Object.keys(request.parameters);
+
+            if (paramNames.length > 0) {
+                // Build parameter aliases for function signature: Param1=@p0,Param2=@p1
+                const paramAliases = paramNames.map((name, index) => `${name}=@p${index}`);
+
+                // Append function signature with aliases to URL
+                url += `(${paramAliases.join(",")})`;
+
+                // Build query string with parameter values: @p0=value1&@p1=value2
+                const queryParams: string[] = [];
+                paramNames.forEach((name, index) => {
+                    const value = request.parameters![name];
+                    const alias = `@p${index}`;
+                    const formattedValue = this.formatFunctionParameter(value);
+                    queryParams.push(`${alias}=${formattedValue}`);
+                });
+
+                // Append query string to URL
+                url += `?${queryParams.join("&")}`;
+            } else {
+                // No parameters - just add empty parentheses for function call
+                url += "()";
+            }
         }
 
         const body = request.operationType === "action" ? request.parameters : undefined;
@@ -501,6 +521,107 @@ export class DataverseManager {
     private extractIdFromUrl(url: string): string {
         const match = url.match(/\(([a-f0-9-]+)\)/i);
         return match ? match[1] : url;
+    }
+
+    /**
+     * Format a parameter value for Dataverse Function URL query string
+     * Handles primitives, EntityReferences, complex objects, collections, and enum values
+     *
+     * @param value - The parameter value to format
+     * @returns URL-encoded formatted parameter value
+     *
+     * @example
+     * // String parameter
+     * formatFunctionParameter('Pacific Standard Time') // Returns: '%27Pacific%20Standard%20Time%27'
+     *
+     * @example
+     * // Number parameter
+     * formatFunctionParameter(1033) // Returns: '1033'
+     *
+     * @example
+     * // Boolean parameter
+     * formatFunctionParameter(true) // Returns: 'true'
+     *
+     * @example
+     * // EntityReference with entityLogicalName (user-friendly format)
+     * formatFunctionParameter({ entityLogicalName: 'account', id: 'guid-here' })
+     * // Returns: '%7B%22%40odata.id%22%3A%22accounts(guid-here)%22%7D'
+     *
+     * @example
+     * // EntityReference with @odata.id (advanced format)
+     * formatFunctionParameter({ '@odata.id': 'accounts(guid-here)' })
+     * // Returns: '%7B%22%40odata.id%22%3A%22accounts(guid-here)%22%7D'
+     *
+     * @example
+     * // Enum value (single or multiple)
+     * formatFunctionParameter("Microsoft.Dynamics.CRM.EntityFilters'Entity'")
+     * // Returns: "Microsoft.Dynamics.CRM.EntityFilters'Entity'" (no quotes, URL-encoded)
+     *
+     * @example
+     * // Complex object
+     * formatFunctionParameter({ PageNumber: 1, Count: 10 })
+     * // Returns: '%7B%22PageNumber%22%3A1%2C%22Count%22%3A10%7D'
+     */
+    private formatFunctionParameter(value: unknown): string {
+        // Handle null/undefined
+        if (value === null || value === undefined) {
+            return "null";
+        }
+
+        // Handle EntityReference with entityLogicalName and id (user-friendly format)
+        // Convert to @odata.id format internally
+        if (typeof value === "object" && value !== null && "entityLogicalName" in value && "id" in value) {
+            const ref = value as { entityLogicalName: unknown; id: unknown };
+            if (typeof ref.entityLogicalName !== "string" || typeof ref.id !== "string") {
+                throw new Error("EntityReference must have string entityLogicalName and id properties");
+            }
+            const entitySetName = this.getEntitySetName(ref.entityLogicalName);
+            const odataRef = { "@odata.id": `${entitySetName}(${ref.id})` };
+            return encodeURIComponent(JSON.stringify(odataRef));
+        }
+
+        // Handle already-formatted EntityReference with @odata.id (advanced users)
+        if (typeof value === "object" && value !== null && "@odata.id" in value) {
+            return encodeURIComponent(JSON.stringify(value));
+        }
+
+        // Handle boolean - lowercase without quotes
+        if (typeof value === "boolean") {
+            return value ? "true" : "false";
+        }
+
+        // Handle number - no quotes
+        if (typeof value === "number") {
+            return value.toString();
+        }
+
+        // Handle string
+        if (typeof value === "string") {
+            // Check if it's a Dataverse enum value with Microsoft.Dynamics.CRM prefix
+            // Enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity'
+            // Multi-value enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'
+            // These should NOT be wrapped in quotes, just URL-encoded
+            if (/^Microsoft\.Dynamics\.CRM\.\w+'.+'$/.test(value)) {
+                return encodeURIComponent(value);
+            }
+
+            // Check if it's already a properly formatted EntityReference string
+            if (value.startsWith("{'@odata.id':") || value.startsWith('{"@odata.id":')) {
+                return encodeURIComponent(value);
+            }
+
+            // Regular string - wrap in single quotes, escape internal single quotes by doubling them, then URL encode
+            const escapedValue = value.replace(/'/g, "''");
+            return encodeURIComponent(`'${escapedValue}'`);
+        }
+
+        // Handle complex objects and arrays - JSON encode and URL encode
+        if (typeof value === "object") {
+            return encodeURIComponent(JSON.stringify(value));
+        }
+
+        // Fallback - convert to string and URL encode
+        return encodeURIComponent(String(value));
     }
 
     /**
