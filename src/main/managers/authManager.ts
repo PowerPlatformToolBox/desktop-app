@@ -361,7 +361,8 @@ export class AuthManager {
         }
 
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/common/oauth2/v2.0/token`;
+        const tenantId = connection.tenantId || "common";
+        const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
         const scope = `${connection.url}/.default`;
 
         const postData = new URLSearchParams({
@@ -540,7 +541,8 @@ export class AuthManager {
      */
     async refreshAccessToken(connection: DataverseConnection, refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/common/oauth2/v2.0/token`;
+        const tenantId = connection.tenantId || "common";
+        const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
         const scope = `${connection.url}/.default`;
 
         const postData = new URLSearchParams({

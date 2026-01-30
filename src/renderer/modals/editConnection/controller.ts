@@ -80,6 +80,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         optionalClientId: getInputValue("connection-optional-client-id"),
         interactiveUsername: getInputValue("connection-username"),
         interactiveTenantId: getInputValue("connection-tenant-id"),
+        usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
     });
 
@@ -103,6 +104,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         } else if (connection.authenticationType === "usernamePassword") {
             setInputValue("connection-username-up", connection.username);
             setInputValue("connection-password", connection.password);
+            setInputValue("connection-tenant-id-up", connection.tenantId);
         } else if (connection.authenticationType === "interactive") {
             setInputValue("connection-username", connection.username);
             setInputValue("connection-optional-client-id", connection.clientId);

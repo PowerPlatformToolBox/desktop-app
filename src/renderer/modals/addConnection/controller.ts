@@ -68,6 +68,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         optionalClientId: getInputValue("connection-optional-client-id"),
         interactiveUsername: getInputValue("connection-username"),
         interactiveTenantId: getInputValue("connection-tenant-id"),
+        usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
     });
 

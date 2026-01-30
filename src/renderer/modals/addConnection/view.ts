@@ -80,6 +80,9 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <input type="password" id="connection-password" class="modal-input" placeholder="password" />
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
             </div>
+            <label for="connection-tenant-id-up">Tenant ID (Optional)</label>
+            <input type="text" id="connection-tenant-id-up" class="modal-input" placeholder="common" />
+            <p class="helper-text">Defaults to 'common' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
         </div>
         <div id="connection-string-fields" class="field-group" style="display: none">
             <span class="section-label">Connection String</span>

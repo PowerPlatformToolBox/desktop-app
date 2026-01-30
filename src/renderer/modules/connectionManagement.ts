@@ -41,6 +41,7 @@ interface ConnectionFormPayload {
     optionalClientId?: string;
     interactiveUsername?: string;
     interactiveTenantId?: string;
+    usernamePasswordTenantId?: string;
     connectionString?: string;
 }
 
@@ -1148,6 +1149,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     } else if (authenticationType === "usernamePassword") {
         connection.username = sanitizeInput(formPayload.username);
         connection.password = sanitizeInput(formPayload.password);
+        connection.tenantId = sanitizeInput(formPayload.usernamePasswordTenantId) || undefined;
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
         if (optionalClientId) {
             connection.clientId = optionalClientId;
