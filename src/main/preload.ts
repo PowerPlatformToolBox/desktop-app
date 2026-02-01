@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
     updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
+    isToolUpdating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.IS_TOOL_UPDATING, toolId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),
@@ -215,6 +216,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Token expiry event
     onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.TOKEN_EXPIRED, (_, data) => callback(data));
+    },
+
+    // Tool update events
+    onToolUpdateStarted: (callback: (toolId: string) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_STARTED, (_, toolId) => callback(toolId));
+    },
+    onToolUpdateCompleted: (callback: (toolId: string) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, (_, toolId) => callback(toolId));
     },
 
     // Dataverse API - Can be called by tools via message routing

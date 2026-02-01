@@ -185,6 +185,7 @@ export interface ToolboxAPI {
     fetchRegistryTools: () => Promise<Tool[]>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
+    isToolUpdating: (toolId: string) => Promise<boolean>;
 
     // Utils namespace
     utils: UtilsAPI;
@@ -223,6 +224,10 @@ export interface ToolboxAPI {
 
     // Token expiry
     onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => void;
+
+    // Tool update events
+    onToolUpdateStarted: (callback: (toolId: string) => void) => void;
+    onToolUpdateCompleted: (callback: (toolId: string) => void) => void;
 
     // Dataverse namespace
     dataverse: DataverseAPI;

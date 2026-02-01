@@ -43,11 +43,13 @@ export async function loadSidebarTools(): Promise<void> {
         const toolsWithUpdateInfo = await Promise.all(
             tools.map(async (tool: ToolDetail) => {
                 const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
+                const isUpdating = await window.toolboxAPI.isToolUpdating(tool.id);
                 return {
                     ...tool,
                     latestVersion: updateInfo.latestVersion,
                     hasUpdate: updateInfo.hasUpdate,
                     isFavorite: favoriteTools.includes(tool.id),
+                    isUpdating,
                 };
             }),
         );
@@ -169,7 +171,7 @@ export async function loadSidebarTools(): Promise<void> {
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
-            .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean }) => {
+            .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean }) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 
                 // Icon handling (retain improved fallback logic)
@@ -192,6 +194,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
 
                 const hasUpdate = !!tool.hasUpdate;
+                const isUpdating = !!tool.isUpdating;
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
@@ -228,13 +231,21 @@ export async function loadSidebarTools(): Promise<void> {
                 if (displayMode === "compact") {
                     // Compact mode: icon, name, version, author only
                     return `
-                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
+                        ${
+                            isUpdating
+                                ? `<div class="tool-item-updating-overlay">
+                                <div class="tool-item-updating-spinner"></div>
+                                <div class="tool-item-updating-text">Updating...</div>
+                            </div>`
+                                : ""
+                        }
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name} ${hasUpdate && !isUpdating ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -258,13 +269,21 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Standard mode: full details
                 return `
-                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
+                        ${
+                            isUpdating
+                                ? `<div class="tool-item-updating-overlay">
+                                <div class="tool-item-updating-spinner"></div>
+                                <div class="tool-item-updating-text">Updating...</div>
+                            </div>`
+                                : ""
+                        }
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${hasUpdate ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name} ${hasUpdate && !isUpdating ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -285,7 +304,7 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-description-pptb">${description}</div>
                         <div class="tool-item-authors-pptb">${authorsDisplay}</div>
                         ${
-                            hasUpdate && latestVersion
+                            hasUpdate && latestVersion && !isUpdating
                                 ? `<div class="tool-item-updated-version-available-pptb">
                                         <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
                                         <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
@@ -297,7 +316,7 @@ export async function loadSidebarTools(): Promise<void> {
                         </div>
                         <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
                         ${
-                            hasUpdate && latestVersion
+                            hasUpdate && latestVersion && !isUpdating
                                 ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
                                 : ""
                         }
@@ -311,6 +330,8 @@ export async function loadSidebarTools(): Promise<void> {
                 const target = e.target as HTMLElement;
                 // Don't launch tool if clicking an action button
                 if (target.closest("button")) return;
+                // Don't launch tool if it's updating
+                if (item.classList.contains("tool-item-updating")) return;
 
                 const toolId = item.getAttribute("data-tool-id");
                 if (toolId) {
@@ -331,6 +352,12 @@ export async function loadSidebarTools(): Promise<void> {
                 const action = button.getAttribute("data-action");
                 const toolId = button.getAttribute("data-tool-id");
                 if (!toolId) return;
+
+                // Don't allow actions on updating tools (except viewing context menu)
+                const toolCard = button.closest(".tool-item-pptb");
+                if (toolCard && toolCard.classList.contains("tool-item-updating") && action !== "more") {
+                    return;
+                }
 
                 if (action === "more") {
                     const tool = toolLookup.get(toolId);
@@ -631,12 +658,7 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
             throw new Error("Tool not found");
         }
 
-        await window.toolboxAPI.utils.showNotification({
-            title: "Updating Tool",
-            body: `Updating ${tool.name}...`,
-            type: "info",
-        });
-
+        // Start the update (visual feedback is shown via event listener)
         const updatedTool = await window.toolboxAPI.updateTool(tool.id);
 
         await window.toolboxAPI.utils.showNotification({
@@ -656,6 +678,8 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
             body: `Failed to update tool: ${(error as Error).message}`,
             type: "error",
         });
+        // Reload sidebar to remove updating state
+        await loadSidebarTools();
     }
 }
 

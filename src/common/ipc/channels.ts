@@ -70,6 +70,7 @@ export const TOOL_CHANNELS = {
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
     UPDATE_TOOL: "update-tool",
+    IS_TOOL_UPDATING: "is-tool-updating",
 } as const;
 
 // Tool Window-related IPC channels
@@ -179,6 +180,8 @@ export const EVENT_CHANNELS = {
     MODAL_WINDOW_OPENED: "modal-window:opened",
     MODAL_WINDOW_CLOSED: "modal-window:closed",
     MODAL_WINDOW_MESSAGE: "modal-window:message",
+    TOOL_UPDATE_STARTED: "tool:update-started",
+    TOOL_UPDATE_COMPLETED: "tool:update-completed",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)
