@@ -69,6 +69,8 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
+    --accent-color: #c399f1fb; /* Power Platform purple */
+    --accent-color-alt: #00b4d8;
     /* Environment border colors - Dark theme */
     --env-border-dev: #{$env-border-dev-dark};
     --env-border-test: #{$env-border-test-dark};
