@@ -235,6 +235,9 @@ export async function loadSidebarTools(): Promise<void> {
                     </div>`
                     : "";
 
+                // Helper: Check if update badge should be shown
+                const shouldShowUpdateBadge = hasUpdate && !isUpdating;
+
                 // Helper: Check if update info should be shown
                 const shouldShowUpdateInfo = hasUpdate && latestVersion && !isUpdating;
 
@@ -249,7 +252,7 @@ export async function loadSidebarTools(): Promise<void> {
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${hasUpdate && !isUpdating ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name} ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -280,7 +283,7 @@ export async function loadSidebarTools(): Promise<void> {
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${hasUpdate && !isUpdating ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name} ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -655,7 +658,7 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
             throw new Error("Tool not found");
         }
 
-        // Start the update (visual feedback is shown via event listener)
+        // Start the update (event listener triggers sidebar reload which checks isToolUpdating() to show visual feedback)
         const updatedTool = await window.toolboxAPI.updateTool(tool.id);
 
         await window.toolboxAPI.utils.showNotification({
