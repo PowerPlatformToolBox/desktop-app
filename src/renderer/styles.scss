@@ -69,7 +69,7 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
-    --accent-color: #c399f1fb; /* Power Platform purple */
+    --accent-color: #c399f1; /* Power Platform purple */
     --accent-color-alt: #00b4d8;
     /* Environment border colors - Dark theme */
     --env-border-dev: #{$env-border-dev-dark};
@@ -1339,7 +1339,7 @@ body.dark-theme .settings-section-card {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 14px;
-    color: #16c60c;
+    color: var(--text-primary);
 }
 
 .modal-footer {

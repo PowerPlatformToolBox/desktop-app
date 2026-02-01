@@ -94,7 +94,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
 
     label {
         font-size: 13px;
-        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.83)" : "rgba(0, 0, 0, 0.8)"};
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.8)"};
     }
 
     .modal-input {
@@ -107,7 +107,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
         font-size: 14px;
     }
     .modal-input::placeholder {
-        color: ${isDarkTheme ? "rgba(226, 217, 217, 0.74)" : "rgba(96, 94, 92, 0.31)"};
+        color: ${isDarkTheme ? "rgba(226, 217, 217, 0.7)" : "rgba(96, 94, 92, 0.3)"};
     }
 
     .modal-input:focus {
