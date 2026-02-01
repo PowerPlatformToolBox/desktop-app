@@ -37,6 +37,8 @@ export function setupTerminalPanel(): void {
         updateTerminalFooterToggle(isTerminalPanelVisible());
     }
 
+    updateTerminalFooterVisibility();
+
     if (terminalPanelClose) {
         terminalPanelClose.addEventListener("click", () => {
             hideTerminalPanel();
@@ -176,6 +178,8 @@ function createTerminalTab(terminal: any): void {
         outputElement: outputContent,
     });
 
+    updateTerminalFooterVisibility();
+
     // Activate this terminal
     switchTerminalTab(terminal.id);
 }
@@ -208,6 +212,8 @@ function removeTerminalTab(terminalId: string): void {
             hideTerminalPanel();
         }
     }
+
+    updateTerminalFooterVisibility();
 }
 
 /**
@@ -347,4 +353,21 @@ function updateTerminalFooterToggle(isVisible: boolean): void {
     if (label) {
         label.textContent = isVisible ? "Hide Terminal" : "Show Terminal";
     }
+}
+
+/**
+ * Show or hide the footer toggle button based on terminal availability
+ */
+function updateTerminalFooterVisibility(): void {
+    const toggleBtn = document.getElementById("footer-toggle-terminal-btn");
+    if (!toggleBtn) {
+        return;
+    }
+
+    const hasActiveTerminal = openTerminals.size > 0;
+    if (!hasActiveTerminal && isTerminalPanelVisible()) {
+        hideTerminalPanel();
+    }
+    toggleBtn.hidden = !hasActiveTerminal;
+    toggleBtn.setAttribute("aria-hidden", (!hasActiveTerminal).toString());
 }
