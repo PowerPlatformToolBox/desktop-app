@@ -227,19 +227,23 @@ export async function loadSidebarTools(): Promise<void> {
                 }</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
+                // Helper: Generate updating overlay HTML
+                const updatingOverlayHtml = isUpdating
+                    ? `<div class="tool-item-updating-overlay">
+                        <div class="tool-item-updating-spinner"></div>
+                        <div class="tool-item-updating-text">Updating...</div>
+                    </div>`
+                    : "";
+
+                // Helper: Check if update info should be shown
+                const shouldShowUpdateInfo = hasUpdate && latestVersion && !isUpdating;
+
                 // Render based on display mode
                 if (displayMode === "compact") {
                     // Compact mode: icon, name, version, author only
                     return `
                     <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
-                        ${
-                            isUpdating
-                                ? `<div class="tool-item-updating-overlay">
-                                <div class="tool-item-updating-spinner"></div>
-                                <div class="tool-item-updating-text">Updating...</div>
-                            </div>`
-                                : ""
-                        }
+                        ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
@@ -270,14 +274,7 @@ export async function loadSidebarTools(): Promise<void> {
                 // Standard mode: full details
                 return `
                     <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
-                        ${
-                            isUpdating
-                                ? `<div class="tool-item-updating-overlay">
-                                <div class="tool-item-updating-spinner"></div>
-                                <div class="tool-item-updating-text">Updating...</div>
-                            </div>`
-                                : ""
-                        }
+                        ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
@@ -304,7 +301,7 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-description-pptb">${description}</div>
                         <div class="tool-item-authors-pptb">${authorsDisplay}</div>
                         ${
-                            hasUpdate && latestVersion && !isUpdating
+                            shouldShowUpdateInfo
                                 ? `<div class="tool-item-updated-version-available-pptb">
                                         <img class="tool-item-updated-version-available-info-icon" src="${infoIconPath}" alt="Info" />
                                         <span class="tool-item-updated-version-available-text">v${latestVersion} update is available</span>
@@ -316,7 +313,7 @@ export async function loadSidebarTools(): Promise<void> {
                         </div>
                         <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
                         ${
-                            hasUpdate && latestVersion && !isUpdating
+                            shouldShowUpdateInfo
                                 ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
                                 : ""
                         }
