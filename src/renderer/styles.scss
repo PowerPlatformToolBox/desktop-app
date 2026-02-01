@@ -60,7 +60,7 @@
 body.dark-theme {
     --text-color: #{$dark-text-color};
     --text-primary: #{$dark-text-color};
-    --text-secondary: #a19d9d;
+    --text-secondary: #c8c6c4;
     --bg-color: #{$dark-bg-color};
     --card-background: #2d2d30;
     --input-background: #1e1e1e;
@@ -69,8 +69,6 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
-    --accent-color: #c399f1fb; /* Power Platform purple */
-    --accent-color-alt: #00b4d8;
     /* Environment border colors - Dark theme */
     --env-border-dev: #{$env-border-dev-dark};
     --env-border-test: #{$env-border-test-dark};
@@ -530,7 +528,8 @@ body {
     display: block;
 }
 .font-help-link {
-    color: #16c60c;
+    color: var(--text-primary);
+    text-decoration: underline;
 }
 
 .settings-field-header .setting-checkbox-group {
@@ -1319,7 +1318,6 @@ body.dark-theme .settings-section-card {
 
 .modal-body {
     padding: 20px;
-    background-color: pink;
 }
 
 .modal-body label {
@@ -1327,7 +1325,6 @@ body.dark-theme .settings-section-card {
     font-weight: 500;
     margin-bottom: 8px;
     margin-top: 16px;
-    color: #00b4d8;
 }
 
 .modal-body label:first-child {
