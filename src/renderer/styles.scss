@@ -3935,6 +3935,10 @@ fluent-badge {
     min-width: auto;
 }
 
+#footer-toggle-terminal-btn[hidden] {
+    display: none !important;
+}
+
 #footer-toggle-terminal-btn svg {
     width: 16px;
     height: 16px;
