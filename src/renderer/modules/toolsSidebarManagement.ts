@@ -229,11 +229,14 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Helper: Generate updating overlay HTML
                 const updatingOverlayHtml = isUpdating
-                    ? `<div class="tool-item-updating-overlay">
+                    ? `<div class="tool-item-updating-overlay" role="status" aria-live="polite" aria-label="Updating tool">
                         <div class="tool-item-updating-spinner"></div>
                         <div class="tool-item-updating-text">Updating...</div>
                     </div>`
                     : "";
+
+                // Helper: Generate accessibility attributes for updating state
+                const updatingAriaAttrs = isUpdating ? 'aria-busy="true" aria-label="Updating tool"' : "";
 
                 // Helper: Check if update badge should be shown
                 const shouldShowUpdateBadge = hasUpdate && !isUpdating;
@@ -245,7 +248,7 @@ export async function loadSidebarTools(): Promise<void> {
                 if (displayMode === "compact") {
                     // Compact mode: icon, name, version, author only
                     return `
-                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
@@ -276,7 +279,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Standard mode: full details
                 return `
-                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}">
+                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
