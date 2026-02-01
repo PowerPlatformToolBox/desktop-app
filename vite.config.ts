@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
     const sentryAuthToken = env.SENTRY_AUTH_TOKEN || process.env.SENTRY_AUTH_TOKEN || "";
     const sentryOrg = env.SENTRY_ORG || process.env.SENTRY_ORG || "";
     const sentryProject = env.SENTRY_PROJECT || process.env.SENTRY_PROJECT || "";
+    const shouldUploadSentrySourceMaps = isProd && Boolean(sentryAuthToken && sentryOrg && sentryProject);
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -32,7 +33,7 @@ export default defineConfig(({ mode }) => {
 
     if (sentryDsn) {
         console.log("[Vite] Sentry DSN loaded successfully");
-        if (isProd && sentryAuthToken && sentryOrg && sentryProject) {
+        if (shouldUploadSentrySourceMaps) {
             console.log("[Vite] Sentry source map upload enabled");
         } else if (isProd) {
             console.warn("[Vite] WARNING: Sentry source map upload disabled - missing SENTRY_AUTH_TOKEN, SENTRY_ORG, or SENTRY_PROJECT");
@@ -192,7 +193,7 @@ export default defineConfig(({ mode }) => {
                 },
             },
             // Sentry source map upload plugin (only in production with auth token)
-            ...(isProd && sentryAuthToken && sentryOrg && sentryProject
+            ...(shouldUploadSentrySourceMaps
                 ? [
                       sentryVitePlugin({
                           org: sentryOrg,
