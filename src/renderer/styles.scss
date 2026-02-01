@@ -2156,6 +2156,48 @@ body.dark-theme .search-filter-btn.active img {
     background: rgba(216, 59, 1, 0.1);
 }
 
+/* Tool updating state */
+.tool-item-pptb.tool-item-updating {
+    position: relative;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.tool-item-updating-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    z-index: 10;
+}
+
+.dark-theme .tool-item-updating-overlay {
+    background: rgba(32, 32, 32, 0.95);
+}
+
+.tool-item-updating-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 120, 212, 0.1);
+    border-top-color: #0078d4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.tool-item-updating-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
 @keyframes pulse {
     0%,
     100% {

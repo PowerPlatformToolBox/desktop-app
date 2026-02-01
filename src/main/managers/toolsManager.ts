@@ -35,6 +35,7 @@ export class ToolManager extends EventEmitter {
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
+    private updatingTools: Set<string> = new Set();
 
     constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
         super();
@@ -222,18 +223,28 @@ export class ToolManager extends EventEmitter {
     async updateTool(toolId: string): Promise<ToolManifest> {
         logInfo(`[ToolManager] Updating tool: ${toolId}`);
 
-        // Unload the tool first if it's loaded
-        if (this.isToolLoaded(toolId)) {
-            this.unloadTool(toolId);
+        try {
+            // Mark tool as updating
+            this.updatingTools.add(toolId);
+            this.emit("tool:update-started", toolId);
+
+            // Unload the tool first if it's loaded
+            if (this.isToolLoaded(toolId)) {
+                this.unloadTool(toolId);
+            }
+
+            // Re-install the tool (this will fetch the latest version from registry)
+            const manifest = await this.registryManager.installTool(toolId);
+
+            // Load the updated tool
+            await this.loadTool(toolId);
+
+            return manifest;
+        } finally {
+            // Mark tool as no longer updating
+            this.updatingTools.delete(toolId);
+            this.emit("tool:update-completed", toolId);
         }
-
-        // Re-install the tool (this will fetch the latest version from registry)
-        const manifest = await this.registryManager.installTool(toolId);
-
-        // Load the updated tool
-        await this.loadTool(toolId);
-
-        return manifest;
     }
 
     /**
@@ -241,6 +252,13 @@ export class ToolManager extends EventEmitter {
      */
     async uninstallTool(toolId: string): Promise<void> {
         await this.registryManager.uninstallTool(toolId);
+    }
+
+    /**
+     * Check if a tool is currently being updated
+     */
+    isToolUpdating(toolId: string): boolean {
+        return this.updatingTools.has(toolId);
     }
 
     /**

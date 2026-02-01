@@ -658,6 +658,27 @@ function setupApplicationEventListeners(): void {
         const isDarkTheme = currentTheme === "dark";
         await openTroubleshootingModal(isDarkTheme);
     });
+
+    // Tool update event listeners
+    window.toolboxAPI.onToolUpdateStarted(() => {
+        logInfo("Tool update started, reloading tools...");
+        loadSidebarTools().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { phase: "tools_reload" },
+                level: "warning",
+            });
+        });
+    });
+
+    window.toolboxAPI.onToolUpdateCompleted(() => {
+        logInfo("Tool update completed, reloading tools...");
+        loadSidebarTools().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { phase: "tools_reload" },
+                level: "warning",
+            });
+        });
+    });
 }
 
 /**

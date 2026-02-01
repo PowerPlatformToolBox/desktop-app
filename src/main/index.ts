@@ -164,6 +164,19 @@ class ToolBoxApp {
             this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
         });
 
+        // Listen to tool update events
+        this.toolManager.on("tool:update-started", (toolId) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send(EVENT_CHANNELS.TOOL_UPDATE_STARTED, toolId);
+            }
+        });
+
+        this.toolManager.on("tool:update-completed", (toolId) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, toolId);
+            }
+        });
+
         // Forward ALL ToolBox events to renderer process
         const eventTypes = [
             ToolBoxEvent.TOOL_LOADED,
@@ -276,6 +289,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.IS_TOOL_UPDATING);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNINSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_LOCAL_TOOL);
@@ -655,6 +669,11 @@ class ToolBoxApp {
         // Update a tool to the latest version
         ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (_, toolId) => {
             return await this.toolManager.updateTool(toolId);
+        });
+
+        // Check if a tool is currently updating
+        ipcMain.handle(TOOL_CHANNELS.IS_TOOL_UPDATING, (_, toolId) => {
+            return this.toolManager.isToolUpdating(toolId);
         });
 
         // Debug mode only - npm-based installation for tool developers
