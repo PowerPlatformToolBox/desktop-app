@@ -307,10 +307,12 @@ body.dark-theme .quick-tool-connection {
     text-align: center;
     padding: 32px 16px;
     color: var(--text-secondary, #605e5c);
+    background-color: var(--bg-color);
 }
 
 body.dark-theme .quick-tools-empty {
-    color: var(--text-secondary, #a19f9d);
+    color: var(--text-primary);
+    background-color: var(--bg-color);
 }
 
 .quick-tools-empty p {
@@ -346,8 +348,13 @@ body.dark-theme .quick-tools-empty {
     padding: 2px;
     background: linear-gradient(135deg, #ff0080 0%, #7928ca 50%, #ff0080 100%);
     border-radius: 12px;
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
     mask-composite: exclude;
     pointer-events: none;
 }
