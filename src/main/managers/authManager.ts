@@ -452,54 +452,83 @@ export class AuthManager {
 
     /**
      * Authenticate using username and password (Resource Owner Password Credentials flow)
+     * Uses MSAL's acquireTokenByUsernamePassword for proper token caching and management
      * Note: This flow is not recommended and may not work with MFA-enabled accounts
+     * Note: Only delegated access is supported - uses user_impersonation scope
      */
-    async authenticateUsernamePassword(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateUsernamePassword(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
 
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
-        const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
-        const scope = `${connection.url}/.default`;
-
-        const postData = new URLSearchParams({
-            client_id: clientId,
-            scope: scope,
-            username: connection.username,
-            password: connection.password,
-            grant_type: "password",
-        }).toString();
+        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts
+        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        // Username/password flow only supports delegated access (user_impersonation)
+        const scopes = [`${connection.url}/user_impersonation`];
 
         try {
-            const response = await this.makeHttpsRequest(tokenEndpoint, postData);
-            const data = JSON.parse(response);
-
-            if (data.error) {
-                throw new Error(data.error_description || data.error);
-            }
-
-            const authResult = {
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token,
-                expiresOn: new Date(Date.now() + data.expires_in * 1000),
+            // Use MSAL's acquireTokenByUsernamePassword method
+            const usernamePasswordRequest = {
+                scopes: scopes,
+                username: connection.username,
+                password: connection.password,
             };
 
-            // Validate user has access to the environment by performing a WhoAmI check
-            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            const response = await msalApp.acquireTokenByUsernamePassword(usernamePasswordRequest);
 
-            return authResult;
+            if (!response || !response.accessToken) {
+                throw new Error("Failed to acquire access token");
+            }
+
+            // Validate user has access to the environment by performing a WhoAmI check
+            await this.validateEnvironmentAccess(connection, response.accessToken);
+
+            // Return tokens with MSAL account ID for silent token acquisition
+            return {
+                accessToken: response.accessToken,
+                refreshToken: undefined, // MSAL handles refresh internally via cache
+                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
+            };
         } catch (error) {
             captureMessage("Username/password authentication failed:", "error", {
                 extra: { error },
             });
-            const errorMessage = `Authentication failed: ${(error as Error).message}`;
-            // Show error in a modal dialog (for main window context)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (typeof (error as any).showDialog !== "undefined") {
-                this.showErrorDialog(errorMessage);
+
+            // Extract error message from MSAL error or generic error
+            let errorMessage = "";
+            if (error && typeof error === "object") {
+                // MSAL errors have errorCode and errorMessage properties
+                const msalError = error as { errorCode?: string; errorMessage?: string; message?: string };
+                errorMessage = msalError.errorMessage || msalError.message || String(error);
+            } else {
+                errorMessage = String(error);
             }
-            throw new Error(errorMessage);
+
+            // Detect MFA or Conditional Access errors and provide helpful guidance
+            if (errorMessage.includes("AADSTS50079") || errorMessage.includes("multi-factor authentication") || errorMessage.includes("MFA")) {
+                throw new Error(
+                    "Multi-factor authentication (MFA) is required for this account. " +
+                        "Username/password authentication does not support MFA. " +
+                        "Please use 'Microsoft Login (OAuth)' authentication type instead.",
+                );
+            }
+
+            if (errorMessage.includes("AADSTS50076") || errorMessage.includes("AADSTS50158") || errorMessage.includes("Conditional Access") || errorMessage.includes("CA policy")) {
+                throw new Error(
+                    "Conditional Access policies are blocking this authentication method. " +
+                        "Username/password authentication does not support Conditional Access. " +
+                        "Please use 'Microsoft Login (OAuth)' authentication type instead.",
+                );
+            }
+
+            if (errorMessage.includes("AADSTS50126") || errorMessage.includes("invalid_grant")) {
+                throw new Error("Invalid username or password. Please check your credentials and try again.");
+            }
+
+            // Generic error with suggestion to use OAuth
+            throw new Error(`Authentication failed: ${errorMessage}`);
         }
     }
 
@@ -677,7 +706,9 @@ export class AuthManager {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
-        const scopes = [`${connection.url}/.default`];
+        // Use user_impersonation scope for username/password flow (delegated access only)
+        // For interactive flow, both .default and user_impersonation work
+        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
 
         // Get the account from MSAL cache
         const accounts = await msalApp.getTokenCache().getAllAccounts();

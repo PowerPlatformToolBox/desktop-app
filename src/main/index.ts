@@ -644,7 +644,27 @@ class ToolBoxApp {
                     return { success: true };
                 }
 
-                // For username/password and legacy interactive, use manual refresh with refresh token
+                // For username/password with MSAL account ID, use silent token acquisition
+                if (connection.authenticationType === "usernamePassword" && connection.msalAccountId) {
+                    const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: tokenResult.accessToken,
+                        refreshToken: undefined, // MSAL handles refresh internally
+                        expiresOn: tokenResult.expiresOn,
+                        msalAccountId: connection.msalAccountId,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For legacy username/password and interactive without MSAL, use manual refresh with refresh token
                 if (!connection.refreshToken) {
                     throw new Error(`No refresh token available for '${connection.name}'. Please reconnect.`);
                 }

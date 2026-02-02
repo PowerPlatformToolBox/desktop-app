@@ -129,9 +129,34 @@ export class DataverseManager {
             }
         }
 
-        // Strategy 3: Username/Password flow - use refresh token if available
-        // Password flow provides refresh tokens that can be used without re-prompting for password
+        // Strategy 3: Username/Password flow - use MSAL silent token acquisition if msalAccountId is available
+        // With MSAL-based username/password auth, we can use acquireTokenSilently just like interactive flow
         if (connection.authenticationType === "usernamePassword") {
+            // If we have MSAL account ID, use silent token acquisition (MSAL handles token refresh internally)
+            if (connection.msalAccountId) {
+                try {
+                    const authResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: undefined, // MSAL handles refresh internally
+                        expiresOn: authResult.expiresOn,
+                        msalAccountId: connection.msalAccountId,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    // Silent token acquisition failed - user needs to re-authenticate
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
+                    captureMessage("Username/password silent token acquisition failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+
+            // Fallback: Legacy username/password connections without MSAL account ID
             // Check if token is expired or about to expire (within 5 minutes)
             const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
 

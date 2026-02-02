@@ -41,6 +41,8 @@ interface ConnectionFormPayload {
     optionalClientId?: string;
     interactiveUsername?: string;
     interactiveTenantId?: string;
+    usernamePasswordClientId?: string;
+    usernamePasswordTenantId?: string;
     connectionString?: string;
 }
 
@@ -340,6 +342,21 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         }
     } catch (error) {
         captureMessage("Error connecting to selected connection:", "error", { extra: { error } });
+
+        // Clean up the error message - remove IPC wrapper text
+        let errorMessage = (error as Error).message;
+        // Remove "Error invoking remote method 'set-active-connection': " prefix
+        errorMessage = errorMessage.replace(/^Error invoking remote method '[^']+': /, "");
+        // Remove "Error: " prefix if present
+        errorMessage = errorMessage.replace(/^Error: /, "");
+
+        // Show error notification to user
+        await window.toolboxAPI.utils.showNotification({
+            title: "Connection Failed",
+            body: errorMessage,
+            type: "error",
+        });
+
         await signalSelectConnectionReady();
 
         // Don't close modal on error - let user try again or cancel
@@ -703,6 +720,9 @@ export async function connectToConnection(id: string): Promise<string> {
             throw new Error("Connection not found");
         }
 
+        // Authenticate the connection (this will trigger the authentication flow)
+        await window.toolboxAPI.connections.authenticate(id);
+
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
@@ -714,9 +734,16 @@ export async function connectToConnection(id: string): Promise<string> {
 
         return id; // Return the connectionId
     } catch (error) {
+        // Clean up the error message - remove IPC wrapper text
+        let errorMessage = (error as Error).message;
+        // Remove "Error invoking remote method 'authenticate': " prefix
+        errorMessage = errorMessage.replace(/^Error invoking remote method '[^']+': /, "");
+        // Remove "Error: " prefix if present
+        errorMessage = errorMessage.replace(/^Error: /, "");
+
         await window.toolboxAPI.utils.showNotification({
             title: "Connection Failed",
-            body: (error as Error).message,
+            body: errorMessage,
             type: "error",
         });
         // Reload sidebar to reset button state
@@ -1161,9 +1188,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     } else if (authenticationType === "usernamePassword") {
         connection.username = sanitizeInput(formPayload.username);
         connection.password = sanitizeInput(formPayload.password);
-        const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        if (optionalClientId) {
-            connection.clientId = optionalClientId;
+        // Username/password supports optional clientId and tenantId
+        const usernamePasswordClientId = sanitizeInput(formPayload.usernamePasswordClientId);
+        const usernamePasswordTenantId = sanitizeInput(formPayload.usernamePasswordTenantId);
+        if (usernamePasswordClientId) {
+            connection.clientId = usernamePasswordClientId;
+        }
+        if (usernamePasswordTenantId) {
+            connection.tenantId = usernamePasswordTenantId;
         }
     } else if (authenticationType === "interactive") {
         // Interactive OAuth with optional username (login_hint), clientId, and tenantId
