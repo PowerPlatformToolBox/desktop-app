@@ -202,8 +202,8 @@ export async function saveFile(defaultPath: string, content: string | Buffer, fi
         // Use provided filters
         dialogFilters = filters;
     } else {
-        // Try to derive filter from filename extension
-        const ext = defaultPath.split(".").pop()?.toLowerCase();
+        // Try to derive filter from filename extension using path.extname for robust extraction
+        const ext = path.extname(defaultPath).slice(1).toLowerCase(); // Remove leading dot
         if (ext) {
             // Create a filter based on the extension
             const extensionName = ext.toUpperCase();
