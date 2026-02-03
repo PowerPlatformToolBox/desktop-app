@@ -805,4 +805,14 @@ export class AuthManager {
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }
+
+    /**
+     * Cleanup method to clear all MSAL instances when the app is closing
+     * This ensures a clean state on next app launch
+     */
+    cleanup(): void {
+        logInfo("[AuthManager] Cleaning up MSAL instances on app shutdown");
+        this.msalApps.clear();
+        this.confidentialApps.clear();
+    }
 }

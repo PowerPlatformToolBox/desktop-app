@@ -2438,6 +2438,8 @@ class ToolBoxApp {
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
                 this.stopTokenExpiryChecks();
+                // Clean up MSAL instances
+                this.authManager.cleanup();
                 addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 
