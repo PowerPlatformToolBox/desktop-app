@@ -515,16 +515,32 @@ class ToolBoxApp {
             }
 
             // Handle token refresh - attempt to refresh expired/expiring token
-            if (tokenState === "needs-refresh" && connection.refreshToken) {
+            if (tokenState === "needs-refresh") {
                 logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
-                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
+
+                    // Use appropriate refresh strategy based on auth type
+                    if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+                        // MSAL silent acquisition for modern interactive connections
+                        authResult = await this.authManager.acquireTokenSilently(connection);
+                    } else if (connection.authenticationType === "clientSecret") {
+                        // ConfidentialClientApplication for client secret (automatic caching)
+                        authResult = await this.authManager.authenticateClientSecret(connection);
+                    } else if (connection.refreshToken) {
+                        // Manual refresh for username/password and legacy interactive
+                        authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    } else {
+                        // No refresh method available, fall through to full authentication
+                        throw new Error("No refresh method available");
+                    }
 
                     // Update the connection with new tokens
                     this.connectionsManager.updateConnectionTokens(id, {
                         accessToken: authResult.accessToken,
                         refreshToken: authResult.refreshToken,
                         expiresOn: authResult.expiresOn,
+                        msalAccountId: authResult.msalAccountId,
                     });
 
                     // Clear notification tracking since token is refreshed
@@ -545,7 +561,7 @@ class ToolBoxApp {
 
             // Authenticate based on the authentication type
             try {
-                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
+                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
 
                 switch (connection.authenticationType) {
                     case "interactive":
@@ -565,11 +581,12 @@ class ToolBoxApp {
                         throw new Error("Invalid authentication type");
                 }
 
-                // Set the connection with tokens
+                // Set the connection with tokens (msalAccountId will be set for interactive auth)
                 this.connectionsManager.updateConnectionTokens(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
+                    msalAccountId: authResult.msalAccountId,
                 });
 
                 // Clear notification tracking since we have a new active connection
@@ -602,11 +619,70 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
-            if (!connection.refreshToken) {
-                throw new Error("No refresh token available. Please reconnect.");
-            }
-
             try {
+                // Use MSAL silent acquisition for interactive auth with MSAL account
+                if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+                    const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: tokenResult.accessToken,
+                        refreshToken: connection.refreshToken, // Keep existing refresh token
+                        expiresOn: tokenResult.expiresOn,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For client secret, use MSAL ConfidentialClientApplication (automatic token caching)
+                if (connection.authenticationType === "clientSecret") {
+                    const authResult = await this.authManager.authenticateClientSecret(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: undefined, // Client credentials don't use refresh tokens
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For username/password with MSAL account ID, use silent token acquisition
+                if (connection.authenticationType === "usernamePassword" && connection.msalAccountId) {
+                    const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: tokenResult.accessToken,
+                        refreshToken: undefined, // MSAL handles refresh internally
+                        expiresOn: tokenResult.expiresOn,
+                        msalAccountId: connection.msalAccountId,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For legacy username/password and interactive without MSAL, use manual refresh with refresh token
+                if (!connection.refreshToken) {
+                    throw new Error(`No refresh token available for '${connection.name}'. Please reconnect.`);
+                }
+
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
                 // Update the connection with new tokens
@@ -623,11 +699,12 @@ class ToolBoxApp {
 
                 return { success: true };
             } catch (error) {
+                const errorMessage = `Failed to refresh token for connection '${connection.name}': ${(error as Error).message}`;
                 captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "token_refresh" },
+                    tags: { phase: "token_refresh", connectionId, connectionName: connection.name },
                     level: "error",
                 });
-                throw error;
+                throw new Error(errorMessage);
             }
         });
 
