@@ -697,6 +697,26 @@ export class AuthManager {
     }
 
     /**
+     * Check if a connection has a valid MSAL account in cache
+     * @param connection The connection to check
+     * @returns Promise<boolean> true if account exists in cache, false otherwise
+     */
+    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+        try {
+            const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+            const tenantId = connection.tenantId || "organizations";
+            const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+
+            const accounts = await msalApp.getTokenCache().getAllAccounts();
+            const account = connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0];
+
+            return account !== undefined;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
      * Acquire access token silently using MSAL's built-in token cache and refresh logic
      * MSAL automatically handles token refresh if the access token is expired
      * @param connection The connection to acquire token for
