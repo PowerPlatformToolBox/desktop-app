@@ -1,4 +1,4 @@
-import { LogLevel, PublicClientApplication, ConfidentialClientApplication } from "@azure/msal-node";
+import { AccountInfo, ConfidentialClientApplication, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
@@ -697,6 +697,34 @@ export class AuthManager {
     }
 
     /**
+     * Helper method to find MSAL account for a connection
+     * @param connection The connection to find account for
+     * @returns Promise with the account or undefined if not found
+     */
+    private async findMsalAccount(connection: DataverseConnection): Promise<AccountInfo | undefined> {
+        try {
+            const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+            const tenantId = connection.tenantId || "organizations";
+            const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+
+            const accounts = await msalApp.getTokenCache().getAllAccounts();
+            return connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0];
+        } catch (error) {
+            return undefined;
+        }
+    }
+
+    /**
+     * Check if a connection has a valid MSAL account in cache
+     * @param connection The connection to check
+     * @returns Promise<boolean> true if account exists in cache, false otherwise
+     */
+    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+        const account = await this.findMsalAccount(connection);
+        return account !== undefined;
+    }
+
+    /**
      * Acquire access token silently using MSAL's built-in token cache and refresh logic
      * MSAL automatically handles token refresh if the access token is expired
      * @param connection The connection to acquire token for
@@ -711,8 +739,7 @@ export class AuthManager {
         const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
 
         // Get the account from MSAL cache
-        const accounts = await msalApp.getTokenCache().getAllAccounts();
-        const account = connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0]; // Fallback to first account if msalAccountId not set
+        const account = await this.findMsalAccount(connection);
 
         if (!account) {
             throw new Error("No cached account found. Please authenticate again.");
@@ -777,5 +804,15 @@ export class AuthManager {
             });
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
+    }
+
+    /**
+     * Cleanup method to clear all MSAL instances when the app is closing
+     * This ensures a clean state on next app launch
+     */
+    cleanup(): void {
+        logInfo("[AuthManager] Cleaning up MSAL instances");
+        this.msalApps.clear();
+        this.confidentialApps.clear();
     }
 }
