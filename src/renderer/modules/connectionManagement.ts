@@ -756,16 +756,17 @@ export async function connectToConnection(id: string): Promise<string> {
  * Handle re-authentication for expired tokens
  */
 export async function handleReauthentication(connectionId: string): Promise<void> {
-    try {
-        // Get connection details for better error messages
-        const connection = await window.toolboxAPI.connections.getById(connectionId);
+    // Get connection details once for use in both success and error paths
+    const connection = await window.toolboxAPI.connections.getById(connectionId).catch(() => null);
+    const connectionName = connection?.name || "Unknown connection";
 
+    try {
         // First try to refresh using the refresh token (MSAL or manual)
         await window.toolboxAPI.connections.refreshToken(connectionId);
 
         await window.toolboxAPI.utils.showNotification({
             title: "Connection Refreshed",
-            body: `Successfully refreshed token for '${connection?.name || "connection"}'.`,
+            body: `Successfully refreshed token for '${connectionName}'.`,
             type: "success",
         });
 
@@ -773,10 +774,6 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        // Get connection details for error notification
-        const connection = await window.toolboxAPI.connections.getById(connectionId).catch(() => null);
-        const connectionName = connection?.name || "Unknown connection";
-
         captureMessage("Token refresh failed:", "error", {
             extra: { error, connectionId, connectionName },
         });

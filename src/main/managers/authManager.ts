@@ -318,7 +318,7 @@ export class AuthManager {
 
                         const authResult = {
                             accessToken: response.accessToken,
-                            refreshToken: response.account.homeAccountId,
+                            refreshToken: undefined, // MSAL handles refresh internally via cache
                             expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
                             msalAccountId: response.account.homeAccountId,
                         };
