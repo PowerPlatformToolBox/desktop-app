@@ -2422,6 +2422,8 @@ class ToolBoxApp {
                 this.stopTokenExpiryChecks();
                 // Clean up MSAL instances
                 this.authManager.cleanup();
+                // Clean up connection tokens
+                this.connectionsManager.clearAllConnectionTokens();
                 addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 
