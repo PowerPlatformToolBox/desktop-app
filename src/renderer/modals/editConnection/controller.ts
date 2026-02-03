@@ -83,7 +83,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordClientId: getInputValue("connection-optional-client-id-up"),
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
-        browserType: (document.getElementById("connection-browser-type")?.value) || "default",
+        browserType: getInputValue("connection-browser-type") || "default",
         browserProfile: getInputValue("connection-browser-profile"),
     });
 
@@ -112,8 +112,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-optional-client-id", connection.clientId);
             setInputValue("connection-tenant-id", connection.tenantId);
             // Populate browser type and profile
-            const browserTypeSelect = document.getElementById("connection-browser-type");
-            if (browserTypeSelect) browserTypeSelect.value = connection.browserType || "default";
+            setInputValue("connection-browser-type", connection.browserType || "default");
             setInputValue("connection-browser-profile", connection.browserProfile);
         }
         

@@ -71,7 +71,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordClientId: getInputValue("connection-optional-client-id-up"),
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
-        browserType: (document.getElementById("connection-browser-type")?.value) || "default",
+        browserType: getInputValue("connection-browser-type") || "default",
         browserProfile: getInputValue("connection-browser-profile"),
     });
 
