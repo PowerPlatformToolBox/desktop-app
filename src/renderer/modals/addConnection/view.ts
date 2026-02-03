@@ -52,6 +52,18 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             <label for="connection-username">Username / Email (Optional)</label>
             <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
             <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
+            <label for="connection-browser-type">Browser (Optional)</label>
+            <select id="connection-browser-type" class="modal-input">
+                <option value="default">System Default</option>
+                <option value="chrome">Google Chrome</option>
+                <option value="edge">Microsoft Edge</option>
+                <option value="firefox">Mozilla Firefox</option>
+                <option value="brave">Brave Browser</option>
+            </select>
+            <p class="helper-text">Choose which browser to use for authentication. Defaults to your system's default browser.</p>
+            <label for="connection-browser-profile">Browser Profile (Optional)</label>
+            <input type="text" id="connection-browser-profile" class="modal-input" placeholder="Profile 1" />
+            <p class="helper-text">Specify a browser profile name to use. Leave empty to use the default profile. For Chrome/Edge, use the profile directory name (e.g., "Default", "Profile 1"). For Firefox, use the profile name.</p>
             <label for="connection-optional-client-id">Client ID (Optional)</label>
             <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
             <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>

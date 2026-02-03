@@ -83,6 +83,8 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordClientId: getInputValue("connection-optional-client-id-up"),
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
+        browserType: (document.getElementById("connection-browser-type")?.value) || "default",
+        browserProfile: getInputValue("connection-browser-profile"),
     });
 
     const populateFormData = (connection) => {
@@ -109,6 +111,10 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-username", connection.username);
             setInputValue("connection-optional-client-id", connection.clientId);
             setInputValue("connection-tenant-id", connection.tenantId);
+            // Populate browser type and profile
+            const browserTypeSelect = document.getElementById("connection-browser-type");
+            if (browserTypeSelect) browserTypeSelect.value = connection.browserType || "default";
+            setInputValue("connection-browser-profile", connection.browserProfile);
         }
         
         updateAuthVisibility();

@@ -71,6 +71,8 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordClientId: getInputValue("connection-optional-client-id-up"),
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
+        browserType: (document.getElementById("connection-browser-type")?.value) || "default",
+        browserProfile: getInputValue("connection-browser-profile"),
     });
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {
