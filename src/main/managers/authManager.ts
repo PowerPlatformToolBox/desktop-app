@@ -697,23 +697,31 @@ export class AuthManager {
     }
 
     /**
-     * Check if a connection has a valid MSAL account in cache
-     * @param connection The connection to check
-     * @returns Promise<boolean> true if account exists in cache, false otherwise
+     * Helper method to find MSAL account for a connection
+     * @param connection The connection to find account for
+     * @returns Promise with the account or undefined if not found
      */
-    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+    private async findMsalAccount(connection: DataverseConnection): Promise<any | undefined> {
         try {
             const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
             const tenantId = connection.tenantId || "organizations";
             const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
 
             const accounts = await msalApp.getTokenCache().getAllAccounts();
-            const account = connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0];
-
-            return account !== undefined;
+            return connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0];
         } catch (error) {
-            return false;
+            return undefined;
         }
+    }
+
+    /**
+     * Check if a connection has a valid MSAL account in cache
+     * @param connection The connection to check
+     * @returns Promise<boolean> true if account exists in cache, false otherwise
+     */
+    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+        const account = await this.findMsalAccount(connection);
+        return account !== undefined;
     }
 
     /**
@@ -731,8 +739,7 @@ export class AuthManager {
         const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
 
         // Get the account from MSAL cache
-        const accounts = await msalApp.getTokenCache().getAllAccounts();
-        const account = connection.msalAccountId ? accounts.find((acc) => acc.homeAccountId === connection.msalAccountId) : accounts[0]; // Fallback to first account if msalAccountId not set
+        const account = await this.findMsalAccount(connection);
 
         if (!account) {
             throw new Error("No cached account found. Please authenticate again.");
