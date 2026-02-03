@@ -159,6 +159,31 @@ export const DATAVERSE_CHANNELS = {
     DISASSOCIATE: "dataverse.disassociate",
     DEPLOY_SOLUTION: "dataverse.deploySolution",
     GET_IMPORT_JOB_STATUS: "dataverse.getImportJobStatus",
+    // Metadata helper utilities
+    BUILD_LABEL: "dataverse.buildLabel",
+    GET_ATTRIBUTE_ODATA_TYPE: "dataverse.getAttributeODataType",
+    // Entity (Table) metadata operations
+    CREATE_ENTITY_DEFINITION: "dataverse.createEntityDefinition",
+    UPDATE_ENTITY_DEFINITION: "dataverse.updateEntityDefinition",
+    DELETE_ENTITY_DEFINITION: "dataverse.deleteEntityDefinition",
+    // Attribute (Column) metadata operations
+    CREATE_ATTRIBUTE: "dataverse.createAttribute",
+    UPDATE_ATTRIBUTE: "dataverse.updateAttribute",
+    DELETE_ATTRIBUTE: "dataverse.deleteAttribute",
+    CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE: "dataverse.createPolymorphicLookupAttribute",
+    // Relationship metadata operations
+    CREATE_RELATIONSHIP: "dataverse.createRelationship",
+    UPDATE_RELATIONSHIP: "dataverse.updateRelationship",
+    DELETE_RELATIONSHIP: "dataverse.deleteRelationship",
+    // Global option set (choice) metadata operations
+    CREATE_GLOBAL_OPTION_SET: "dataverse.createGlobalOptionSet",
+    UPDATE_GLOBAL_OPTION_SET: "dataverse.updateGlobalOptionSet",
+    DELETE_GLOBAL_OPTION_SET: "dataverse.deleteGlobalOptionSet",
+    // Option value modification actions
+    INSERT_OPTION_VALUE: "dataverse.insertOptionValue",
+    UPDATE_OPTION_VALUE: "dataverse.updateOptionValue",
+    DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
+    ORDER_OPTION: "dataverse.orderOption",
 } as const;
 
 // Event-related IPC channels (from main to renderer)
