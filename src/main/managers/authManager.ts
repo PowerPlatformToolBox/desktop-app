@@ -1,4 +1,4 @@
-import { LogLevel, PublicClientApplication, ConfidentialClientApplication } from "@azure/msal-node";
+import { LogLevel, PublicClientApplication, ConfidentialClientApplication, AccountInfo } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
@@ -701,7 +701,7 @@ export class AuthManager {
      * @param connection The connection to find account for
      * @returns Promise with the account or undefined if not found
      */
-    private async findMsalAccount(connection: DataverseConnection): Promise<any | undefined> {
+    private async findMsalAccount(connection: DataverseConnection): Promise<AccountInfo | undefined> {
         try {
             const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
             const tenantId = connection.tenantId || "organizations";

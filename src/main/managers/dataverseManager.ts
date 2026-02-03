@@ -70,13 +70,13 @@ export class DataverseManager {
     }
 
     /**
-     * Helper method to handle MSAL cache validation and token clearing
+     * Helper method to ensure MSAL account exists in cache, clearing tokens if not
      * @param connection The connection to validate
      * @param connectionId The connection ID
      * @param errorMessage The error message to throw if cache is invalid
-     * @throws Error if MSAL cache is empty
+     * @throws Error if MSAL cache is empty (tokens are cleared before throwing)
      */
-    private async validateMsalCacheOrClearTokens(connection: DataverseConnection, connectionId: string, errorMessage: string): Promise<void> {
+    private async ensureMsalCacheOrClearTokens(connection: DataverseConnection, connectionId: string, errorMessage: string): Promise<void> {
         const hasAccount = await this.authManager.hasAccountInCache(connection);
         if (!hasAccount) {
             // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
@@ -103,7 +103,7 @@ export class DataverseManager {
         // MSAL automatically handles token refresh if expired (no local server needed for refresh)
         if (connection.authenticationType === "interactive" && connection.msalAccountId) {
             // Check if MSAL account exists in cache (cache is cleared when app restarts)
-            await this.validateMsalCacheOrClearTokens(connection, connectionId, `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
+            await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
 
             try {
                 const tokenResult = await this.authManager.acquireTokenSilently(connection);
@@ -157,7 +157,7 @@ export class DataverseManager {
             // If we have MSAL account ID, use silent token acquisition (MSAL handles token refresh internally)
             if (connection.msalAccountId) {
                 // Check if MSAL account exists in cache (cache is cleared when app restarts)
-                await this.validateMsalCacheOrClearTokens(connection, connectionId, `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`);
+                await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`);
 
                 try {
                     const authResult = await this.authManager.acquireTokenSilently(connection);
