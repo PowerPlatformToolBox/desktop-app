@@ -3,7 +3,7 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
+import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
@@ -51,7 +51,7 @@ export interface FileSystemAPI {
     readDirectory: (path: string) => Promise<Array<{ name: string; type: "file" | "directory" }>>;
     writeText: (path: string, content: string) => Promise<void>;
     createDirectory: (path: string) => Promise<void>;
-    saveFile: (defaultPath: string, content: string | Buffer) => Promise<string | null>;
+    saveFile: (defaultPath: string, content: string | Buffer, filters?: FileDialogFilter[]) => Promise<string | null>;
     selectPath: (options?: SelectPathOptions) => Promise<string | null>;
 }
 

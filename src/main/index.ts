@@ -1042,9 +1042,9 @@ class ToolBoxApp {
             return await createDirectory(dirPath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const { saveFile } = await import("./utilities/filesystem.js");
-            return await saveFile(defaultPath, content);
+            return await saveFile(defaultPath, content, filters);
         });
 
         ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (_, options) => {

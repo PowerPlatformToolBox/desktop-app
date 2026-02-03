@@ -221,7 +221,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         readDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.READ_DIRECTORY, path),
         writeText: (path: string, content: string) => ipcInvoke(FILESYSTEM_CHANNELS.WRITE_TEXT, path, content),
         createDirectory: (path: string) => ipcInvoke(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, path),
-        saveFile: (defaultPath: string, content: unknown) => ipcInvoke(FILESYSTEM_CHANNELS.SAVE_FILE, defaultPath, content),
+        saveFile: (defaultPath: string, content: unknown, filters?: Array<{ name: string; extensions: string[] }>) => ipcInvoke(FILESYSTEM_CHANNELS.SAVE_FILE, defaultPath, content, filters),
         selectPath: (options?: Record<string, unknown>) => ipcInvoke(FILESYSTEM_CHANNELS.SELECT_PATH, options),
     },
 
