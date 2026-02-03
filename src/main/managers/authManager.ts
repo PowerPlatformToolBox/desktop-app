@@ -1,4 +1,4 @@
-import { LogLevel, PublicClientApplication, ConfidentialClientApplication, AccountInfo } from "@azure/msal-node";
+import { AccountInfo, ConfidentialClientApplication, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { BrowserWindow, shell } from "electron";
 import * as http from "http";
 import * as https from "https";
@@ -811,7 +811,7 @@ export class AuthManager {
      * This ensures a clean state on next app launch
      */
     cleanup(): void {
-        logInfo("[AuthManager] Cleaning up MSAL instances on app shutdown");
+        logInfo("[AuthManager] Cleaning up MSAL instances");
         this.msalApps.clear();
         this.confidentialApps.clear();
     }
