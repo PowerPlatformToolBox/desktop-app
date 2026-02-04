@@ -66,7 +66,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
             </div>
             <label for="connection-browser-profile">Browser Profile (Optional)</label>
             <select id="connection-browser-profile" class="modal-input" disabled>
-                <option value="">Loading profiles...</option>
+                <option value="">No profile needed</option>
             </select>
             <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
             <label for="connection-optional-client-id">Client ID (Optional)</label>

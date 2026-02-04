@@ -221,7 +221,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     updateAuthVisibility();
 
     // Browser type change listener
-    browserTypeSelect?.addEventListener("change", loadBrowserProfiles);
+    browserTypeSelect?.addEventListener("change", () => {
+        loadBrowserProfiles();
+    });
 
     saveButton?.addEventListener("click", () => {
         setButtonState(saveButton, true, "Saving...", "Save Changes");

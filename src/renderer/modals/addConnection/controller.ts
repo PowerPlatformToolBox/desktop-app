@@ -166,9 +166,18 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     updateAuthVisibility();
 
     // Browser type change listener
-    browserTypeSelect?.addEventListener("change", loadBrowserProfiles);
-    // Initial load
-    loadBrowserProfiles();
+    browserTypeSelect?.addEventListener("change", () => {
+        loadBrowserProfiles();
+    });
+    
+    // Initial load - only load if default browser is selected (to set initial state)
+    // This ensures the dropdown shows proper initial state
+    if (browserTypeSelect?.value === "default") {
+        if (browserProfileSelect) {
+            browserProfileSelect.disabled = true;
+            browserProfileSelect.innerHTML = '<option value="">No profile needed</option>';
+        }
+    }
 
     addButton?.addEventListener("click", () => {
         setButtonState(addButton, true, "Adding...", "Add");
