@@ -87,8 +87,8 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
                     browserProfileSelect.innerHTML = '<option value="">Use default profile</option>';
                     profiles.forEach(profile => {
                         const option = document.createElement("option");
-                        option.value = profile;
-                        option.textContent = profile;
+                        option.value = profile.path;  // Use path as value for --profile-directory
+                        option.textContent = profile.name;  // Display the friendly name
                         browserProfileSelect.appendChild(option);
                     });
                     browserProfileSelect.disabled = false;

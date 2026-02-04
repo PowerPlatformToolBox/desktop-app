@@ -12,7 +12,7 @@ import { DataverseConnection } from "../../common/types";
 export class BrowserManager {
     /**
      * Check if a specific browser is installed on the system
-     * @param browserType The type of browser to check
+     * @param browserType The type of browser to check (chrome or edge)
      * @returns true if browser is installed, false otherwise
      */
     public isBrowserInstalled(browserType: string): boolean {
@@ -57,39 +57,6 @@ export class BrowserManager {
                     return false;
                 }
             }
-        } else if (browserType === "firefox") {
-            if (platform === "win32") {
-                possiblePaths = [
-                    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "Mozilla Firefox\\firefox.exe"),
-                    path.join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "Mozilla Firefox\\firefox.exe"),
-                ];
-            } else if (platform === "darwin") {
-                possiblePaths = ["/Applications/Firefox.app/Contents/MacOS/firefox"];
-            } else {
-                try {
-                    execSync("which firefox", { stdio: "ignore" });
-                    return true;
-                } catch {
-                    return false;
-                }
-            }
-        } else if (browserType === "brave") {
-            if (platform === "win32") {
-                possiblePaths = [
-                    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                    path.join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                    path.join(process.env.LOCALAPPDATA || "", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                ];
-            } else if (platform === "darwin") {
-                possiblePaths = ["/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"];
-            } else {
-                try {
-                    execSync("which brave-browser", { stdio: "ignore" });
-                    return true;
-                } catch {
-                    return false;
-                }
-            }
         }
 
         // Check if any of the paths exist
@@ -99,9 +66,9 @@ export class BrowserManager {
     /**
      * Get list of browser profiles for a specific browser
      * @param browserType The type of browser to get profiles for
-     * @returns Array of profile names
+     * @returns Array of profile objects with name and path
      */
-    public getBrowserProfiles(browserType: string): string[] {
+    public getBrowserProfiles(browserType: string): Array<{ name: string; path: string }> {
         if (!browserType || browserType === "default") {
             return [];
         }
@@ -113,9 +80,7 @@ export class BrowserManager {
         const platform = process.platform;
 
         try {
-            if (browserType === "firefox") {
-                return this.getFirefoxProfiles(platform);
-            } else if (browserType === "chrome" || browserType === "edge" || browserType === "brave") {
+            if (browserType === "chrome" || browserType === "edge") {
                 return this.getChromiumProfiles(browserType, platform);
             }
         } catch (error) {
@@ -176,9 +141,10 @@ export class BrowserManager {
     }
 
     /**
-     * Get Chromium-based browser profiles (Chrome, Edge, Brave)
+     * Get Chromium-based browser profiles (Chrome, Edge)
+     * Returns objects with both display name and directory path
      */
-    private getChromiumProfiles(browserType: string, platform: string): string[] {
+    private getChromiumProfiles(browserType: string, platform: string): Array<{ name: string; path: string }> {
         let userDataPath = "";
 
         if (browserType === "chrome") {
@@ -197,38 +163,91 @@ export class BrowserManager {
             } else {
                 userDataPath = path.join(os.homedir(), ".config/microsoft-edge");
             }
-        } else if (browserType === "brave") {
-            if (platform === "win32") {
-                userDataPath = path.join(process.env.LOCALAPPDATA || "", "BraveSoftware\\Brave-Browser\\User Data");
-            } else if (platform === "darwin") {
-                userDataPath = path.join(os.homedir(), "Library/Application Support/BraveSoftware/Brave-Browser");
-            } else {
-                userDataPath = path.join(os.homedir(), ".config/BraveSoftware/Brave-Browser");
-            }
         }
 
         if (!fs.existsSync(userDataPath)) {
             return [];
         }
 
-        const profiles: string[] = [];
+        const profiles: Array<{ name: string; path: string }> = [];
 
-        // Read all directories in User Data folder
-        const entries = fs.readdirSync(userDataPath, { withFileTypes: true });
+        try {
+            // Try to read Local State file to get profile names (preferred method)
+            const localStatePath = path.join(userDataPath, "Local State");
+            if (fs.existsSync(localStatePath)) {
+                const localStateContent = fs.readFileSync(localStatePath, "utf8");
+                const localState = JSON.parse(localStateContent);
 
-        for (const entry of entries) {
-            if (entry.isDirectory()) {
-                const dirName = entry.name;
+                if (localState.profile && localState.profile.info_cache) {
+                    const infoCache = localState.profile.info_cache;
 
-                // Check for Default profile
-                if (dirName === "Default") {
-                    profiles.push("Default");
+                    // Iterate through all profiles in info_cache
+                    for (const profileDir in infoCache) {
+                        if (Object.prototype.hasOwnProperty.call(infoCache, profileDir)) {
+                            const profileInfo = infoCache[profileDir];
+                            const profileName = profileInfo.name || profileDir;
+
+                            // Include Default and Profile X directories
+                            if (profileDir === "Default" || profileDir.startsWith("Profile ")) {
+                                profiles.push({
+                                    name: profileName,
+                                    path: profileDir,
+                                });
+                            }
+                        }
+                    }
                 }
-                // Check for Profile X directories
-                else if (dirName.startsWith("Profile ")) {
-                    profiles.push(dirName);
+
+                // If we found profiles from Local State, return them
+                if (profiles.length > 0) {
+                    return profiles;
                 }
             }
+        } catch (error) {
+            logWarn(`Failed to read Local State file, falling back to directory scan: ${(error as Error).message}`);
+        }
+
+        // Fallback: Scan directories and try to read individual Preferences files
+        try {
+            const entries = fs.readdirSync(userDataPath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const dirName = entry.name;
+
+                    // Check for Default profile or Profile X directories
+                    if (dirName === "Default" || dirName.startsWith("Profile ")) {
+                        try {
+                            // Try to read the profile name from Preferences file
+                            const preferencesPath = path.join(userDataPath, dirName, "Preferences");
+                            if (fs.existsSync(preferencesPath)) {
+                                const preferencesContent = fs.readFileSync(preferencesPath, "utf8");
+                                const preferences = JSON.parse(preferencesContent);
+
+                                const profileName = preferences.profile?.name || dirName;
+                                profiles.push({
+                                    name: profileName,
+                                    path: dirName,
+                                });
+                            } else {
+                                // If Preferences doesn't exist, use directory name
+                                profiles.push({
+                                    name: dirName,
+                                    path: dirName,
+                                });
+                            }
+                        } catch {
+                            // If we can't read Preferences, just use directory name
+                            profiles.push({
+                                name: dirName,
+                                path: dirName,
+                            });
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            logWarn(`Failed to scan browser profile directories: ${(error as Error).message}`);
         }
 
         return profiles;
@@ -287,41 +306,6 @@ export class BrowserManager {
                 // Linux
                 executable = "microsoft-edge";
             }
-        } else if (browserType === "firefox") {
-            if (platform === "win32") {
-                const firefoxPaths = [
-                    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "Mozilla Firefox\\firefox.exe"),
-                    path.join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "Mozilla Firefox\\firefox.exe"),
-                ];
-                for (const firefoxPath of firefoxPaths) {
-                    if (fs.existsSync(firefoxPath)) {
-                        executable = firefoxPath;
-                        break;
-                    }
-                }
-            } else if (platform === "darwin") {
-                executable = "/Applications/Firefox.app/Contents/MacOS/firefox";
-            } else {
-                executable = "firefox";
-            }
-        } else if (browserType === "brave") {
-            if (platform === "win32") {
-                const bravePaths = [
-                    path.join(process.env.PROGRAMFILES || "C:\\Program Files", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                    path.join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                    path.join(process.env.LOCALAPPDATA || "", "BraveSoftware\\Brave-Browser\\Application\\brave.exe"),
-                ];
-                for (const bravePath of bravePaths) {
-                    if (fs.existsSync(bravePath)) {
-                        executable = bravePath;
-                        break;
-                    }
-                }
-            } else if (platform === "darwin") {
-                executable = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
-            } else {
-                executable = "brave-browser";
-            }
         }
 
         // If executable not found or not set, return null for fallback
@@ -336,13 +320,8 @@ export class BrowserManager {
 
         // Add profile argument if specified
         if (profileName) {
-            if (browserType === "firefox") {
-                // Firefox uses -P flag for profile
-                args.push("-P", profileName);
-            } else {
-                // Chrome, Edge, and Brave use --profile-directory flag
-                args.push(`--profile-directory=${profileName}`);
-            }
+            // Chrome and Edge use --profile-directory flag
+            args.push(`--profile-directory=${profileName}`);
         }
 
         return { executable, args };

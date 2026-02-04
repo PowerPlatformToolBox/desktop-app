@@ -57,8 +57,6 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <option value="default">System Default</option>
                 <option value="chrome">Google Chrome</option>
                 <option value="edge">Microsoft Edge</option>
-                <option value="firefox">Mozilla Firefox</option>
-                <option value="brave">Brave Browser</option>
             </select>
             <p class="helper-text">Choose which browser to use for authentication. Defaults to your system's default browser.</p>
             <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
