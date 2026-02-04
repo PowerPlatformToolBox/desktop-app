@@ -137,7 +137,14 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     const collectFormData = () => {
         const browserProfileSelect = document.getElementById("connection-browser-profile") as HTMLSelectElement;
-        const selectedOption = browserProfileSelect?.selectedOptions[0];
+        const browserProfileValue = getInputValue("connection-browser-profile");
+        const selectedOption = browserProfileSelect?.selectedOptions?.[0];
+        
+        // Only capture profile name if a profile is actually selected (not empty value)
+        let browserProfileName: string | undefined = undefined;
+        if (browserProfileValue && selectedOption) {
+            browserProfileName = selectedOption.textContent?.trim() || undefined;
+        }
         
         return {
             id: connectionId,
@@ -157,8 +164,8 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
             connectionString: getInputValue("connection-string-input"),
             browserType: getInputValue("connection-browser-type") || "default",
-            browserProfile: getInputValue("connection-browser-profile"),
-            browserProfileName: selectedOption && selectedOption.value ? selectedOption.textContent?.trim() : undefined,
+            browserProfile: browserProfileValue,
+            browserProfileName: browserProfileName,
         };
     };
 
