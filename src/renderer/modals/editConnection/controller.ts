@@ -168,6 +168,15 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         
         if (authTypeSelect) authTypeSelect.value = connection.authenticationType || "interactive";
         
+        // Populate browser settings (applies to all auth types)
+        setInputValue("connection-browser-type", connection.browserType || "default");
+        // Load profiles for the browser type, then set the profile value
+        loadBrowserProfiles().then(() => {
+            if (connection.browserProfile && browserProfileSelect) {
+                browserProfileSelect.value = connection.browserProfile;
+            }
+        });
+        
         // Populate auth type specific fields
         if (connection.authenticationType === "clientSecret") {
             setInputValue("connection-client-id", connection.clientId);
@@ -180,14 +189,6 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-username", connection.username);
             setInputValue("connection-optional-client-id", connection.clientId);
             setInputValue("connection-tenant-id", connection.tenantId);
-            // Populate browser type
-            setInputValue("connection-browser-type", connection.browserType || "default");
-            // Load profiles for the browser type, then set the profile value
-            loadBrowserProfiles().then(() => {
-                if (connection.browserProfile && browserProfileSelect) {
-                    browserProfileSelect.value = connection.browserProfile;
-                }
-            });
         }
         
         updateAuthVisibility();

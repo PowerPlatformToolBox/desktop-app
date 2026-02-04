@@ -1166,6 +1166,12 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         if (parsed.username) connection.username = parsed.username;
         if (parsed.password) connection.password = parsed.password;
 
+        // Browser settings apply to all auth types (used for opening URLs with authentication)
+        const browserType = sanitizeInput(formPayload.browserType);
+        const browserProfile = sanitizeInput(formPayload.browserProfile);
+        connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+        connection.browserProfile = browserProfile || undefined;
+
         return connection;
     }
 
@@ -1179,6 +1185,12 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
     };
+
+    // Browser settings apply to all auth types (used for opening URLs with authentication)
+    const browserType = sanitizeInput(formPayload.browserType);
+    const browserProfile = sanitizeInput(formPayload.browserProfile);
+    connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+    connection.browserProfile = browserProfile || undefined;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1197,18 +1209,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
             connection.tenantId = usernamePasswordTenantId;
         }
     } else if (authenticationType === "interactive") {
-        // Interactive OAuth with optional username (login_hint), clientId, tenantId, browser type and profile
+        // Interactive OAuth with optional username (login_hint), clientId, tenantId
         const interactiveUsername = sanitizeInput(formPayload.interactiveUsername);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
         const interactiveTenantId = sanitizeInput(formPayload.interactiveTenantId);
-        const browserType = sanitizeInput(formPayload.browserType);
-        const browserProfile = sanitizeInput(formPayload.browserProfile);
 
         connection.username = interactiveUsername || undefined;
         connection.clientId = optionalClientId || undefined;
         connection.tenantId = interactiveTenantId || undefined;
-        connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
-        connection.browserProfile = browserProfile || undefined;
     }
 
     return connection;

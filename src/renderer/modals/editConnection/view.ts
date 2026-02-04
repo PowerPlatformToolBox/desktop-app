@@ -47,26 +47,29 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 <option value="Production">Production</option>
             </select>
         </div>
-        <div id="interactive-fields" class="field-group" style="display: none">
-            <span class="section-label">Microsoft Login Options</span>
-            <label for="connection-username">Username / Email (Optional)</label>
-            <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
-            <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
-            <label for="connection-browser-type">Browser (Optional)</label>
+        <div class="field-group">
+            <span class="section-label">Browser Settings (Optional)</span>
+            <label for="connection-browser-type">Browser</label>
             <select id="connection-browser-type" class="modal-input">
                 <option value="default">System Default</option>
                 <option value="chrome">Google Chrome</option>
                 <option value="edge">Microsoft Edge</option>
             </select>
-            <p class="helper-text">Choose which browser to use for authentication. Defaults to your system's default browser.</p>
+            <p class="helper-text">Choose which browser to use when opening URLs with authentication. Defaults to your system's default browser.</p>
             <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
-                <span>⚠️ Selected browser is not installed. Authentication will use the system default browser.</span>
+                <span>⚠️ Selected browser is not installed. URLs will open using the system default browser.</span>
             </div>
-            <label for="connection-browser-profile">Browser Profile (Optional)</label>
+            <label for="connection-browser-profile">Browser Profile</label>
             <select id="connection-browser-profile" class="modal-input" disabled>
                 <option value="">No profile needed</option>
             </select>
             <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
+        </div>
+        <div id="interactive-fields" class="field-group" style="display: none">
+            <span class="section-label">Microsoft Login Options</span>
+            <label for="connection-username">Username / Email (Optional)</label>
+            <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
+            <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
             <label for="connection-optional-client-id">Client ID (Optional)</label>
             <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
             <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
