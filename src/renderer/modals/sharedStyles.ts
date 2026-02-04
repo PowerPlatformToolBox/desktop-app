@@ -123,6 +123,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
         border-radius: 12px;
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+        margin-bottom: 16px;
     }
 
     .password-wrapper {
