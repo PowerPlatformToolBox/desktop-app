@@ -30,6 +30,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const testButton = document.getElementById("test-connection-btn");
     const saveButton = document.getElementById("confirm-connection-btn");
     const testFeedback = document.getElementById("connection-test-feedback");
+    const browserTypeSelect = document.getElementById("connection-browser-type");
+    const browserProfileSelect = document.getElementById("connection-browser-profile");
+    const browserWarning = document.getElementById("browser-not-installed-warning");
 
     // Store the original connection ID
     let connectionId = null;
@@ -41,6 +44,72 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
         if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
         if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
+    };
+
+    const loadBrowserProfiles = async () => {
+        const browserType = browserTypeSelect?.value || "default";
+        
+        // Reset warning
+        if (browserWarning) browserWarning.style.display = "none";
+        
+        if (browserType === "default") {
+            // Reset profile dropdown for default browser
+            if (browserProfileSelect) {
+                browserProfileSelect.disabled = true;
+                browserProfileSelect.innerHTML = '<option value="">No profile needed</option>';
+            }
+            return;
+        }
+
+        // Check if browser is installed
+        const isInstalled = await window.toolboxAPI.connections.checkBrowserInstalled(browserType);
+        
+        if (!isInstalled) {
+            // Show warning
+            if (browserWarning) browserWarning.style.display = "block";
+            if (browserProfileSelect) {
+                browserProfileSelect.disabled = true;
+                browserProfileSelect.innerHTML = '<option value="">Browser not installed</option>';
+            }
+            return;
+        }
+
+        // Load profiles
+        if (browserProfileSelect) {
+            browserProfileSelect.disabled = true;
+            browserProfileSelect.innerHTML = '<option value="">Loading profiles...</option>';
+        }
+
+        try {
+            const profiles = await window.toolboxAPI.connections.getBrowserProfiles(browserType);
+            
+            if (browserProfileSelect) {
+                if (profiles.length === 0) {
+                    browserProfileSelect.innerHTML = '<option value="">No profiles found</option>';
+                    browserProfileSelect.disabled = true;
+                } else {
+                    // Store current value to restore after repopulating
+                    const currentValue = browserProfileSelect.value;
+                    browserProfileSelect.innerHTML = '<option value="">Use default profile</option>';
+                    profiles.forEach(profile => {
+                        const option = document.createElement("option");
+                        option.value = profile;
+                        option.textContent = profile;
+                        browserProfileSelect.appendChild(option);
+                    });
+                    // Restore previously selected value if it still exists
+                    if (currentValue && profiles.includes(currentValue)) {
+                        browserProfileSelect.value = currentValue;
+                    }
+                    browserProfileSelect.disabled = false;
+                }
+            }
+        } catch (error) {
+            if (browserProfileSelect) {
+                browserProfileSelect.innerHTML = '<option value="">Error loading profiles</option>';
+                browserProfileSelect.disabled = true;
+            }
+        }
     };
 
     const updateTestFeedback = (message) => {
@@ -111,9 +180,14 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-username", connection.username);
             setInputValue("connection-optional-client-id", connection.clientId);
             setInputValue("connection-tenant-id", connection.tenantId);
-            // Populate browser type and profile
+            // Populate browser type
             setInputValue("connection-browser-type", connection.browserType || "default");
-            setInputValue("connection-browser-profile", connection.browserProfile);
+            // Load profiles for the browser type, then set the profile value
+            loadBrowserProfiles().then(() => {
+                if (connection.browserProfile && browserProfileSelect) {
+                    browserProfileSelect.value = connection.browserProfile;
+                }
+            });
         }
         
         updateAuthVisibility();
@@ -145,6 +219,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    // Browser type change listener
+    browserTypeSelect?.addEventListener("change", loadBrowserProfiles);
 
     saveButton?.addEventListener("click", () => {
         setButtonState(saveButton, true, "Saving...", "Save Changes");

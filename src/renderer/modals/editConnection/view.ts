@@ -61,9 +61,14 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 <option value="brave">Brave Browser</option>
             </select>
             <p class="helper-text">Choose which browser to use for authentication. Defaults to your system's default browser.</p>
+            <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
+                <span>⚠️ Selected browser is not installed. Authentication will use the system default browser.</span>
+            </div>
             <label for="connection-browser-profile">Browser Profile (Optional)</label>
-            <input type="text" id="connection-browser-profile" class="modal-input" placeholder="Profile 1" />
-            <p class="helper-text">Specify a browser profile name to use. Leave empty to use the default profile. For Chrome/Edge, use the profile directory name (e.g., "Default", "Profile 1"). For Firefox, use the profile name.</p>
+            <select id="connection-browser-profile" class="modal-input" disabled>
+                <option value="">Loading profiles...</option>
+            </select>
+            <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
             <label for="connection-optional-client-id">Client ID (Optional)</label>
             <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
             <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>

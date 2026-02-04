@@ -164,6 +164,18 @@ export function getModalStyles(isDarkTheme: boolean): string {
         line-height: 1.4;
     }
 
+    .modal-warning {
+        display: none;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 185, 0, 0.35);
+        background: rgba(255, 185, 0, 0.12);
+        color: ${isDarkTheme ? "#ffc83d" : "#8b6500"};
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
     .fluent-button {
         border: none;
         border-radius: 8px;
