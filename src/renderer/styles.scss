@@ -840,31 +840,6 @@ body.dark-theme .settings-section-card {
     color: var(--env-border-dev);
 }
 
-.connection-badges {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.connection-browser-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    background-color: #f3f2f1;
-    color: #323130;
-    border: 1px solid #e1dfdd;
-}
-
-.connection-browser-tag .browser-icon {
-    width: 12px;
-    height: 12px;
-    object-fit: contain;
-}
-
 .connection-url {
     color: #605e5c;
     font-size: 14px;

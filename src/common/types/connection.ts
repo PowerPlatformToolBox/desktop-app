@@ -39,8 +39,7 @@ export interface DataverseConnection {
     msalAccountId?: string;
     // Browser profile settings for interactive authentication
     browserType?: BrowserType;
-    browserProfile?: string; // Profile directory path (e.g., "Profile 1", "Default")
-    browserProfileName?: string; // Friendly profile name (e.g., "My Cool Profile", "Person 1")
+    browserProfile?: string;
 }
 
 /**

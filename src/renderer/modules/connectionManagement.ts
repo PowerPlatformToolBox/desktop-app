@@ -46,7 +46,6 @@ interface ConnectionFormPayload {
     connectionString?: string;
     browserType?: string;
     browserProfile?: string;
-    browserProfileName?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -621,25 +620,12 @@ export async function loadConnections(): Promise<void> {
 
         connectionsList.innerHTML = connections
             .map(
-                (conn: any) => {
-                    // Generate browser profile tag if browser is selected
-                    let browserProfileTag = "";
-                    if (conn.browserType && conn.browserType !== "default" && conn.browserProfileName) {
-                        const browserIcon = conn.browserType === "chrome" ? "chrome.png" : conn.browserType === "edge" ? "edge.png" : "";
-                        if (browserIcon) {
-                            browserProfileTag = `<span class="connection-browser-tag"><img src="./icons/logos/${browserIcon}" alt="${conn.browserType}" class="browser-icon" />${conn.browserProfileName}</span>`;
-                        }
-                    }
-                    
-                    return `
+                (conn: any) => `
             <div class="connection-card ${conn.isActive ? "active-connection" : ""}" data-connection-id="${conn.id}">
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
-                        <div class="connection-badges">
-                            <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
-                            ${browserProfileTag}
-                        </div>
+                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                     </div>
                     <div class="connection-actions">
                         ${
@@ -654,8 +640,7 @@ export async function loadConnections(): Promise<void> {
                 <div class="connection-url">${conn.url}</div>
                 <div class="connection-meta">Created: ${new Date(conn.createdAt).toLocaleDateString()}</div>
             </div>
-        `;
-                },
+        `,
             )
             .join("");
 
@@ -1184,10 +1169,8 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         // Browser settings apply to all auth types (used for opening URLs with authentication)
         const browserType = sanitizeInput(formPayload.browserType);
         const browserProfile = sanitizeInput(formPayload.browserProfile);
-        const browserProfileName = sanitizeInput(formPayload.browserProfileName);
         connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
         connection.browserProfile = browserProfile || undefined;
-        connection.browserProfileName = browserProfileName || undefined;
 
         return connection;
     }
@@ -1206,10 +1189,8 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     // Browser settings apply to all auth types (used for opening URLs with authentication)
     const browserType = sanitizeInput(formPayload.browserType);
     const browserProfile = sanitizeInput(formPayload.browserProfile);
-    const browserProfileName = sanitizeInput(formPayload.browserProfileName);
     connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
     connection.browserProfile = browserProfile || undefined;
-    connection.browserProfileName = browserProfileName || undefined;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
