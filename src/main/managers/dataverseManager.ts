@@ -1,5 +1,14 @@
 import * as https from "https";
-import { DataverseConnection, ENTITY_RELATED_METADATA_BASE_PATHS, EntityRelatedMetadataPath, EntityRelatedMetadataResponse, AttributeMetadataType, Label, LocalizedLabel, MetadataOperationOptions } from "../../common/types";
+import {
+    DataverseConnection,
+    ENTITY_RELATED_METADATA_BASE_PATHS,
+    EntityRelatedMetadataPath,
+    EntityRelatedMetadataResponse,
+    AttributeMetadataType,
+    Label,
+    LocalizedLabel,
+    MetadataOperationOptions,
+} from "../../common/types";
 import { captureMessage } from "../../common/sentryHelper";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
@@ -358,6 +367,94 @@ export class DataverseManager {
 
     /**
      * Execute a Dataverse Web API action or function
+     *
+     * This is a generic method that can execute any standard or custom action/function.
+     * Supports both bound operations (on specific entity records) and unbound operations.
+     *
+     * @param connectionId - Connection ID to use
+     * @param request - Operation request details
+     * @param request.operationName - Name of the action or function to execute
+     * @param request.operationType - "action" (POST) or "function" (GET)
+     * @param request.parameters - Parameters to pass to the operation
+     * @param request.entityName - (For bound operations) Entity logical name
+     * @param request.entityId - (For bound operations) Entity record ID
+     * @returns Response object from the operation
+     *
+     * @example
+     * // CreateCustomerRelationships - Create customer lookup attribute (returns HTTP 200 with body)
+     * const customerResult = await dataverseManager.execute(connectionId, {
+     *   operationName: "CreateCustomerRelationships",
+     *   operationType: "action",
+     *   parameters: {
+     *     Lookup: {
+     *       "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+     *       SchemaName: "new_CustomerId",
+     *       DisplayName: buildLabel("Customer"),
+     *       RequiredLevel: { Value: "None" },
+     *       Targets: ["account", "contact"]
+     *     },
+     *     OneToManyRelationships: [
+     *       {
+     *         "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+     *         SchemaName: "new_order_customer_account",
+     *         ReferencedEntity: "account",
+     *         ReferencingEntity: "new_order"
+     *       },
+     *       {
+     *         "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+     *         SchemaName: "new_order_customer_contact",
+     *         ReferencedEntity: "contact",
+     *         ReferencingEntity: "new_order"
+     *       }
+     *     ]
+     *   }
+     * });
+     * // Returns: { AttributeId: "guid", RelationshipIds: ["guid1", "guid2"] }
+     *
+     * @example
+     * // InsertStatusValue - Add status value to status choice column
+     * await dataverseManager.execute(connectionId, {
+     *   operationName: "InsertStatusValue",
+     *   operationType: "action",
+     *   parameters: {
+     *     EntityLogicalName: "new_project",
+     *     AttributeLogicalName: "statuscode",
+     *     Value: 100000000,
+     *     Label: buildLabel("Custom Status"),
+     *     StateCode: 0 // Active state
+     *   }
+     * });
+     *
+     * @example
+     * // UpdateStateValue - Update state value metadata
+     * await dataverseManager.execute(connectionId, {
+     *   operationName: "UpdateStateValue",
+     *   operationType: "action",
+     *   parameters: {
+     *     EntityLogicalName: "new_project",
+     *     AttributeLogicalName: "statecode",
+     *     Value: 1,
+     *     Label: buildLabel("Inactive"),
+     *     DefaultStatus: 2
+     *   }
+     * });
+     *
+     * @example
+     * // Bound action - Execute on specific record
+     * await dataverseManager.execute(connectionId, {
+     *   entityName: "account",
+     *   entityId: "guid",
+     *   operationName: "CustomAction",
+     *   operationType: "action",
+     *   parameters: { param1: "value" }
+     * });
+     *
+     * @example
+     * // Function call - Uses GET with parameters in URL
+     * const result = await dataverseManager.execute(connectionId, {
+     *   operationName: "WhoAmI",
+     *   operationType: "function"
+     * });
      */
     async execute(
         connectionId: string,
@@ -519,7 +616,37 @@ export class DataverseManager {
 
     /**
      * Query data from Dataverse using OData query parameters
+     *
+     * This method can query any Dataverse endpoint including entity data, metadata (EntityDefinitions,
+     * GlobalOptionSetDefinitions, etc.), and system entities.
+     *
+     * @param connectionId - Connection ID to use
      * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+     * @returns Query result with value array
+     *
+     * @example
+     * // Query entity records
+     * const accounts = await dataverseManager.queryData(connectionId,
+     *   "accounts?$select=name,accountnumber&$filter=statecode eq 0&$top=10"
+     * );
+     *
+     * @example
+     * // Retrieve a global option set by name
+     * const optionSet = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(Name='new_projectstatus')"
+     * );
+     *
+     * @example
+     * // Retrieve all global option sets
+     * const allOptionSets = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions?$select=Name,DisplayName,OptionSetType"
+     * );
+     *
+     * @example
+     * // Retrieve global option set by MetadataId
+     * const optionSetById = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(guid)?$select=Name,Options"
+     * );
      */
     async queryData(connectionId: string, odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
         if (!odataQuery || !odataQuery.trim()) {
@@ -1104,9 +1231,13 @@ export class DataverseManager {
         const response = await this.makeHttpRequest(url, "POST", accessToken, entityDefinition, undefined, headers);
 
         // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
         const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve MetadataId from response. The OData-EntityId header was missing.");
+        }
         return {
-            id: entityId ? this.extractIdFromUrl(entityId) : "",
+            id: this.extractIdFromUrl(entityId),
         };
     }
 
@@ -1201,9 +1332,13 @@ export class DataverseManager {
         const response = await this.makeHttpRequest(url, "POST", accessToken, attributeDefinition, undefined, headers);
 
         // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
         const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve attribute MetadataId from response. The OData-EntityId header was missing.");
+        }
         return {
-            id: entityId ? this.extractIdFromUrl(entityId) : "",
+            id: this.extractIdFromUrl(entityId),
         };
     }
 
@@ -1229,7 +1364,13 @@ export class DataverseManager {
      * await dataverseManager.updateAttribute(connectionId, "new_project", "new_description", currentAttr, { mergeLabels: true });
      * await dataverseManager.publishCustomizations(connectionId, "new_project");
      */
-    async updateAttribute(connectionId: string, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<void> {
+    async updateAttribute(
+        connectionId: string,
+        entityLogicalName: string,
+        attributeIdentifier: string,
+        attributeDefinition: Record<string, unknown>,
+        options?: MetadataOperationOptions,
+    ): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalName);
 
@@ -1273,6 +1414,10 @@ export class DataverseManager {
     /**
      * Create a polymorphic lookup attribute (Customer/Regarding field)
      * Creates a lookup that can reference multiple entity types
+     *
+     * NOTE: For customer lookups specifically (account/contact), you can alternatively use the
+     * CreateCustomerRelationships action via execute() method, which creates both the lookup
+     * attribute and the relationships in a single operation and returns more detailed response.
      *
      * @param connectionId - Connection ID to use
      * @param entityLogicalName - Logical name of the entity to add the attribute to
@@ -1375,9 +1520,14 @@ export class DataverseManager {
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, relationshipDefinition, undefined, headers);
 
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
         const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve relationship MetadataId from response. The OData-EntityId header was missing.");
+        }
         return {
-            id: entityId ? this.extractIdFromUrl(entityId) : "",
+            id: this.extractIdFromUrl(entityId),
         };
     }
 
@@ -1442,6 +1592,11 @@ export class DataverseManager {
 
     /**
      * Create a new global option set (choice)
+     *
+     * NOTE: To retrieve global option sets after creation, use queryData() method with
+     * "GlobalOptionSetDefinitions" endpoint or use getEntityRelatedMetadata() for options
+     * associated with specific entities.
+     *
      * @param connectionId - Connection ID to use
      * @param optionSetDefinition - Global option set metadata payload
      * @param options - Optional metadata operation options
@@ -1461,6 +1616,11 @@ export class DataverseManager {
      * }, { solutionUniqueName: "MySolution" });
      *
      * await dataverseManager.publishCustomizations(connectionId);
+     *
+     * // Retrieve the created option set
+     * const optionSet = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(Name='new_projectstatus')"
+     * );
      */
     async createGlobalOptionSet(connectionId: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<{ id: string }> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
@@ -1469,9 +1629,14 @@ export class DataverseManager {
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, optionSetDefinition, undefined, headers);
 
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
         const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve global option set MetadataId from response. The OData-EntityId header was missing.");
+        }
         return {
-            id: entityId ? this.extractIdFromUrl(entityId) : "",
+            id: this.extractIdFromUrl(entityId),
         };
     }
 
@@ -1523,8 +1688,13 @@ export class DataverseManager {
 
     /**
      * Insert a new option value into a local or global option set
-     * NOTE: Works for both local option sets (specify EntityLogicalName + AttributeLogicalName)
-     * and global option sets (specify OptionSetName)
+     *
+     * NOTE: This method is for standard choice columns. For Status choice columns (statuscode),
+     * use the InsertStatusValue action via execute() method instead, which requires additional
+     * StateCode parameter to associate the status with a state.
+     *
+     * Works for both local option sets (specify EntityLogicalName + AttributeLogicalName)
+     * and global option sets (specify OptionSetName).
      *
      * @param connectionId - Connection ID to use
      * @param params - Parameters for inserting the option value
@@ -1645,6 +1815,3 @@ export class DataverseManager {
         });
     }
 }
-
-
-

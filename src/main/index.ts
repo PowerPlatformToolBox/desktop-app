@@ -74,7 +74,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -1519,7 +1519,12 @@ class ToolBoxApp {
 
         ipcMain.handle(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE, async (event, attributeType: string) => {
             try {
-                return this.dataverseManager.getAttributeODataType(attributeType as any);
+                // Validate attributeType is a valid enum value
+                const validTypes = Object.values(AttributeMetadataType);
+                if (!validTypes.includes(attributeType as AttributeMetadataType)) {
+                    throw new Error(`Invalid attribute type: "${attributeType}". Valid types are: ${validTypes.join(", ")}`);
+                }
+                return this.dataverseManager.getAttributeODataType(attributeType as AttributeMetadataType);
             } catch (error) {
                 throw new Error(`Get attribute OData type failed: ${(error as Error).message}`);
             }
@@ -1542,22 +1547,25 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION, async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
+            async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateEntityDefinition(connectionId, entityIdentifier, entityDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update entity definition failed: ${(error as Error).message}`);
                 }
-                await this.dataverseManager.updateEntityDefinition(connectionId, entityIdentifier, entityDefinition, options);
-                return { success: true };
-            } catch (error) {
-                throw new Error(`Update entity definition failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, async (event, entityIdentifier: string, connectionTarget?: "primary" | "secondary") => {
             try {
@@ -1577,38 +1585,44 @@ class ToolBoxApp {
         });
 
         // Attribute (Column) Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE, async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create attribute failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createAttribute(connectionId, entityLogicalName, attributeDefinition, options);
-            } catch (error) {
-                throw new Error(`Create attribute failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateAttribute(connectionId, entityLogicalName, attributeIdentifier, attributeDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update attribute failed: ${(error as Error).message}`);
                 }
-                await this.dataverseManager.updateAttribute(connectionId, entityLogicalName, attributeIdentifier, attributeDefinition, options);
-                return { success: true };
-            } catch (error) {
-                throw new Error(`Update attribute failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, async (event, entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => {
             try {
@@ -1663,22 +1677,25 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP, async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
+            async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateRelationship(connectionId, relationshipIdentifier, relationshipDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update relationship failed: ${(error as Error).message}`);
                 }
-                await this.dataverseManager.updateRelationship(connectionId, relationshipIdentifier, relationshipDefinition, options);
-                return { success: true };
-            } catch (error) {
-                throw new Error(`Update relationship failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, async (event, relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => {
             try {
@@ -1714,22 +1731,25 @@ class ToolBoxApp {
             }
         });
 
-        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET, async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
+            async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateGlobalOptionSet(connectionId, optionSetIdentifier, optionSetDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update global option set failed: ${(error as Error).message}`);
                 }
-                await this.dataverseManager.updateGlobalOptionSet(connectionId, optionSetIdentifier, optionSetDefinition, options);
-                return { success: true };
-            } catch (error) {
-                throw new Error(`Update global option set failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, async (event, optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => {
             try {
