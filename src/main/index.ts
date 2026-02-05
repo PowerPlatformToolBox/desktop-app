@@ -74,7 +74,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, MetadataOperationOptions, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
@@ -1531,7 +1531,7 @@ class ToolBoxApp {
         });
 
         // Entity (Table) Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, async (event, entityDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
             try {
                 const connectionId =
                     connectionTarget === "secondary"
@@ -1549,7 +1549,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
-            async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1587,7 +1587,7 @@ class ToolBoxApp {
         // Attribute (Column) Metadata CRUD Operations
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1606,7 +1606,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1643,7 +1643,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1661,7 +1661,7 @@ class ToolBoxApp {
         );
 
         // Relationship Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, async (event, relationshipDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
             try {
                 const connectionId =
                     connectionTarget === "secondary"
@@ -1679,7 +1679,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
-            async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1715,7 +1715,7 @@ class ToolBoxApp {
         });
 
         // Global Option Set (Choice) CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, async (event, optionSetDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
             try {
                 const connectionId =
                     connectionTarget === "secondary"
@@ -1733,7 +1733,7 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
-            async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: any, connectionTarget?: "primary" | "secondary") => {
+            async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
