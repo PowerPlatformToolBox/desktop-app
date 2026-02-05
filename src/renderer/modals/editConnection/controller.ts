@@ -33,6 +33,20 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const browserTypeSelect = document.getElementById("connection-browser-type");
     const browserProfileSelect = document.getElementById("connection-browser-profile");
     const browserWarning = document.getElementById("browser-not-installed-warning");
+    const getBrowserProfileSelection = () => {
+        const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
+        if (!select) {
+            return { value: "", name: "" };
+        }
+        const value = (select.value || "").trim();
+        if (!value) {
+            return { value: "", name: "" };
+        }
+        const selectedOption = select.options[select.selectedIndex];
+        const datasetName = selectedOption?.dataset?.profileName?.trim() || "";
+        const fallbackName = selectedOption?.textContent?.trim() || "";
+        return { value, name: datasetName || fallbackName };
+    };
 
     // Store the original connection ID
     let connectionId = null;
@@ -95,6 +109,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                         const option = document.createElement("option");
                         option.value = profile.path;  // Use path as value for --profile-directory
                         option.textContent = profile.name;  // Display the friendly name
+                        option.dataset.profileName = profile.name;
                         browserProfileSelect.appendChild(option);
                     });
                     // Restore previously selected value if it still exists
@@ -153,7 +168,13 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
-        browserProfile: getInputValue("connection-browser-profile"),
+        ...(() => {
+            const selection = getBrowserProfileSelection();
+            return {
+                browserProfile: selection.value,
+                browserProfileName: selection.name,
+            };
+        })(),
     });
 
     const populateFormData = (connection) => {

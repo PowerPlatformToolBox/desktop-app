@@ -32,6 +32,20 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const browserTypeSelect = document.getElementById("connection-browser-type");
     const browserProfileSelect = document.getElementById("connection-browser-profile");
     const browserWarning = document.getElementById("browser-not-installed-warning");
+    const getBrowserProfileSelection = () => {
+        const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
+        if (!select) {
+            return { value: "", name: "" };
+        }
+        const value = (select.value || "").trim();
+        if (!value) {
+            return { value: "", name: "" };
+        }
+        const selectedOption = select.options[select.selectedIndex];
+        const datasetName = selectedOption?.dataset?.profileName?.trim() || "";
+        const fallbackName = selectedOption?.textContent?.trim() || "";
+        return { value, name: datasetName || fallbackName };
+    };
 
     const updateAuthVisibility = () => {
         const authType = authTypeSelect?.value || "interactive";
@@ -89,6 +103,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
                         const option = document.createElement("option");
                         option.value = profile.path;  // Use path as value for --profile-directory
                         option.textContent = profile.name;  // Display the friendly name
+                        option.dataset.profileName = profile.name;
                         browserProfileSelect.appendChild(option);
                     });
                     browserProfileSelect.disabled = false;
@@ -135,7 +150,13 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
-        browserProfile: getInputValue("connection-browser-profile"),
+        ...(() => {
+            const selection = getBrowserProfileSelection();
+            return {
+                browserProfile: selection.value,
+                browserProfileName: selection.name,
+            };
+        })(),
     });
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {

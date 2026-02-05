@@ -40,6 +40,7 @@ export interface DataverseConnection {
     // Browser profile settings for interactive authentication
     browserType?: BrowserType;
     browserProfile?: string;
+    browserProfileName?: string;
 }
 
 /**
