@@ -21,6 +21,9 @@
     "contributors:generate": "all-contributors generate"
   },
   "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "keywords": [
     "powerplatform",
     "dataverse",
