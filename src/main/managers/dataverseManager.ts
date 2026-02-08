@@ -725,7 +725,7 @@ export class DataverseManager {
         }
 
         // Handle already-formatted EntityReference with @odata.id (advanced users)
-        if (typeof value === "object" && value !== null && "@odata.id" in value) {
+        if (value && typeof value === "object" && "@odata.id" in value) {
             return encodeURIComponent(JSON.stringify(value));
         }
 
