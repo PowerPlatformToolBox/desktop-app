@@ -170,6 +170,15 @@ jobs:
                     echo "MACOS_CERT_PATH=$CERT_PATH"
                   } >> "$GITHUB_ENV"
 
+            - name: Verify certificate details
+              if: matrix.os == 'macos-latest'
+              shell: bash
+              run: |
+                  echo "=== Checking available signing identities ==="
+                  security find-identity -v -p codesigning
+                  echo ""
+                  echo "Note: Should show 'Developer ID Application' not 'Mac App Distribution'"
+
             - name: Package application (macOS)
               if: matrix.os == 'macos-latest'
               shell: bash
@@ -183,6 +192,8 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
                   DEBUG: electron-builder
+                  CSC_FOR_PULL_REQUEST: true
+                  CSC_IDENTITY_AUTO_DISCOVERY: true
               run: |
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 
@@ -191,10 +202,47 @@ jobs:
               shell: bash
               run: |
                   APP_PATH="build/mac/Power Platform ToolBox.app"
-                  echo "Verifying code signature for: $APP_PATH"
-                  codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-                  spctl --assess --type exec --verbose=4 "$APP_PATH"
-                  echo "✅ macOS code signing verification passed"
+                  
+                  echo "=== Verifying main app signature ==="
+                  codesign --verify --deep --strict --verbose=4 "$APP_PATH" 2>&1
+                  
+                  echo ""
+                  echo "=== Checking for timestamps on main app ==="
+                  codesign -dvvv "$APP_PATH" 2>&1 | grep -i timestamp || echo "❌ WARNING: NO TIMESTAMP FOUND ON MAIN APP!"
+                  
+                  echo ""
+                  echo "=== Verifying critical nested binaries ==="
+                  # Check helper apps
+                  for helper in "$APP_PATH/Contents/Frameworks/"*.app; do
+                      if [ -d "$helper" ]; then
+                          echo "Checking helper: $(basename "$helper")"
+                          codesign --verify --strict "$helper" 2>&1 || echo "❌ Failed: $helper"
+                          codesign -dvvv "$helper" 2>&1 | grep -i timestamp || echo "❌ No timestamp: $helper"
+                      fi
+                  done
+                  
+                  # Check frameworks
+                  echo ""
+                  echo "=== Checking frameworks ==="
+                  find "$APP_PATH/Contents/Frameworks" -name "*.framework" -type d -maxdepth 1 | while read framework; do
+                      echo "Checking: $(basename "$framework")"
+                      codesign --verify --strict "$framework" 2>&1 || echo "❌ Failed: $framework"
+                  done
+                  
+                  # Check dylibs
+                  echo ""
+                  echo "=== Checking dynamic libraries ==="
+                  find "$APP_PATH" -name "*.dylib" -type f | head -5 | while read dylib; do
+                      echo "Checking: $(basename "$dylib")"
+                      codesign --verify --strict "$dylib" 2>&1 || echo "❌ Failed: $dylib"
+                  done
+                  
+                  echo ""
+                  echo "=== Running spctl assessment ==="
+                  spctl --assess --type exec --verbose=4 "$APP_PATH" 2>&1
+                  
+                  echo ""
+                  echo "✅ macOS code signing verification complete"
 
             - name: Submit macOS notarization request
               if: matrix.os == 'macos-latest'
