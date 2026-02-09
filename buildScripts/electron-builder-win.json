@@ -7,15 +7,33 @@
                 "arch": [
                     "x64"
                 ]
+            },
+            {
+                "target": "msi",
+                "arch": [
+                    "x64"
+                ]
+            },
+            {
+                "target": "msiWrapped",
+                "arch": [
+                    "x64"
+                ]
+            },
+            {
+                "target": "zip",
+                "arch": [
+                    "x64"
+                ]
             }
         ],
         "icon": "icons/icon.ico"
     },
     "nsis": {
         "oneClick": false,
-        "perMachine": true,
+        "perMachine": false,
         "allowToChangeInstallationDirectory": true,
-        "createDesktopShortcut": false,
-        "createStartMenuShortcut": false
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true
     }
 }

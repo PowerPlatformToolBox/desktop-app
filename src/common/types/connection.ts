@@ -30,6 +30,8 @@ export interface DataverseConnection {
     accessToken?: string;
     refreshToken?: string;
     tokenExpiry?: string;
+    // MSAL account identifier for silent token acquisition (used with interactive auth)
+    msalAccountId?: string;
 }
 
 /**

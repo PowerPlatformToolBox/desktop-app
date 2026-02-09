@@ -3,7 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureMessage, logDebug, logInfo } from "../../common/sentryHelper";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
@@ -41,6 +41,8 @@ interface ConnectionFormPayload {
     optionalClientId?: string;
     interactiveUsername?: string;
     interactiveTenantId?: string;
+    usernamePasswordClientId?: string;
+    usernamePasswordTenantId?: string;
     connectionString?: string;
 }
 
@@ -340,6 +342,21 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
         }
     } catch (error) {
         captureMessage("Error connecting to selected connection:", "error", { extra: { error } });
+
+        // Clean up the error message - remove IPC wrapper text
+        let errorMessage = (error as Error).message;
+        // Remove "Error invoking remote method 'set-active-connection': " prefix
+        errorMessage = errorMessage.replace(/^Error invoking remote method '[^']+': /, "");
+        // Remove "Error: " prefix if present
+        errorMessage = errorMessage.replace(/^Error: /, "");
+
+        // Show error notification to user
+        await window.toolboxAPI.utils.showNotification({
+            title: "Connection Failed",
+            body: errorMessage,
+            type: "error",
+        });
+
         await signalSelectConnectionReady();
 
         // Don't close modal on error - let user try again or cancel
@@ -703,6 +720,9 @@ export async function connectToConnection(id: string): Promise<string> {
             throw new Error("Connection not found");
         }
 
+        // Authenticate the connection (this will trigger the authentication flow)
+        await window.toolboxAPI.connections.authenticate(id);
+
         await window.toolboxAPI.utils.showNotification({
             title: "Connected",
             body: "Successfully authenticated and connected to the environment.",
@@ -714,9 +734,16 @@ export async function connectToConnection(id: string): Promise<string> {
 
         return id; // Return the connectionId
     } catch (error) {
+        // Clean up the error message - remove IPC wrapper text
+        let errorMessage = (error as Error).message;
+        // Remove "Error invoking remote method 'authenticate': " prefix
+        errorMessage = errorMessage.replace(/^Error invoking remote method '[^']+': /, "");
+        // Remove "Error: " prefix if present
+        errorMessage = errorMessage.replace(/^Error: /, "");
+
         await window.toolboxAPI.utils.showNotification({
             title: "Connection Failed",
-            body: (error as Error).message,
+            body: errorMessage,
             type: "error",
         });
         // Reload sidebar to reset button state
@@ -729,13 +756,17 @@ export async function connectToConnection(id: string): Promise<string> {
  * Handle re-authentication for expired tokens
  */
 export async function handleReauthentication(connectionId: string): Promise<void> {
+    // Get connection details once for use in both success and error paths
+    const connection = await window.toolboxAPI.connections.getById(connectionId).catch(() => null);
+    const connectionName = connection?.name || "Unknown connection";
+
     try {
-        // First try to refresh using the refresh token
+        // First try to refresh using the refresh token (MSAL or manual)
         await window.toolboxAPI.connections.refreshToken(connectionId);
 
         await window.toolboxAPI.utils.showNotification({
-            title: "Re-authenticated",
-            body: "Successfully refreshed your connection token.",
+            title: "Connection Refreshed",
+            body: `Successfully refreshed token for '${connectionName}'.`,
             type: "success",
         });
 
@@ -743,12 +774,18 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        captureMessage("Token refresh failed:", "error", { extra: { error } });
+        captureMessage("Token refresh failed:", "error", {
+            extra: { error, connectionId, connectionName },
+        });
 
-        // If refresh fails, notify user to re-authenticate
+        // Extract meaningful error message (strip generic parts)
+        const errorMessage = (error as Error).message || "Token refresh failed";
+        const cleanMessage = errorMessage.replace(/^Failed to refresh token for connection '[^']+': /, "");
+
+        // If refresh fails, notify user to re-authenticate with specific connection name
         await window.toolboxAPI.utils.showNotification({
-            title: "Re-authentication Needed",
-            body: "Token refresh failed. Please re-authenticate the connection.",
+            title: "Re-authentication Required",
+            body: `Connection '${connectionName}' needs re-authentication. ${cleanMessage}`,
             type: "error",
         });
 
@@ -910,7 +947,7 @@ function handleEditConnectionModalMessage(payload: ModalWindowMessagePayload): v
 function buildEditConnectionModalHtml(): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
-    console.debug("Building edit connection modal HTML, isDarkTheme:", isDarkTheme);
+    logDebug("Building edit connection modal HTML", { isDarkTheme });
 
     const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
     const { styles, body } = getEditConnectionModalView(isDarkTheme);
@@ -1148,9 +1185,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     } else if (authenticationType === "usernamePassword") {
         connection.username = sanitizeInput(formPayload.username);
         connection.password = sanitizeInput(formPayload.password);
-        const optionalClientId = sanitizeInput(formPayload.optionalClientId);
-        if (optionalClientId) {
-            connection.clientId = optionalClientId;
+        // Username/password supports optional clientId and tenantId
+        const usernamePasswordClientId = sanitizeInput(formPayload.usernamePasswordClientId);
+        const usernamePasswordTenantId = sanitizeInput(formPayload.usernamePasswordTenantId);
+        if (usernamePasswordClientId) {
+            connection.clientId = usernamePasswordClientId;
+        }
+        if (usernamePasswordTenantId) {
+            connection.tenantId = usernamePasswordTenantId;
         }
     } else if (authenticationType === "interactive") {
         // Interactive OAuth with optional username (login_hint), clientId, and tenantId

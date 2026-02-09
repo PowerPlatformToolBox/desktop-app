@@ -70,6 +70,7 @@ export const TOOL_CHANNELS = {
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
     UPDATE_TOOL: "update-tool",
+    IS_TOOL_UPDATING: "is-tool-updating",
 } as const;
 
 // Tool Window-related IPC channels
@@ -105,6 +106,14 @@ export const UTIL_CHANNELS = {
     SHOW_MODAL_WINDOW: "show-modal-window",
     CLOSE_MODAL_WINDOW: "close-modal-window",
     SEND_MODAL_MESSAGE: "send-modal-message",
+    CHECK_SUPABASE_CONNECTIVITY: "check-supabase-connectivity",
+    CHECK_REGISTRY_FILE: "check-registry-file",
+    CHECK_USER_SETTINGS: "check-user-settings",
+    CHECK_TOOL_SETTINGS: "check-tool-settings",
+    CHECK_CONNECTIONS: "check-connections",
+    CHECK_SENTRY_LOGGING: "check-sentry-logging",
+    CHECK_TOOL_DOWNLOAD: "check-tool-download",
+    CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
 } as const;
 
 // Filesystem-related IPC channels
@@ -146,6 +155,10 @@ export const DATAVERSE_CHANNELS = {
     UPDATE_MULTIPLE: "dataverse.updateMultiple",
     PUBLISH_CUSTOMIZATIONS: "dataverse.publishCustomizations",
     GET_ENTITY_SET_NAME: "dataverse.getEntitySetName",
+    ASSOCIATE: "dataverse.associate",
+    DISASSOCIATE: "dataverse.disassociate",
+    DEPLOY_SOLUTION: "dataverse.deploySolution",
+    GET_IMPORT_JOB_STATUS: "dataverse.getImportJobStatus",
 } as const;
 
 // Event-related IPC channels (from main to renderer)
@@ -167,6 +180,8 @@ export const EVENT_CHANNELS = {
     MODAL_WINDOW_OPENED: "modal-window:opened",
     MODAL_WINDOW_CLOSED: "modal-window:closed",
     MODAL_WINDOW_MESSAGE: "modal-window:message",
+    TOOL_UPDATE_STARTED: "tool:update-started",
+    TOOL_UPDATE_COMPLETED: "tool:update-completed",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

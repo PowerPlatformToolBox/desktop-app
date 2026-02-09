@@ -69,7 +69,8 @@ export interface UserSettings {
     cspConsents: { [toolId: string]: boolean }; // Track CSP consent for each tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
-    machineId?: string; // Unique machine identifier for analytics
+    installId?: string; // Unique install identifier for analytics
+    machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;

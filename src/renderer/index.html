@@ -341,7 +341,7 @@
                                         <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
                                         <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
                                     </div>
-                                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
+                                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span>
                                 </div>
                             </section>
 
@@ -628,7 +628,7 @@
                 <span id="connection-status" class="connection-status">No active connection</span>
             </div>
             <div class="footer-content-right">
-                <button type="button" class="fluent-button fluent-button-secondary" id="footer-toggle-terminal-btn" title="Show terminal" aria-pressed="false">
+                <button type="button" class="fluent-button fluent-button-secondary" id="footer-toggle-terminal-btn" title="Show terminal" aria-pressed="false" aria-hidden="true" hidden>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                         <rect x="1.75" y="3" width="12.5" height="10" rx="1.5" stroke="currentColor" stroke-width="1" />
                         <path d="M4.5 7.25L6.25 8.75L4.5 10.25" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
@@ -649,7 +649,7 @@
                 </div>
                 <div class="modal-body">
                     <label for="connection-name">Connection Name:</label>
-                    <input type="text" id="connection-name" placeholder="Production" class="modal-input" />
+                    <input class="modal-input" type="text" id="connection-name" placeholder="Production" />
 
                     <label for="connection-url">Environment URL:</label>
                     <input type="text" id="connection-url" placeholder="https://org.crm.dynamics.com" class="modal-input" />

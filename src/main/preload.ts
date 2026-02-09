@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
     updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
+    isToolUpdating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.IS_TOOL_UPDATING, toolId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),
@@ -120,6 +121,18 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
+    },
+
+    // Troubleshooting namespace - organized like other features
+    troubleshooting: {
+        checkSupabaseConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY),
+        checkRegistryFile: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_REGISTRY_FILE),
+        checkUserSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_USER_SETTINGS),
+        checkToolSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_SETTINGS),
+        checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
+        checkSentryLogging: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SENTRY_LOGGING),
+        checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
+        checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
     },
 
     // FileSystem namespace - filesystem operations
@@ -205,6 +218,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(EVENT_CHANNELS.TOKEN_EXPIRED, (_, data) => callback(data));
     },
 
+    // Tool update events
+    onToolUpdateStarted: (callback: (toolId: string) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_STARTED, (_, toolId) => callback(toolId));
+    },
+    onToolUpdateCompleted: (callback: (toolId: string) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, (_, toolId) => callback(toolId));
+    },
+
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
         create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
@@ -235,6 +256,22 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         updateMultiple: (entityLogicalName: string, records: Record<string, unknown>[], connectionTarget?: "primary" | "secondary") =>
             ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE_MULTIPLE, entityLogicalName, records, connectionTarget),
         getEntitySetName: (entityLogicalName: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME, entityLogicalName),
+        associate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.ASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId, connectionTarget),
+        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") =>
+            ipcRenderer.invoke(DATAVERSE_CHANNELS.DISASSOCIATE, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId, connectionTarget),
+        deploySolution: (
+            base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
+            options?: {
+                importJobId?: string;
+                publishWorkflows?: boolean;
+                overwriteUnmanagedCustomizations?: boolean;
+                skipProductUpdateDependencies?: boolean;
+                convertToManaged?: boolean;
+            },
+            connectionTarget?: "primary" | "secondary",
+        ) => ipcRenderer.invoke(DATAVERSE_CHANNELS.DEPLOY_SOLUTION, base64SolutionContent, options, connectionTarget),
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, importJobId, connectionTarget),
     },
 });
 

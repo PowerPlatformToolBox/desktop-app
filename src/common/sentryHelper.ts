@@ -1,6 +1,6 @@
 /**
  * Sentry helper utilities for enhanced logging and tracing
- * Provides utility functions to add context, breadcrumbs, and machine ID to all Sentry events
+ * Provides utility functions to add context, breadcrumbs, and install ID to all Sentry events
  *
  * NOTE: This helper can be used in both main and renderer processes, but must import
  * Sentry from the appropriate subpath in the calling code
@@ -19,10 +19,36 @@ export interface SentryTransaction {
     finish(): void;
 }
 
-let machineId: string | null = null;
+let installId: string | null = null;
 // Use any type for flexibility across different Sentry module versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sentryModule: any = null;
+
+// Environment detection - determines if we're in development mode
+let isDevelopment = false;
+
+/**
+ * Detect if we're running in development mode
+ * This checks both NODE_ENV and whether the app is packaged (Electron main process)
+ * @returns true if in development mode, false otherwise
+ */
+function isDevelopmentEnvironment(): boolean {
+    // Check NODE_ENV first
+    if (process.env.NODE_ENV === "development") {
+        return true;
+    }
+
+    // Try to detect if we're in Electron main process and check if app is packaged
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { app } = require("electron");
+        return !app.isPackaged;
+    } catch {
+        // Not in main process or electron not available
+        // Default to production mode for safety
+        return false;
+    }
+}
 
 /**
  * Initialize the Sentry helper with the Sentry module
@@ -31,38 +57,39 @@ let sentryModule: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function initializeSentryHelper(sentry: any): void {
     sentryModule = sentry;
+    isDevelopment = isDevelopmentEnvironment();
 }
 
 /**
- * Set the machine ID to be included in all Sentry events
+ * Set the install ID to be included in all Sentry events
  * This should be called early in the application initialization
  */
-export function setSentryMachineId(id: string): void {
-    machineId = id;
+export function setSentryInstallId(id: string): void {
+    installId = id;
 
     if (!sentryModule) return;
 
     // Set as user context so it appears in all events
     sentryModule.setUser({
         id: id,
-        username: `machine-${id}`,
+        username: `install-${id}`,
     });
 
     // Also set as a tag for easier filtering
-    sentryModule.setTag("machine_id", id);
+    sentryModule.setTag("install_id", id);
 
-    logInfo(`[Sentry] Machine ID set: ${id}`);
+    logInfo(`[Sentry] Install ID set: ${id}`);
 }
 
 /**
- * Get the current machine ID
+ * Get the current install ID
  */
-export function getSentryMachineId(): string | null {
-    return machineId;
+export function getSentryInstallId(): string | null {
+    return installId;
 }
 
 /**
- * Add a breadcrumb with machine ID context
+ * Add a breadcrumb with install ID context
  * Breadcrumbs help recreate the sequence of events leading to an error
  */
 export function addBreadcrumb(message: string, category: string, level: "debug" | "info" | "warning" | "error" = "info", data?: Record<string, unknown>): void {
@@ -74,7 +101,7 @@ export function addBreadcrumb(message: string, category: string, level: "debug" 
         level,
         data: {
             ...data,
-            machine_id: machineId,
+            install_id: installId,
             timestamp: new Date().toISOString(),
         },
     });
@@ -170,8 +197,8 @@ export function captureException(
     }
 
     sentryModule.withScope((scope: SentryScope) => {
-        // Add machine ID to scope
-        scope.setTag("machine_id", machineId || "unknown");
+        // Add install ID to scope
+        scope.setTag("install_id", installId || "unknown");
 
         // Add any custom tags
         if (context?.tags) {
@@ -229,9 +256,9 @@ export function captureMessage(
             break;
     }
 
-    // Create Sentry Issue with machine ID context
+    // Create Sentry Issue with install ID context
     sentryModule.withScope((scope: SentryScope) => {
-        scope.setTag("machine_id", machineId || "unknown");
+        scope.setTag("install_id", installId || "unknown");
 
         if (context?.tags) {
             Object.entries(context.tags).forEach(([key, value]) => {
@@ -258,7 +285,7 @@ export function setContext(key: string, value: Record<string, unknown>): void {
 
     sentryModule.setContext(key, {
         ...value,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
@@ -314,14 +341,15 @@ export function wrapAsyncOperation<T>(
  * Use this at critical points in the application flow
  */
 export function logCheckpoint(checkpoint: string, data?: Record<string, unknown>): void {
+    // Always log to console for local debugging
+    // eslint-disable-next-line no-console
+    console.log(`[Checkpoint] ${checkpoint}`, data ? JSON.stringify(data, null, 2) : "");
+
     // Log to Sentry using structured logger
     logInfo(`Checkpoint: ${checkpoint}`, data);
 
     // Add as breadcrumb for context
     addBreadcrumb(checkpoint, "checkpoint", "info", data);
-
-    // Also log to console for local debugging
-    console.log(`[Checkpoint] ${checkpoint}`, data ? JSON.stringify(data, null, 2) : "");
 }
 
 /**
@@ -352,77 +380,113 @@ export function clearScope(): void {
 /**
  * Log a trace message to Sentry
  * Use for detailed diagnostic information
+ * Note: Only sent to Sentry in development mode
  */
 export function logTrace(message: string, data?: Record<string, unknown>): void {
-    if (!sentryModule || !sentryModule.logger) return;
+    // Log to console in development mode only (very verbose)
+    if (isDevelopment) {
+        // eslint-disable-next-line no-console
+        console.debug(`[TRACE] ${message}`, data || "");
+    }
+
+    // Only send to Sentry in development mode to reduce noise
+    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
 
     sentryModule.logger.trace(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
 /**
  * Log a debug message to Sentry
  * Use for debugging information during development
+ * Note: Only sent to Sentry in development mode
  */
 export function logDebug(message: string, data?: Record<string, unknown>): void {
-    if (!sentryModule || !sentryModule.logger) return;
+    // Log to console in development mode only (verbose)
+    if (isDevelopment) {
+        // eslint-disable-next-line no-console
+        console.debug(`[DEBUG] ${message}`, data || "");
+    }
+
+    // Only send to Sentry in development mode to reduce noise
+    if (!sentryModule || !sentryModule.logger || !isDevelopment) return;
 
     sentryModule.logger.debug(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
 /**
  * Log an info message to Sentry
  * Use for general informational messages
+ * Note: Sent to Sentry in all environments, but creates breadcrumbs not Issues
  */
 export function logInfo(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.info(`[INFO] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.info(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
 /**
  * Log a warning message to Sentry
  * Use for warning conditions that should be reviewed
+ * Note: Sent to Sentry in all environments
  */
 export function logWarn(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.warn(`[WARN] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.warn(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
 /**
  * Log an error message to Sentry
  * Use for error conditions that need attention
+ * Note: Sent to Sentry in all environments
  */
 export function logError(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.error(`[ERROR] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.error(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }
 
 /**
  * Log a fatal error message to Sentry
  * Use for critical errors that require immediate attention
+ * Note: Sent to Sentry in all environments
  */
 export function logFatal(message: string, data?: Record<string, unknown>): void {
+    // Always log to console for debugging
+    // eslint-disable-next-line no-console
+    console.error(`[FATAL] ${message}`, data || "");
+
     if (!sentryModule || !sentryModule.logger) return;
 
     sentryModule.logger.fatal(message, {
         ...data,
-        machine_id: machineId,
+        install_id: installId,
     });
 }

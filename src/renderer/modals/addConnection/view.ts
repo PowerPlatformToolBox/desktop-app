@@ -56,8 +56,8 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
             <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
             <label for="connection-tenant-id">Tenant ID (Optional)</label>
-            <input type="text" id="connection-tenant-id" class="modal-input" placeholder="common" />
-            <p class="helper-text">Defaults to 'common' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
+            <input type="text" id="connection-tenant-id" class="modal-input" placeholder="organizations" />
+            <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
         </div>
         <div id="client-secret-fields" class="field-group" style="display: none">
             <span class="section-label">Client Secret Authentication</span>
@@ -80,6 +80,12 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                 <input type="password" id="connection-password" class="modal-input" placeholder="password" />
                 <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
             </div>
+            <label for="connection-optional-client-id-up">Client ID (Optional)</label>
+            <input type="text" id="connection-optional-client-id-up" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
+            <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
+            <label for="connection-tenant-id-up">Tenant ID (Optional)</label>
+            <input type="text" id="connection-tenant-id-up" class="modal-input" placeholder="organizations" />
+            <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
         </div>
         <div id="connection-string-fields" class="field-group" style="display: none">
             <span class="section-label">Connection String</span>

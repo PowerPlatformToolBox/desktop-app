@@ -120,7 +120,7 @@ export class ConnectionsManager {
     /**
      * Update connection tokens with encryption (called after authentication/refresh)
      */
-    updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date }): void {
+    updateConnectionTokens(id: string, authTokens: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }): void {
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -136,7 +136,53 @@ export class ConnectionsManager {
         connection.refreshToken = authTokens.refreshToken ? this.encryptionManager.encrypt(authTokens.refreshToken) : undefined;
         connection.tokenExpiry = authTokens.expiresOn.toISOString();
 
+        // Store MSAL account ID for silent token acquisition (not encrypted - just an identifier)
+        if (authTokens.msalAccountId !== undefined) {
+            connection.msalAccountId = authTokens.msalAccountId;
+        }
+
         this.store.set("connections", connections);
+    }
+
+    /**
+     * Clear authentication tokens for a connection
+     * This is useful when MSAL cache is cleared (e.g., after app restart) and tokens are no longer valid
+     */
+    clearConnectionTokens(id: string): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        // Clear all authentication tokens
+        connection.accessToken = undefined;
+        connection.refreshToken = undefined;
+        connection.tokenExpiry = undefined;
+        connection.msalAccountId = undefined;
+
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+    }
+
+    /**
+     * Clear authentication tokens for all connections
+     * This is useful when MSAL cache is cleared (e.g., after app restart) and tokens are no longer valid
+     */
+    clearAllConnectionTokens(): void {
+        const connections = this.store.get("connections");
+
+        for (const connection of connections) {
+            // Clear all authentication tokens
+            connection.accessToken = undefined;
+            connection.refreshToken = undefined;
+            connection.tokenExpiry = undefined;
+            connection.msalAccountId = undefined;
+        }
+
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for all connections`);
     }
 
     /**

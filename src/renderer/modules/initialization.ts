@@ -6,7 +6,7 @@
 // Initialize Sentry as early as possible in the renderer process
 import * as Sentry from "@sentry/electron/renderer";
 import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId, wrapAsyncOperation } from "../../common/sentryHelper";
+import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryInstallId, wrapAsyncOperation } from "../../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -17,8 +17,9 @@ if (sentryConfig) {
         tracesSampleRate: sentryConfig.tracesSampleRate,
         replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
         replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-        // Enable Sentry logger for structured logging
-        enableLogs: true,
+        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
+        // In production, we rely on captureException/captureMessage for explicit error reporting
+        enableLogs: sentryConfig.environment === "development",
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
@@ -33,9 +34,9 @@ if (sentryConfig) {
             // Context lines integration for better error context
             Sentry.contextLinesIntegration(),
         ],
-        // Before sending events, add machine ID and additional context
+        // Before sending events, add install ID and additional context
         beforeSend(event) {
-            // Ensure machine ID is in tags
+            // Ensure install ID is in tags
             if (!event.tags) {
                 event.tags = {};
             }
@@ -59,7 +60,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Initialized in renderer process with tracing and logging");
     addBreadcrumb("Renderer process Sentry initialized", "init", "info");
 
-    // Machine ID will be set via IPC from main process after settings are loaded
+    // Install ID will be set via IPC from main process after settings are loaded
 } else {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
@@ -87,16 +88,18 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
-        // Get machine ID from main process and set it in Sentry
+        // Get install ID from main process and set it in Sentry
         if (sentryConfig) {
             try {
                 const settings = await window.toolboxAPI.getUserSettings();
-                if (settings.machineId) {
-                    setSentryMachineId(settings.machineId);
-                    logCheckpoint("Machine ID set in renderer Sentry", { machineId: settings.machineId });
+                const installId = settings.installId || settings.machineId;
+                if (installId) {
+                    setSentryInstallId(installId);
+                    logCheckpoint("Install ID set in renderer Sentry", { installId });
                 }
             } catch (error) {
-                console.warn("Failed to get machine ID for Sentry:", error);
+                // Use logWarn instead of console.warn for proper telemetry tracking
+                logWarn("Failed to get install ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
             }
         }
 
@@ -647,6 +650,35 @@ function setupApplicationEventListeners(): void {
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
     });
+
+    // Troubleshooting modal listener
+    window.api.on("open-troubleshooting-modal", async () => {
+        const { openTroubleshootingModal } = await import("./troubleshootingManagement");
+        const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
+        const isDarkTheme = currentTheme === "dark";
+        await openTroubleshootingModal(isDarkTheme);
+    });
+
+    // Tool update event listeners
+    window.toolboxAPI.onToolUpdateStarted(() => {
+        logInfo("Tool update started, reloading tools...");
+        loadSidebarTools().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { phase: "tools_reload" },
+                level: "warning",
+            });
+        });
+    });
+
+    window.toolboxAPI.onToolUpdateCompleted(() => {
+        logInfo("Tool update completed, reloading tools...");
+        loadSidebarTools().catch((err) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+                tags: { phase: "tools_reload" },
+                level: "warning",
+            });
+        });
+    });
 }
 
 /**
@@ -750,7 +782,7 @@ function setupToolboxEventListeners(): void {
                     secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
                 });
             } else {
-                console.warn("Menu launch event missing toolId", payload);
+                logWarn("Menu launch event missing toolId", { payload });
             }
             return;
         }
@@ -830,7 +862,7 @@ function setupToolPanelBoundsListener(): void {
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
-            console.warn("[Renderer] Tool panel content element not found");
+            logWarn("[Renderer] Tool panel content element not found");
         }
     });
 }

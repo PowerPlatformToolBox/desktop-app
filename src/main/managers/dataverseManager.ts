@@ -1,5 +1,6 @@
 import * as https from "https";
 import { DataverseConnection, ENTITY_RELATED_METADATA_BASE_PATHS, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../../common/types";
+import { captureMessage } from "../../common/sentryHelper";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -58,7 +59,38 @@ export class DataverseManager {
     }
 
     /**
+     * Build a properly formatted API URL by combining base URL and path
+     * Ensures no double slashes between base URL and path
+     */
+    private buildApiUrl(connection: DataverseConnection, path: string): string {
+        // Ensure base URL doesn't end with slash and path doesn't start with slash
+        const baseUrl = connection.url.replace(/\/$/, "");
+        const cleanPath = path.replace(/^\//, "");
+        return `${baseUrl}/${cleanPath}`;
+    }
+
+    /**
+     * Helper method to ensure MSAL account exists in cache, clearing tokens if not
+     * @param connection The connection to validate
+     * @param connectionId The connection ID
+     * @param errorMessage The error message to throw if cache is invalid
+     * @throws Error if MSAL cache is empty (tokens are cleared before throwing)
+     */
+    private async ensureMsalCacheOrClearTokens(connection: DataverseConnection, connectionId: string, errorMessage: string): Promise<void> {
+        const hasAccount = await this.authManager.hasAccountInCache(connection);
+        if (!hasAccount) {
+            // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
+            this.connectionsManager.clearConnectionTokens(connectionId);
+            captureMessage("MSAL account not found in cache - tokens cleared", "warning", {
+                extra: { connectionId, connectionName: connection.name },
+            });
+            throw new Error(errorMessage);
+        }
+    }
+
+    /**
      * Get a connection by ID and ensure it has a valid access token
+     * Uses MSAL's automatic token refresh - no manual expiry checking needed
      * @param connectionId The ID of the connection to use
      */
     private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
@@ -67,36 +99,159 @@ export class DataverseManager {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
-        if (!connection.accessToken) {
-            throw new Error("No access token found. Please reconnect to the environment.");
+        // Strategy 1: Interactive auth with MSAL account - use silent token acquisition
+        // MSAL automatically handles token refresh if expired (no local server needed for refresh)
+        if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+            // Check if MSAL account exists in cache (cache is cleared when app restarts)
+            await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
+
+            try {
+                const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                // Update connection with new token
+                connection.accessToken = tokenResult.accessToken;
+                connection.tokenExpiry = tokenResult.expiresOn.toISOString();
+                this.connectionsManager.updateConnection(connection.id, connection);
+
+                return { connection, accessToken: tokenResult.accessToken };
+            } catch (error) {
+                // Silent acquisition failed - re-auth required
+                const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
+                captureMessage("MSAL silent token acquisition failed", "error", {
+                    extra: { connectionId, connectionName: connection.name, error },
+                });
+                throw new Error(errorMessage);
+            }
         }
 
-        // Check if token is expired
-        if (connection.tokenExpiry) {
-            const expiryDate = new Date(connection.tokenExpiry);
-            const now = new Date();
+        // Strategy 2: Client secret flow - use MSAL's automatic token caching
+        // ConfidentialClientApplication handles token refresh automatically
+        if (connection.authenticationType === "clientSecret") {
+            // Check if token is expired or about to expire (within 5 minutes)
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
 
-            // Refresh if token expires in the next 5 minutes
-            if (expiryDate.getTime() - now.getTime() < 5 * 60 * 1000) {
-                if (connection.refreshToken) {
-                    try {
-                        const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
-                        this.connectionsManager.updateConnectionTokens(connection.id, {
-                            accessToken: authResult.accessToken,
-                            refreshToken: authResult.refreshToken,
-                            expiresOn: authResult.expiresOn,
-                        });
-                        return { connection, accessToken: authResult.accessToken };
-                    } catch (error) {
-                        throw new Error(`Failed to refresh token: ${(error as Error).message}`);
-                    }
-                } else {
-                    throw new Error("Access token expired and no refresh token available. Please reconnect.");
+            if (needsRefresh || !connection.accessToken) {
+                try {
+                    // MSAL will return cached token if still valid, or acquire new one if expired
+                    const authResult = await this.authManager.authenticateClientSecret(connection);
+
+                    // Update connection with new token
+                    connection.accessToken = authResult.accessToken;
+                    connection.tokenExpiry = authResult.expiresOn.toISOString();
+                    this.connectionsManager.updateConnection(connection.id, connection);
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
+                    captureMessage("Client secret authentication failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
                 }
             }
         }
 
+        // Strategy 3: Username/Password flow - use MSAL silent token acquisition if msalAccountId is available
+        // With MSAL-based username/password auth, we can use acquireTokenSilently just like interactive flow
+        if (connection.authenticationType === "usernamePassword") {
+            // If we have MSAL account ID, use silent token acquisition (MSAL handles token refresh internally)
+            if (connection.msalAccountId) {
+                // Check if MSAL account exists in cache (cache is cleared when app restarts)
+                await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`);
+
+                try {
+                    const authResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: undefined, // MSAL handles refresh internally
+                        expiresOn: authResult.expiresOn,
+                        msalAccountId: connection.msalAccountId,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    // Silent token acquisition failed - user needs to re-authenticate
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
+                    captureMessage("Username/password silent token acquisition failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+
+            // Fallback: Legacy username/password connections without MSAL account ID
+            // Check if token is expired or about to expire (within 5 minutes)
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+
+            if (needsRefresh && connection.refreshToken) {
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
+                    captureMessage("Username/password token refresh failed", "error", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+        }
+
+        // Strategy 4: Legacy interactive connections without MSAL account ID
+        // Try to use existing refresh token via manual refresh
+        if (connection.authenticationType === "interactive" && !connection.msalAccountId && connection.refreshToken) {
+            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+
+            if (needsRefresh) {
+                try {
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+
+                    // Update connection with new tokens
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: authResult.refreshToken,
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    return { connection, accessToken: authResult.accessToken };
+                } catch (error) {
+                    const errorMessage = `Token refresh failed for '${connection.name}'. Please sign in again.`;
+                    captureMessage("Legacy interactive token refresh failed", "warning", {
+                        extra: { connectionId, connectionName: connection.name, error },
+                    });
+                    throw new Error(errorMessage);
+                }
+            }
+        }
+
+        // Fallback: use existing token if still valid
+        if (!connection.accessToken) {
+            throw new Error(`No access token found for '${connection.name}'. Please reconnect to the environment.`);
+        }
+
         return { connection, accessToken: connection.accessToken };
+    }
+
+    /**
+     * Check if a token is expiring within the specified time window
+     */
+    private isTokenExpiringWithin(tokenExpiry: string | undefined, milliseconds: number): boolean {
+        if (!tokenExpiry) return false;
+
+        const expiryDate = new Date(tokenExpiry);
+        const now = new Date();
+
+        return expiryDate.getTime() - now.getTime() < milliseconds;
     }
 
     /**
@@ -105,7 +260,7 @@ export class DataverseManager {
     async create(connectionId: string, entityLogicalName: string, record: Record<string, unknown>): Promise<{ id: string; [key: string]: unknown }> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}`);
 
         const response = await this.makeHttpRequest(url, "POST", accessToken, record);
 
@@ -126,7 +281,7 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
         if (columns && columns.length > 0) {
             url += `?$select=${columns.join(",")}`;
         }
@@ -141,7 +296,7 @@ export class DataverseManager {
     async update(connectionId: string, entityLogicalName: string, id: string, record: Record<string, unknown>): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "PATCH", accessToken, record);
     }
@@ -152,7 +307,7 @@ export class DataverseManager {
     async delete(connectionId: string, entityLogicalName: string, id: string): Promise<void> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
@@ -170,6 +325,7 @@ export class DataverseManager {
             businessunit: "businessunits",
             systemuser: "systemusers",
             usersettingscollection: "usersettingscollection",
+            principalobjectaccess: "principalobjectaccessset",
         };
 
         const lowerName = entityLogicalName.toLowerCase();
@@ -211,8 +367,7 @@ export class DataverseManager {
 
         // Convert entity name to entity set name (pluralized)
         const entitySetName = this.getEntitySetName(entityName);
-
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}?fetchXml=${encodedFetchXml}`);
 
         // Request formatted values and all annotations (for lookups, aliases, etc.)
         const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
@@ -241,7 +396,7 @@ export class DataverseManager {
     ): Promise<Record<string, unknown>> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/`);
 
         // Build URL based on operation type
         if (request.entityName && request.entityId) {
@@ -255,13 +410,33 @@ export class DataverseManager {
 
         const method = request.operationType === "function" ? "GET" : "POST";
 
-        // For functions, parameters go in the URL
+        // For functions, parameters go in the URL using parameter aliases
+        // Format: FunctionName(Param1=@p0,Param2=@p1)?@p0=value1&@p1=value2
         if (request.operationType === "function" && request.parameters) {
-            const params = new URLSearchParams();
-            Object.entries(request.parameters).forEach(([key, value]) => {
-                params.append(key, JSON.stringify(value));
-            });
-            url += `?${params.toString()}`;
+            const paramNames = Object.keys(request.parameters);
+
+            if (paramNames.length > 0) {
+                // Build parameter aliases for function signature: Param1=@p0,Param2=@p1
+                const paramAliases = paramNames.map((name, index) => `${name}=@p${index}`);
+
+                // Append function signature with aliases to URL
+                url += `(${paramAliases.join(",")})`;
+
+                // Build query string with parameter values: @p0=value1&@p1=value2
+                const queryParams: string[] = [];
+                paramNames.forEach((name, index) => {
+                    const value = request.parameters![name];
+                    const alias = `@p${index}`;
+                    const formattedValue = this.formatFunctionParameter(value);
+                    queryParams.push(`${alias}=${formattedValue}`);
+                });
+
+                // Append query string to URL
+                url += `?${queryParams.join("&")}`;
+            } else {
+                // No parameters - just add empty parentheses for function call
+                url += "()";
+            }
         }
 
         const body = request.operationType === "action" ? request.parameters : undefined;
@@ -280,7 +455,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -301,7 +476,7 @@ export class DataverseManager {
         // Default to lightweight columns if selectColumns is not provided or empty
         const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`);
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: EntityMetadata[] };
     }
@@ -339,7 +514,7 @@ export class DataverseManager {
             .filter((segment) => segment.trim().length > 0)
             .map((segment) => encodeURIComponent(segment))
             .join("/");
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`);
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
@@ -361,7 +536,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/solutions?$select=${encodedColumns}`);
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
         return response.data as { value: Record<string, unknown>[] };
@@ -382,7 +557,7 @@ export class DataverseManager {
         const query = odataQuery.trim();
         const cleanQuery = query.startsWith("?") ? query.substring(1) : query;
 
-        let url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}`;
+        let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}`);
         if (cleanQuery) {
             url += `/${cleanQuery}`;
         }
@@ -493,6 +668,107 @@ export class DataverseManager {
     }
 
     /**
+     * Format a parameter value for Dataverse Function URL query string
+     * Handles primitives, EntityReferences, complex objects, collections, and enum values
+     *
+     * @param value - The parameter value to format
+     * @returns URL-encoded formatted parameter value
+     *
+     * @example
+     * // String parameter
+     * formatFunctionParameter('Pacific Standard Time') // Returns: '%27Pacific%20Standard%20Time%27'
+     *
+     * @example
+     * // Number parameter
+     * formatFunctionParameter(1033) // Returns: '1033'
+     *
+     * @example
+     * // Boolean parameter
+     * formatFunctionParameter(true) // Returns: 'true'
+     *
+     * @example
+     * // EntityReference with entityLogicalName (user-friendly format)
+     * formatFunctionParameter({ entityLogicalName: 'account', id: 'guid-here' })
+     * // Returns: '%7B%22%40odata.id%22%3A%22accounts(guid-here)%22%7D'
+     *
+     * @example
+     * // EntityReference with @odata.id (advanced format)
+     * formatFunctionParameter({ '@odata.id': 'accounts(guid-here)' })
+     * // Returns: '%7B%22%40odata.id%22%3A%22accounts(guid-here)%22%7D'
+     *
+     * @example
+     * // Enum value (single or multiple)
+     * formatFunctionParameter("Microsoft.Dynamics.CRM.EntityFilters'Entity'")
+     * // Returns: "Microsoft.Dynamics.CRM.EntityFilters'Entity'" (no quotes, URL-encoded)
+     *
+     * @example
+     * // Complex object
+     * formatFunctionParameter({ PageNumber: 1, Count: 10 })
+     * // Returns: '%7B%22PageNumber%22%3A1%2C%22Count%22%3A10%7D'
+     */
+    private formatFunctionParameter(value: unknown): string {
+        // Handle null/undefined
+        if (value === null || value === undefined) {
+            return "null";
+        }
+
+        // Handle EntityReference with entityLogicalName and id (user-friendly format)
+        // Convert to @odata.id format internally
+        if (typeof value === "object" && "entityLogicalName" in value && "id" in value) {
+            const ref = value as { entityLogicalName: unknown; id: unknown };
+            if (typeof ref.entityLogicalName !== "string" || typeof ref.id !== "string") {
+                throw new Error("EntityReference must have string entityLogicalName and id properties");
+            }
+            const entitySetName = this.getEntitySetName(ref.entityLogicalName);
+            const odataRef = { "@odata.id": `${entitySetName}(${ref.id})` };
+            return encodeURIComponent(JSON.stringify(odataRef));
+        }
+
+        // Handle already-formatted EntityReference with @odata.id (advanced users)
+        if (value && typeof value === "object" && "@odata.id" in value) {
+            return encodeURIComponent(JSON.stringify(value));
+        }
+
+        // Handle boolean - lowercase without quotes
+        if (typeof value === "boolean") {
+            return value ? "true" : "false";
+        }
+
+        // Handle number - no quotes
+        if (typeof value === "number") {
+            return value.toString();
+        }
+
+        // Handle string
+        if (typeof value === "string") {
+            // Check if it's a Dataverse enum value with Microsoft.Dynamics.CRM prefix
+            // Enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity'
+            // Multi-value enum format: Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'
+            // These should NOT be wrapped in quotes, just URL-encoded
+            if (/^Microsoft\.Dynamics\.CRM\.\w+'.+'$/.test(value)) {
+                return encodeURIComponent(value);
+            }
+
+            // Check if it's already a properly formatted EntityReference string
+            if (value.startsWith("{'@odata.id':") || value.startsWith('{"@odata.id":')) {
+                return encodeURIComponent(value);
+            }
+
+            // Regular string - wrap in single quotes, escape internal single quotes by doubling them, then URL encode
+            const escapedValue = value.replace(/'/g, "''");
+            return encodeURIComponent(`'${escapedValue}'`);
+        }
+
+        // Handle complex objects and arrays - JSON encode and URL encode
+        if (typeof value === "object") {
+            return encodeURIComponent(JSON.stringify(value));
+        }
+
+        // Fallback - convert to string and URL encode
+        return encodeURIComponent(String(value));
+    }
+
+    /**
      * Publish customizations for the current environment.
      * When tableLogicalName is provided, publishes only that table via PublishXml.
      * Otherwise, runs PublishAllXml to publish all pending customizations.
@@ -502,7 +778,7 @@ export class DataverseManager {
         const trimmedName = tableLogicalName?.trim();
         const publishSingleTable = Boolean(trimmedName);
         const actionName = publishSingleTable ? "PublishXml" : "PublishAllXml";
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${actionName}`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${actionName}`);
         const body = publishSingleTable ? { ParameterXml: this.buildEntityPublishXml(trimmedName!) } : undefined;
 
         await this.makeHttpRequest(url, "POST", accessToken, body);
@@ -523,6 +799,97 @@ export class DataverseManager {
         return `<importexportxml><entities><entity>${escapedName}</entity></entities></importexportxml>`;
     }
 
+    /**
+     * Deploy (import) a solution to the Dataverse environment
+     * @param connectionId - Connection ID to use
+     * @param base64SolutionContent - Base64-encoded solution zip file content
+     * @param options - Optional import settings
+     * @returns Promise containing the ImportJobId for tracking the import progress
+     */
+    async deploySolution(
+        connectionId: string,
+        base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
+        options?: {
+            importJobId?: string;
+            publishWorkflows?: boolean;
+            overwriteUnmanagedCustomizations?: boolean;
+            skipProductUpdateDependencies?: boolean;
+            convertToManaged?: boolean;
+        },
+    ): Promise<{ ImportJobId: string }> {
+        const normalizedContent = this.normalizeSolutionContent(base64SolutionContent);
+        const resolvedPublishWorkflows = options?.publishWorkflows ?? false;
+        const resolvedOverwriteCustomizations = options?.overwriteUnmanagedCustomizations ?? false;
+        const parameters: Record<string, unknown> = {
+            CustomizationFile: normalizedContent,
+            PublishWorkflows: resolvedPublishWorkflows,
+            OverwriteUnmanagedCustomizations: resolvedOverwriteCustomizations,
+        };
+
+        // Add optional parameters if provided
+        if (options?.importJobId) {
+            const trimmedJobId = options.importJobId.trim();
+            if (trimmedJobId) {
+                parameters.ImportJobId = trimmedJobId;
+            }
+        }
+        if (options?.skipProductUpdateDependencies !== undefined) {
+            parameters.SkipProductUpdateDependencies = options.skipProductUpdateDependencies;
+        }
+        if (options?.convertToManaged !== undefined) {
+            parameters.ConvertToManaged = options.convertToManaged;
+        }
+
+        const result = await this.execute(connectionId, {
+            operationName: "ImportSolution",
+            operationType: "action",
+            parameters,
+        });
+
+        return result as { ImportJobId: string };
+    }
+
+    /** Normalize solution payload input to a base64 string accepted by Dataverse */
+    private normalizeSolutionContent(content: string | ArrayBuffer | ArrayBufferView): string {
+        if (typeof content === "string") {
+            const trimmed = content.trim();
+            if (!trimmed) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return trimmed;
+        }
+
+        if (ArrayBuffer.isView(content)) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString("base64");
+        }
+
+        if (content instanceof ArrayBuffer) {
+            if (content.byteLength === 0) {
+                throw new Error("base64SolutionContent parameter cannot be empty");
+            }
+            return Buffer.from(content).toString("base64");
+        }
+
+        throw new Error("base64SolutionContent must be a base64 string, ArrayBuffer, or ArrayBufferView");
+    }
+
+    /**
+     * Get the status of a solution import job
+     * @param connectionId - Connection ID to use
+     * @param importJobId - GUID of the import job to track
+     * @returns Promise containing the import job details including progress, status, and error information
+     */
+    async getImportJobStatus(connectionId: string, importJobId: string): Promise<Record<string, unknown>> {
+        if (!importJobId || !importJobId.trim()) {
+            throw new Error("importJobId parameter cannot be empty");
+        }
+
+        return this.retrieve(connectionId, "importjob", importJobId.trim(), ["importjobid", "progress", "completedon", "startedon", "data", "solutionname", "createdon", "modifiedon"]);
+    }
+
     /** Create multiple records in Dataverse */
     async createMultiple(connectionId: string, entityLogicalName: string, records: Record<string, unknown>[]): Promise<string[]> {
         if (!records || records.length === 0) {
@@ -539,7 +906,7 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.CreateMultiple`);
         const response = await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
         const responseData = response.data as Record<string, unknown>;
         return responseData.Ids as string[];
@@ -568,7 +935,79 @@ export class DataverseManager {
 
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
-        const url = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`;
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}/Microsoft.Dynamics.CRM.UpdateMultiple`);
         await this.makeHttpRequest(url, "POST", accessToken, { Targets: records });
+    }
+
+    /**
+     * Associate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityName - Logical name of the related entity
+     * @param relatedEntityId - GUID of the related record
+     */
+    async associate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityName: string, relatedEntityId: string): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityName || !relatedEntityName.trim()) {
+            throw new Error("relatedEntityName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+        const relatedEntitySetName = this.getEntitySetName(relatedEntityName);
+
+        // Build the URL for the association
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}/$ref`);
+
+        // Build the reference to the related record
+        const body = {
+            "@odata.id": this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${relatedEntitySetName}(${relatedEntityId})`),
+        };
+
+        await this.makeHttpRequest(url, "POST", accessToken, body);
+    }
+
+    /**
+     * Disassociate two records in a many-to-many relationship
+     * @param connectionId - Connection ID to use
+     * @param primaryEntityName - Logical name of the primary entity
+     * @param primaryEntityId - GUID of the primary record
+     * @param relationshipName - Logical name of the N-to-N relationship
+     * @param relatedEntityId - GUID of the related record to disassociate
+     */
+    async disassociate(connectionId: string, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string): Promise<void> {
+        if (!primaryEntityName || !primaryEntityName.trim()) {
+            throw new Error("primaryEntityName parameter cannot be empty");
+        }
+        if (!primaryEntityId || !primaryEntityId.trim()) {
+            throw new Error("primaryEntityId parameter cannot be empty");
+        }
+        if (!relationshipName || !relationshipName.trim()) {
+            throw new Error("relationshipName parameter cannot be empty");
+        }
+        if (!relatedEntityId || !relatedEntityId.trim()) {
+            throw new Error("relatedEntityId parameter cannot be empty");
+        }
+
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const primaryEntitySetName = this.getEntitySetName(primaryEntityName);
+
+        // Build the URL for the disassociation
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
     }
 }

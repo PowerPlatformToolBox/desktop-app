@@ -46,11 +46,46 @@ declare namespace DataverseAPI {
     }
 
     /**
+     * Supported inputs for solution deployment payloads
+     */
+    export type SolutionContentInput = string | ArrayBuffer | ArrayBufferView;
+
+    /**
      * Record creation result
      */
     export interface CreateResult {
         id: string;
         [key: string]: unknown;
+    }
+
+    /**
+     * EntityReference for Function parameters
+     * User-friendly format that accepts entity logical name instead of requiring manual entity set name pluralization
+     *
+     * @example
+     * // User-friendly format (recommended)
+     * const target: EntityReference = {
+     *     entityLogicalName: 'account',
+     *     id: 'guid-here'
+     * };
+     *
+     * @example
+     * // Advanced format (also supported)
+     * const target = {
+     *     '@odata.id': 'accounts(guid-here)'
+     * };
+     */
+    export interface EntityReference {
+        /**
+         * Logical name of the entity (e.g., 'account', 'contact', 'systemuser')
+         * Will be automatically converted to entity set name (e.g., 'accounts', 'contacts', 'systemusers')
+         */
+        entityLogicalName: string;
+
+        /**
+         * GUID of the record
+         */
+        id: string;
     }
 
     /**
@@ -79,6 +114,112 @@ declare namespace DataverseAPI {
 
         /**
          * Parameters to pass to the operation
+         *
+         * ## For Functions (GET requests):
+         * Parameters are passed in the URL query string using parameter aliases.
+         *
+         * ### Parameter Types:
+         * - **Primitives**:
+         *   - Strings: Automatically wrapped in single quotes (e.g., 'Pacific Standard Time')
+         *   - Numbers: Passed as-is (e.g., 1033)
+         *   - Booleans: Lowercase true/false
+         *   - null: Passed as null
+         *
+         * - **EntityReference**:
+         *   - Recommended: `{ entityLogicalName: 'account', id: 'guid' }`
+         *   - Advanced: `{ '@odata.id': 'accounts(guid)' }`
+         *
+         * - **Enum values**:
+         *   - Must use Microsoft.Dynamics.CRM prefix format
+         *   - Single value: `"Microsoft.Dynamics.CRM.EntityFilters'Entity'"`
+         *   - Multiple values: `"Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'"`
+         *
+         * - **Complex objects**: Will be JSON serialized (e.g., PagingInfo)
+         * - **Arrays**: Will be JSON serialized
+         *
+         * ## For Actions (POST requests):
+         * All parameters are passed in the request body as JSON.
+         *
+         * @example
+         * // WhoAmI - Unbound function with no parameters
+         * {
+         *   operationName: 'WhoAmI',
+         *   operationType: 'function'
+         *   // No parameters needed
+         * }
+         *
+         * @example
+         * // RetrieveUserQueues - Bound function with boolean parameter
+         * {
+         *   entityName: 'systemuser',
+         *   entityId: 'user-guid-here',
+         *   operationName: 'RetrieveUserQueues',
+         *   operationType: 'function',
+         *   parameters: {
+         *     IncludePublic: true
+         *   }
+         * }
+         *
+         * @example
+         * // CalculateRollupField - Unbound function with EntityReference and string
+         * {
+         *   operationName: 'CalculateRollupField',
+         *   operationType: 'function',
+         *   parameters: {
+         *     Target: { entityLogicalName: 'account', id: 'account-guid-here' },
+         *     FieldName: 'new_totalrevenue'
+         *   }
+         * }
+         *
+         * @example
+         * // GetTimeZoneCodeByLocalizedName - Unbound function with string and number
+         * {
+         *   operationName: 'GetTimeZoneCodeByLocalizedName',
+         *   operationType: 'function',
+         *   parameters: {
+         *     LocalizedStandardName: 'Pacific Standard Time',
+         *     LocaleId: 1033
+         *   }
+         * }
+         *
+         * @example
+         * // RetrieveAllEntities - Unbound function with enum and boolean
+         * {
+         *   operationName: 'RetrieveAllEntities',
+         *   operationType: 'function',
+         *   parameters: {
+         *     EntityFilters: "Microsoft.Dynamics.CRM.EntityFilters'Entity,Attributes,Relationships'",
+         *     RetrieveAsIfPublished: false
+         *   }
+         * }
+         *
+         * @example
+         * // RetrieveAttributeChangeHistory - Unbound function with EntityReference, string, and complex object
+         * {
+         *   operationName: 'RetrieveAttributeChangeHistory',
+         *   operationType: 'function',
+         *   parameters: {
+         *     Target: { entityLogicalName: 'account', id: 'account-guid-here' },
+         *     AttributeLogicalName: 'name',
+         *     PagingInfo: {
+         *       PageNumber: 1,
+         *       Count: 10,
+         *       ReturnTotalRecordCount: true
+         *     }
+         *   }
+         * }
+         *
+         * @example
+         * // ImportSolution - Unbound action with parameters in body
+         * {
+         *   operationName: 'ImportSolution',
+         *   operationType: 'action',
+         *   parameters: {
+         *     CustomizationFile: 'base64-encoded-solution-zip',
+         *     PublishWorkflows: true,
+         *     OverwriteUnmanagedCustomizations: false
+         *   }
+         * }
          */
         parameters?: Record<string, unknown>;
     }
@@ -508,6 +649,206 @@ declare namespace DataverseAPI {
          * console.log(entitySetName); // Output: "opportunities"
          */
         getEntitySetName: (entityLogicalName: string) => Promise<string>;
+
+        /**
+         * Associate two records in a many-to-many relationship
+         *
+         * @param primaryEntityName - Logical name of the primary entity (e.g., 'systemuser', 'team')
+         * @param primaryEntityId - GUID of the primary record
+         * @param relationshipName - Logical name of the N-to-N relationship (e.g., 'systemuserroles_association', 'teammembership_association')
+         * @param relatedEntityName - Logical name of the related entity (e.g., 'role', 'systemuser')
+         * @param relatedEntityId - GUID of the related record
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Assign a security role to a user
+         * await dataverseAPI.associate(
+         *     'systemuser',
+         *     'user-guid-here',
+         *     'systemuserroles_association',
+         *     'role',
+         *     'role-guid-here'
+         * );
+         *
+         * @example
+         * // Add a user to a team
+         * await dataverseAPI.associate(
+         *     'team',
+         *     'team-guid-here',
+         *     'teammembership_association',
+         *     'systemuser',
+         *     'user-guid-here'
+         * );
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.associate(
+         *     'systemuser',
+         *     'user-guid',
+         *     'systemuserroles_association',
+         *     'role',
+         *     'role-guid',
+         *     'secondary'
+         * );
+         */
+        associate: (
+            primaryEntityName: string,
+            primaryEntityId: string,
+            relationshipName: string,
+            relatedEntityName: string,
+            relatedEntityId: string,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
+
+        /**
+         * Disassociate two records in a many-to-many relationship
+         *
+         * @param primaryEntityName - Logical name of the primary entity (e.g., 'systemuser', 'team')
+         * @param primaryEntityId - GUID of the primary record
+         * @param relationshipName - Logical name of the N-to-N relationship (e.g., 'systemuserroles_association', 'teammembership_association')
+         * @param relatedEntityId - GUID of the related record to disassociate
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Remove a security role from a user
+         * await dataverseAPI.disassociate(
+         *     'systemuser',
+         *     'user-guid-here',
+         *     'systemuserroles_association',
+         *     'role-guid-here'
+         * );
+         *
+         * @example
+         * // Remove a user from a team
+         * await dataverseAPI.disassociate(
+         *     'team',
+         *     'team-guid-here',
+         *     'teammembership_association',
+         *     'user-guid-here'
+         * );
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * await dataverseAPI.disassociate(
+         *     'systemuser',
+         *     'user-guid',
+         *     'systemuserroles_association',
+         *     'role-guid',
+         *     'secondary'
+         * );
+         */
+        disassociate: (primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
+         * Deploy (import) a solution to the Dataverse environment
+         *
+         * @param solutionContent - Base64-encoded solution zip string or binary data (Buffer, Uint8Array, ArrayBuffer)
+         * @param options - Optional import settings to customize the deployment
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the ImportJobId for tracking the import progress
+         *
+         * @example
+         * // Read solution file and deploy with default options
+         * const solutionFile = await toolboxAPI.fileSystem.readBinary('/path/to/solution.zip');
+         * const result = await dataverseAPI.deploySolution(solutionFile);
+         * console.log('Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution with custom options
+         * const result = await dataverseAPI.deploySolution(solutionFile, {
+         *     publishWorkflows: true,
+         *     overwriteUnmanagedCustomizations: false,
+         *     skipProductUpdateDependencies: false,
+         *     convertToManaged: false
+         * });
+         * console.log('Solution deployment started. Import Job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Deploy solution using a manually encoded base64 string with specific import job ID
+         * const importJobId = crypto.randomUUID();
+         * const base64Content = btoa(String.fromCharCode(...new Uint8Array(solutionFile)));
+         * const result = await dataverseAPI.deploySolution(base64Content, {
+         *     importJobId: importJobId,
+         *     publishWorkflows: true
+         * });
+         * console.log('Tracking import with job ID:', result.ImportJobId);
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const result = await dataverseAPI.deploySolution(solutionFile, {
+         *     publishWorkflows: true
+         * }, 'secondary');
+         */
+        deploySolution: (
+            solutionContent: SolutionContentInput,
+            options?: {
+                /**
+                 * Optional GUID to track the import job. If not provided, Dataverse generates one.
+                 */
+                importJobId?: string;
+                /**
+                 * Whether to publish workflows after import. Defaults to false when omitted.
+                 */
+                publishWorkflows?: boolean;
+                /**
+                 * Whether to overwrite existing unmanaged customizations. Defaults to false when omitted.
+                 */
+                overwriteUnmanagedCustomizations?: boolean;
+                /**
+                 * Whether to skip dependency checks for product updates. Default is undefined (Dataverse decides).
+                 */
+                skipProductUpdateDependencies?: boolean;
+                /**
+                 * Whether to convert the solution to managed. Default is undefined (Dataverse decides).
+                 */
+                convertToManaged?: boolean;
+            },
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ ImportJobId: string }>;
+
+        /**
+         * Get the status of a solution import job
+         *
+         * @param importJobId - GUID of the import job to track (returned from deploySolution)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing import job details including progress, status, and error information
+         *
+         * @example
+         * // Deploy and track solution import
+         * const deployResult = await dataverseAPI.deploySolution(base64Content);
+         * const importJobId = deployResult.ImportJobId;
+         *
+         * // Poll for status
+         * const status = await dataverseAPI.getImportJobStatus(importJobId);
+         * console.log('Import progress:', status.progress + '%');
+         * console.log('Started:', status.startedon);
+         * console.log('Completed:', status.completedon);
+         * if (status.data) {
+         *     console.log('Import details:', status.data);
+         * }
+         *
+         * @example
+         * // Check import status with polling
+         * async function waitForImport(importJobId: string) {
+         *     while (true) {
+         *         const status = await dataverseAPI.getImportJobStatus(importJobId);
+         *         console.log(`Progress: ${status.progress}%`);
+         *
+         *         if (status.completedon) {
+         *             console.log('Import completed!');
+         *             break;
+         *         }
+         *
+         *         // Wait 2 seconds before checking again
+         *         await new Promise(resolve => setTimeout(resolve, 2000));
+         *     }
+         * }
+         *
+         * @example
+         * // Multi-connection tool using secondary connection
+         * const status = await dataverseAPI.getImportJobStatus(importJobId, 'secondary');
+         */
+        getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
     }
 }
 

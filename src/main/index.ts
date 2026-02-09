@@ -1,7 +1,7 @@
 // Initialize Sentry as early as possible in the main process
 import * as Sentry from "@sentry/electron/main";
 import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, setSentryMachineId } from "../common/sentryHelper";
+import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryInstallId } from "../common/sentryHelper";
 
 const sentryConfig = getSentryConfig();
 if (sentryConfig) {
@@ -10,8 +10,9 @@ if (sentryConfig) {
         environment: sentryConfig.environment,
         release: sentryConfig.release,
         tracesSampleRate: sentryConfig.tracesSampleRate,
-        // Enable Sentry logger for structured logging
-        enableLogs: true,
+        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
+        // In production, we rely on captureException/captureMessage for explicit error reporting
+        enableLogs: sentryConfig.environment === "development",
         // Capture unhandled promise rejections and console errors
         integrations: [
             Sentry.captureConsoleIntegration({
@@ -25,9 +26,9 @@ if (sentryConfig) {
             Sentry.localVariablesIntegration(),
             Sentry.modulesIntegration(),
         ],
-        // Before sending events, add machine ID and additional context
+        // Before sending events, add install ID and additional context
         beforeSend(event) {
-            // Ensure machine ID is in tags
+            // Ensure install ID is in tags
             if (!event.tags) {
                 event.tags = {};
             }
@@ -56,6 +57,10 @@ if (sentryConfig) {
 }
 
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import * as fs from "fs";
+import { createWriteStream } from "fs";
+import * as http from "http";
+import * as https from "https";
 import * as path from "path";
 import {
     CONNECTION_CHANNELS,
@@ -75,8 +80,8 @@ import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { InstallIdManager } from "./managers/installIdManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
-import { MachineIdManager } from "./managers/machineIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -91,7 +96,7 @@ const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation dur
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
-    private machineIdManager: MachineIdManager;
+    private installIdManager: InstallIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
@@ -113,19 +118,19 @@ class ToolBoxApp {
 
         try {
             this.settingsManager = new SettingsManager();
-            this.machineIdManager = new MachineIdManager(this.settingsManager);
+            this.installIdManager = new InstallIdManager(this.settingsManager);
 
-            // Initialize Sentry with machine ID as early as possible
+            // Initialize Sentry with install ID as early as possible
             if (sentryConfig) {
-                const machineId = this.machineIdManager.getMachineId();
-                setSentryMachineId(machineId);
-                logCheckpoint("Sentry machine ID configured", { machineId });
+                const installId = this.installIdManager.getInstallId();
+                setSentryInstallId(installId);
+                logCheckpoint("Sentry install ID configured", { installId });
             }
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials from environment variables or use defaults from constants
-            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.machineIdManager);
+            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
             this.authManager = new AuthManager();
@@ -157,6 +162,19 @@ class ToolBoxApp {
 
         this.toolManager.on("tool:unloaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_UNLOADED, tool);
+        });
+
+        // Listen to tool update events
+        this.toolManager.on("tool:update-started", (toolId) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send(EVENT_CHANNELS.TOOL_UPDATE_STARTED, toolId);
+            }
+        });
+
+        this.toolManager.on("tool:update-completed", (toolId) => {
+            if (this.mainWindow) {
+                this.mainWindow.webContents.send(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, toolId);
+            }
         });
 
         // Forward ALL ToolBox events to renderer process
@@ -271,6 +289,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.IS_TOOL_UPDATING);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNINSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_LOCAL_TOOL);
@@ -369,6 +388,10 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_MULTIPLE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.PUBLISH_CUSTOMIZATIONS);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ENTITY_SET_NAME);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.ASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS);
     }
 
     /**
@@ -492,16 +515,32 @@ class ToolBoxApp {
             }
 
             // Handle token refresh - attempt to refresh expired/expiring token
-            if (tokenState === "needs-refresh" && connection.refreshToken) {
+            if (tokenState === "needs-refresh") {
                 logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
-                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
+
+                    // Use appropriate refresh strategy based on auth type
+                    if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+                        // MSAL silent acquisition for modern interactive connections
+                        authResult = await this.authManager.acquireTokenSilently(connection);
+                    } else if (connection.authenticationType === "clientSecret") {
+                        // ConfidentialClientApplication for client secret (automatic caching)
+                        authResult = await this.authManager.authenticateClientSecret(connection);
+                    } else if (connection.refreshToken) {
+                        // Manual refresh for username/password and legacy interactive
+                        authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    } else {
+                        // No refresh method available, fall through to full authentication
+                        throw new Error("No refresh method available");
+                    }
 
                     // Update the connection with new tokens
                     this.connectionsManager.updateConnectionTokens(id, {
                         accessToken: authResult.accessToken,
                         refreshToken: authResult.refreshToken,
                         expiresOn: authResult.expiresOn,
+                        msalAccountId: authResult.msalAccountId,
                     });
 
                     // Clear notification tracking since token is refreshed
@@ -522,11 +561,11 @@ class ToolBoxApp {
 
             // Authenticate based on the authentication type
             try {
-                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date };
+                let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
 
                 switch (connection.authenticationType) {
                     case "interactive":
-                        authResult = await this.authManager.authenticateInteractive(connection, this.mainWindow || undefined);
+                        authResult = await this.authManager.authenticateInteractive(connection);
                         break;
                     case "clientSecret":
                         authResult = await this.authManager.authenticateClientSecret(connection);
@@ -542,11 +581,12 @@ class ToolBoxApp {
                         throw new Error("Invalid authentication type");
                 }
 
-                // Set the connection with tokens
+                // Set the connection with tokens (msalAccountId will be set for interactive auth)
                 this.connectionsManager.updateConnectionTokens(id, {
                     accessToken: authResult.accessToken,
                     refreshToken: authResult.refreshToken,
                     expiresOn: authResult.expiresOn,
+                    msalAccountId: authResult.msalAccountId,
                 });
 
                 // Clear notification tracking since we have a new active connection
@@ -561,7 +601,7 @@ class ToolBoxApp {
         // Test connection handler
         ipcMain.handle(CONNECTION_CHANNELS.TEST_CONNECTION, async (_, connection) => {
             try {
-                await this.authManager.testConnection(connection, this.mainWindow || undefined);
+                await this.authManager.testConnection(connection);
                 return { success: true };
             } catch (error) {
                 return { success: false, error: (error as Error).message };
@@ -579,11 +619,70 @@ class ToolBoxApp {
                 throw new Error("Connection not found");
             }
 
-            if (!connection.refreshToken) {
-                throw new Error("No refresh token available. Please reconnect.");
-            }
-
             try {
+                // Use MSAL silent acquisition for interactive auth with MSAL account
+                if (connection.authenticationType === "interactive" && connection.msalAccountId) {
+                    const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: tokenResult.accessToken,
+                        refreshToken: connection.refreshToken, // Keep existing refresh token
+                        expiresOn: tokenResult.expiresOn,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For client secret, use MSAL ConfidentialClientApplication (automatic token caching)
+                if (connection.authenticationType === "clientSecret") {
+                    const authResult = await this.authManager.authenticateClientSecret(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: authResult.accessToken,
+                        refreshToken: undefined, // Client credentials don't use refresh tokens
+                        expiresOn: authResult.expiresOn,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For username/password with MSAL account ID, use silent token acquisition
+                if (connection.authenticationType === "usernamePassword" && connection.msalAccountId) {
+                    const tokenResult = await this.authManager.acquireTokenSilently(connection);
+
+                    // Update connection with new token
+                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                        accessToken: tokenResult.accessToken,
+                        refreshToken: undefined, // MSAL handles refresh internally
+                        expiresOn: tokenResult.expiresOn,
+                        msalAccountId: connection.msalAccountId,
+                    });
+
+                    // Clear notification tracking for this connection since token is refreshed
+                    this.notifiedExpiredTokens.clear();
+
+                    this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id: connectionId, tokenRefreshed: true });
+
+                    return { success: true };
+                }
+
+                // For legacy username/password and interactive without MSAL, use manual refresh with refresh token
+                if (!connection.refreshToken) {
+                    throw new Error(`No refresh token available for '${connection.name}'. Please reconnect.`);
+                }
+
                 const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
 
                 // Update the connection with new tokens
@@ -600,11 +699,12 @@ class ToolBoxApp {
 
                 return { success: true };
             } catch (error) {
+                const errorMessage = `Failed to refresh token for connection '${connection.name}': ${(error as Error).message}`;
                 captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "token_refresh" },
+                    tags: { phase: "token_refresh", connectionId, connectionName: connection.name },
                     level: "error",
                 });
-                throw error;
+                throw new Error(errorMessage);
             }
         });
 
@@ -646,6 +746,11 @@ class ToolBoxApp {
         // Update a tool to the latest version
         ipcMain.handle(TOOL_CHANNELS.UPDATE_TOOL, async (_, toolId) => {
             return await this.toolManager.updateTool(toolId);
+        });
+
+        // Check if a tool is currently updating
+        ipcMain.handle(TOOL_CHANNELS.IS_TOOL_UPDATING, (_, toolId) => {
+            return this.toolManager.isToolUpdating(toolId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -856,6 +961,39 @@ class ToolBoxApp {
             }
 
             return theme;
+        });
+
+        // Troubleshooting handlers
+        ipcMain.handle(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY, async () => {
+            return await this.checkSupabaseConnectivity();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_REGISTRY_FILE, async () => {
+            return await this.checkRegistryFile();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_USER_SETTINGS, async () => {
+            return await this.checkUserSettings();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_SETTINGS, async () => {
+            return await this.checkToolSettings();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_CONNECTIONS, async () => {
+            return await this.checkConnections();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_SENTRY_LOGGING, async () => {
+            return await this.checkSentryLogging();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD, async () => {
+            return await this.checkToolDownload();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY, async () => {
+            return await this.checkInternetConnectivity();
         });
 
         // Event history handler
@@ -1257,6 +1395,98 @@ class ToolBoxApp {
                 throw new Error(`Dataverse getEntitySetName failed: ${(error as Error).message}`);
             }
         });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.ASSOCIATE,
+            async (
+                event,
+                primaryEntityName: string,
+                primaryEntityId: string,
+                relationshipName: string,
+                relatedEntityName: string,
+                relatedEntityId: string,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.associate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse associate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DISASSOCIATE,
+            async (event, primaryEntityName: string, primaryEntityId: string, relationshipName: string, relatedEntityId: string, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.disassociate(connectionId, primaryEntityName, primaryEntityId, relationshipName, relatedEntityId);
+                } catch (error) {
+                    throw new Error(`Dataverse disassociate failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.DEPLOY_SOLUTION,
+            async (
+                event,
+                base64SolutionContent: string | ArrayBuffer | ArrayBufferView,
+                options?: {
+                    importJobId?: string;
+                    publishWorkflows?: boolean;
+                    overwriteUnmanagedCustomizations?: boolean;
+                    skipProductUpdateDependencies?: boolean;
+                    convertToManaged?: boolean;
+                },
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.deploySolution(connectionId, base64SolutionContent, options);
+                } catch (error) {
+                    throw new Error(`Dataverse deploySolution failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS, async (event, importJobId: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getImportJobStatus(connectionId, importJobId);
+            } catch (error) {
+                throw new Error(`Dataverse getImportJobStatus failed: ${(error as Error).message}`);
+            }
+        });
     }
     /**
      * Create application menu
@@ -1367,6 +1597,13 @@ class ToolBoxApp {
             {
                 role: "help",
                 submenu: [
+                    {
+                        label: "Troubleshooting",
+                        click: () => {
+                            this.showTroubleshootingModal();
+                        },
+                    },
+                    { type: "separator" },
                     {
                         label: "Learn More",
                         click: async () => {
@@ -1543,25 +1780,6 @@ class ToolBoxApp {
     }
 
     /**
-     * Check for token expiry and notify user
-     * Note: With no global active connection, this method is deprecated
-     * Token expiry checks are now done per-tool when making API calls
-     */
-    private checkTokenExpiry(): void {
-        // No-op: Token expiry is now checked per-connection when tools make API calls
-        // Each tool uses its own connection, so we don't need a global check
-        return;
-    }
-
-    /**
-     * Start periodic token expiry checks
-     */
-    private startTokenExpiryChecks(): void {
-        // No-op: Token expiry checks are now done per-connection when tools make API calls
-        return;
-    }
-
-    /**
      * Stop periodic token expiry checks
      */
     private stopTokenExpiryChecks(): void {
@@ -1636,17 +1854,17 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
-     * Includes machine ID and other important information for Sentry tracing
+     * Includes install ID and other important information for Sentry tracing
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
             const appVersion = app.getVersion();
-            const machineId = this.machineIdManager.getMachineId();
+            const installId = this.installIdManager.getInstallId();
             const locale = app.getLocale();
 
             const message = `Power Platform ToolBox
             Version: ${appVersion}
-            Machine ID: ${machineId}
+            Install ID: ${installId}
 
             Environment:
             Electron: ${process.versions.electron}
@@ -1656,13 +1874,473 @@ class ToolBoxApp {
             System:
             OS: ${process.platform} ${process.arch}
             OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}
-
-            Note: Machine ID is used for telemetry and error tracking in Sentry.`;
+            Locale: ${locale}`;
 
             if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
                 clipboard.writeText(message);
             }
+        }
+    }
+
+    /**
+     * Show Troubleshooting modal
+     * Displays a modal for diagnosing connectivity and configuration issues
+     */
+    private showTroubleshootingModal(): void {
+        if (!this.mainWindow) return;
+
+        // Send message to renderer to open the troubleshooting modal
+        this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    /**
+     * Check Supabase connectivity
+     * Tests if the Supabase API is accessible
+     */
+    private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
+        try {
+            // Use the toolManager to check connectivity by fetching tools
+            const tools = await this.toolManager.fetchAvailableTools();
+            if (tools && Array.isArray(tools)) {
+                logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
+                return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
+            }
+            captureMessage("[Troubleshooting] Supabase returned invalid data", "warning", {
+                extra: { toolsType: typeof tools, toolsValue: tools },
+            });
+            return { success: false, message: "Unable to fetch tools from registry" };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "supabase-connectivity" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
+            };
+        }
+    }
+
+    /**
+     * Check if the local registry file exists and is valid
+     */
+    private async checkRegistryFile(): Promise<{ success: boolean; message?: string; toolCount?: number }> {
+        try {
+            const toolsDirectory = path.join(app.getPath("userData"), "tools");
+
+            if (!fs.existsSync(toolsDirectory)) {
+                captureMessage("[Troubleshooting] Tools directory missing for local registry check", "warning", {
+                    extra: { toolsDirectory },
+                });
+                return {
+                    success: false,
+                    message: "Tools directory not found. Launch a tool at least once to initialize it.",
+                };
+            }
+
+            const manifestPath = path.join(toolsDirectory, "manifest.json");
+            if (!fs.existsSync(manifestPath)) {
+                captureMessage("[Troubleshooting] Local manifest file not found", "warning", {
+                    extra: { manifestPath },
+                });
+                return {
+                    success: false,
+                    message: "Local manifest file not found under tools directory",
+                };
+            }
+
+            const manifestRaw = fs.readFileSync(manifestPath, "utf-8");
+            const manifestJson = JSON.parse(manifestRaw);
+            const tools = Array.isArray(manifestJson?.tools) ? manifestJson.tools : [];
+
+            logInfo(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
+            return {
+                success: true,
+                message: `Local manifest found (${tools.length} recorded tools)`,
+                toolCount: tools.length,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "registry-file" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to read local manifest",
+            };
+        }
+    }
+
+    /**
+     * Check baseline internet connectivity by reaching GitHub
+     */
+    private async checkInternetConnectivity(): Promise<{ success: boolean; message?: string }> {
+        const INTERNET_CHECK_URL = "https://api.github.com/zen";
+
+        try {
+            const response = await fetch(INTERNET_CHECK_URL, {
+                method: "GET",
+                headers: { "User-Agent": "PowerPlatformToolBox" },
+            });
+
+            if (response.ok) {
+                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
+                return {
+                    success: true,
+                    message: "Internet connectivity verified via GitHub",
+                };
+            }
+            captureMessage("[Troubleshooting] Internet connectivity check returned non-OK status", "warning", {
+                extra: {
+                    url: INTERNET_CHECK_URL,
+                    status: response.status,
+                    statusText: response.statusText,
+                },
+            });
+            return {
+                success: false,
+                message: `Internet connectivity check failed: HTTP ${response.status}`,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "internet-connectivity" },
+                extra: {
+                    url: INTERNET_CHECK_URL,
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Network error during internet connectivity check",
+            };
+        }
+    }
+
+    /**
+     * Check tool download capability
+     * Tests downloading a sample tool from GitHub releases
+     */
+    private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
+        const TEST_TOOL_DOWNLOAD_URL = "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
+        const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
+        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-1.0.9.tar.gz");
+
+        try {
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            logInfo(`[Troubleshooting] Testing download from GitHub release: ${TEST_TOOL_DOWNLOAD_URL}`);
+
+            await new Promise<void>((resolve, reject) => {
+                const download = (url: string, redirectDepth = 0) => {
+                    const protocol = url.startsWith("https") ? https : http;
+                    const request = protocol.get(url, (res) => {
+                        if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
+                            if (redirectDepth > 5) {
+                                reject(new Error("Too many redirects while downloading test tool"));
+                                return;
+                            }
+                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                            download(res.headers.location, redirectDepth + 1);
+                            return;
+                        }
+
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`Download failed: HTTP ${res.statusCode}`));
+                            return;
+                        }
+
+                        const fileStream = createWriteStream(downloadPath);
+                        res.pipe(fileStream);
+
+                        fileStream.on("finish", () => {
+                            fileStream.close();
+                            resolve();
+                        });
+
+                        fileStream.on("error", (err) => {
+                            if (fs.existsSync(downloadPath)) {
+                                fs.unlinkSync(downloadPath);
+                            }
+                            reject(err);
+                        });
+                    });
+
+                    request.on("error", (err) => {
+                        reject(new Error(`Network error: ${err.message}`));
+                    });
+
+                    request.setTimeout(30000, () => {
+                        request.destroy();
+                        reject(new Error("Download timeout after 30 seconds"));
+                    });
+                };
+
+                download(TEST_TOOL_DOWNLOAD_URL);
+            });
+
+            const stats = fs.statSync(downloadPath);
+            const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+
+            fs.unlinkSync(downloadPath);
+            fs.rmSync(tempDir, { recursive: true, force: true });
+
+            return {
+                success: true,
+                message: `Successfully downloaded GitHub release asset (${fileSizeMB} MB)`,
+            };
+        } catch (error) {
+            try {
+                if (fs.existsSync(tempDir)) {
+                    fs.rmSync(tempDir, { recursive: true, force: true });
+                }
+            } catch (cleanupError) {
+                captureMessage("[Troubleshooting] Failed to clean up download test artifacts", "warning", {
+                    extra: { cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) },
+                });
+            }
+
+            captureException(error as Error, {
+                tags: { check: "tool-download" },
+                extra: {
+                    downloadUrl: TEST_TOOL_DOWNLOAD_URL,
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unknown error during download test",
+            };
+        }
+    }
+
+    /**
+     * Check user settings file
+     * Verifies that user settings can be loaded and are valid
+     */
+    private async checkUserSettings(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const settings = this.settingsManager.getUserSettings();
+            if (!settings) {
+                captureMessage("[Troubleshooting] User settings returned null or undefined", "error", {
+                    extra: { settingsValue: settings },
+                });
+                return {
+                    success: false,
+                    message: "User settings file could not be loaded",
+                };
+            }
+
+            // Verify essential settings exist
+            const hasTheme = settings.theme !== undefined;
+            const hasAutoUpdate = settings.autoUpdate !== undefined;
+
+            if (!hasTheme || !hasAutoUpdate) {
+                const missingFields = [];
+                if (!hasTheme) missingFields.push("theme");
+                if (!hasAutoUpdate) missingFields.push("autoUpdate");
+
+                captureMessage("[Troubleshooting] User settings missing required fields", "warning", {
+                    extra: {
+                        missingFields,
+                        settingsKeys: Object.keys(settings),
+                    },
+                });
+
+                return {
+                    success: false,
+                    message: `User settings missing required fields: ${missingFields.join(", ")}`,
+                };
+            }
+
+            logInfo(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
+            return {
+                success: true,
+                message: `User settings loaded successfully (${Object.keys(settings).length} properties)`,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "user-settings" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to load user settings",
+            };
+        }
+    }
+
+    /**
+     * Check tool settings storage
+     * Verifies that tool settings can be accessed
+     */
+    private async checkToolSettings(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const installedTools = this.toolManager.getAllTools();
+            let toolSettingsCount = 0;
+
+            // Try to read settings for each installed tool
+            for (const tool of installedTools) {
+                try {
+                    const toolSettings = this.settingsManager.getToolSettings(tool.id);
+                    if (toolSettings && Object.keys(toolSettings).length > 0) {
+                        toolSettingsCount++;
+                    }
+                } catch (toolError) {
+                    // Log individual tool setting errors but don't fail the check
+                    logInfo(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
+                }
+            }
+
+            logInfo(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
+            return {
+                success: true,
+                message: `Tool settings accessible (${toolSettingsCount} configured out of ${installedTools.length} loaded tools)`,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "tool-settings" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to access tool settings",
+            };
+        }
+    }
+
+    /**
+     * Check connections storage
+     * Verifies that connections can be loaded and are valid
+     */
+    private async checkConnections(): Promise<{ success: boolean; message?: string; connectionCount?: number }> {
+        try {
+            const connections = this.connectionsManager.getConnections();
+
+            if (!Array.isArray(connections)) {
+                captureMessage("[Troubleshooting] Connections is not an array", "error", {
+                    extra: {
+                        connectionsType: typeof connections,
+                        connectionsValue: connections,
+                    },
+                });
+                return {
+                    success: false,
+                    message: "Connections data is corrupted (not an array)",
+                };
+            }
+
+            // Verify connections have required fields
+            let validConnections = 0;
+            const invalidConnections = [];
+
+            for (const conn of connections) {
+                if (conn.id && conn.name && conn.url) {
+                    validConnections++;
+                } else {
+                    invalidConnections.push({
+                        id: conn.id || "missing",
+                        name: conn.name || "missing",
+                        hasUrl: !!conn.url,
+                    });
+                }
+            }
+
+            if (invalidConnections.length > 0) {
+                captureMessage("[Troubleshooting] Some connections have invalid structure", "warning", {
+                    extra: {
+                        totalConnections: connections.length,
+                        validConnections,
+                        invalidConnections,
+                    },
+                });
+            }
+
+            logInfo(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
+            return {
+                success: true,
+                message: `Connections loaded successfully (${validConnections} valid out of ${connections.length} total)`,
+                connectionCount: validConnections,
+            };
+        } catch (error) {
+            captureException(error as Error, {
+                tags: { check: "connections" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to load connections",
+            };
+        }
+    }
+
+    /**
+     * Check Sentry logging functionality
+     * Tests if Sentry is configured and can send events
+     */
+    private async checkSentryLogging(): Promise<{ success: boolean; message?: string }> {
+        try {
+            const sentryConfig = getSentryConfig();
+
+            if (!sentryConfig || !sentryConfig.dsn) {
+                logInfo("[Troubleshooting] Sentry is not configured (DSN missing)");
+                return {
+                    success: true,
+                    message: "Sentry telemetry disabled (no DSN configured)",
+                };
+            }
+
+            // Test Sentry by sending a test message
+            const testMessage = `[Troubleshooting] Sentry connectivity test at ${new Date().toISOString()}`;
+            captureMessage(testMessage, "warning", {
+                tags: {
+                    check: "sentry-logging",
+                    testEvent: "true",
+                },
+                extra: {
+                    installId: this.installIdManager.getInstallId(),
+                    appVersion: app.getVersion(),
+                    platform: process.platform,
+                    arch: process.arch,
+                },
+            });
+
+            logInfo("[Troubleshooting] Sentry test message sent successfully");
+            return {
+                success: true,
+                message: `Sentry configured and test event sent (DSN: ${sentryConfig.dsn.substring(0, 20)}...)`,
+            };
+        } catch (error) {
+            // Even if this fails, we want to capture it to Sentry
+            captureException(error as Error, {
+                tags: { check: "sentry-logging" },
+                extra: {
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                    errorStack: error instanceof Error ? error.stack : undefined,
+                },
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to test Sentry logging",
+            };
         }
     }
 
@@ -1717,9 +2395,10 @@ class ToolBoxApp {
                 addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
             }
 
-            // Start token expiry checks
-            this.startTokenExpiryChecks();
-            addBreadcrumb("Token expiry checks started", "auth", "info");
+            // Clear any msal caches on startup
+            await this.authManager.cleanup();
+            this.connectionsManager.clearAllConnectionTokens();
+            addBreadcrumb("Cleared MSAL caches and connection tokens", "auth", "info");
 
             app.on("activate", () => {
                 if (BrowserWindow.getAllWindows().length === 0) {
@@ -1741,6 +2420,10 @@ class ToolBoxApp {
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
                 this.stopTokenExpiryChecks();
+                // Clean up MSAL instances
+                this.authManager.cleanup();
+                // Clean up connection tokens
+                this.connectionsManager.clearAllConnectionTokens();
                 addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 

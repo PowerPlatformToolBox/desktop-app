@@ -60,7 +60,7 @@
 body.dark-theme {
     --text-color: #{$dark-text-color};
     --text-primary: #{$dark-text-color};
-    --text-secondary: #a19f9d;
+    --text-secondary: #c8c6c4;
     --bg-color: #{$dark-bg-color};
     --card-background: #2d2d30;
     --input-background: #1e1e1e;
@@ -69,6 +69,8 @@ body.dark-theme {
     --secondary-color: #{$dark-secondary-color};
     --favorite-star-color: #{$favorite-star-color-dark};
     --surface-glass: var(--surface-glass-dark);
+    --accent-color: #c399f1; /* Power Platform purple */
+    --accent-color-alt: #00b4d8;
     /* Environment border colors - Dark theme */
     --env-border-dev: #{$env-border-dev-dark};
     --env-border-test: #{$env-border-test-dark};
@@ -527,12 +529,17 @@ body {
 .settings-field-header .setting-hint {
     display: block;
 }
+.font-help-link {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
 
 .settings-field-header .setting-checkbox-group {
     margin-top: 0;
 }
 
 .settings-inline-hint {
+    color: var(--text-secondary);
     display: block;
 }
 
@@ -991,7 +998,7 @@ body.dark-theme .settings-section-card {
 .connection-status,
 .secondary-connection-status {
     font-size: 12px;
-    color: #605e5c;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1022,7 +1029,7 @@ body.dark-theme .settings-section-card {
 .connection-status::before,
 .secondary-connection-status::before {
     content: "○";
-    color: #8a8886;
+    color: var(--text-secondary);
 }
 
 .connection-status.connected {
@@ -1045,35 +1052,39 @@ body.dark-theme .settings-section-card {
 
 /* Environment-specific colors for primary connection */
 .connection-status.connected.env-dev {
-    color: var(--env-border-dev);
+    color: var(--env-badge-dev);
+    background-color: var(--env-badge-dev-bg);
 }
 
 .connection-status.connected.env-dev::before {
-    color: var(--env-border-dev);
+    color: var(--env-badge-dev);
 }
 
 .connection-status.connected.env-test {
-    color: var(--env-border-test);
+    color: var(--env-badge-test);
+    background-color: var(--env-badge-test-bg);
 }
 
 .connection-status.connected.env-test::before {
-    color: var(--env-border-test);
+    color: var(--env-badge-test);
 }
 
 .connection-status.connected.env-uat {
-    color: var(--env-border-uat);
+    color: var(--env-badge-uat);
+    background-color: var(--env-badge-uat-bg);
 }
 
 .connection-status.connected.env-uat::before {
-    color: var(--env-border-uat);
+    color: var(--env-badge-uat);
 }
 
 .connection-status.connected.env-production {
-    color: var(--env-border-prod);
+    color: var(--env-badge-prod);
+    background-color: var(--env-badge-prod-bg);
 }
 
 .connection-status.connected.env-production::before {
-    color: var(--env-border-prod);
+    color: var(--env-badge-prod);
 }
 
 .secondary-connection-status.connected {
@@ -1096,35 +1107,39 @@ body.dark-theme .settings-section-card {
 
 /* Environment-specific colors for secondary connection */
 .secondary-connection-status.connected.env-dev {
-    color: var(--env-border-dev);
+    color: var(--env-badge-dev);
+    background-color: var(--env-badge-dev-bg);
 }
 
 .secondary-connection-status.connected.env-dev::before {
-    color: var(--env-border-dev);
+    color: var(--env-badge-dev);
 }
 
 .secondary-connection-status.connected.env-test {
-    color: var(--env-border-test);
+    color: var(--env-badge-test);
+    background-color: var(--env-badge-test-bg);
 }
 
 .secondary-connection-status.connected.env-test::before {
-    color: var(--env-border-test);
+    color: var(--env-badge-test);
 }
 
 .secondary-connection-status.connected.env-uat {
-    color: var(--env-border-uat);
+    color: var(--env-badge-uat);
+    background-color: var(--env-badge-uat-bg);
 }
 
 .secondary-connection-status.connected.env-uat::before {
-    color: var(--env-border-uat);
+    color: var(--env-badge-uat);
 }
 
 .secondary-connection-status.connected.env-production {
-    color: var(--env-border-prod);
+    color: var(--env-badge-prod);
+    background-color: var(--env-badge-prod-bg);
 }
 
 .secondary-connection-status.connected.env-production::before {
-    color: var(--env-border-prod);
+    color: var(--env-badge-prod);
 }
 
 /* Not connected state for secondary connection */
@@ -1324,6 +1339,7 @@ body.dark-theme .settings-section-card {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 14px;
+    color: var(--text-primary);
 }
 
 .modal-footer {
@@ -2057,7 +2073,7 @@ body.dark-theme .search-filter-btn.active img {
 
 .tool-item-description-pptb {
     font-size: 12px;
-    color: #8a8886;
+    color: var(--text-primary);
     margin-bottom: 6px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -2156,6 +2172,48 @@ body.dark-theme .search-filter-btn.active img {
     background: rgba(216, 59, 1, 0.1);
 }
 
+/* Tool updating state */
+.tool-item-pptb.tool-item-updating {
+    position: relative;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.tool-item-updating-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    z-index: 10;
+}
+
+.dark-theme .tool-item-updating-overlay {
+    background: rgba(32, 32, 32, 0.95);
+}
+
+.tool-item-updating-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 120, 212, 0.1);
+    border-top-color: #0078d4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.tool-item-updating-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
 @keyframes pulse {
     0%,
     100% {
@@ -2200,6 +2258,7 @@ body.dark-theme .search-filter-btn.active img {
 .marketplace-item-compact .marketplace-item-description-pptb,
 .marketplace-item-compact .marketplace-item-footer-pptb,
 .marketplace-item-compact .marketplace-item-top-tags {
+    color: var(--text-primary);
     display: none !important;
 }
 
@@ -2371,14 +2430,14 @@ body.light-theme .install-button:focus-visible img {
 
 .marketplace-item-author-pptb {
     font-size: 11px;
-    color: #8a8886;
+    color: var(--text-secondary);
     margin-bottom: 6px;
 }
 
 .marketplace-item-description-pptb {
     font-size: 12px;
-    color: #605e5c;
     margin-bottom: 8px;
+    color: var(--text-secondary);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2; /* Standard property for future compatibility */
@@ -3882,6 +3941,10 @@ fluent-badge {
     margin-left: auto;
     padding: 4px 10px;
     min-width: auto;
+}
+
+#footer-toggle-terminal-btn[hidden] {
+    display: none !important;
 }
 
 #footer-toggle-terminal-btn svg {

@@ -15,10 +15,10 @@
 
 **NEVER use console.log, console.warn, or console.error in production code.** Instead, use appropriate Sentry methods for telemetry and error tracking:
 
--   **For informational logs**: Use `Sentry.captureMessage(message, 'info')` or appropriate logging mechanism
--   **For warnings**: Use `Sentry.captureMessage(message, 'warning')`
--   **For errors**: Use `Sentry.captureException(error)` to capture full error context with stack traces
--   **For debug information**: Only use console methods during development with clear comments indicating they should be removed
+- **For informational logs**: Use `Sentry.captureMessage(message, 'info')` or appropriate logging mechanism
+- **For warnings**: Use `Sentry.captureMessage(message, 'warning')`
+- **For errors**: Use `Sentry.captureException(error)` to capture full error context with stack traces
+- **For debug information**: Only use console methods during development with clear comments indicating they should be removed
 
 **Example - BAD:**
 
@@ -42,20 +42,19 @@ Sentry.captureException(new Error("Failed to load tool"), {
 
 **ALWAYS format code according to project standards before committing:**
 
--   **Prettier Configuration** (`.prettierrc.json`):
+- **Prettier Configuration** (`.prettierrc.json`):
+    - **printWidth**: 200 characters (long lines are OK)
+    - **tabWidth**: 4 spaces (NOT 2)
+    - **singleQuote**: false (use double quotes)
+    - **semi**: true (always use semicolons)
+    - **trailingComma**: "all" (add trailing commas)
+    - **endOfLine**: "auto" (cross-platform compatibility)
 
-    -   **printWidth**: 200 characters (long lines are OK)
-    -   **tabWidth**: 4 spaces (NOT 2)
-    -   **singleQuote**: false (use double quotes)
-    -   **semi**: true (always use semicolons)
-    -   **trailingComma**: "all" (add trailing commas)
-    -   **endOfLine**: "auto" (cross-platform compatibility)
-
--   **ESLint Configuration** (`.eslintrc.js`):
-    -   Parser: `@typescript-eslint/parser`
-    -   Strict TypeScript rules enabled
-    -   **`@typescript-eslint/no-explicit-any`**: "warn" (warnings OK, but avoid when possible)
-    -   Target: ES2020, Node.js environment
+- **ESLint Configuration** (`.eslintrc.js`):
+    - Parser: `@typescript-eslint/parser`
+    - Strict TypeScript rules enabled
+    - **`@typescript-eslint/no-explicit-any`**: "warn" (warnings OK, but avoid when possible)
+    - Target: ES2020, Node.js environment
 
 **Before any commit or code generation:**
 
@@ -95,11 +94,11 @@ async function loadUserData(): Promise<UserSettings> {
 
 ### Prerequisites
 
--   Node.js 18 or higher (currently tested with v20.19.5)
--   pnpm 10.18.3 or higher (package manager - REQUIRED)
--   **Supabase credentials** (required for tool registry):
-    -   `SUPABASE_URL` - Your Supabase project URL
-    -   `SUPABASE_ANON_KEY` - Your Supabase anonymous key
+- Node.js 18 or higher (currently tested with v20.19.5)
+- pnpm 10.18.3 or higher (package manager - REQUIRED)
+- **Supabase credentials** (required for tool registry):
+    - `SUPABASE_URL` - Your Supabase project URL
+    - `SUPABASE_ANON_KEY` - Your Supabase anonymous key
 
 ### Environment Variables
 
@@ -125,15 +124,15 @@ pnpm run build       # Build the application using Vite (~2-5s)
 
 ### Available Commands
 
--   **`pnpm install`** - Install all dependencies. Takes ~40s on first install. ALWAYS run after cloning or pulling package changes.
--   **`pnpm run typecheck`** - Run TypeScript compiler in check mode for both main and renderer processes. No output files generated.
--   **`pnpm run build`** - Complete production build. Runs typecheck + Vite build for main, preload, and renderer processes. Takes 2-5 seconds.
--   **`pnpm run build:debug`** - Development build with source maps enabled for debugging.
--   **`pnpm run lint`** - Run ESLint on all TypeScript files. Must complete with 0 errors (warnings acceptable).
--   **`pnpm run watch`** - Watch mode for Vite build. Useful for development with auto-rebuild on file changes.
--   **`pnpm run dev`** - Development mode with Vite dev server. Requires display/GUI environment.
--   **`pnpm start`** - Start the built application with Electron (requires prior `pnpm run build`).
--   **`pnpm run package`** - Build and create distributable packages (Windows NSIS, macOS DMG/ZIP, Linux AppImage).
+- **`pnpm install`** - Install all dependencies. Takes ~40s on first install. ALWAYS run after cloning or pulling package changes.
+- **`pnpm run typecheck`** - Run TypeScript compiler in check mode for both main and renderer processes. No output files generated.
+- **`pnpm run build`** - Complete production build. Runs typecheck + Vite build for main, preload, and renderer processes. Takes 2-5 seconds.
+- **`pnpm run build:debug`** - Development build with source maps enabled for debugging.
+- **`pnpm run lint`** - Run ESLint on all TypeScript files. Must complete with 0 errors (warnings acceptable).
+- **`pnpm run watch`** - Watch mode for Vite build. Useful for development with auto-rebuild on file changes.
+- **`pnpm run dev`** - Development mode with Vite dev server. Requires display/GUI environment.
+- **`pnpm start`** - Start the built application with Electron (requires prior `pnpm run build`).
+- **`pnpm run package`** - Build and create distributable packages (Windows NSIS, macOS DMG/ZIP, Linux AppImage).
 
 ### Build Process Details
 
@@ -155,10 +154,10 @@ The build process uses **Vite** (not Webpack) and consists of multiple parallel 
 
 **Important Build Notes:**
 
--   Output directory: `dist/` (gitignored)
--   Production builds exclude source maps
--   Development builds (`build:debug`) include source maps
--   All preload scripts use context isolation and expose limited APIs via `contextBridge`
+- Output directory: `dist/` (gitignored)
+- Production builds exclude source maps
+- Development builds (`build:debug`) include source maps
+- All preload scripts use context isolation and expose limited APIs via `contextBridge`
 
 ## Project Structure
 
@@ -223,7 +222,7 @@ src/
 │   │   ├── terminalManager.ts           # Integrated terminal management
 │   │   ├── dataverseManager.ts          # Dataverse API operations
 │   │   ├── encryptionManager.ts         # Sensitive data encryption
-│   │   ├── machineIdManager.ts          # Machine identity management
+│   │   ├── installIdManager.ts          # Install identity management
 │   │   ├── modalWindowManager.ts        # Modal dialog management
 │   │   ├── notificationWindowManager.ts # Notification system
 │   │   ├── loadingOverlayWindowManager.ts # Loading overlay management
@@ -283,64 +282,62 @@ src/
 
 ### Additional Directories
 
--   **`packages/`** - Separate npm package with TypeScript types for tool developers (`pptoolbox-types`)
--   **`assets/`** - Application assets (logo, etc.)
--   **`icons/`** - Platform-specific app icons (`.ico`, `.icns`)
--   **`buildScripts/`** - Build and packaging scripts
--   **`.github/ISSUE_TEMPLATE/`** - GitHub issue templates
--   **`.vscode/`** - VS Code tasks and launch configurations
+- **`packages/`** - Separate npm package with TypeScript types for tool developers (`pptoolbox-types`)
+- **`assets/`** - Application assets (logo, etc.)
+- **`icons/`** - Platform-specific app icons (`.ico`, `.icns`)
+- **`buildScripts/`** - Build and packaging scripts
+- **`.github/ISSUE_TEMPLATE/`** - GitHub issue templates
+- **`.vscode/`** - VS Code tasks and launch configurations
 
 ### Build Outputs (Gitignored)
 
--   **`dist/`** - Compiled JavaScript and bundled assets
-    -   `dist/main/` - Main process bundle
-    -   `dist/renderer/` - Renderer process bundle
--   **`build/`** - electron-builder packaging output (installers/DMGs)
--   **`node_modules/`** - Dependencies
+- **`dist/`** - Compiled JavaScript and bundled assets
+    - `dist/main/` - Main process bundle
+    - `dist/renderer/` - Renderer process bundle
+- **`build/`** - electron-builder packaging output (installers/DMGs)
+- **`node_modules/`** - Dependencies
 
 ## Configuration Files
 
 ### TypeScript Configuration
 
--   **`tsconfig.json`** - Main/API/Types compilation
+- **`tsconfig.json`** - Main/API/Types compilation
+    - Target: ES2022
+    - Module: Node16
+    - Strict mode enabled
+    - Outputs to `dist/`
+    - Excludes renderer files
 
-    -   Target: ES2022
-    -   Module: Node16
-    -   Strict mode enabled
-    -   Outputs to `dist/`
-    -   Excludes renderer files
-
--   **`tsconfig.renderer.json`** - Renderer compilation
-    -   Extends main tsconfig
-    -   Includes DOM types
-    -   Module: ES2022
-    -   ModuleResolution: bundler
-    -   Only includes `src/renderer/`
+- **`tsconfig.renderer.json`** - Renderer compilation
+    - Extends main tsconfig
+    - Includes DOM types
+    - Module: ES2022
+    - ModuleResolution: bundler
+    - Only includes `src/renderer/`
 
 ### Linting & Formatting
 
--   **`.eslintrc.js`**
+- **`.eslintrc.js`**
+    - Parser: @typescript-eslint/parser
+    - Rules: ESLint recommended + TypeScript recommended
+    - `@typescript-eslint/no-explicit-any`: "warn" (not "error")
+    - Environment: Node.js, ES2020
 
-    -   Parser: @typescript-eslint/parser
-    -   Rules: ESLint recommended + TypeScript recommended
-    -   `@typescript-eslint/no-explicit-any`: "warn" (not "error")
-    -   Environment: Node.js, ES2020
-
--   **`.prettierrc.json`**
-    -   printWidth: 200
-    -   tabWidth: 4
-    -   singleQuote: false
-    -   semi: true
-    -   trailingComma: "all"
+- **`.prettierrc.json`**
+    - printWidth: 200
+    - tabWidth: 4
+    - singleQuote: false
+    - semi: true
+    - trailingComma: "all"
 
 ### Electron Builder Configuration
 
 Defined in `package.json` under `"build"`:
 
--   **appId**: `com.powerplatform.toolbox`
--   **Publish**: GitHub releases (owner: PowerPlatformToolBox)
--   **Output**: `build/` directory
--   **Targets**: Windows NSIS, macOS DMG, Linux AppImage
+- **appId**: `com.powerplatform.toolbox`
+- **Publish**: GitHub releases (owner: PowerPlatformToolBox)
+- **Output**: `build/` directory
+- **Targets**: Windows NSIS, macOS DMG, Linux AppImage
 
 ## Electron Architecture Key Points
 
@@ -350,37 +347,37 @@ This application follows the **standard Electron multi-process architecture** wi
 
 #### 1. Main Process (`src/main/`)
 
--   **Runtime**: Node.js (full access to system APIs)
--   **Responsibilities**:
-    -   Create and manage BrowserWindow instances
-    -   Handle IPC communication from renderer processes
-    -   Coordinate all manager instances (settings, tools, auth, connections, etc.)
-    -   Manage tool host processes (separate Node.js child processes)
-    -   Perform file system operations
-    -   Handle system-level operations (clipboard, dialogs, etc.)
--   **Entry Point**: `src/main/index.ts` - Contains the `ToolBoxApp` class
+- **Runtime**: Node.js (full access to system APIs)
+- **Responsibilities**:
+    - Create and manage BrowserWindow instances
+    - Handle IPC communication from renderer processes
+    - Coordinate all manager instances (settings, tools, auth, connections, etc.)
+    - Manage tool host processes (separate Node.js child processes)
+    - Perform file system operations
+    - Handle system-level operations (clipboard, dialogs, etc.)
+- **Entry Point**: `src/main/index.ts` - Contains the `ToolBoxApp` class
 
 #### 2. Renderer Process (`src/renderer/`)
 
--   **Runtime**: Chromium (web APIs only, NO direct Node.js access)
--   **Responsibilities**:
-    -   Display UI using HTML/CSS/JavaScript
-    -   Handle user interactions
-    -   Communicate with main process via IPC through preload bridge
-    -   Show modals for tool installation, connections, settings
--   **Entry Point**: `src/renderer/index.html` + `src/renderer/renderer.ts`
--   **Context Isolation**: Enabled (renderer has no access to Electron or Node.js APIs directly)
+- **Runtime**: Chromium (web APIs only, NO direct Node.js access)
+- **Responsibilities**:
+    - Display UI using HTML/CSS/JavaScript
+    - Handle user interactions
+    - Communicate with main process via IPC through preload bridge
+    - Show modals for tool installation, connections, settings
+- **Entry Point**: `src/renderer/index.html` + `src/renderer/renderer.ts`
+- **Context Isolation**: Enabled (renderer has no access to Electron or Node.js APIs directly)
 
 #### 3. Preload Scripts (`src/main/*.preload.ts`)
 
--   **Runtime**: Node.js context with Chromium access
--   **Purpose**: Secure bridge between main and renderer processes
--   **Types**:
-    -   `preload.ts` - Main application window (exposes `toolboxAPI`)
-    -   `toolPreloadBridge.ts` - Tool windows (exposes `toolboxAPI` + `dataverseAPI`)
-    -   `notificationPreload.ts` - Notification windows
-    -   `modalPreload.ts` - Modal windows
--   **Security**: Uses `contextBridge.exposeInMainWorld()` to expose limited, validated APIs
+- **Runtime**: Node.js context with Chromium access
+- **Purpose**: Secure bridge between main and renderer processes
+- **Types**:
+    - `preload.ts` - Main application window (exposes `toolboxAPI`)
+    - `toolPreloadBridge.ts` - Tool windows (exposes `toolboxAPI` + `dataverseAPI`)
+    - `notificationPreload.ts` - Notification windows
+    - `modalPreload.ts` - Modal windows
+- **Security**: Uses `contextBridge.exposeInMainWorld()` to expose limited, validated APIs
 
 ### IPC Communication Pattern
 
@@ -415,11 +412,11 @@ const tool = await window.toolboxAPI.getTool("example-tool");
 
 ### Security Model
 
--   **Process Isolation**: Each tool runs in a separate Node.js child process, completely isolated from the main application
--   **Context Isolation**: Renderer processes cannot access Electron or Node.js APIs directly
--   **Limited API Surface**: Tools only access the controlled `pptoolbox` API via their preload bridge
--   **IPC Validation**: All IPC messages are validated and typed
--   **CSP (Content Security Policy)**: Tools must declare CSP exceptions in their manifest
+- **Process Isolation**: Each tool runs in a separate Node.js child process, completely isolated from the main application
+- **Context Isolation**: Renderer processes cannot access Electron or Node.js APIs directly
+- **Limited API Surface**: Tools only access the controlled `pptoolbox` API via their preload bridge
+- **IPC Validation**: All IPC messages are validated and typed
+- **CSP (Content Security Policy)**: Tools must declare CSP exceptions in their manifest
 
 ### Tool Host System (VS Code Extension Host Pattern)
 
@@ -436,28 +433,28 @@ Tools are isolated plugins similar to VS Code extensions:
 
 **Tool API Surface** (`toolPreloadBridge.ts`):
 
--   `toolboxAPI`: Core app features (settings, events, connections, terminal, etc.)
--   `dataverseAPI`: Dataverse-specific operations (queries, metadata, etc.)
+- `toolboxAPI`: Core app features (settings, events, connections, terminal, etc.)
+- `dataverseAPI`: Dataverse-specific operations (queries, metadata, etc.)
 
 ### Manager Architecture
 
 Managers encapsulate business logic and are instantiated in the main process:
 
--   **SettingsManager**: electron-store wrapper for user preferences
--   **ConnectionsManager**: Dataverse connection lifecycle with encryption
--   **ToolsManager**: Tool discovery, installation, and lifecycle
--   **ToolRegistryManager**: Supabase integration for tool marketplace
--   **ToolWindowManager**: BrowserView-based tool window management
--   **AuthManager**: OAuth flows using @azure/msal-node
--   **AutoUpdateManager**: electron-updater integration for auto-updates
--   **TerminalManager**: Integrated terminal with pty support
--   **DataverseManager**: Dataverse Web API operations
--   **EncryptionManager**: Sensitive data encryption (tokens, secrets)
--   **MachineIdManager**: Unique machine identification
--   **ModalWindowManager**: Modal dialog orchestration
--   **NotificationWindowManager**: Toast notification system
--   **LoadingOverlayWindowManager**: Loading state overlays
--   **BrowserviewProtocolManager**: Custom protocol handler for tool assets
+- **SettingsManager**: electron-store wrapper for user preferences
+- **ConnectionsManager**: Dataverse connection lifecycle with encryption
+- **ToolsManager**: Tool discovery, installation, and lifecycle
+- **ToolRegistryManager**: Supabase integration for tool marketplace
+- **ToolWindowManager**: BrowserView-based tool window management
+- **AuthManager**: OAuth flows using @azure/msal-node
+- **AutoUpdateManager**: electron-updater integration for auto-updates
+- **TerminalManager**: Integrated terminal with pty support
+- **DataverseManager**: Dataverse Web API operations
+- **EncryptionManager**: Sensitive data encryption (tokens, secrets)
+- **InstallIdManager**: Unique installation identification
+- **ModalWindowManager**: Modal dialog orchestration
+- **NotificationWindowManager**: Toast notification system
+- **LoadingOverlayWindowManager**: Loading state overlays
+- **BrowserviewProtocolManager**: Custom protocol handler for tool assets
 
 Each manager is a singleton instance owned by the `ToolBoxApp` class.
 
@@ -467,53 +464,51 @@ Each manager is a singleton instance owned by the `ToolBoxApp` class.
 
 ### TypeScript Configuration
 
--   **`tsconfig.json`** - Main/API/Types compilation
+- **`tsconfig.json`** - Main/API/Types compilation
+    - Target: ES2022
+    - Module: Node16
+    - Strict mode enabled
+    - Outputs to `dist/`
+    - Excludes renderer files
 
-    -   Target: ES2022
-    -   Module: Node16
-    -   Strict mode enabled
-    -   Outputs to `dist/`
-    -   Excludes renderer files
-
--   **`tsconfig.renderer.json`** - Renderer compilation
-    -   Extends main tsconfig
-    -   Includes DOM types
-    -   Module: ES2022
-    -   ModuleResolution: bundler
-    -   Only includes `src/renderer/`
+- **`tsconfig.renderer.json`** - Renderer compilation
+    - Extends main tsconfig
+    - Includes DOM types
+    - Module: ES2022
+    - ModuleResolution: bundler
+    - Only includes `src/renderer/`
 
 ### Linting & Formatting
 
--   **`.eslintrc.js`**
+- **`.eslintrc.js`**
+    - Parser: @typescript-eslint/parser
+    - Rules: ESLint recommended + TypeScript recommended
+    - `@typescript-eslint/no-explicit-any`: "warn" (not "error")
+    - Environment: Node.js, ES2020
 
-    -   Parser: @typescript-eslint/parser
-    -   Rules: ESLint recommended + TypeScript recommended
-    -   `@typescript-eslint/no-explicit-any`: "warn" (not "error")
-    -   Environment: Node.js, ES2020
-
--   **`.prettierrc.json`**
-    -   printWidth: 200
-    -   tabWidth: 4
-    -   singleQuote: false
-    -   semi: true
-    -   trailingComma: "all"
+- **`.prettierrc.json`**
+    - printWidth: 200
+    - tabWidth: 4
+    - singleQuote: false
+    - semi: true
+    - trailingComma: "all"
 
 ### Electron Builder Configuration
 
 Defined in `package.json` under `"build"`:
 
--   **appId**: `com.powerplatform.toolbox`
--   **Publish**: GitHub releases (owner: PowerPlatformToolBox)
--   **Output**: `build/` directory
--   **Targets**: Windows NSIS, macOS DMG, Linux AppImage
+- **appId**: `com.powerplatform.toolbox`
+- **Publish**: GitHub releases (owner: PowerPlatformToolBox)
+- **Output**: `build/` directory
+- **Targets**: Windows NSIS, macOS DMG, Linux AppImage
 
 ### Vite Configuration (`vite.config.ts`)
 
--   **Main Process**: Entry at `src/main/index.ts`, outputs to `dist/main/index.js`
--   **Preload Scripts**: Multiple preload files bundled to `dist/main/`
--   **Renderer Process**: Entry at `src/renderer/index.html`, outputs to `dist/renderer/`
--   **Environment Variables**: Injects Supabase credentials at build time
--   **Source Maps**: Enabled for development builds, disabled for production
+- **Main Process**: Entry at `src/main/index.ts`, outputs to `dist/main/index.js`
+- **Preload Scripts**: Multiple preload files bundled to `dist/main/`
+- **Renderer Process**: Entry at `src/renderer/index.html`, outputs to `dist/renderer/`
+- **Environment Variables**: Injects Supabase credentials at build time
+- **Source Maps**: Enabled for development builds, disabled for production
 
 ## Validation & Testing
 
@@ -578,9 +573,9 @@ This app uses **Fluent UI Web Components** to align with the Microsoft ecosystem
 
 **ALWAYS use Fluent UI components when building or modifying UI:**
 
--   **Available Components**: The app includes the full Fluent UI Web Components library. Refer to [Fluent UI Web Components documentation](https://aka.ms/fluentui-web-components) for available components.
--   **Common Components**: `fluent-button`, `fluent-text-field`, `fluent-select`, `fluent-checkbox`, `fluent-radio`, `fluent-switch`, `fluent-tabs`, `fluent-dialog`, `fluent-card`, `fluent-badge`, `fluent-progress`, `fluent-menu`, `fluent-tooltip`, etc.
--   **Design Tokens**: Use Fluent UI design tokens from `@fluentui/tokens` for consistent colors, spacing, and typography.
+- **Available Components**: The app includes the full Fluent UI Web Components library. Refer to [Fluent UI Web Components documentation](https://aka.ms/fluentui-web-components) for available components.
+- **Common Components**: `fluent-button`, `fluent-text-field`, `fluent-select`, `fluent-checkbox`, `fluent-radio`, `fluent-switch`, `fluent-tabs`, `fluent-dialog`, `fluent-card`, `fluent-badge`, `fluent-progress`, `fluent-menu`, `fluent-tooltip`, etc.
+- **Design Tokens**: Use Fluent UI design tokens from `@fluentui/tokens` for consistent colors, spacing, and typography.
 
 **How to use Fluent UI components:**
 
@@ -613,34 +608,34 @@ This app uses **Fluent UI Web Components** to align with the Microsoft ecosystem
 
 ## Important Notes
 
--   **ALWAYS use pnpm** - This project uses pnpm as the package manager for better dependency management and disk space optimization
--   **ALWAYS run `pnpm install` after pulling changes** that modify `package.json` or `pnpm-lock.yaml`
--   **ALWAYS run `pnpm run build` before running the app** with `pnpm start` or `pnpm run dev`
--   **DO NOT commit `dist/` or `build/` directories** - they are gitignored
--   **DO NOT commit `node_modules/` or `.pnpm-store/`** - they're gitignored
--   **DO NOT use npm or yarn commands** - always use pnpm to maintain consistency
--   **Check lint before committing**: While warnings are OK, ensure no new errors are introduced
--   **Follow existing code style**: 4-space tabs, double quotes, semicolons (per .prettierrc.json)
--   **Update documentation** if you change architecture or add new features
+- **ALWAYS use pnpm** - This project uses pnpm as the package manager for better dependency management and disk space optimization
+- **ALWAYS run `pnpm install` after pulling changes** that modify `package.json` or `pnpm-lock.yaml`
+- **ALWAYS run `pnpm run build` before running the app** with `pnpm start` or `pnpm run dev`
+- **DO NOT commit `dist/` or `build/` directories** - they are gitignored
+- **DO NOT commit `node_modules/` or `.pnpm-store/`** - they're gitignored
+- **DO NOT use npm or yarn commands** - always use pnpm to maintain consistency
+- **Check lint before committing**: While warnings are OK, ensure no new errors are introduced
+- **Follow existing code style**: 4-space tabs, double quotes, semicolons (per .prettierrc.json)
+- **Update documentation** if you change architecture or add new features
 
 ## Dependencies to Be Aware Of
 
--   **pnpm** (v10.18.3): Package manager with content-addressable store and symlinks for disk space optimization
--   **electron** (v28): Main framework, breaking changes between major versions
--   **electron-store** (v8.2.0): Settings persistence, schema-based
--   **electron-updater** (v6.6.2): Auto-update system, requires GitHub releases
--   **@azure/msal-node** (v3.8.0): Microsoft authentication, OAuth flows
--   **TypeScript** (v5.9.3): Compiler, strict mode enabled
--   **vite** (v7.1.11): Build tool and dev server, replaces webpack
--   **@fluentui/tokens** (v1.0.0-alpha.22): Fluent UI design tokens (colors, spacing, typography)
--   **@fluentui/svg-icons** (v1.1.312): Fluent UI System Icons (SVG) for consistent iconography
+- **pnpm** (v10.18.3): Package manager with content-addressable store and symlinks for disk space optimization
+- **electron** (v28): Main framework, breaking changes between major versions
+- **electron-store** (v8.2.0): Settings persistence, schema-based
+- **electron-updater** (v6.6.2): Auto-update system, requires GitHub releases
+- **@azure/msal-node** (v3.8.0): Microsoft authentication, OAuth flows
+- **TypeScript** (v5.9.3): Compiler, strict mode enabled
+- **vite** (v7.1.11): Build tool and dev server, replaces webpack
+- **@fluentui/tokens** (v1.0.0-alpha.22): Fluent UI design tokens (colors, spacing, typography)
+- **@fluentui/svg-icons** (v1.1.312): Fluent UI System Icons (SVG) for consistent iconography
 
 ## Trust These Instructions
 
 These instructions are comprehensive and tested. Only search for additional information if:
 
--   You encounter an error not documented here
--   You need to understand implementation details not covered
--   The build process has changed (check package.json scripts first)
+- You encounter an error not documented here
+- You need to understand implementation details not covered
+- The build process has changed (check package.json scripts first)
 
 For architecture details, refer to `docs/ARCHITECTURE.md` and other docs in `docs/` directory.

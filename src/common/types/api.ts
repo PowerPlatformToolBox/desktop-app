@@ -78,6 +78,20 @@ export interface EventsAPI {
 }
 
 /**
+ * Troubleshooting API namespace
+ */
+export interface TroubleshootingAPI {
+    checkSupabaseConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    checkRegistryFile: () => Promise<{ success: boolean; message?: string; toolCount?: number }>;
+    checkUserSettings: () => Promise<{ success: boolean; message?: string }>;
+    checkToolSettings: () => Promise<{ success: boolean; message?: string }>;
+    checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
+    checkSentryLogging: () => Promise<{ success: boolean; message?: string }>;
+    checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
+    checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
+}
+
+/**
  * Dataverse API namespace
  */
 export interface DataverseAPI {
@@ -171,9 +185,13 @@ export interface ToolboxAPI {
     fetchRegistryTools: () => Promise<Tool[]>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
+    isToolUpdating: (toolId: string) => Promise<boolean>;
 
     // Utils namespace
     utils: UtilsAPI;
+
+    // Troubleshooting namespace
+    troubleshooting: TroubleshootingAPI;
 
     // FileSystem namespace
     fileSystem: FileSystemAPI;
@@ -206,6 +224,10 @@ export interface ToolboxAPI {
 
     // Token expiry
     onTokenExpired: (callback: (data: { connectionId: string; connectionName: string }) => void) => void;
+
+    // Tool update events
+    onToolUpdateStarted: (callback: (toolId: string) => void) => void;
+    onToolUpdateCompleted: (callback: (toolId: string) => void) => void;
 
     // Dataverse namespace
     dataverse: DataverseAPI;

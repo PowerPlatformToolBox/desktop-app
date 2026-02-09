@@ -1,68 +1,50 @@
 {
-  "version": "1.0",
-  "updatedAt": "2024-01-15T10:00:00Z",
-  "description": "Power Platform ToolBox - Official Tool Registry",
-  "tools": [
-    {
-      "id": "power-maverick-tool-erd-generator",
-      "packageName": "@power-maverick/tool-erd-generator",
-      "name": "ERD Generator",
-      "description": "Generate Entity Relationship Diagrams for Dataverse",
-      "authors": [
-        "Power Platform ToolBox Team"
-      ],
-      "version": "1.0.4",
-      "downloadUrl": "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/power-maverick-tool-erd-generator-1.0.4/power-maverick-tool-erd-generator-1.0.4.tar.gz",
-      "icon": "icon.png",
-      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 50000,
-      "publishedAt": "2024-01-15T10:00:00Z",
-      "tags": [
-        "example",
-        "sample"
-      ],
-      "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/example-tool/main/README.md",
-      "minToolboxVersion": "1.0.0",
-      "repository": "https://github.com/PowerPlatformToolBox/example-tool",
-      "homepage": "https://github.com/PowerPlatformToolBox/example-tool",
-      "license": "MIT"
-    },
-    {
-      "id": "pptb-standard-sample-tool",
-      "packageName": "pptb-standard-sample-tool",
-      "name": "Sample Standard Tool",
-      "description": "A sample HTML tool that showcases various features provided by the Tool Box",
-      "authors": [
-        "Power Maverick"
-      ],
-      "version": "1.0.5",
-      "downloadUrl": "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.5/pptb-standard-sample-tool-1.0.5.tar.gz",
-      "icon": "icon.png",
-      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 75000,
-      "publishedAt": "2024-01-15T10:00:00Z",
-      "tags": [
-        "dataverse",
-        "erd",
-        "diagram"
-      ],
-      "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/dataverse-erd-generator/main/README.md",
-      "minToolboxVersion": "1.0.0",
-      "repository": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
-      "homepage": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
-      "license": "MIT",
-      "cspExceptions": {
-        "connect-src": [
-          "https://*.dynamics.com",
-          "https://*.crm*.dynamics.com"
-        ],
-        "script-src": [
-          "https://cdn.jsdelivr.net"
-        ],
-        "style-src": [
-          "https://cdn.jsdelivr.net"
-        ]
-      }
-    }
-  ]
+    "version": "1.0",
+    "updatedAt": "2024-01-15T10:00:00Z",
+    "description": "Power Platform ToolBox - Official Tool Registry",
+    "tools": [
+        {
+            "id": "power-maverick-tool-erd-generator",
+            "packageName": "@power-maverick/tool-erd-generator",
+            "name": "ERD Generator",
+            "description": "Generate Entity Relationship Diagrams for Dataverse",
+            "authors": ["Power Platform ToolBox Team"],
+            "version": "1.0.4",
+            "downloadUrl": "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/power-maverick-tool-erd-generator-1.0.4/power-maverick-tool-erd-generator-1.0.4.tar.gz",
+            "icon": "icon.png",
+            "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 50000,
+            "publishedAt": "2024-01-15T10:00:00Z",
+            "tags": ["example", "sample"],
+            "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/example-tool/main/README.md",
+            "minToolboxVersion": "1.0.0",
+            "repository": "https://github.com/PowerPlatformToolBox/example-tool",
+            "homepage": "https://github.com/PowerPlatformToolBox/example-tool",
+            "license": "MIT"
+        },
+        {
+            "id": "pptb-standard-sample-tool",
+            "packageName": "pptb-standard-sample-tool",
+            "name": "Sample Standard Tool",
+            "description": "A sample HTML tool that showcases various features provided by the ToolBox",
+            "authors": ["Power Maverick"],
+            "version": "1.0.5",
+            "downloadUrl": "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.5/pptb-standard-sample-tool-1.0.5.tar.gz",
+            "icon": "icon.png",
+            "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 75000,
+            "publishedAt": "2024-01-15T10:00:00Z",
+            "tags": ["dataverse", "erd", "diagram"],
+            "readme": "https://raw.githubusercontent.com/PowerPlatformToolBox/dataverse-erd-generator/main/README.md",
+            "minToolboxVersion": "1.0.0",
+            "repository": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
+            "homepage": "https://github.com/PowerPlatformToolBox/dataverse-erd-generator",
+            "license": "MIT",
+            "cspExceptions": {
+                "connect-src": ["https://*.dynamics.com", "https://*.crm*.dynamics.com"],
+                "script-src": ["https://cdn.jsdelivr.net"],
+                "style-src": ["https://cdn.jsdelivr.net"]
+            }
+        }
+    ]
 }

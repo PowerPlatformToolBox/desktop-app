@@ -1,6 +1,6 @@
 {
   "name": "@pptb/types",
-  "version": "1.0.17",
+  "version": "1.0.19-beta.3",
   "description": "TypeScript type definitions for Power Platform ToolBox API",
   "main": "index.d.ts",
   "types": "index.d.ts",
@@ -18,5 +18,11 @@
     "type": "git",
     "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
     "directory": "packages"
+  },
+  "scripts": {
+    "version:beta": "pnpm version prerelease --preid beta --no-git-tag-version",
+    "version:stable": "pnpm version patch --no-git-tag-version",
+    "publish:stable": "pnpm publish --access public --tag latest --no-git-checks",
+    "publish:beta": "pnpm publish --access public --tag beta --no-git-checks"
   }
 }
