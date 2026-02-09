@@ -365,6 +365,7 @@ jobs:
               with:
                   name: macos-release
                   path: notarize
+                  merge-multiple: true
 
             - name: Locate notarization info
               id: notarize-info
@@ -391,24 +392,29 @@ jobs:
             - name: Staple macOS artifacts
               shell: bash
               run: |
-                  shopt -s nullglob
-                  for file in notarize/build/*.dmg notarize/build/*.pkg notarize/build/*.zip; do
-                      if [[ -f "$file" ]]; then
-                          echo "Stapling $(basename "$file")"
-                          xcrun stapler staple "$file"
-                      fi
-                  done
+                  found=0
+                  while IFS= read -r -d '' file; do
+                    found=1
+                    echo "Stapling $(basename "$file")"
+                    xcrun stapler staple "$file"
+                  done < <(find notarize -type f \( -name "*.dmg" -o -name "*.pkg" -o -name "*.zip" \) -print0)
+
+                  if [[ "$found" -eq 0 ]]; then
+                    echo "No macOS artifacts found to staple under 'notarize'." >&2
+                    find notarize -maxdepth 4 -type f || true
+                    exit 1
+                  fi
 
             - name: Upload stapled macOS artifacts
               uses: actions/upload-artifact@v4
               with:
                   name: macos-release
                   path: |
-                      notarize/build/*.dmg
-                      notarize/build/*.pkg
-                      notarize/build/*.zip
-                      notarize/build/*.yml
-                      notarize/build/notarization-info.json
+                      notarize/**/*.dmg
+                      notarize/**/*.pkg
+                      notarize/**/*.zip
+                      notarize/**/*.yml
+                      notarize/**/notarization-info.json
                   retention-days: 90
                   overwrite: true
 
