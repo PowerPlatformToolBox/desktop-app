@@ -247,7 +247,7 @@ jobs:
                   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
                   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
               run: |
-                  node ./buildScripts/notarize.js submit --app="build/mac/Power Platform ToolBox.app" --output="build/notarization-info.json"
+                  node ./buildScripts/notarize.js submit --assets="build/*.dmg,build/*.zip,build/*.pkg" --app="build/mac/Power Platform ToolBox.app" --output="build/notarization-info.json"
 
             - name: Cleanup macOS signing certificate
               if: ${{ always() && matrix.os == 'macos-latest' }}
@@ -444,7 +444,7 @@ jobs:
                     found=1
                     echo "Stapling $(basename "$file")"
                     xcrun stapler staple "$file"
-                  done < <(find notarize -type f \( -name "*.dmg" -o -name "*.pkg" -o -name "*.zip" \) -print0)
+                  done < <(find notarize -type f \( -name "*.dmg" -o -name "*.pkg" \) -print0)
 
                   if [[ "$found" -eq 0 ]]; then
                     echo "No macOS artifacts found to staple under 'notarize'." >&2
