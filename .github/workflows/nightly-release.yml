@@ -198,14 +198,14 @@ jobs:
               shell: bash
               run: |
                   APP_PATH="build/mac/Power Platform ToolBox.app"
-                  
+
                   echo "=== Verifying main app signature ==="
                   codesign --verify --deep --strict --verbose=4 "$APP_PATH" 2>&1
-                  
+
                   echo ""
                   echo "=== Checking for timestamps on main app ==="
                   codesign -dvvv "$APP_PATH" 2>&1 | grep -i timestamp || echo "❌ WARNING: NO TIMESTAMP FOUND ON MAIN APP!"
-                  
+
                   echo ""
                   echo "=== Verifying critical nested binaries ==="
                   # Check helper apps
@@ -216,7 +216,7 @@ jobs:
                           codesign -dvvv "$helper" 2>&1 | grep -i timestamp || echo "❌ No timestamp: $helper"
                       fi
                   done
-                  
+
                   # Check frameworks
                   echo ""
                   echo "=== Checking frameworks ==="
@@ -224,7 +224,7 @@ jobs:
                       echo "Checking: $(basename "$framework")"
                       codesign --verify --strict "$framework" 2>&1 || echo "❌ Failed: $framework"
                   done
-                  
+
                   # Check dylibs
                   echo ""
                   echo "=== Checking dynamic libraries ==="
@@ -232,12 +232,11 @@ jobs:
                       echo "Checking: $(basename "$dylib")"
                       codesign --verify --strict "$dylib" 2>&1 || echo "❌ Failed: $dylib"
                   done
-                  
+
                   echo ""
-                  echo "=== Running spctl assessment ==="
-                  spctl --assess --type exec --verbose=4 "$APP_PATH" 2>&1
-                  
-                  echo ""
+                    echo "=== Note ==="
+                    echo "Skipping 'spctl --assess' here because it typically reports 'source=Unnotarized Developer ID' until the notarization+stapling job completes."
+                    echo ""
                   echo "✅ macOS code signing verification complete"
 
             - name: Submit macOS notarization request
