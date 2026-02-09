@@ -1,5 +1,6 @@
 {
     "extends": "buildScripts/electron-builder-base.json",
+    "forceCodeSigning": true,
     "mac": {
         "target": [
             {
