@@ -186,6 +186,16 @@ jobs:
               run: |
                   node ./buildScripts/package.js --config=${{ matrix.config }}
 
+            - name: Verify macOS code signing (pre-notarization)
+              if: matrix.os == 'macos-latest'
+              shell: bash
+              run: |
+                  APP_PATH="build/mac/Power Platform ToolBox.app"
+                  echo "Verifying code signature for: $APP_PATH"
+                  codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+                  spctl --assess --type exec --verbose=4 "$APP_PATH"
+                  echo "✅ macOS code signing verification passed"
+
             - name: Submit macOS notarization request
               if: matrix.os == 'macos-latest'
               shell: bash
