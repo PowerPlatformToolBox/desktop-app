@@ -132,7 +132,7 @@ jobs:
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
                   files-folder-filter: exe,msi
-                  files-folder-recurse: false
+                  files-folder-recurse: true
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
                   description: Power Platform ToolBox (Insider)
