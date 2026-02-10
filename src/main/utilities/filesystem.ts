@@ -194,16 +194,38 @@ export async function createDirectory(dirPath: string): Promise<void> {
  * Save file dialog and write content
  * MOVED FROM utils namespace - no backward compatibility
  */
-export async function saveFile(defaultPath: string, content: string | Buffer): Promise<string | null> {
+export async function saveFile(defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>): Promise<string | null> {
+    // Determine filters to use
+    let dialogFilters: Array<{ name: string; extensions: string[] }>;
+
+    if (filters && filters.length > 0) {
+        // Use provided filters
+        dialogFilters = filters;
+    } else {
+        // Try to derive filter from filename extension using path.extname for robust extraction
+        const ext = path.extname(defaultPath).slice(1).toLowerCase(); // Remove leading dot
+        if (ext) {
+            // Create a filter based on the extension
+            const extensionName = ext.toUpperCase();
+            dialogFilters = [
+                { name: `${extensionName} Files`, extensions: [ext] },
+                { name: "All Files", extensions: ["*"] },
+            ];
+        } else {
+            // No extension, use default filters
+            dialogFilters = [
+                { name: "All Files", extensions: ["*"] },
+                { name: "Text Files", extensions: ["txt"] },
+                { name: "JSON Files", extensions: ["json"] },
+                { name: "XML Files", extensions: ["xml"] },
+                { name: "CSV Files", extensions: ["csv"] },
+            ];
+        }
+    }
+
     const result = await dialog.showSaveDialog({
         defaultPath,
-        filters: [
-            { name: "All Files", extensions: ["*"] },
-            { name: "Text Files", extensions: ["txt"] },
-            { name: "JSON Files", extensions: ["json"] },
-            { name: "XML Files", extensions: ["xml"] },
-            { name: "CSV Files", extensions: ["csv"] },
-        ],
+        filters: dialogFilters,
     });
 
     if (result.canceled || !result.filePath) {
