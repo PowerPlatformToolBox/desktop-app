@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { MODAL_WINDOW_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, MODAL_WINDOW_CHANNELS } from "../common/ipc/channels";
 
 type ModalMessageHandler = (payload: unknown) => void;
 const messageHandlers = new Set<ModalMessageHandler>();
@@ -16,5 +16,13 @@ contextBridge.exposeInMainWorld("modalBridge", {
     },
     offMessage: (handler: ModalMessageHandler) => {
         messageHandlers.delete(handler);
+    },
+});
+
+// Expose browser detection APIs for connection modals
+contextBridge.exposeInMainWorld("toolboxAPI", {
+    connections: {
+        checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
+        getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
     },
 });

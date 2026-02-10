@@ -1,5 +1,6 @@
 {
     "extends": "buildScripts/electron-builder-base.json",
+    "forceCodeSigning": true,
     "mac": {
         "target": [
             {
@@ -20,12 +21,13 @@
         "category": "public.app-category.developer-tools",
         "icon": "icons/icon.icns",
         "identity": "Developer ID Application",
-        "gatekeeperAssess": true,
+        "gatekeeperAssess": false,
         "hardenedRuntime": true,
         "entitlements": "./buildScripts/entitlements.mac.plist",
         "entitlementsInherit": "./buildScripts/entitlements.mac.plist",
         "type": "distribution",
-        "notarize": false
+        "notarize": false,
+        "signIgnore": []
     },
     "dmg": {
         "sign": true

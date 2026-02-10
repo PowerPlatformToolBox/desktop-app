@@ -145,6 +145,47 @@ export class ConnectionsManager {
     }
 
     /**
+     * Clear authentication tokens for a connection
+     * This is useful when MSAL cache is cleared (e.g., after app restart) and tokens are no longer valid
+     */
+    clearConnectionTokens(id: string): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        // Clear all authentication tokens
+        connection.accessToken = undefined;
+        connection.refreshToken = undefined;
+        connection.tokenExpiry = undefined;
+        connection.msalAccountId = undefined;
+
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+    }
+
+    /**
+     * Clear authentication tokens for all connections
+     * This is useful when MSAL cache is cleared (e.g., after app restart) and tokens are no longer valid
+     */
+    clearAllConnectionTokens(): void {
+        const connections = this.store.get("connections");
+
+        for (const connection of connections) {
+            // Clear all authentication tokens
+            connection.accessToken = undefined;
+            connection.refreshToken = undefined;
+            connection.tokenExpiry = undefined;
+            connection.msalAccountId = undefined;
+        }
+
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for all connections`);
+    }
+
+    /**
      * Get connection by ID with decrypted sensitive fields
      */
     getConnectionById(id: string): DataverseConnection | null {

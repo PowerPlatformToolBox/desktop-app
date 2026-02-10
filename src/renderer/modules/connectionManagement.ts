@@ -44,6 +44,9 @@ interface ConnectionFormPayload {
     usernamePasswordClientId?: string;
     usernamePasswordTenantId?: string;
     connectionString?: string;
+    browserType?: string;
+    browserProfile?: string;
+    browserProfileName?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -1164,6 +1167,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         if (parsed.username) connection.username = parsed.username;
         if (parsed.password) connection.password = parsed.password;
 
+        // Browser settings apply to all auth types (used for opening URLs with authentication)
+        const browserType = sanitizeInput(formPayload.browserType);
+        const browserProfile = sanitizeInput(formPayload.browserProfile);
+        const browserProfileName = sanitizeInput(formPayload.browserProfileName);
+        connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+        connection.browserProfile = browserProfile || undefined;
+        connection.browserProfileName = browserProfileName || undefined;
+
         return connection;
     }
 
@@ -1177,6 +1188,14 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
     };
+
+    // Browser settings apply to all auth types (used for opening URLs with authentication)
+    const browserType = sanitizeInput(formPayload.browserType);
+    const browserProfile = sanitizeInput(formPayload.browserProfile);
+    const browserProfileName = sanitizeInput(formPayload.browserProfileName);
+    connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+    connection.browserProfile = browserProfile || undefined;
+    connection.browserProfileName = browserProfileName || undefined;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1195,7 +1214,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
             connection.tenantId = usernamePasswordTenantId;
         }
     } else if (authenticationType === "interactive") {
-        // Interactive OAuth with optional username (login_hint), clientId, and tenantId
+        // Interactive OAuth with optional username (login_hint), clientId, tenantId
         const interactiveUsername = sanitizeInput(formPayload.interactiveUsername);
         const optionalClientId = sanitizeInput(formPayload.optionalClientId);
         const interactiveTenantId = sanitizeInput(formPayload.interactiveTenantId);
@@ -1234,11 +1253,62 @@ function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePass
     return labels[authType] || authType;
 }
 
+function getBrowserBadgeMarkup(conn: DataverseConnection): string {
+    const browserType = conn.browserType;
+    if (!browserType || browserType === "default") {
+        return "";
+    }
+
+    const profileNameRaw = sanitizeInput(conn.browserProfileName || conn.browserProfile);
+    if (!profileNameRaw) {
+        return "";
+    }
+    const profileName = profileNameRaw;
+    const safeProfileName = escapeHtml(profileName);
+    const browserLabel = formatBrowserType(browserType);
+    const safeTitle = escapeHtml(`${browserLabel} · ${profileName}`);
+    const iconPath = getBrowserIconPath(browserType);
+    const iconMarkup = iconPath
+        ? `<img src="${iconPath}" alt="${browserLabel} icon" class="browser-profile-icon" />`
+        : `<span class="browser-profile-icon browser-profile-icon-fallback">${browserLabel.charAt(0).toUpperCase()}</span>`;
+
+    return `
+        <span class="browser-profile-badge" title="${safeTitle}">
+            ${iconMarkup}
+            <span class="browser-profile-label">${safeProfileName}</span>
+        </span>
+    `;
+}
+
+function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
+    const labels: Record<string, string> = {
+        default: "Browser",
+        chrome: "Chrome",
+        edge: "Edge",
+    };
+    return labels[browserType || "default"] || "Browser";
+}
+
+function getBrowserIconPath(browserType: DataverseConnection["browserType"]): string | null {
+    switch (browserType) {
+        case "chrome":
+            return "icons/logos/chrome.png";
+        case "edge":
+            return "icons/logos/edge.png";
+        default:
+            return null;
+    }
+}
+
 function normalizeAuthenticationType(value?: string): ConnectionAuthenticationType {
     if (value === "clientSecret" || value === "usernamePassword" || value === "connectionString") {
         return value;
     }
     return "interactive";
+}
+
+function escapeHtml(value: string): string {
+    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 async function signalAddConnectionSubmitReady(): Promise<void> {
@@ -1451,6 +1521,7 @@ export async function loadSidebarConnections(): Promise<void> {
             .map((conn: DataverseConnection) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
+                const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
 
                 return `
                 <div class="connection-item-pptb">
@@ -1471,6 +1542,9 @@ export async function loadSidebarConnections(): Promise<void> {
                         <div class="connection-item-meta-left">
                             <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                        </div>
+                        <div class="connection-item-meta-left">
+                            ${browserBadgeMarkup}
                         </div>
                     </div>
                 </div>

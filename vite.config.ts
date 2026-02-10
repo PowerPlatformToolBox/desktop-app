@@ -142,6 +142,7 @@ export default defineConfig(({ mode }) => {
                         mkdirSync("dist/renderer/icons", { recursive: true });
                         mkdirSync("dist/renderer/icons/light", { recursive: true });
                         mkdirSync("dist/renderer/icons/dark", { recursive: true });
+                        mkdirSync("dist/renderer/icons/logos", { recursive: true });
                     } catch (e) {
                         // Directory already exists
                     }
@@ -171,6 +172,20 @@ export default defineConfig(({ mode }) => {
                             iconFiles.forEach((file: string) => {
                                 const sourcePath = path.join(iconsDarkSourceDir, file);
                                 const targetPath = path.join(iconsDarkTargetDir, file);
+                                copyFileSync(sourcePath, targetPath);
+                            });
+                        }
+                    } catch (e) {
+                        console.error(`Failed to copy icons directory:`, e);
+                    }
+                    const iconsLogosSourceDir = "src/renderer/icons/logos";
+                    const iconsLogosTargetDir = "dist/renderer/icons/logos";
+                    try {
+                        if (existsSync(iconsLogosSourceDir)) {
+                            const iconFiles = readdirSync(iconsLogosSourceDir);
+                            iconFiles.forEach((file: string) => {
+                                const sourcePath = path.join(iconsLogosSourceDir, file);
+                                const targetPath = path.join(iconsLogosTargetDir, file);
                                 copyFileSync(sourcePath, targetPath);
                             });
                         }

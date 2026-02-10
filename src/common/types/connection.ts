@@ -8,6 +8,13 @@
 export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
 
 /**
+ * Browser type for interactive authentication
+ *
+ * Note: Firefox and Brave may be added here in the future when BrowserManager supports them.
+ */
+export type BrowserType = "default" | "chrome" | "edge";
+
+/**
  * Dataverse connection configuration
  *
  * Note: This interface represents the persisted connection data.
@@ -32,6 +39,10 @@ export interface DataverseConnection {
     tokenExpiry?: string;
     // MSAL account identifier for silent token acquisition (used with interactive auth)
     msalAccountId?: string;
+    // Browser profile settings for interactive authentication
+    browserType?: BrowserType;
+    browserProfile?: string;
+    browserProfileName?: string;
 }
 
 /**

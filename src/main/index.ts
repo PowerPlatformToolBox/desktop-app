@@ -77,6 +77,7 @@ import {
 import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
@@ -106,6 +107,7 @@ class ToolBoxApp {
     private modalWindowManager: ModalWindowManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
+    private browserManager: BrowserManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
@@ -133,7 +135,8 @@ class ToolBoxApp {
             this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
-            this.authManager = new AuthManager();
+            this.browserManager = new BrowserManager();
+            this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
 
@@ -279,6 +282,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -706,6 +711,15 @@ class ToolBoxApp {
                 });
                 throw new Error(errorMessage);
             }
+        });
+
+        // Browser detection handlers
+        ipcMain.handle(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, (_, browserType: string) => {
+            return this.browserManager.isBrowserInstalled(browserType);
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, (_, browserType: string) => {
+            return this.browserManager.getBrowserProfiles(browserType);
         });
 
         // Tool handlers
@@ -1780,25 +1794,6 @@ class ToolBoxApp {
     }
 
     /**
-     * Check for token expiry and notify user
-     * Note: With no global active connection, this method is deprecated
-     * Token expiry checks are now done per-tool when making API calls
-     */
-    private checkTokenExpiry(): void {
-        // No-op: Token expiry is now checked per-connection when tools make API calls
-        // Each tool uses its own connection, so we don't need a global check
-        return;
-    }
-
-    /**
-     * Start periodic token expiry checks
-     */
-    private startTokenExpiryChecks(): void {
-        // No-op: Token expiry checks are now done per-connection when tools make API calls
-        return;
-    }
-
-    /**
      * Stop periodic token expiry checks
      */
     private stopTokenExpiryChecks(): void {
@@ -2414,9 +2409,10 @@ class ToolBoxApp {
                 addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
             }
 
-            // Start token expiry checks
-            this.startTokenExpiryChecks();
-            addBreadcrumb("Token expiry checks started", "auth", "info");
+            // Clear any msal caches on startup
+            await this.authManager.cleanup();
+            this.connectionsManager.clearAllConnectionTokens();
+            addBreadcrumb("Cleared MSAL caches and connection tokens", "auth", "info");
 
             app.on("activate", () => {
                 if (BrowserWindow.getAllWindows().length === 0) {
@@ -2438,6 +2434,10 @@ class ToolBoxApp {
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
                 this.stopTokenExpiryChecks();
+                // Clean up MSAL instances
+                this.authManager.cleanup();
+                // Clean up connection tokens
+                this.connectionsManager.clearAllConnectionTokens();
                 addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 

@@ -47,6 +47,24 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 <option value="Production">Production</option>
             </select>
         </div>
+        <div class="field-group">
+            <span class="section-label">Browser Settings (Optional)</span>
+            <label for="connection-browser-type">Browser</label>
+            <select id="connection-browser-type" class="modal-input">
+                <option value="default">System Default</option>
+                <option value="chrome">Google Chrome</option>
+                <option value="edge">Microsoft Edge</option>
+            </select>
+            <p class="helper-text">Choose which browser to use when opening URLs with authentication. Defaults to your system's default browser.</p>
+            <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
+                <span>⚠️ Selected browser is not installed. URLs will open using the system default browser.</span>
+            </div>
+            <label for="connection-browser-profile">Browser Profile</label>
+            <select id="connection-browser-profile" class="modal-input" disabled>
+                <option value="">No profile needed</option>
+            </select>
+            <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
+        </div>
         <div id="interactive-fields" class="field-group" style="display: none">
             <span class="section-label">Microsoft Login Options</span>
             <label for="connection-username">Username / Email (Optional)</label>

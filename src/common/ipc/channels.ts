@@ -50,6 +50,8 @@ export const CONNECTION_CHANNELS = {
     TEST_CONNECTION: "test-connection",
     IS_TOKEN_EXPIRED: "is-connection-token-expired",
     REFRESH_TOKEN: "refresh-connection-token",
+    CHECK_BROWSER_INSTALLED: "check-browser-installed",
+    GET_BROWSER_PROFILES: "get-browser-profiles",
 } as const;
 
 // Tool-related IPC channels

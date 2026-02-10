@@ -2577,14 +2577,61 @@ body.light-theme .install-button:focus-visible img {
 
 .connection-item-footer-pptb {
     display: flex;
+    flex-direction: column;
     justify-content: space-between;
-    align-items: center;
+    // align-items: center;
+    gap: 6px;
 }
 
 .connection-item-meta-left {
     display: flex;
     gap: 8px;
     align-items: center;
+    margin-top: 2px;
+}
+
+.browser-profile-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    // padding: 2px 8px;
+    // border-radius: 999px;
+    // border: 1px solid var(--border-color);
+    background: var(--card-background);
+    font-size: 11px;
+    color: var(--text-color);
+    line-height: 1;
+}
+
+.browser-profile-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+}
+
+.browser-profile-icon-fallback {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+body.dark-theme .browser-profile-icon-fallback {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.browser-profile-label {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .connection-item-actions-pptb {
