@@ -77,6 +77,7 @@ import {
 import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
+import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
@@ -106,6 +107,7 @@ class ToolBoxApp {
     private modalWindowManager: ModalWindowManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
+    private browserManager: BrowserManager;
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
@@ -133,7 +135,8 @@ class ToolBoxApp {
             this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
-            this.authManager = new AuthManager();
+            this.browserManager = new BrowserManager();
+            this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
 
@@ -279,6 +282,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -706,6 +711,15 @@ class ToolBoxApp {
                 });
                 throw new Error(errorMessage);
             }
+        });
+
+        // Browser detection handlers
+        ipcMain.handle(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, (_, browserType: string) => {
+            return this.browserManager.isBrowserInstalled(browserType);
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, (_, browserType: string) => {
+            return this.browserManager.getBrowserProfiles(browserType);
         });
 
         // Tool handlers

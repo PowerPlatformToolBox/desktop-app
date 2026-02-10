@@ -29,6 +29,23 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const testButton = document.getElementById("test-connection-btn");
     const addButton = document.getElementById("confirm-connection-btn");
     const testFeedback = document.getElementById("connection-test-feedback");
+    const browserTypeSelect = document.getElementById("connection-browser-type");
+    const browserProfileSelect = document.getElementById("connection-browser-profile");
+    const browserWarning = document.getElementById("browser-not-installed-warning");
+    const getBrowserProfileSelection = () => {
+        const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
+        if (!select) {
+            return { value: "", name: "" };
+        }
+        const value = (select.value || "").trim();
+        if (!value) {
+            return { value: "", name: "" };
+        }
+        const selectedOption = select.options[select.selectedIndex];
+        const datasetName = selectedOption?.dataset?.profileName?.trim() || "";
+        const fallbackName = selectedOption?.textContent?.trim() || "";
+        return { value, name: datasetName || fallbackName };
+    };
 
     const updateAuthVisibility = () => {
         const authType = authTypeSelect?.value || "interactive";
@@ -37,6 +54,67 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
         if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
         if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
+    };
+
+    const loadBrowserProfiles = async () => {
+        const browserType = browserTypeSelect?.value || "default";
+        
+        // Reset warning
+        if (browserWarning) browserWarning.style.display = "none";
+        
+        if (browserType === "default") {
+            // Reset profile dropdown for default browser
+            if (browserProfileSelect) {
+                browserProfileSelect.disabled = true;
+                browserProfileSelect.innerHTML = '<option value="">No profile needed</option>';
+            }
+            return;
+        }
+
+        // Check if browser is installed
+        const isInstalled = await window.toolboxAPI.connections.checkBrowserInstalled(browserType);
+        
+        if (!isInstalled) {
+            // Show warning
+            if (browserWarning) browserWarning.style.display = "block";
+            if (browserProfileSelect) {
+                browserProfileSelect.disabled = true;
+                browserProfileSelect.innerHTML = '<option value="">Browser not installed</option>';
+            }
+            return;
+        }
+
+        // Load profiles
+        if (browserProfileSelect) {
+            browserProfileSelect.disabled = true;
+            browserProfileSelect.innerHTML = '<option value="">Loading profiles...</option>';
+        }
+
+        try {
+            const profiles = await window.toolboxAPI.connections.getBrowserProfiles(browserType);
+            
+            if (browserProfileSelect) {
+                if (profiles.length === 0) {
+                    browserProfileSelect.innerHTML = '<option value="">No profiles found</option>';
+                    browserProfileSelect.disabled = true;
+                } else {
+                    browserProfileSelect.innerHTML = '<option value="">Use default profile</option>';
+                    profiles.forEach(profile => {
+                        const option = document.createElement("option");
+                        option.value = profile.path;  // Use path as value for --profile-directory
+                        option.textContent = profile.name;  // Display the friendly name
+                        option.dataset.profileName = profile.name;
+                        browserProfileSelect.appendChild(option);
+                    });
+                    browserProfileSelect.disabled = false;
+                }
+            }
+        } catch (error) {
+            if (browserProfileSelect) {
+                browserProfileSelect.innerHTML = '<option value="">Error loading profiles</option>';
+                browserProfileSelect.disabled = true;
+            }
+        }
     };
 
     const updateTestFeedback = (message) => {
@@ -71,6 +149,14 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordClientId: getInputValue("connection-optional-client-id-up"),
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
+        browserType: getInputValue("connection-browser-type") || "default",
+        ...(() => {
+            const selection = getBrowserProfileSelection();
+            return {
+                browserProfile: selection.value,
+                browserProfileName: selection.name,
+            };
+        })(),
     });
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {
@@ -99,6 +185,20 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    // Browser type change listener
+    browserTypeSelect?.addEventListener("change", () => {
+        loadBrowserProfiles();
+    });
+    
+    // Initial load - only load if default browser is selected (to set initial state)
+    // This ensures the dropdown shows proper initial state
+    if (browserTypeSelect?.value === "default") {
+        if (browserProfileSelect) {
+            browserProfileSelect.disabled = true;
+            browserProfileSelect.innerHTML = '<option value="">No profile needed</option>';
+        }
+    }
 
     addButton?.addEventListener("click", () => {
         setButtonState(addButton, true, "Adding...", "Add");

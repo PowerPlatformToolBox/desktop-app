@@ -123,6 +123,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
         border-radius: 12px;
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+        margin-bottom: 16px;
     }
 
     .password-wrapper {
@@ -160,6 +161,18 @@ export function getModalStyles(isDarkTheme: boolean): string {
         border: 1px solid rgba(255, 77, 109, 0.35);
         background: rgba(255, 77, 109, 0.12);
         color: #ffb3c1;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    .modal-warning {
+        display: none;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 185, 0, 0.35);
+        background: rgba(255, 185, 0, 0.12);
+        color: ${isDarkTheme ? "#ffc83d" : "#8b6500"};
         font-size: 13px;
         line-height: 1.4;
     }

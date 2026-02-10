@@ -1,11 +1,12 @@
 import { AccountInfo, ConfidentialClientApplication, LogLevel, PublicClientApplication } from "@azure/msal-node";
-import { BrowserWindow, shell } from "electron";
+import { BrowserWindow } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
 import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
+import { BrowserManager } from "./browserManager";
 
 /**
  * Manages authentication for Power Platform connections
@@ -18,6 +19,7 @@ export class AuthManager {
     private activeServer: http.Server | null = null;
     private activeServerTimeout: NodeJS.Timeout | null = null;
     private activePort: number | null = null;
+    private browserManager: BrowserManager;
 
     // Authentication timeout duration (5 minutes)
     private static readonly AUTH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -31,7 +33,8 @@ export class AuthManager {
         "/": "&#x2F;",
     };
 
-    constructor() {
+    constructor(browserManager: BrowserManager) {
+        this.browserManager = browserManager;
         // MSAL will be initialized on-demand for interactive auth
     }
 
@@ -382,8 +385,8 @@ export class AuthManager {
 
             server.listen(port, "localhost", () => {
                 logInfo(`Listening for OAuth redirect on ${redirectUri}`);
-                // Server is ready, now open the browser
-                shell.openExternal(authCodeUrl).catch((err) => {
+                // Server is ready, now open the browser with profile support
+                this.browserManager.openBrowserWithProfile(authCodeUrl, connection).catch((err) => {
                     cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
                 });
             });
