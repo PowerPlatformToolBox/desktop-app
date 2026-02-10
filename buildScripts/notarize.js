@@ -51,6 +51,42 @@ const getArg = (name, defaultValue) => {
     return defaultValue;
 };
 
+const splitListArg = (value) => {
+    if (!value) {
+        return [];
+    }
+
+    return value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+};
+
+const escapeRegExp = (text) => {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+const expandWildcardPath = (inputPath) => {
+    const resolvedPath = path.resolve(inputPath);
+
+    if (!resolvedPath.includes("*")) {
+        return [resolvedPath];
+    }
+
+    const dir = path.dirname(resolvedPath);
+    const base = path.basename(resolvedPath);
+
+    if (!fs.existsSync(dir)) {
+        return [];
+    }
+
+    const pattern = new RegExp(`^${base.split("*").map(escapeRegExp).join(".*")}$`);
+    return fs
+        .readdirSync(dir)
+        .filter((name) => pattern.test(name))
+        .map((name) => path.join(dir, name));
+};
+
 const ensureAppleCreds = () => {
     const appleId = process.env.APPLE_ID;
     const applePassword = process.env.APPLE_APP_SPECIFIC_PASSWORD;
@@ -104,37 +140,53 @@ const submit = () => {
     const defaultAppPath = path.resolve("build", "mac", "Power Platform ToolBox.app");
     const appPath = path.resolve(getArg("--app", defaultAppPath));
 
+    const assetArg = getArg("--assets", "");
+    const assets = splitListArg(assetArg);
+
     const outputPath = path.resolve(getArg("--output", path.resolve("build", "notarization-info.json")));
     const bundleId = getArg("--bundle-id", "com.powerplatform.toolbox");
 
     const { appleId, applePassword, teamId } = ensureAppleCreds();
-    const { assetPath, cleanup, displayPath } = prepareSubmissionAsset(appPath);
 
-    process.stdout.write(`Submitting ${displayPath} for notarization (bundleId: ${bundleId}) without waiting...\n`);
+    const resolvedAssets = assets.length > 0 ? assets.flatMap(expandWildcardPath) : [];
+    const targets = resolvedAssets.length > 0 ? resolvedAssets : [appPath];
 
-    let resultRaw;
+    const submissions = [];
+    for (const target of targets) {
+        const { assetPath, cleanup, displayPath } = prepareSubmissionAsset(target);
+        process.stdout.write(`Submitting ${displayPath} for notarization (bundleId: ${bundleId}) without waiting...\n`);
 
-    try {
-        resultRaw = runNotarytool(["submit", assetPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--no-wait", "--output-format", "json"]);
-    } finally {
-        if (cleanup) {
-            cleanup();
+        try {
+            const resultRaw = runNotarytool(["submit", assetPath, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--no-wait", "--output-format", "json"]);
+            const parsed = JSON.parse(resultRaw);
+            submissions.push({
+                submissionId: parsed.id,
+                status: parsed.status,
+                submittedAsset: assetPath,
+                displayPath,
+                submittedAt: new Date().toISOString(),
+            });
+            process.stdout.write(`Submitted notarization request. Submission ID: ${parsed.id}\n`);
+        } finally {
+            if (cleanup) {
+                cleanup();
+            }
         }
     }
 
-    const parsed = JSON.parse(resultRaw);
-    const submissionId = parsed.id;
+    if (submissions.length === 0) {
+        throw new Error(`No notarization assets found. assets='${assetArg}' app='${appPath}'`);
+    }
+
     const info = {
-        submissionId,
+        submissionId: submissions[0].submissionId,
+        submissions,
         bundleId,
-        status: parsed.status,
         appPath,
-        submittedAsset: assetPath,
         submittedAt: new Date().toISOString(),
     };
 
     fs.writeFileSync(outputPath, `${JSON.stringify(info, null, 2)}\n`);
-    process.stdout.write(`Submitted notarization request. Submission ID: ${submissionId}\n`);
 };
 
 const loadInfo = (infoPath) => {
@@ -145,11 +197,19 @@ const loadInfo = (infoPath) => {
     const contents = fs.readFileSync(infoPath, "utf8");
     const info = JSON.parse(contents);
 
-    if (!info.submissionId) {
-        throw new Error(`Notarization info is missing submissionId: ${infoPath}`);
+    if (!info.submissionId && (!Array.isArray(info.submissions) || info.submissions.length === 0)) {
+        throw new Error(`Notarization info is missing submissionId/submissions: ${infoPath}`);
     }
 
     return info;
+};
+
+const getSubmissionIds = (info) => {
+    if (Array.isArray(info.submissions) && info.submissions.length > 0) {
+        return info.submissions.map((entry) => entry.submissionId).filter(Boolean);
+    }
+
+    return info.submissionId ? [info.submissionId] : [];
 };
 
 const waitForStatus = async () => {
@@ -163,33 +223,47 @@ const waitForStatus = async () => {
 
     const maxAttempts = Math.max(1, Math.ceil((timeoutHours * 60) / intervalMinutes));
     const info = loadInfo(infoPath);
+    const submissionIds = getSubmissionIds(info);
     const { appleId, applePassword, teamId } = ensureAppleCreds();
 
-    process.stdout.write(`Waiting for notarization ${info.submissionId} (max ${timeoutHours}h)...\n`);
+    if (submissionIds.length === 0) {
+        throw new Error(`No notarization submission IDs found in ${infoPath}`);
+    }
+
+    process.stdout.write(`Waiting for notarization (${submissionIds.length} submission(s), max ${timeoutHours}h)...\n`);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-            const output = runNotarytool(["log", info.submissionId, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--output-format", "json"]);
+            let acceptedCount = 0;
 
-            const parsed = JSON.parse(output);
-            const status = parsed.status;
+            for (const submissionId of submissionIds) {
+                const output = runNotarytool(["log", submissionId, "--apple-id", appleId, "--team-id", teamId, "--password", applePassword, "--output-format", "json"]);
 
-            if (status === "Accepted") {
-                process.stdout.write(`Notarization ${info.submissionId} accepted.\n`);
+                const parsed = JSON.parse(output);
+                const status = parsed.status;
+
+                if (status === "Accepted") {
+                    acceptedCount += 1;
+                    continue;
+                }
+
+                if (status === "Invalid") {
+                    const issues = parsed.issues || [];
+                    process.stderr.write(`Notarization ${submissionId} was rejected.\n`);
+                    if (issues.length > 0) {
+                        process.stderr.write(`${JSON.stringify(issues, null, 2)}\n`);
+                    }
+                    throw new Error("Apple rejected the notarization request.");
+                }
+            }
+
+            if (acceptedCount === submissionIds.length) {
+                process.stdout.write(`Notarization accepted for all submissions (${acceptedCount}/${submissionIds.length}).\n`);
                 return;
             }
 
-            if (status === "Invalid") {
-                const issues = parsed.issues || [];
-                process.stderr.write(`Notarization ${info.submissionId} was rejected.\n`);
-                if (issues.length > 0) {
-                    process.stderr.write(`${JSON.stringify(issues, null, 2)}\n`);
-                }
-                throw new Error("Apple rejected the notarization request.");
-            }
-
             if (attempt === maxAttempts) {
-                throw new Error(`Timed out waiting for notarization ${info.submissionId} after ${timeoutHours} hours.`);
+                throw new Error(`Timed out waiting for notarization after ${timeoutHours} hours.`);
             }
 
             const nextDelayMs = intervalMinutes * 60 * 1000;
@@ -198,7 +272,7 @@ const waitForStatus = async () => {
         } catch (error) {
             if (isLogUnavailableError(error)) {
                 if (attempt === maxAttempts) {
-                    throw new Error(`Timed out waiting for notarization ${info.submissionId} after ${timeoutHours} hours (submission log never became available).`);
+                    throw new Error(`Timed out waiting for notarization after ${timeoutHours} hours (submission log never became available).`);
                 }
 
                 const nextDelayMs = intervalMinutes * 60 * 1000;

@@ -714,7 +714,7 @@ export class DataverseManager {
 
         // Handle EntityReference with entityLogicalName and id (user-friendly format)
         // Convert to @odata.id format internally
-        if (typeof value === "object" && value !== null && "entityLogicalName" in value && "id" in value) {
+        if (typeof value === "object" && "entityLogicalName" in value && "id" in value) {
             const ref = value as { entityLogicalName: unknown; id: unknown };
             if (typeof ref.entityLogicalName !== "string" || typeof ref.id !== "string") {
                 throw new Error("EntityReference must have string entityLogicalName and id properties");
@@ -725,7 +725,7 @@ export class DataverseManager {
         }
 
         // Handle already-formatted EntityReference with @odata.id (advanced users)
-        if (typeof value === "object" && value !== null && "@odata.id" in value) {
+        if (value && typeof value === "object" && "@odata.id" in value) {
             return encodeURIComponent(JSON.stringify(value));
         }
 
