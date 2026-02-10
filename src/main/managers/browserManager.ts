@@ -92,55 +92,6 @@ export class BrowserManager {
     }
 
     /**
-     * Get Firefox profiles by parsing profiles.ini
-     */
-    private getFirefoxProfiles(platform: string): string[] {
-        let profilesPath = "";
-
-        if (platform === "win32") {
-            profilesPath = path.join(process.env.APPDATA || "", "Mozilla\\Firefox\\profiles.ini");
-        } else if (platform === "darwin") {
-            profilesPath = path.join(os.homedir(), "Library/Application Support/Firefox/profiles.ini");
-        } else {
-            profilesPath = path.join(os.homedir(), ".mozilla/firefox/profiles.ini");
-        }
-
-        if (!fs.existsSync(profilesPath)) {
-            return [];
-        }
-
-        const content = fs.readFileSync(profilesPath, "utf8");
-        const profiles: string[] = [];
-
-        // Parse INI file for profile names
-        const lines = content.split("\n");
-        let currentSection = "";
-        let currentName = "";
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                // Save previous profile if we have a name
-                if (currentName && currentSection.startsWith("Profile")) {
-                    profiles.push(currentName);
-                }
-                currentSection = trimmed.slice(1, -1);
-                currentName = "";
-            } else if (trimmed.startsWith("Name=")) {
-                currentName = trimmed.substring(5);
-            }
-        }
-
-        // Don't forget the last profile
-        if (currentName && currentSection.startsWith("Profile")) {
-            profiles.push(currentName);
-        }
-
-        return profiles;
-    }
-
-    /**
      * Get Chromium-based browser profiles (Chrome, Edge)
      * Returns objects with both display name and directory path
      */
