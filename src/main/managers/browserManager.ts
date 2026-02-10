@@ -320,8 +320,10 @@ export class BrowserManager {
 
         // Add profile argument if specified
         if (profileName) {
+            // Sanitize profile name to avoid problematic characters in CLI argument
+            const safeProfileName = profileName.replace(/[^\w\s-]/g, "_");
             // Chrome and Edge use --profile-directory flag
-            args.push(`--profile-directory=${profileName}`);
+            args.push(`--profile-directory=${safeProfileName}`);
         }
 
         return { executable, args };
