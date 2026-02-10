@@ -9,8 +9,10 @@ export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassw
 
 /**
  * Browser type for interactive authentication
+ *
+ * Note: Firefox and Brave may be added here in the future when BrowserManager supports them.
  */
-export type BrowserType = "default" | "chrome" | "edge" | "firefox" | "brave";
+export type BrowserType = "default" | "chrome" | "edge";
 
 /**
  * Dataverse connection configuration
