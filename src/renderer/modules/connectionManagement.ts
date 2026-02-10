@@ -1285,8 +1285,6 @@ function formatBrowserType(browserType: DataverseConnection["browserType"]): str
         default: "Browser",
         chrome: "Chrome",
         edge: "Edge",
-        firefox: "Firefox",
-        brave: "Brave",
     };
     return labels[browserType || "default"] || "Browser";
 }
