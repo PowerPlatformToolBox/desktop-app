@@ -82,7 +82,7 @@ export interface ToolManifest {
     version: string;
     description: string;
     authors?: string[]; // contributors list
-    icon?: string; // HTTP(S) URL or relative path to SVG icon (e.g., "dist/icon.svg")
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     installPath: string;
     installedAt: string;
     source: "registry" | "npm" | "local"; // Track installation source
