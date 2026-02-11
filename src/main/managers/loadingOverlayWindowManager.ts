@@ -66,11 +66,14 @@ export class LoadingOverlayWindowManager {
         if (!this.overlayWindow) return;
         
         if (this.currentBounds) {
-            // Use tool panel bounds (relative to window) to position overlay
-            const windowBounds = this.mainWindow.getBounds();
+            // BrowserView bounds are relative to window content area (x, y from top-left of content)
+            // We need to convert to screen coordinates for the overlay BrowserWindow
+            const contentBounds = this.mainWindow.getContentBounds();
+            
+            // Position overlay in screen coordinates
             this.overlayWindow.setBounds({
-                x: windowBounds.x + this.currentBounds.x,
-                y: windowBounds.y + this.currentBounds.y,
+                x: contentBounds.x + this.currentBounds.x,
+                y: contentBounds.y + this.currentBounds.y,
                 width: this.currentBounds.width,
                 height: this.currentBounds.height,
             });
@@ -101,10 +104,10 @@ export class LoadingOverlayWindowManager {
 * { box-sizing: border-box; }
 html,body { width:100%; height:100%; margin:0; padding:0; background:rgba(0,0,0,0.4); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; }
 body { display:flex; align-items:center; justify-content:center; position:relative; }
-.overlay-container { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 48px; background:rgba(30,30,30,0.85); border:1px solid #3d3d3d; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.6); position:relative; }
+.overlay-container { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 48px; background:rgba(30,30,30,0.85); border:1px solid #3d3d3d; border-radius:0; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.6); position:relative; }
 .spinner { width:48px; height:48px; border:5px solid #2d2d2d; border-top-color:#0078d4; border-radius:50%; animation:spin 1s linear infinite; }
 .message { color:#ffffff; font-size:15px; font-weight:500; text-align:center; max-width:320px; }
-.close-button { position:absolute; top:8px; right:8px; width:32px; height:32px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; transition:all 0.15s ease; outline:none; }
+.close-button { position:absolute; top:8px; right:8px; width:32px; height:32px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:0; color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; transition:all 0.15s ease; outline:none; }
 .close-button:hover { background:rgba(255,255,255,0.25); border-color:rgba(255,255,255,0.4); }
 .close-button:active { background:rgba(255,255,255,0.35); }
 .close-button:focus { background:rgba(255,255,255,0.25); border-color:#0078d4; box-shadow:0 0 0 2px rgba(0,120,212,0.4); }
