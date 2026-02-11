@@ -631,16 +631,20 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 }
 
 function buildToolIconHtml(tool: ToolDetail): string {
+    // defaultToolIcon is a safe data:image/svg+xml URI generated from application constant
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
     const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
-    const escapedDefaultIcon = escapeHtml(defaultToolIcon);
+    
+    // Validate the generated data URI is safe (defensive check)
+    const escapedDefaultIcon = defaultToolIcon.startsWith("data:image/") ? escapeHtml(defaultToolIcon) : "";
 
     if (!resolvedIconUrl) {
-        return `<img src="${escapedDefaultIcon}" alt="${escapeHtml(tool.name)} icon" />`;
+        return escapedDefaultIcon ? `<img src="${escapedDefaultIcon}" alt="${escapeHtml(tool.name)} icon" />` : "";
     }
 
     const escapedResolvedUrl = escapeHtml(resolvedIconUrl);
-    return `<img src="${escapedResolvedUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${escapedDefaultIcon}'" />`;
+    const onerrorAttr = escapedDefaultIcon ? ` onerror="this.src='${escapedDefaultIcon}'"` : "";
+    return `<img src="${escapedResolvedUrl}" alt="${escapeHtml(tool.name)} icon"${onerrorAttr} />`;
 }
 
 function svgToDataUri(svgContent: string): string {

@@ -46,18 +46,40 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
  * @param toolId - The tool identifier
  * @param iconPath - The icon path from tool manifest
  * @param toolName - The tool name for alt text
- * @param defaultIcon - The default icon path to use as fallback
+ * @param defaultIcon - The default icon path to use as fallback (application-controlled)
  * @returns HTML string for the tool icon
  */
 export function generateToolIconHtml(toolId: string, iconPath: string | undefined, toolName: string, defaultIcon: string): string {
     const resolvedUrl = resolveToolIconUrl(toolId, iconPath);
     const escapedToolName = escapeHtml(toolName);
-    const escapedDefaultIcon = escapeHtml(defaultIcon);
+    
+    // Validate defaultIcon is a safe URL (not javascript: or data:text/html protocols)
+    // Note: defaultIcon is application-controlled, but validate defensively
+    const safeDefaultIcon = isSafeIconUrl(defaultIcon) ? escapeHtml(defaultIcon) : "";
 
     if (resolvedUrl) {
         const escapedResolvedUrl = escapeHtml(resolvedUrl);
-        return `<img src="${escapedResolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img" onerror="this.src='${escapedDefaultIcon}'" />`;
+        // Only add onerror handler if we have a safe fallback icon
+        const onerrorAttr = safeDefaultIcon ? ` onerror="this.src='${safeDefaultIcon}'"` : "";
+        return `<img src="${escapedResolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img"${onerrorAttr} />`;
     } else {
-        return `<img src="${escapedDefaultIcon}" alt="${escapedToolName} icon" class="tool-item-icon-img" />`;
+        return safeDefaultIcon ? `<img src="${safeDefaultIcon}" alt="${escapedToolName} icon" class="tool-item-icon-img" />` : "";
     }
+}
+
+/**
+ * Check if a URL is safe for use in icon src attributes
+ * Prevents javascript: and unsafe data: URIs
+ * @param url - The URL to validate
+ * @returns true if the URL is safe
+ */
+function isSafeIconUrl(url: string): boolean {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase().trim();
+    // Block javascript: protocol
+    if (lowerUrl.startsWith("javascript:")) return false;
+    // Block data URIs that aren't images
+    if (lowerUrl.startsWith("data:") && !lowerUrl.startsWith("data:image/")) return false;
+    // Allow http(s), file, pptb-webview, relative paths, and image data URIs
+    return true;
 }
