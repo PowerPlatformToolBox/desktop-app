@@ -944,10 +944,31 @@ class ToolBoxApp {
             this.api.copyToClipboard(text);
         });
 
-        // Show loading handler (overlay window above BrowserViews)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.show(message || "Loading...");
+        // Show loading handler (overlay window above tool panel area only)
+        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
+            if (this.loadingOverlayWindowManager && this.mainWindow) {
+                try {
+                    // Request tool panel bounds from renderer
+                    this.mainWindow.webContents.send("get-tool-panel-bounds-request");
+                    
+                    // Wait for bounds response with timeout
+                    const bounds = await new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+                        const timeout = setTimeout(() => {
+                            resolve(null); // Timeout - use fallback
+                        }, 100); // 100ms timeout
+
+                        ipcMain.once("get-tool-panel-bounds-response", (_, responseBounds) => {
+                            clearTimeout(timeout);
+                            resolve(responseBounds);
+                        });
+                    });
+
+                    // Show overlay with tool panel bounds (or null for full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds || undefined);
+                } catch (error) {
+                    // On error, show without bounds (full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...");
+                }
             } else if (this.mainWindow) {
                 // Fallback to legacy in-DOM loading screen if manager not ready
                 this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");

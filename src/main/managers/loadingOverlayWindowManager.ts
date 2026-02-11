@@ -4,14 +4,18 @@ import { BrowserWindow } from "electron";
  * LoadingOverlayWindowManager
  *
  * Provides a frameless, transparent, always-on-top window that displays a centered
- * loading spinner and message. This window sits above any BrowserView instances,
- * solving the issue where an in-DOM loading screen would be obscured by the tool BrowserView.
+ * loading spinner and message. This window sits above the tool panel area (not the entire window),
+ * allowing users to still interact with the sidebar, toolbar, and close buttons.
+ * This solves two issues:
+ * 1. An in-DOM loading screen would be obscured by the tool BrowserView
+ * 2. A full-window overlay would block all app interaction, preventing users from closing tools or the app
  */
 export class LoadingOverlayWindowManager {
     private overlayWindow: BrowserWindow | null = null;
     private mainWindow: BrowserWindow;
     private visible = false;
     private currentMessage = "Loading...";
+    private currentBounds: { x: number; y: number; width: number; height: number } | null = null;
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
@@ -50,17 +54,29 @@ export class LoadingOverlayWindowManager {
         this.updateWindowBounds();
     }
 
-    /** Resize & reposition to cover the main window client area */
+    /** Resize & reposition to cover the tool panel area (or entire window as fallback) */
     private updateWindowBounds(): void {
         if (!this.overlayWindow) return;
-        const bounds = this.mainWindow.getBounds();
-        // Cover entire window
-        this.overlayWindow.setBounds({
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-        });
+        
+        if (this.currentBounds) {
+            // Use tool panel bounds (relative to window) to position overlay
+            const windowBounds = this.mainWindow.getBounds();
+            this.overlayWindow.setBounds({
+                x: windowBounds.x + this.currentBounds.x,
+                y: windowBounds.y + this.currentBounds.y,
+                width: this.currentBounds.width,
+                height: this.currentBounds.height,
+            });
+        } else {
+            // Fallback: cover entire window (legacy behavior)
+            const bounds = this.mainWindow.getBounds();
+            this.overlayWindow.setBounds({
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width,
+                height: bounds.height,
+            });
+        }
     }
 
     /** Rebuild the HTML with current message */
@@ -89,9 +105,14 @@ body { display:flex; align-items:center; justify-content:center; }
 </body></html>`;
     }
 
-    /** Show overlay with optional message */
-    show(message?: string): void {
+    /**
+     * Show overlay with optional message.
+     * If bounds are provided, the overlay will only cover that area (typically the tool panel).
+     * If no bounds provided, it will cover the entire window (fallback for legacy compatibility).
+     */
+    show(message?: string, bounds?: { x: number; y: number; width: number; height: number }): void {
         this.currentMessage = message || this.currentMessage || "Loading...";
+        this.currentBounds = bounds || null;
         this.reloadContent();
         this.updateWindowBounds();
         if (this.overlayWindow && !this.visible) {
