@@ -69,15 +69,15 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
 
 /**
  * Check if a URL is safe for use in icon src attributes
- * Prevents javascript: and unsafe data: URIs
+ * Prevents javascript:, vbscript:, and unsafe data: URIs
  * @param url - The URL to validate
  * @returns true if the URL is safe
  */
 function isSafeIconUrl(url: string): boolean {
     if (!url) return false;
     const lowerUrl = url.toLowerCase().trim();
-    // Block javascript: protocol
-    if (lowerUrl.startsWith("javascript:")) return false;
+    // Block script execution protocols
+    if (lowerUrl.startsWith("javascript:") || lowerUrl.startsWith("vbscript:")) return false;
     // Block data URIs that aren't images
     if (lowerUrl.startsWith("data:") && !lowerUrl.startsWith("data:image/")) return false;
     // Allow http(s), file, pptb-webview, relative paths, and image data URIs
