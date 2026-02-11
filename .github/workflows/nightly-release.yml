@@ -138,6 +138,40 @@ jobs:
                   description: Power Platform ToolBox (Insider)
                   description-url: https://github.com/PowerPlatformToolBox/desktop-app
 
+            - name: Repackage portable ZIP with signed EXE (Windows)
+              if: matrix.os == 'windows-latest'
+              shell: powershell
+              run: |
+                  $buildDir = "${{ github.workspace }}/build"
+                  $zipFiles = @(Get-ChildItem "$buildDir/*.zip" -ErrorAction SilentlyContinue)
+
+                  if ($zipFiles.Count -eq 0) {
+                    Write-Host "No ZIP artifacts found; skipping repack."
+                    exit 0
+                  }
+
+                  foreach ($zip in $zipFiles) {
+                    Write-Host "Repacking ZIP: $($zip.Name)"
+                    $tempDir = Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString())
+                    New-Item -ItemType Directory -Path $tempDir | Out-Null
+
+                    Expand-Archive -Path $zip.FullName -DestinationPath $tempDir -Force
+
+                    $zipExeFiles = @(Get-ChildItem $tempDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue)
+                    foreach ($zipExe in $zipExeFiles) {
+                      $signedExe = Get-ChildItem $buildDir -Recurse -Filter $zipExe.Name -ErrorAction SilentlyContinue | Select-Object -First 1
+                      if ($signedExe) {
+                        Copy-Item $signedExe.FullName $zipExe.FullName -Force
+                        Write-Host "  Replaced $($zipExe.Name) with signed binary."
+                      } else {
+                        Write-Host "  No signed match found for $($zipExe.Name)."
+                      }
+                    }
+
+                    Remove-Item $zip.FullName -Force
+                    Compress-Archive -Path (Join-Path $tempDir '*') -DestinationPath $zip.FullName -Force
+                  }
+
             - name: Regenerate latest.yml with correct SHA256 hashes (Windows)
               if: matrix.os == 'windows-latest'
               shell: powershell
