@@ -26,8 +26,8 @@ The Tool Version Compatibility System allows tools to specify which versions of 
 
 - **ToolBox Version**: The version of the Power Platform ToolBox application (e.g., `1.1.3`)
 - **API Version**: The version of the `@pptb/types` package that defines the tool API surface (matches ToolBox version)
-- **Minimum API Version (minAPI)**: The oldest ToolBox API version a tool requires
-- **Maximum API Version (maxAPI)**: The newest ToolBox API version a tool was built and tested against
+- **Minimum API Version (minAPI)**: The oldest ToolBox version required by the tool
+- **Maximum API Version (maxAPI)**: The newest ToolBox version the tool was built and tested against
 
 ---
 
@@ -35,27 +35,28 @@ The Tool Version Compatibility System allows tools to specify which versions of 
 
 A tool is considered **compatible** and will be enabled if:
 
-1. **Minimum Version Check**: `tool.minAPI >= ToolBox.MIN_SUPPORTED_API_VERSION`
-   - The tool's minimum requirement must be within what the current ToolBox supports
-   - Protects against tools requiring features from versions too old to support
+1. **Minimum Version Check**: `ToolBox.VERSION >= tool.minAPI`
+   - The current ToolBox must be at least as new as what the tool requires
+   - Ensures tools don't require APIs that are not yet available
 
-2. **Maximum Version Check**: `tool.maxAPI >= ToolBox.VERSION`
-   - The tool was built against an API version that's equal to or newer than the current ToolBox
-   - Ensures the tool has access to all APIs it expects
+2. **Maximum Version Check**: `ToolBox.VERSION <= tool.maxAPI`
+   - The current ToolBox must not be newer than what the tool was tested with
+   - Prevents tools from running on newer versions with potential breaking changes
 
 ### Examples
 
 #### Example 1: Backward-Compatible Tool
 
 **Scenario:**
-- ToolBox installed: `v1.0.1` (API v1.0.1)
+- ToolBox installed: `v1.0.5` (API v1.0.5)
 - Tool built against: API `v1.3.1` (from `@pptb/types@1.3.1`)
 - Tool declares: `minAPI: "1.0.1"`
 
-**Result:** ✅ Compatible
-- Tool's minAPI (1.0.1) >= ToolBox min supported (1.0.1) ✓
-- Tool's maxAPI (1.3.1) >= ToolBox version (1.0.1) ✓
-- Tool only uses APIs unchanged since v1.0.1
+**Result:** ❌ Not Compatible
+- Tool's minAPI (1.0.1) <= ToolBox version (1.0.5) ✓
+- Tool's maxAPI (1.3.1) >= ToolBox version (1.0.5) ✗ (tool needs newer ToolBox)
+
+**Explanation:** This tool was built and tested with ToolBox v1.3.1. While it claims to support down to v1.0.1, it was only tested with v1.3.1, so running it on v1.0.5 may cause issues.
 
 #### Example 2: Requires Newer ToolBox
 
@@ -69,6 +70,18 @@ A tool is considered **compatible** and will be enabled if:
 - Tool uses new APIs added in v1.0.2 that don't exist in v1.0.1
 
 **Action Required:** User must upgrade ToolBox to v1.0.2 or newer
+
+#### Example 3: Perfect Match
+
+**Scenario:**
+- ToolBox installed: `v1.0.5`
+- Tool built against: API `v1.0.5`
+- Tool declares: `minAPI: "1.0.0"`
+
+**Result:** ✅ Compatible
+- Tool's minAPI (1.0.0) <= ToolBox version (1.0.5) ✓
+- Tool's maxAPI (1.0.5) >= ToolBox version (1.0.5) ✓
+- Tool works on any ToolBox from v1.0.0 to v1.0.5
 
 ---
 
@@ -269,25 +282,40 @@ Located in `src/main/managers/toolsManager.ts`:
 
 ```typescript
 function compareVersions(v1: string, v2: string): number {
-    // Normalize versions to arrays of integers
-    const normalize = (v: string) => {
-        const parts = v.replace(/[^\d.]/g, "").split(".");
-        return parts.map((p) => parseInt(p, 10) || 0);
+    // Split version into numeric and pre-release parts
+    const parseVersion = (v: string) => {
+        const [numericPart, preRelease] = v.split("-");
+        const numeric = numericPart.split(".").map((p) => parseInt(p, 10) || 0);
+        return { numeric, preRelease: preRelease || null };
     };
 
-    const parts1 = normalize(v1);
-    const parts2 = normalize(v2);
-    const maxLength = Math.max(parts1.length, parts2.length);
+    const parsed1 = parseVersion(v1);
+    const parsed2 = parseVersion(v2);
 
+    // Compare numeric parts
+    const maxLength = Math.max(parsed1.numeric.length, parsed2.numeric.length);
     for (let i = 0; i < maxLength; i++) {
-        const p1 = parts1[i] || 0;
-        const p2 = parts2[i] || 0;
+        const p1 = parsed1.numeric[i] || 0;
+        const p2 = parsed2.numeric[i] || 0;
         if (p1 < p2) return -1;
         if (p1 > p2) return 1;
     }
+
+    // If numeric parts are equal, compare pre-release
+    // Release version (no pre-release) > Pre-release version
+    if (parsed1.preRelease === null && parsed2.preRelease !== null) return 1;
+    if (parsed1.preRelease !== null && parsed2.preRelease === null) return -1;
+    if (parsed1.preRelease !== null && parsed2.preRelease !== null) {
+        // Simple string comparison for pre-release tags
+        if (parsed1.preRelease < parsed2.preRelease) return -1;
+        if (parsed1.preRelease > parsed2.preRelease) return 1;
+    }
+
     return 0;
 }
 ```
+
+**Note:** This implementation properly handles pre-release versions (e.g., `1.0.0-beta.1 < 1.0.0`).
 
 ### Compatibility Check Logic
 
@@ -296,14 +324,16 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     // No version constraints = compatible (legacy tools)
     if (!minAPI && !maxAPI) return true;
 
-    // Check minimum: tool.minAPI >= MIN_SUPPORTED_API_VERSION
-    if (minAPI && compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
-        return false;
+    // Check minimum: TOOLBOX_VERSION >= tool.minAPI
+    // Tool requires at least minAPI, ToolBox must be that version or newer
+    if (minAPI && compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
+        return false; // ToolBox is older than tool requires
     }
 
-    // Check maximum: tool.maxAPI >= TOOLBOX_VERSION
-    if (maxAPI && compareVersions(maxAPI, TOOLBOX_VERSION) < 0) {
-        return false;
+    // Check maximum: TOOLBOX_VERSION <= tool.maxAPI  
+    // Tool was tested with maxAPI, may not work with newer versions
+    if (maxAPI && compareVersions(TOOLBOX_VERSION, maxAPI) > 0) {
+        return false; // ToolBox is newer than tool was tested with
     }
 
     return true;
