@@ -5,7 +5,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
-import { MIN_SUPPORTED_API_VERSION, TOOLBOX_VERSION } from "../constants";
+import { TOOLBOX_VERSION } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
@@ -30,31 +30,54 @@ interface ToolPackageJson {
  * Compare two semantic version strings
  * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
  * Handles versions like "1.0.0", "1.0.12", "1.1.3-beta.1"
+ * 
+ * Note: Pre-release versions (e.g., "1.0.0-beta.1") are considered less than
+ * their release counterparts (e.g., "1.0.0") as per semver spec
  */
 function compareVersions(v1: string, v2: string): number {
-    const normalize = (v: string) => {
-        const parts = v.replace(/[^\d.]/g, "").split(".");
-        return parts.map((p) => parseInt(p, 10) || 0);
+    // Split version into numeric and pre-release parts
+    const parseVersion = (v: string) => {
+        const [numericPart, preRelease] = v.split("-");
+        const numeric = numericPart.split(".").map((p) => parseInt(p, 10) || 0);
+        return { numeric, preRelease: preRelease || null };
     };
 
-    const parts1 = normalize(v1);
-    const parts2 = normalize(v2);
-    const maxLength = Math.max(parts1.length, parts2.length);
+    const parsed1 = parseVersion(v1);
+    const parsed2 = parseVersion(v2);
 
+    // Compare numeric parts
+    const maxLength = Math.max(parsed1.numeric.length, parsed2.numeric.length);
     for (let i = 0; i < maxLength; i++) {
-        const p1 = parts1[i] || 0;
-        const p2 = parts2[i] || 0;
+        const p1 = parsed1.numeric[i] || 0;
+        const p2 = parsed2.numeric[i] || 0;
         if (p1 < p2) return -1;
         if (p1 > p2) return 1;
     }
+
+    // If numeric parts are equal, compare pre-release
+    // No pre-release (release version) > has pre-release (pre-release version)
+    if (parsed1.preRelease === null && parsed2.preRelease !== null) return 1;
+    if (parsed1.preRelease !== null && parsed2.preRelease === null) return -1;
+    if (parsed1.preRelease !== null && parsed2.preRelease !== null) {
+        // Simple string comparison for pre-release tags
+        if (parsed1.preRelease < parsed2.preRelease) return -1;
+        if (parsed1.preRelease > parsed2.preRelease) return 1;
+    }
+
     return 0;
 }
 
 /**
  * Check if a tool is compatible with the current ToolBox version
- * @param minAPI - Minimum API version required by the tool
- * @param maxAPI - Maximum API version tested by the tool (from @pptb/types)
+ * @param minAPI - Minimum API version required by the tool (from package.json)
+ * @param maxAPI - Maximum API version tested by the tool (from @pptb/types in shrinkwrap)
  * @returns true if the tool is supported, false otherwise
+ * 
+ * Compatibility rules:
+ * 1. If tool has no version constraints (legacy): always compatible
+ * 2. If tool specifies minAPI: current ToolBox version must be >= minAPI
+ * 3. If tool specifies maxAPI: current ToolBox version must be <= maxAPI
+ *    (tool was built/tested with this API, newer versions may have breaking changes)
  */
 function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     // If no version constraints, assume compatible (legacy tools)
@@ -62,19 +85,20 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
         return true;
     }
 
-    // Check minimum version: tool.minAPI >= ToolBox.minSupportedAPI
+    // Check minimum version: TOOLBOX_VERSION >= tool.minAPI
+    // Tool requires at least minAPI, so we need to have that version or newer
     if (minAPI) {
-        if (compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
-            // Tool requires older API than we support
+        if (compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
+            // Current ToolBox version is older than what tool requires
             return false;
         }
     }
 
-    // Check maximum version: tool.maxAPI >= ToolBox.version
-    // If tool was built with older API, it may not work with current version
+    // Check maximum version: TOOLBOX_VERSION <= tool.maxAPI  
+    // Tool was built/tested with maxAPI, may not work with newer breaking changes
     if (maxAPI) {
-        if (compareVersions(maxAPI, TOOLBOX_VERSION) < 0) {
-            // Tool was built with older API, may not be compatible
+        if (compareVersions(TOOLBOX_VERSION, maxAPI) > 0) {
+            // Current ToolBox version is newer than what tool was tested with
             return false;
         }
     }

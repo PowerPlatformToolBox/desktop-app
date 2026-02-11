@@ -457,8 +457,12 @@ export class ToolRegistryManager extends EventEmitter {
         let maxAPI: string | undefined = tool.maxAPI; // From registry
 
         // If not in registry, try to extract from package.json and npm-shrinkwrap.json
-        if (!minAPI && packageJson.features?.minAPI) {
-            minAPI = packageJson.features.minAPI;
+        if (!minAPI) {
+            if (packageJson.features?.minAPI) {
+                minAPI = packageJson.features.minAPI;
+            } else {
+                logInfo(`[ToolRegistry] Tool ${toolId} does not specify features.minAPI in package.json. Tool will be assumed compatible with all versions.`);
+            }
         }
 
         // Try to read maxAPI from npm-shrinkwrap.json (@pptb/types version)
@@ -471,12 +475,16 @@ export class ToolRegistryManager extends EventEmitter {
                     const pptbTypes = shrinkwrap.dependencies?.["@pptb/types"] || shrinkwrap.packages?.["node_modules/@pptb/types"];
                     if (pptbTypes?.version) {
                         maxAPI = pptbTypes.version.replace(/^\^|~/, ""); // Remove ^ or ~ prefix
+                    } else {
+                        logInfo(`[ToolRegistry] Tool ${toolId} npm-shrinkwrap.json does not contain @pptb/types. Tool will be assumed compatible with all versions.`);
                     }
                 } catch (error) {
                     captureMessage(`[ToolRegistry] Failed to parse npm-shrinkwrap.json for ${toolId}`, "warning", {
                         extra: { error },
                     });
                 }
+            } else {
+                logInfo(`[ToolRegistry] Tool ${toolId} does not have npm-shrinkwrap.json. Tool will be assumed compatible with all versions.`);
             }
         }
 

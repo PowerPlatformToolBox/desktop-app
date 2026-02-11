@@ -27,8 +27,9 @@ export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
  * ToolBox API version
  * This should match the version in package.json and @pptb/types package
  * Used for tool compatibility checking
+ * Injected at build time via vite.config.ts from package.json
  */
-export const TOOLBOX_VERSION = process.env.TOOLBOX_VERSION || "1.1.3";
+export const TOOLBOX_VERSION = process.env.TOOLBOX_VERSION || "0.0.0";
 
 /**
  * Minimum API version supported by this ToolBox version
