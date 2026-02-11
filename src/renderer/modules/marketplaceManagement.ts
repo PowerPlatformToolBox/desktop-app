@@ -8,6 +8,7 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
+import { generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -242,18 +243,9 @@ export async function loadMarketplace(): Promise<void> {
             </div>`;
             const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
-            // Icon handling (retain improved fallback logic)
+            // Icon handling using utility function
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-            let toolIconHtml = "";
-            if (tool.iconUrl) {
-                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
-                } else {
-                    toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
-                }
-            } else {
-                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
-            }
+            const toolIconHtml = generateToolIconHtml(tool.id, tool.iconUrl, tool.name, defaultToolIcon);
 
             const defaultInstallIcon = isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg";
 
@@ -640,21 +632,13 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 
 function buildToolIconHtml(tool: ToolDetail): string {
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
-    const iconUrl = tool.iconUrl;
+    const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
 
-    if (!iconUrl) {
+    if (!resolvedIconUrl) {
         return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
     }
 
-    if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
-        return `<img src="${iconUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${defaultToolIcon}'" />`;
-    }
-
-    if (iconUrl.length <= 4) {
-        return `<span style="font-size:48px;line-height:1">${escapeHtml(iconUrl)}</span>`;
-    }
-
-    return `<span style="font-size:20px;font-weight:600">${escapeHtml(iconUrl)}</span>`;
+    return `<img src="${resolvedIconUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${defaultToolIcon}'" />`;
 }
 
 function escapeHtml(value: string): string {

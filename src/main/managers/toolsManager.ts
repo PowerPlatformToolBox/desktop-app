@@ -17,7 +17,7 @@ interface ToolPackageJson {
     displayName?: string;
     description?: string;
     author?: string;
-    icon?: string;
+    icon?: string; // Relative path to SVG icon (e.g., "dist/icon.svg")
     cspExceptions?: CspExceptions;
     features?: ToolFeatures;
     repository?: string | { type: string; url: string };
