@@ -442,9 +442,10 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         const iconContainer = document.createElement("div");
         iconContainer.className = "quick-tool-icon";
 
-        if (tool.iconUrl) {
+        const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
+        if (resolvedIconUrl) {
             const img = document.createElement("img");
-            img.src = tool.iconUrl;
+            img.src = resolvedIconUrl;
             img.alt = escapeHtml(tool.name);
             iconContainer.appendChild(img);
         } else {

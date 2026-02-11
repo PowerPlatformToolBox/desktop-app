@@ -4,6 +4,17 @@
  */
 
 /**
+ * Escape HTML special characters to prevent XSS
+ * @param text - Text to escape
+ * @returns Escaped text safe for HTML attributes
+ */
+function escapeHtml(text: string): string {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Resolve a tool icon URL, converting bundled paths to pptb-webview:// protocol
  * @param toolId - The tool identifier
  * @param iconPath - The icon path from tool manifest (could be URL or relative path)
@@ -42,9 +53,10 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
  */
 export function generateToolIconHtml(toolId: string, iconPath: string | undefined, toolName: string, defaultIcon: string): string {
     const resolvedUrl = resolveToolIconUrl(toolId, iconPath);
+    const escapedToolName = escapeHtml(toolName);
 
     if (resolvedUrl) {
-        return `<img src="${resolvedUrl}" alt="${toolName} icon" class="tool-item-icon-img" onerror="this.src='${defaultIcon}'" />`;
+        return `<img src="${resolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img" onerror="this.src='${defaultIcon}'" />`;
     } else {
         return `<img src="${defaultIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
     }
