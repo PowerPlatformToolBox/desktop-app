@@ -66,7 +66,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     authors: tool.authors,
                     categories: tool.categories,
                     version: tool.version,
-                    iconUrl: tool.iconUrl,
+                    icon: tool.icon,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     mau: tool.mau,
@@ -245,7 +245,7 @@ export async function loadMarketplace(): Promise<void> {
 
             // Icon handling using utility function
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-            const toolIconHtml = generateToolIconHtml(tool.id, tool.iconUrl, tool.name, defaultToolIcon);
+            const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, defaultToolIcon);
 
             const defaultInstallIcon = isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg";
 
@@ -633,7 +633,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 function buildToolIconHtml(tool: ToolDetail): string {
     // defaultToolIcon is a safe data:image/svg+xml URI generated from application constant
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
-    const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
+    const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.icon);
     
     // Validate the generated data URI is safe (defensive check)
     const escapedDefaultIcon = defaultToolIcon.startsWith("data:image/") ? escapeHtml(defaultToolIcon) : "";

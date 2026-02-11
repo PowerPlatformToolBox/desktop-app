@@ -389,7 +389,7 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
         const iconContainer = document.createElement("div");
         iconContainer.className = "quick-tool-icon";
 
-        const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
+        const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.icon);
         if (resolvedIconUrl) {
             const img = document.createElement("img");
             img.src = resolvedIconUrl;
@@ -442,7 +442,7 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         const iconContainer = document.createElement("div");
         iconContainer.className = "quick-tool-icon";
 
-        const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
+        const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.icon);
         if (resolvedIconUrl) {
             const img = document.createElement("img");
             img.src = resolvedIconUrl;

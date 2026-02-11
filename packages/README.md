@@ -54,31 +54,41 @@ Tools can include an SVG icon that will be displayed throughout the ToolBox UI. 
 ### Setting Up Your Tool Icon
 
 1. **Create an SVG icon** for your tool (recommended size: 48x48 or larger for scalability)
-2. **Place the icon** in your tool's `dist` folder (e.g., `dist/icon.svg`)
+2. **Place the icon** in your tool's `dist` folder (e.g., `dist/icon.svg` or `dist/icons/icon.svg`)
 3. **Reference it in package.json**:
 
 ```json
 {
   "name": "my-awesome-tool",
   "version": "1.0.0",
-  "icon": "dist/icon.svg"
+  "icon": "icon.svg"
 }
 ```
 
 ### Icon Path Requirements
 
 - **Format**: SVG only (for theme compatibility and scalability)
-- **Location**: Must be within your tool's package, typically in the `dist` folder
-- **Path**: Relative path from the package root (e.g., `dist/icon.svg`, `assets/logo.svg`)
+- **Location**: Must be in your tool's `dist/` folder
+- **Path**: Relative to the `dist/` folder (e.g., `icon.svg` for `dist/icon.svg`, or `icons/icon.svg` for `dist/icons/icon.svg`)
 
 ### Examples
 
-**Minimal package.json with icon:**
+**Icon at root of dist folder:**
 ```json
 {
   "name": "dataverse-explorer",
   "version": "1.0.0",
-  "icon": "dist/icon.svg",
+  "icon": "icon.svg",
+  "main": "dist/index.html"
+}
+```
+
+**Icon in subdirectory of dist:**
+```json
+{
+  "name": "dataverse-explorer",
+  "version": "1.0.0",
+  "icon": "icons/icon.svg",
   "main": "dist/index.html"
 }
 ```
@@ -94,6 +104,18 @@ my-tool/
 └── README.md
 ```
 
+**Or with subdirectory:**
+```
+my-tool/
+├── dist/
+│   ├── icons/
+│   │   └── icon.svg      ← Your tool icon
+│   ├── index.html
+│   └── bundle.js
+├── package.json
+└── README.md
+```
+
 ### Benefits of Bundled SVG Icons
 
 - ✅ **Offline support**: Icons work without internet connectivity
@@ -101,18 +123,6 @@ my-tool/
 - ✅ **Consistency**: Icons load with the same reliability as your tool
 - ✅ **Theme-aware**: SVG icons can adapt to light/dark themes via CSS
 - ✅ **Scalability**: Vector format ensures crisp display at any size
-
-### Backward Compatibility
-
-Tools can still use HTTP(S) URLs for icons if needed:
-
-```json
-{
-  "icon": "https://example.com/icon.svg"
-}
-```
-
-However, bundled icons are strongly recommended for better performance and offline support.
 
 ## Usage
 

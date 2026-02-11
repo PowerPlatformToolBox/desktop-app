@@ -177,7 +177,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Icon handling using utility function
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-                const toolIconHtml = generateToolIconHtml(tool.id, tool.iconUrl, tool.name, defaultToolIcon);
+                const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, defaultToolIcon);
 
                 // Asset paths
                 const infoIconPath = "icons/light/info_filled.svg";
