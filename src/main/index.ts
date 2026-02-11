@@ -74,7 +74,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, MetadataOperationOptions, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -397,6 +397,26 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS);
+        // Metadata operations
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.BUILD_LABEL);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
     }
 
     /**
@@ -1499,6 +1519,331 @@ class ToolBoxApp {
                 return await this.dataverseManager.getImportJobStatus(connectionId, importJobId);
             } catch (error) {
                 throw new Error(`Dataverse getImportJobStatus failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Dataverse Metadata Helper Utilities
+        ipcMain.handle(DATAVERSE_CHANNELS.BUILD_LABEL, async (event, text: string, languageCode?: number) => {
+            try {
+                return this.dataverseManager.buildLabel(text, languageCode);
+            } catch (error) {
+                throw new Error(`Build label failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE, async (event, attributeType: string) => {
+            try {
+                // Validate attributeType is a valid enum value
+                const validTypes = Object.values(AttributeMetadataType);
+                if (!validTypes.includes(attributeType as AttributeMetadataType)) {
+                    throw new Error(`Invalid attribute type: "${attributeType}". Valid types are: ${validTypes.join(", ")}`);
+                }
+                return this.dataverseManager.getAttributeODataType(attributeType as AttributeMetadataType);
+            } catch (error) {
+                throw new Error(`Get attribute OData type failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Entity (Table) Metadata CRUD Operations
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
+            } catch (error) {
+                throw new Error(`Create entity definition failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
+            async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateEntityDefinition(connectionId, entityIdentifier, entityDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update entity definition failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, async (event, entityIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteEntityDefinition(connectionId, entityIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete entity definition failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Attribute (Column) Metadata CRUD Operations
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateAttribute(connectionId, entityLogicalName, attributeIdentifier, attributeDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, async (event, entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteAttribute(connectionId, entityLogicalName, attributeIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete attribute failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createPolymorphicLookupAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create polymorphic lookup attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        // Relationship Metadata CRUD Operations
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
+            } catch (error) {
+                throw new Error(`Create relationship failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
+            async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateRelationship(connectionId, relationshipIdentifier, relationshipDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update relationship failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, async (event, relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteRelationship(connectionId, relationshipIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete relationship failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Global Option Set (Choice) CRUD Operations
+        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
+            } catch (error) {
+                throw new Error(`Create global option set failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
+            async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateGlobalOptionSet(connectionId, optionSetIdentifier, optionSetDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update global option set failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, async (event, optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteGlobalOptionSet(connectionId, optionSetIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete global option set failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Option Value Modification Actions
+        ipcMain.handle(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.insertOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Insert option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.updateOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Update option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.deleteOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Delete option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.ORDER_OPTION, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.orderOption(connectionId, params);
+            } catch (error) {
+                throw new Error(`Order option failed: ${(error as Error).message}`);
             }
         });
     }
