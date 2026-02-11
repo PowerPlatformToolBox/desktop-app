@@ -104,15 +104,16 @@ body { display:flex; align-items:center; justify-content:center; position:relati
 .overlay-container { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 48px; background:rgba(30,30,30,0.85); border:1px solid #3d3d3d; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.6); position:relative; }
 .spinner { width:48px; height:48px; border:5px solid #2d2d2d; border-top-color:#0078d4; border-radius:50%; animation:spin 1s linear infinite; }
 .message { color:#ffffff; font-size:15px; font-weight:500; text-align:center; max-width:320px; }
-.close-button { position:absolute; top:8px; right:8px; width:32px; height:32px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; transition:background 0.15s ease; }
-.close-button:hover { background:rgba(255,255,255,0.2); }
-.close-button:active { background:rgba(255,255,255,0.3); }
+.close-button { position:absolute; top:8px; right:8px; width:32px; height:32px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; transition:all 0.15s ease; outline:none; }
+.close-button:hover { background:rgba(255,255,255,0.25); border-color:rgba(255,255,255,0.4); }
+.close-button:active { background:rgba(255,255,255,0.35); }
+.close-button:focus { background:rgba(255,255,255,0.25); border-color:#0078d4; box-shadow:0 0 0 2px rgba(0,120,212,0.4); }
 @keyframes spin { to { transform:rotate(360deg); } }
 .fade-in { animation:fadeIn 150ms ease-out; }
 @keyframes fadeIn { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
 </style></head><body>
 <div class="overlay-container fade-in">
-<button class="close-button" onclick="window.close()" title="Close loading overlay">✕</button>
+<button class="close-button" onclick="window.close()" title="Close loading overlay" aria-label="Close loading overlay">✕</button>
 <div class="spinner"></div>
 <div class="message">${message}</div>
 </div>
