@@ -5,6 +5,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import { MIN_SUPPORTED_API_VERSION, TOOLBOX_VERSION } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
@@ -23,6 +24,62 @@ interface ToolPackageJson {
     repository?: string | { type: string; url: string };
     homepage?: string;
     readme?: string;
+}
+
+/**
+ * Compare two semantic version strings
+ * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+ * Handles versions like "1.0.0", "1.0.12", "1.1.3-beta.1"
+ */
+function compareVersions(v1: string, v2: string): number {
+    const normalize = (v: string) => {
+        const parts = v.replace(/[^\d.]/g, "").split(".");
+        return parts.map((p) => parseInt(p, 10) || 0);
+    };
+
+    const parts1 = normalize(v1);
+    const parts2 = normalize(v2);
+    const maxLength = Math.max(parts1.length, parts2.length);
+
+    for (let i = 0; i < maxLength; i++) {
+        const p1 = parts1[i] || 0;
+        const p2 = parts2[i] || 0;
+        if (p1 < p2) return -1;
+        if (p1 > p2) return 1;
+    }
+    return 0;
+}
+
+/**
+ * Check if a tool is compatible with the current ToolBox version
+ * @param minAPI - Minimum API version required by the tool
+ * @param maxAPI - Maximum API version tested by the tool (from @pptb/types)
+ * @returns true if the tool is supported, false otherwise
+ */
+function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
+    // If no version constraints, assume compatible (legacy tools)
+    if (!minAPI && !maxAPI) {
+        return true;
+    }
+
+    // Check minimum version: tool.minAPI >= ToolBox.minSupportedAPI
+    if (minAPI) {
+        if (compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
+            // Tool requires older API than we support
+            return false;
+        }
+    }
+
+    // Check maximum version: tool.maxAPI >= ToolBox.version
+    // If tool was built with older API, it may not work with current version
+    if (maxAPI) {
+        if (compareVersions(maxAPI, TOOLBOX_VERSION) < 0) {
+            // Tool was built with older API, may not be compatible
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -107,6 +164,9 @@ export class ToolManager extends EventEmitter {
             repository: manifest.repository,
             website: manifest.website,
             readmeUrl: manifest.readme,
+            minAPI: manifest.minAPI,
+            maxAPI: manifest.maxAPI,
+            isSupported: isToolSupported(manifest.minAPI, manifest.maxAPI),
         };
 
         const cached = this.analyticsCache.get(tool.id);

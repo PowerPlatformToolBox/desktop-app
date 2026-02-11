@@ -15,6 +15,12 @@ export interface ToolFeatures {
      * - "none": Single connection only (default behavior)
      */
     multiConnection?: "required" | "optional" | "none";
+    /**
+     * Minimum ToolBox API version required by this tool
+     * Tool developers should specify this in their package.json
+     * @example "1.0.12"
+     */
+    minAPI?: string;
 }
 
 /**
@@ -43,6 +49,9 @@ export interface Tool {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
+    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }
 
 /**
@@ -71,6 +80,8 @@ export interface ToolRegistryEntry {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
+    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
 }
 
 /**
@@ -100,6 +111,8 @@ export interface ToolManifest {
     website?: string;
     publishedAt?: string;
     createdAt?: string;
+    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
+    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
 }
 
 /**

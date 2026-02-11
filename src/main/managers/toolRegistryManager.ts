@@ -71,6 +71,8 @@ interface SupabaseTool {
     status?: string; // Tool lifecycle status: active, deprecated, archived
     repository?: string;
     website?: string;
+    min_api?: string; // Minimum ToolBox API version required
+    max_api?: string; // Maximum ToolBox API version tested
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -106,6 +108,8 @@ interface LocalRegistryTool {
     cspExceptions?: CspExceptions;
     features?: Record<string, unknown>;
     status?: string; // Tool lifecycle status: active, deprecated, archived
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
 }
 
 /**
@@ -241,6 +245,8 @@ export class ToolRegistryManager extends EventEmitter {
                     rating,
                     mau,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    minAPI: tool.min_api, // Include min API version from database
+                    maxAPI: tool.max_api, // Include max API version from database
                 } as ToolRegistryEntry;
             });
 
@@ -295,6 +301,8 @@ export class ToolRegistryManager extends EventEmitter {
                     features: tool.features,
                     license: tool.license,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    minAPI: tool.minAPI,
+                    maxAPI: tool.maxAPI,
                 }));
 
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
@@ -444,6 +452,34 @@ export class ToolRegistryManager extends EventEmitter {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
+        // Extract version information
+        let minAPI: string | undefined = tool.minAPI; // From registry
+        let maxAPI: string | undefined = tool.maxAPI; // From registry
+
+        // If not in registry, try to extract from package.json and npm-shrinkwrap.json
+        if (!minAPI && packageJson.features?.minAPI) {
+            minAPI = packageJson.features.minAPI;
+        }
+
+        // Try to read maxAPI from npm-shrinkwrap.json (@pptb/types version)
+        if (!maxAPI) {
+            const shrinkwrapPath = path.join(toolPath, "npm-shrinkwrap.json");
+            if (fs.existsSync(shrinkwrapPath)) {
+                try {
+                    const shrinkwrap = JSON.parse(fs.readFileSync(shrinkwrapPath, "utf-8"));
+                    // Look for @pptb/types in dependencies or packages
+                    const pptbTypes = shrinkwrap.dependencies?.["@pptb/types"] || shrinkwrap.packages?.["node_modules/@pptb/types"];
+                    if (pptbTypes?.version) {
+                        maxAPI = pptbTypes.version.replace(/^\^|~/, ""); // Remove ^ or ~ prefix
+                    }
+                } catch (error) {
+                    captureMessage(`[ToolRegistry] Failed to parse npm-shrinkwrap.json for ${toolId}`, "warning", {
+                        extra: { error },
+                    });
+                }
+            }
+        }
+
         // Create manifest
         // Normalize authors list: prefer registry contributors, fallback to package.json author
         let authors: string[] | undefined = tool.authors;
@@ -477,6 +513,8 @@ export class ToolRegistryManager extends EventEmitter {
             website: tool.website, // Include website URL from registry
             createdAt: tool.createdAt,
             publishedAt: tool.publishedAt,
+            minAPI, // Minimum API version required
+            maxAPI, // Maximum API version tested (from @pptb/types)
         };
 
         // Save to manifest file
