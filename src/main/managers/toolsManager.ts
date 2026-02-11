@@ -5,7 +5,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
-import { TOOLBOX_VERSION } from "../constants";
+import { MIN_SUPPORTED_API_VERSION, TOOLBOX_VERSION } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 
@@ -75,9 +75,10 @@ function compareVersions(v1: string, v2: string): number {
  * 
  * Compatibility rules:
  * 1. If tool has no version constraints (legacy): always compatible
- * 2. If tool specifies minAPI: current ToolBox version must be >= minAPI
- * 3. If tool specifies maxAPI: current ToolBox version must be <= maxAPI
- *    (tool was built/tested with this API, newer versions may have breaking changes)
+ * 2. Tool's minAPI must be >= MIN_SUPPORTED_API_VERSION (doesn't use deprecated APIs)
+ * 3. Tool's minAPI must be <= current ToolBox version (ToolBox meets minimum requirement)
+ * 4. maxAPI is informational only - tools built with older APIs continue to work
+ *    unless breaking changes are introduced (tracked by MIN_SUPPORTED_API_VERSION)
  */
 function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     // If no version constraints, assume compatible (legacy tools)
@@ -85,23 +86,26 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
         return true;
     }
 
-    // Check minimum version: TOOLBOX_VERSION >= tool.minAPI
-    // Tool requires at least minAPI, so we need to have that version or newer
+    // Check minimum version requirements
     if (minAPI) {
+        // Tool's minAPI must be >= MIN_SUPPORTED_API_VERSION
+        // This ensures the tool doesn't require APIs that have been deprecated/removed
+        if (compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
+            // Tool requires APIs older than what we support
+            return false;
+        }
+
+        // Tool's minAPI must be <= current ToolBox version
+        // This ensures the current ToolBox has the minimum APIs the tool needs
         if (compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
             // Current ToolBox version is older than what tool requires
             return false;
         }
     }
 
-    // Check maximum version: TOOLBOX_VERSION <= tool.maxAPI  
-    // Tool was built/tested with maxAPI, may not work with newer breaking changes
-    if (maxAPI) {
-        if (compareVersions(TOOLBOX_VERSION, maxAPI) > 0) {
-            // Current ToolBox version is newer than what tool was tested with
-            return false;
-        }
-    }
+    // maxAPI is informational only - tools built with older APIs will continue
+    // to work on newer ToolBox versions unless we introduce breaking changes
+    // Breaking changes are tracked by updating MIN_SUPPORTED_API_VERSION
 
     return true;
 }

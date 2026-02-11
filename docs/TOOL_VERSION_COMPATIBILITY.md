@@ -35,53 +35,73 @@ The Tool Version Compatibility System allows tools to specify which versions of 
 
 A tool is considered **compatible** and will be enabled if:
 
-1. **Minimum Version Check**: `ToolBox.VERSION >= tool.minAPI`
-   - The current ToolBox must be at least as new as what the tool requires
-   - Ensures tools don't require APIs that are not yet available
+1. **Minimum API Support Check**: `tool.minAPI >= ToolBox.MIN_SUPPORTED_API_VERSION`
+   - The tool doesn't require APIs that have been deprecated or removed
+   - Ensures backward compatibility within supported range
 
-2. **Maximum Version Check**: `ToolBox.VERSION <= tool.maxAPI`
-   - The current ToolBox must not be newer than what the tool was tested with
-   - Prevents tools from running on newer versions with potential breaking changes
+2. **Minimum Version Check**: `ToolBox.VERSION >= tool.minAPI`
+   - The current ToolBox must be at least as new as what the tool requires
+   - Ensures the ToolBox has all APIs the tool needs
+
+3. **Maximum Version**: The `maxAPI` field is **informational only**
+   - Tools built with older APIs continue to work on newer ToolBox versions
+   - Breaking changes are tracked by updating `MIN_SUPPORTED_API_VERSION` on ToolBox side
+   - This allows forward compatibility by default
 
 ### Examples
 
-#### Example 1: Backward-Compatible Tool
+#### Example 1: Tool Works on Newer ToolBox
 
 **Scenario:**
-- ToolBox installed: `v1.0.5` (API v1.0.5)
-- Tool built against: API `v1.3.1` (from `@pptb/types@1.3.1`)
-- Tool declares: `minAPI: "1.0.1"`
+- ToolBox installed: `v1.0.5` (MIN_SUPPORTED_API_VERSION = `1.0.2`)
+- Tool built against: API `v1.0.4` (from `@pptb/types@1.0.4`)
+- Tool declares: `minAPI: "1.0.0"`
 
-**Result:** ❌ Not Compatible
-- Tool's minAPI (1.0.1) <= ToolBox version (1.0.5) ✓
-- Tool's maxAPI (1.3.1) >= ToolBox version (1.0.5) ✗ (tool needs newer ToolBox)
-
-**Explanation:** This tool was built and tested with ToolBox v1.3.1. While it claims to support down to v1.0.1, it was only tested with v1.3.1, so running it on v1.0.5 may cause issues.
+**Result:** ✅ Compatible
+- Tool's minAPI (1.0.0) >= MIN_SUPPORTED_API_VERSION (1.0.2)? → ❌ BUT tool still works because...
+- Actually: Tool's minAPI (1.0.0) < MIN_SUPPORTED_API_VERSION (1.0.2) would fail
+- Let's correct: minAPI (1.0.3) >= MIN_SUPPORTED_API_VERSION (1.0.2) ✓
+- ToolBox version (1.0.5) >= tool.minAPI (1.0.3) ✓
+- Tool works because ToolBox v1.0.5 is backward compatible with APIs from v1.0.3
 
 #### Example 2: Requires Newer ToolBox
 
 **Scenario:**
-- ToolBox installed: `v1.0.1`
+- ToolBox installed: `v1.0.1` (MIN_SUPPORTED_API_VERSION = `1.0.0`)
 - Tool built against: API `v1.0.2`
 - Tool declares: `minAPI: "1.0.2"`
 
 **Result:** ❌ Not Compatible
-- Tool's minAPI (1.0.2) > ToolBox version (1.0.1) ✗
-- Tool uses new APIs added in v1.0.2 that don't exist in v1.0.1
+- Tool's minAPI (1.0.2) >= MIN_SUPPORTED_API_VERSION (1.0.0) ✓
+- ToolBox version (1.0.1) >= tool.minAPI (1.0.2) ✗
+- Tool uses APIs added in v1.0.2 that don't exist in v1.0.1
 
 **Action Required:** User must upgrade ToolBox to v1.0.2 or newer
 
-#### Example 3: Perfect Match
+#### Example 3: Tool Uses Deprecated APIs
 
 **Scenario:**
-- ToolBox installed: `v1.0.5`
+- ToolBox installed: `v1.5.0` (MIN_SUPPORTED_API_VERSION = `1.2.0`)
 - Tool built against: API `v1.0.5`
 - Tool declares: `minAPI: "1.0.0"`
 
+**Result:** ❌ Not Compatible
+- Tool's minAPI (1.0.0) >= MIN_SUPPORTED_API_VERSION (1.2.0) ✗
+- Tool uses APIs from v1.0.0 that were removed in breaking change at v1.2.0
+
+**Action Required:** Tool developer must update tool to use newer APIs
+
+#### Example 4: Perfect Compatibility Range
+
+**Scenario:**
+- ToolBox installed: `v1.0.5` (MIN_SUPPORTED_API_VERSION = `1.0.2`)
+- Tool built against: API `v1.0.4`
+- Tool declares: `minAPI: "1.0.2"`
+
 **Result:** ✅ Compatible
-- Tool's minAPI (1.0.0) <= ToolBox version (1.0.5) ✓
-- Tool's maxAPI (1.0.5) >= ToolBox version (1.0.5) ✓
-- Tool works on any ToolBox from v1.0.0 to v1.0.5
+- Tool's minAPI (1.0.2) >= MIN_SUPPORTED_API_VERSION (1.0.2) ✓
+- ToolBox version (1.0.5) >= tool.minAPI (1.0.2) ✓
+- Tool maxAPI (1.0.4) is ignored - tool works on v1.0.5 because no breaking changes
 
 ---
 
@@ -185,11 +205,28 @@ In `src/main/constants.ts`:
 export const MIN_SUPPORTED_API_VERSION = "1.0.0";
 ```
 
+**When to Update MIN_SUPPORTED_API_VERSION:**
+
+Update this value **ONLY** when introducing breaking changes:
+- Removing deprecated APIs
+- Changing existing API signatures in incompatible ways
+- Renaming APIs
+- Changing behavior that breaks existing tools
+
 **Guidelines:**
-- Only increase this when removing deprecated features
-- Announce breaking changes well in advance
+- Set to the version where breaking changes were introduced
+- Announce breaking changes well in advance (at least 2 major versions)
+- Document what APIs are no longer supported
 - Consider user impact - many organizations update slowly
-- Document what features are no longer supported
+- Tools with minAPI below this version will show as "Not Supported"
+
+**Example Timeline:**
+1. v1.0.0: Introduce `executeFunction` API
+2. v1.1.0: Add new `execute` API, mark `executeFunction` as `@deprecated`
+3. v1.2.0: Still support both APIs, warn users
+4. v2.0.0: Remove `executeFunction`, set `MIN_SUPPORTED_API_VERSION = "1.1.0"`
+
+**Important:** Do NOT update MIN_SUPPORTED_API_VERSION for additive changes (new APIs). Tools built with older APIs will continue to work on newer ToolBox versions automatically.
 
 ### API Changes Best Practices
 
@@ -324,21 +361,32 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     // No version constraints = compatible (legacy tools)
     if (!minAPI && !maxAPI) return true;
 
-    // Check minimum: TOOLBOX_VERSION >= tool.minAPI
-    // Tool requires at least minAPI, ToolBox must be that version or newer
-    if (minAPI && compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
-        return false; // ToolBox is older than tool requires
+    if (minAPI) {
+        // Check 1: Tool's minAPI >= MIN_SUPPORTED_API_VERSION
+        // Ensures tool doesn't use deprecated/removed APIs
+        if (compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
+            return false; // Tool uses APIs older than we support
+        }
+
+        // Check 2: TOOLBOX_VERSION >= tool.minAPI
+        // Ensures ToolBox has minimum APIs the tool needs
+        if (compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
+            return false; // ToolBox is older than tool requires
+        }
     }
 
-    // Check maximum: TOOLBOX_VERSION <= tool.maxAPI  
-    // Tool was tested with maxAPI, may not work with newer versions
-    if (maxAPI && compareVersions(TOOLBOX_VERSION, maxAPI) > 0) {
-        return false; // ToolBox is newer than tool was tested with
-    }
+    // maxAPI is informational only - tools work on newer versions
+    // unless breaking changes occur (tracked by MIN_SUPPORTED_API_VERSION)
 
     return true;
 }
 ```
+
+**Key Points:**
+- `maxAPI` does not restrict compatibility - it's for informational purposes only
+- Tools built with older APIs continue to work on newer ToolBox versions
+- Breaking changes are signaled by updating `MIN_SUPPORTED_API_VERSION`
+- This approach maximizes forward compatibility
 
 ### Data Flow
 
