@@ -748,3 +748,39 @@ jobs:
                   make_latest: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    publish-types-beta:
+        needs: publish-release
+        if: needs.check-commits.outputs.should_build == 'true'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout dev branch
+              uses: actions/checkout@v4
+              with:
+                  ref: dev
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  registry-url: "https://registry.npmjs.org"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Get version
+              id: version
+              run: |
+                  VERSION=$(node -p "require('./packages/package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Publishing @pptb/types beta version: $VERSION"
+
+            - name: Publish @pptb/types beta to npm
+              working-directory: ./packages
+              run: |
+                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with beta tag to npm..."
+                  pnpm publish --access public --tag beta --no-git-checks
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

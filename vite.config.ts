@@ -42,12 +42,17 @@ export default defineConfig(({ mode }) => {
         console.log("[Vite] Sentry DSN not found - telemetry will be disabled");
     }
 
+    // Get ToolBox version from package.json
+    const toolboxVersion = env.TOOLBOX_VERSION || process.env.TOOLBOX_VERSION || packageJson.version;
+    console.log(`[Vite] ToolBox version: ${toolboxVersion}`);
+
     // Define environment variables for the build
     // These will be replaced at build time, not exposed in the bundle
     const envDefines = {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
         "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
+        "process.env.TOOLBOX_VERSION": JSON.stringify(toolboxVersion),
     };
 
     return {
