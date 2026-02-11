@@ -2163,6 +2163,19 @@ body.dark-theme .search-filter-btn.active img {
     margin-right: 4px;
 }
 
+.tool-unsupported-badge {
+    background: #c50f1f;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+}
+
 .tool-item-pptb.deprecated {
     border-left: 3px solid #d83b01;
     background: rgba(216, 59, 1, 0.05);
@@ -2170,6 +2183,16 @@ body.dark-theme .search-filter-btn.active img {
 
 .tool-item-pptb.deprecated:hover {
     background: rgba(216, 59, 1, 0.1);
+}
+
+.tool-item-pptb.unsupported {
+    border-left: 3px solid #c50f1f;
+    background: rgba(197, 15, 31, 0.05);
+    opacity: 0.7;
+}
+
+.tool-item-pptb.unsupported:hover {
+    background: rgba(197, 15, 31, 0.1);
 }
 
 /* Tool updating state */
@@ -3427,6 +3450,41 @@ body.dark-theme .modern-markdown code {
 
 .marketplace-item-deprecated-badge::before {
     content: "⚠";
+}
+
+.marketplace-item-unsupported-badge {
+    background: #c50f1f;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.marketplace-item-unsupported-badge::before {
+    content: "⚠";
+}
+
+.marketplace-item-pptb.deprecated {
+    border-left: 3px solid #d83b01;
+    background: rgba(216, 59, 1, 0.05);
+}
+
+.marketplace-item-pptb.deprecated:hover {
+    background: rgba(216, 59, 1, 0.1);
+}
+
+.marketplace-item-pptb.unsupported {
+    border-left: 3px solid #c50f1f;
+    background: rgba(197, 15, 31, 0.05);
+    opacity: 0.7;
+}
+
+.marketplace-item-pptb.unsupported:hover {
+    background: rgba(197, 15, 31, 0.1);
 }
 
 /* Marketplace item with NEW badge */

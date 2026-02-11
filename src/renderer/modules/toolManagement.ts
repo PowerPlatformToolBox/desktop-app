@@ -95,6 +95,16 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             return;
         }
 
+        // Check if tool is supported by current ToolBox version
+        if (tool.isSupported === false) {
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Not Supported",
+                body: `${tool.name} requires a different version of Power Platform ToolBox. Please update your ToolBox to use this tool.`,
+                type: "warning",
+            });
+            return;
+        }
+
         // Determine multi-connection mode
         const multiConnectionMode = tool.features?.multiConnection || "none";
 

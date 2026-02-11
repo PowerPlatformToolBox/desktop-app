@@ -198,6 +198,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const latestVersion = tool.latestVersion;
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
+                const isUnsupported = tool.isSupported === false;
                 // Show up to two categories, with a +N indicator if more remain
                 const categoriesHtml = (() => {
                     if (!tool.categories || !tool.categories.length) return "";
@@ -208,6 +209,9 @@ export async function loadSidebarTools(): Promise<void> {
                     return `${visibleHtml}${moreHtml}`;
                 })();
                 const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
+                const unsupportedBadgeHtml = isUnsupported
+                    ? '<span class="tool-unsupported-badge" title="This tool requires a different version of ToolBox">⚠ Not Supported</span>'
+                    : "";
 
                 // Get tool source icon
                 const sourceIconHtml = getToolSourceIconHtml(tool.id);
@@ -248,7 +252,7 @@ export async function loadSidebarTools(): Promise<void> {
                 if (displayMode === "compact") {
                     // Compact mode: icon, name, version, author only
                     return `
-                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
+                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
@@ -279,7 +283,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Standard mode: full details
                 return `
-                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
+                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
@@ -317,7 +321,7 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
                         </div>
-                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}</div>
+                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
                         ${
                             shouldShowUpdateInfo
                                 ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
