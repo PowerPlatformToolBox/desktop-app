@@ -633,12 +633,14 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 function buildToolIconHtml(tool: ToolDetail): string {
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
     const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.iconUrl);
+    const escapedDefaultIcon = escapeHtml(defaultToolIcon);
 
     if (!resolvedIconUrl) {
-        return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
+        return `<img src="${escapedDefaultIcon}" alt="${escapeHtml(tool.name)} icon" />`;
     }
 
-    return `<img src="${resolvedIconUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${defaultToolIcon}'" />`;
+    const escapedResolvedUrl = escapeHtml(resolvedIconUrl);
+    return `<img src="${escapedResolvedUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${escapedDefaultIcon}'" />`;
 }
 
 function escapeHtml(value: string): string {

@@ -9,9 +9,7 @@
  * @returns Escaped text safe for HTML attributes
  */
 function escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 /**
@@ -54,10 +52,12 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
 export function generateToolIconHtml(toolId: string, iconPath: string | undefined, toolName: string, defaultIcon: string): string {
     const resolvedUrl = resolveToolIconUrl(toolId, iconPath);
     const escapedToolName = escapeHtml(toolName);
+    const escapedDefaultIcon = escapeHtml(defaultIcon);
 
     if (resolvedUrl) {
-        return `<img src="${resolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img" onerror="this.src='${defaultIcon}'" />`;
+        const escapedResolvedUrl = escapeHtml(resolvedUrl);
+        return `<img src="${escapedResolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img" onerror="this.src='${escapedDefaultIcon}'" />`;
     } else {
-        return `<img src="${defaultIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
+        return `<img src="${escapedDefaultIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
     }
 }
