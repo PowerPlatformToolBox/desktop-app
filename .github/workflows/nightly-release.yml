@@ -132,11 +132,116 @@ jobs:
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
                   files-folder-filter: exe,msi
-                  files-folder-recurse: false
+                  files-folder-recurse: true
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
                   description: Power Platform ToolBox (Insider)
                   description-url: https://github.com/PowerPlatformToolBox/desktop-app
+
+            - name: Repackage portable ZIP with signed EXE (Windows)
+              if: matrix.os == 'windows-latest'
+              shell: powershell
+              run: |
+                  $buildDir = "${{ github.workspace }}/build"
+                  $zipFiles = @(Get-ChildItem "$buildDir/*.zip" -ErrorAction SilentlyContinue)
+
+                  if ($zipFiles.Count -eq 0) {
+                    Write-Host "No ZIP artifacts found; skipping repack."
+                    exit 0
+                  }
+
+                  foreach ($zip in $zipFiles) {
+                    Write-Host "Repacking ZIP: $($zip.Name)"
+                    $tempDir = Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString())
+                    New-Item -ItemType Directory -Path $tempDir | Out-Null
+
+                    Expand-Archive -Path $zip.FullName -DestinationPath $tempDir -Force
+
+                    $zipExeFiles = @(Get-ChildItem $tempDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue)
+                    foreach ($zipExe in $zipExeFiles) {
+                      $signedExe = Get-ChildItem $buildDir -Recurse -Filter $zipExe.Name -ErrorAction SilentlyContinue | Select-Object -First 1
+                      if ($signedExe) {
+                        Copy-Item $signedExe.FullName $zipExe.FullName -Force
+                        Write-Host "  Replaced $($zipExe.Name) with signed binary."
+                      } else {
+                        Write-Host "  No signed match found for $($zipExe.Name)."
+                      }
+                    }
+
+                    Remove-Item $zip.FullName -Force
+                    Compress-Archive -Path (Join-Path $tempDir '*') -DestinationPath $zip.FullName -Force
+                  }
+
+            - name: Regenerate latest.yml with correct SHA256 hashes (Windows)
+              if: matrix.os == 'windows-latest'
+              shell: powershell
+              run: |
+                  $buildDir = "${{ github.workspace }}/build"
+                  $latestYml = Join-Path $buildDir "latest.yml"
+
+                  if (Test-Path $latestYml) {
+                      Write-Host "Regenerating latest.yml with correct hashes..."
+                      
+                      # Read the existing YAML to preserve version and other metadata
+                      $ymlContent = Get-Content $latestYml -Raw
+                      
+                      # Extract version from existing YAML
+                      $versionMatch = [regex]::Match($ymlContent, 'version:\s+([^\s]+)')
+                      $version = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { "unknown" }
+                      
+                      # Find the main EXE file (look for the installer)
+                      $exeFiles = @(Get-ChildItem "$buildDir/*.exe" -ErrorAction SilentlyContinue)
+                      
+                      if ($exeFiles.Count -gt 0) {
+                          # Sort to get the latest/main installer (NSIS or main app exe)
+                          $mainExe = $exeFiles | Where-Object { $_.Name -match "(NSIS|Setup|Installer)" } | Select-Object -First 1
+                          if (-not $mainExe) {
+                              $mainExe = $exeFiles[0]  # Fallback to first exe
+                          }
+                          
+                          Write-Host "Using EXE: $($mainExe.Name)"
+                          
+                          # Calculate SHA256 hash
+                          $hash = (Get-FileHash -Path $mainExe.FullName -Algorithm SHA256).Hash.ToLower()
+                          $size = $mainExe.Length
+                          
+                          Write-Host "SHA256: $hash"
+                          Write-Host "Size: $size"
+                          
+                          # Create new YAML content with correct hashes
+                          $releaseDate = (Get-Date -u -Format 'yyyy-MM-ddTHH:mm:ss.000Z')
+                          $yml = @{
+                              version = $version
+                              files = @(
+                                  @{
+                                      url = $mainExe.Name
+                                      sha512 = $null
+                                      sha256 = $hash
+                                      size = $size
+                                      blockMapSize = $null
+                                  }
+                              )
+                              releaseDate = $releaseDate
+                          }
+                          
+                          $newYmlContent = "version: $version`n"
+                          $newYmlContent += "files:`n"
+                          $newYmlContent += "  - url: $($mainExe.Name)`n"
+                          $newYmlContent += "    sha512: null`n"
+                          $newYmlContent += "    sha256: $hash`n"
+                          $newYmlContent += "    size: $size`n"
+                          $newYmlContent += "    blockMapSize: null`n"
+                          $newYmlContent += "releaseDate: $releaseDate"
+                          
+                          # Write updated YAML
+                          Set-Content -Path $latestYml -Value $newYmlContent
+                          Write-Host "✅ latest.yml regenerated with correct hashes"
+                      } else {
+                          Write-Host "⚠️ No EXE files found, skipping YAML regeneration"
+                      }
+                  } else {
+                      Write-Host "⚠️ latest.yml not found at $latestYml"
+                  }
 
             - name: Prepare macOS signing certificate
               if: matrix.os == 'macos-latest'
@@ -265,6 +370,56 @@ jobs:
                   find build -name "*.dmg" -exec xattr -cr {} \; || true
                   echo "✅ Quarantine attributes removed"
               shell: bash
+
+            - name: Regenerate latest-linux.yml with correct SHA256 hashes (Linux)
+              if: matrix.os == 'ubuntu-latest'
+              shell: bash
+              run: |
+                  echo "🔄 Regenerating latest-linux.yml with correct artifact hashes..."
+
+                  BUILD_DIR="${{ github.workspace }}/build"
+
+                  # Find all YAML files
+                  YML_FILES=$(find "$BUILD_DIR" -name "latest*.yml" -o -name "*-linux.yml")
+
+                  if [[ -z "$YML_FILES" ]]; then
+                    echo "⚠️ No YAML files found, skipping regeneration"
+                    exit 0
+                  fi
+
+                  for YML_FILE in $YML_FILES; do
+                    echo "Processing: $YML_FILE"
+                    
+                    # Extract version from existing YAML
+                    VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$YML_FILE" || echo "unknown")
+                    
+                    # Find the main AppImage file
+                    APP_IMAGE=$(find "$BUILD_DIR" -maxdepth 1 -type f -name "*.AppImage" | head -n 1)
+                    
+                    if [[ -n "$APP_IMAGE" && -f "$APP_IMAGE" ]]; then
+                      echo "  Found AppImage: $(basename "$APP_IMAGE")"
+                      
+                      # Calculate SHA256 hash
+                      HASH=$(sha256sum "$APP_IMAGE" | awk '{print $1}')
+                      SIZE=$(stat -c %s "$APP_IMAGE" 2>/dev/null || stat -f %z "$APP_IMAGE" 2>/dev/null)
+                      
+                      echo "  SHA256: $HASH"
+                      echo "  Size: $SIZE"
+                      
+                      # Create new YAML with correct hashes using printf to avoid YAML parsing issues
+                      printf "version: %s\nfiles:\n  - url: %s\n    sha512: null\n    sha256: %s\n    size: %s\n    blockMapSize: null\nreleaseDate: %s\n" \
+                        "$VERSION" \
+                        "$(basename "$APP_IMAGE")" \
+                        "$HASH" \
+                        "$SIZE" \
+                        "$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" > "$YML_FILE"
+                      echo "  ✅ Updated $YML_FILE"
+                    else
+                      echo "  ⚠️ No AppImage found in $BUILD_DIR"
+                    fi
+                  done
+
+                  echo "✅ Regeneration complete"
 
             - name: Upload artifacts
               uses: actions/upload-artifact@v4
@@ -451,6 +606,53 @@ jobs:
                     find notarize -maxdepth 4 -type f || true
                     exit 1
                   fi
+
+            - name: Regenerate latest-mac.yml with correct SHA256 hashes
+              shell: bash
+              run: |
+                  echo "🔄 Regenerating latest-mac.yml with stapled artifact hashes..."
+
+                  # Find all YAML files
+                  YML_FILES=$(find notarize -name "latest*.yml" -o -name "*-mac.yml")
+
+                  if [[ -z "$YML_FILES" ]]; then
+                    echo "⚠️ No YAML files found, skipping regeneration"
+                    exit 0
+                  fi
+
+                  for YML_FILE in $YML_FILES; do
+                    echo "Processing: $YML_FILE"
+                    
+                    # Extract version from existing YAML
+                    VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$YML_FILE" || echo "unknown")
+                    
+                    # Find the stapled DMG file in the same directory
+                    DMG_FILE=$(find "$(dirname "$YML_FILE")" -maxdepth 1 -name "*.dmg" | head -n 1)
+                    
+                    if [[ -n "$DMG_FILE" && -f "$DMG_FILE" ]]; then
+                      echo "  Found DMG: $(basename "$DMG_FILE")"
+                      
+                      # Calculate SHA256 hash of the stapled DMG
+                      HASH=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
+                      SIZE=$(stat -f '%z' "$DMG_FILE" 2>/dev/null || stat -c '%s' "$DMG_FILE" 2>/dev/null)
+                      
+                      echo "  SHA256: $HASH"
+                      echo "  Size: $SIZE"
+                      
+                      # Create new YAML with correct hashes using printf to avoid YAML parsing issues
+                      printf "version: %s\nfiles:\n  - url: %s\n    sha512: null\n    sha256: %s\n    size: %s\n    blockMapSize: null\nreleaseDate: %s\n" \
+                        "$VERSION" \
+                        "$(basename "$DMG_FILE")" \
+                        "$HASH" \
+                        "$SIZE" \
+                        "$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" > "$YML_FILE"
+                      echo "  ✅ Updated $YML_FILE"
+                    else
+                      echo "  ⚠️ No DMG found in $(dirname "$YML_FILE")"
+                    fi
+                  done
+
+                  echo "✅ Regeneration complete"
 
             - name: Upload stapled macOS artifacts
               uses: actions/upload-artifact@v4
