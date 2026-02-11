@@ -948,35 +948,11 @@ class ToolBoxApp {
         ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
             if (this.loadingOverlayWindowManager && this.mainWindow) {
                 try {
-                    // Request tool panel bounds from renderer
-                    this.mainWindow.webContents.send("get-tool-panel-bounds-request");
+                    // Get bounds from the active tool's BrowserView directly
+                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
                     
-                    // Wait for bounds response with timeout
-                    const bounds = await new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
-                        let responseReceived = false;
-
-                        const responseHandler = (_: any, responseBounds: { x: number; y: number; width: number; height: number }) => {
-                            if (!responseReceived) {
-                                responseReceived = true;
-                                clearTimeout(timeout);
-                                ipcMain.removeListener("get-tool-panel-bounds-response", responseHandler);
-                                resolve(responseBounds);
-                            }
-                        };
-
-                        const timeout = setTimeout(() => {
-                            if (!responseReceived) {
-                                responseReceived = true;
-                                ipcMain.removeListener("get-tool-panel-bounds-response", responseHandler);
-                                resolve(null); // Timeout - use fallback
-                            }
-                        }, 100); // 100ms timeout
-
-                        ipcMain.on("get-tool-panel-bounds-response", responseHandler);
-                    });
-
                     // Show overlay with tool panel bounds (or undefined for full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds || undefined);
+                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
                     // On error, show without bounds (full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...");

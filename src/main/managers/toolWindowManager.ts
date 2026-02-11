@@ -734,6 +734,28 @@ export class ToolWindowManager {
     }
 
     /**
+     * Get the bounds of the active tool's BrowserView
+     * @returns The bounds of the active tool's BrowserView, or null if no tool is active
+     */
+    getActiveToolBounds(): { x: number; y: number; width: number; height: number } | null {
+        if (!this.activeToolId) {
+            return null;
+        }
+
+        const toolView = this.toolViews.get(this.activeToolId);
+        if (!toolView) {
+            return null;
+        }
+
+        try {
+            return toolView.getBounds();
+        } catch (error) {
+            captureMessage("[ToolWindowManager] Error getting active tool bounds:", "error", { extra: { error } });
+            return null;
+        }
+    }
+
+    /**
      * Get the active tool's repository URL
      * @returns The repository URL of the currently active tool, or null if no tool is active or no repository is defined
      */

@@ -38,8 +38,8 @@ export class LoadingOverlayWindowManager {
             movable: false,
             minimizable: false,
             maximizable: false,
-            closable: false,
-            focusable: false,
+            closable: true,
+            focusable: true,
             show: false,
             hasShadow: false,
             backgroundColor: "#00000000",
@@ -50,6 +50,13 @@ export class LoadingOverlayWindowManager {
             },
         });
         this.overlayWindow.setParentWindow(this.mainWindow);
+        
+        // Handle close button click - hide the overlay instead of destroying it
+        this.overlayWindow.on("close", (e) => {
+            e.preventDefault();
+            this.hide();
+        });
+        
         this.reloadContent();
         this.updateWindowBounds();
     }
@@ -93,15 +100,22 @@ export class LoadingOverlayWindowManager {
 <style>
 * { box-sizing: border-box; }
 html,body { width:100%; height:100%; margin:0; padding:0; background:rgba(0,0,0,0.4); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; }
-body { display:flex; align-items:center; justify-content:center; }
-.overlay-container { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 48px; background:rgba(30,30,30,0.85); border:1px solid #3d3d3d; border-radius:8px; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.6); }
+body { display:flex; align-items:center; justify-content:center; position:relative; }
+.overlay-container { display:flex; flex-direction:column; align-items:center; gap:16px; padding:32px 48px; background:rgba(30,30,30,0.85); border:1px solid #3d3d3d; backdrop-filter: blur(6px); box-shadow:0 8px 24px rgba(0,0,0,0.6); position:relative; }
 .spinner { width:48px; height:48px; border:5px solid #2d2d2d; border-top-color:#0078d4; border-radius:50%; animation:spin 1s linear infinite; }
 .message { color:#ffffff; font-size:15px; font-weight:500; text-align:center; max-width:320px; }
+.close-button { position:absolute; top:8px; right:8px; width:32px; height:32px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1; transition:background 0.15s ease; }
+.close-button:hover { background:rgba(255,255,255,0.2); }
+.close-button:active { background:rgba(255,255,255,0.3); }
 @keyframes spin { to { transform:rotate(360deg); } }
 .fade-in { animation:fadeIn 150ms ease-out; }
 @keyframes fadeIn { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
 </style></head><body>
-<div class="overlay-container fade-in"><div class="spinner"></div><div class="message">${message}</div></div>
+<div class="overlay-container fade-in">
+<button class="close-button" onclick="window.close()" title="Close loading overlay">✕</button>
+<div class="spinner"></div>
+<div class="message">${message}</div>
+</div>
 </body></html>`;
     }
 
