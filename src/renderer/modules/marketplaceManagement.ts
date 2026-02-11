@@ -8,7 +8,7 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
-import { generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
+import { escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -641,10 +641,6 @@ function buildToolIconHtml(tool: ToolDetail): string {
 
     const escapedResolvedUrl = escapeHtml(resolvedIconUrl);
     return `<img src="${escapedResolvedUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${escapedDefaultIcon}'" />`;
-}
-
-function escapeHtml(value: string): string {
-    return value ? value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : "";
 }
 
 function svgToDataUri(svgContent: string): string {

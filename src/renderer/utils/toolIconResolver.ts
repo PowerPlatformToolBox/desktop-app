@@ -8,7 +8,7 @@
  * @param text - Text to escape
  * @returns Escaped text safe for HTML attributes
  */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
@@ -58,6 +58,6 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
         const escapedResolvedUrl = escapeHtml(resolvedUrl);
         return `<img src="${escapedResolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img" onerror="this.src='${escapedDefaultIcon}'" />`;
     } else {
-        return `<img src="${escapedDefaultIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
+        return `<img src="${escapedDefaultIcon}" alt="${escapedToolName} icon" class="tool-item-icon-img" />`;
     }
 }
