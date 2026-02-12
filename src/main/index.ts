@@ -964,10 +964,31 @@ class ToolBoxApp {
             this.api.copyToClipboard(text);
         });
 
-        // Show loading handler (overlay window above BrowserViews)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.show(message || "Loading...");
+        // Show loading handler (overlay window above tool panel area only)
+        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
+            if (this.loadingOverlayWindowManager && this.mainWindow) {
+                try {
+                    // Get bounds from the active tool's BrowserView directly
+                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
+                    
+                    // Show overlay with tool panel bounds (or undefined for full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
+                } catch (error) {
+                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
+                    captureException(error instanceof Error ? error : new Error(String(error)), {
+                        extra: {
+                            source: "UTIL_CHANNELS.SHOW_LOADING",
+                            context: "Failed to compute active tool bounds for loading overlay; falling back to full-window overlay.",
+                            hasLoadingOverlayWindowManager: !!this.loadingOverlayWindowManager,
+                            hasMainWindow: !!this.mainWindow,
+                            hasToolWindowManager: !!this.toolWindowManager,
+                            activeToolId: this.toolWindowManager?.getActiveToolId() || null,
+                            message,
+                        },
+                    });
+                    // On error, show without bounds (full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...");
+                }
             } else if (this.mainWindow) {
                 // Fallback to legacy in-DOM loading screen if manager not ready
                 this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
