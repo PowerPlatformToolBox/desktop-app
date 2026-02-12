@@ -36,28 +36,30 @@ The Tool Version Compatibility System allows tools to specify which versions of 
 A tool is considered **compatible** and will be enabled if:
 
 1. **Minimum API Support Check**: `tool.minAPI >= ToolBox.MIN_SUPPORTED_API_VERSION`
-   - The tool doesn't require APIs that have been deprecated or removed
-   - Ensures backward compatibility within supported range
+    - The tool doesn't require APIs that have been deprecated or removed
+    - Ensures backward compatibility within supported range
 
 2. **Minimum Version Check**: `ToolBox.VERSION >= tool.minAPI`
-   - The current ToolBox must be at least as new as what the tool requires
-   - Ensures the ToolBox has all APIs the tool needs
+    - The current ToolBox must be at least as new as what the tool requires
+    - Ensures the ToolBox has all APIs the tool needs
 
 3. **Maximum Version**: The `maxAPI` field is **informational only**
-   - Tools built with older APIs continue to work on newer ToolBox versions
-   - Breaking changes are tracked by updating `MIN_SUPPORTED_API_VERSION` on ToolBox side
-   - This allows forward compatibility by default
+    - Tools built with older APIs continue to work on newer ToolBox versions
+    - Breaking changes are tracked by updating `MIN_SUPPORTED_API_VERSION` on ToolBox side
+    - This allows forward compatibility by default
 
 ### Examples
 
 #### Example 1: Tool Works on Newer ToolBox
 
 **Scenario:**
+
 - ToolBox installed: `v1.0.5` (MIN_SUPPORTED_API_VERSION = `1.0.2`)
 - Tool built against: API `v1.0.4` (from `@pptb/types@1.0.4`)
 - Tool declares: `minAPI: "1.0.0"`
 
 **Result:** ✅ Compatible
+
 - Tool's minAPI (1.0.0) >= MIN_SUPPORTED_API_VERSION (1.0.2)? → ❌ BUT tool still works because...
 - Actually: Tool's minAPI (1.0.0) < MIN_SUPPORTED_API_VERSION (1.0.2) would fail
 - Let's correct: minAPI (1.0.3) >= MIN_SUPPORTED_API_VERSION (1.0.2) ✓
@@ -67,11 +69,13 @@ A tool is considered **compatible** and will be enabled if:
 #### Example 2: Requires Newer ToolBox
 
 **Scenario:**
+
 - ToolBox installed: `v1.0.1` (MIN_SUPPORTED_API_VERSION = `1.0.0`)
 - Tool built against: API `v1.0.2`
 - Tool declares: `minAPI: "1.0.2"`
 
 **Result:** ❌ Not Compatible
+
 - Tool's minAPI (1.0.2) >= MIN_SUPPORTED_API_VERSION (1.0.0) ✓
 - ToolBox version (1.0.1) >= tool.minAPI (1.0.2) ✗
 - Tool uses APIs added in v1.0.2 that don't exist in v1.0.1
@@ -81,11 +85,13 @@ A tool is considered **compatible** and will be enabled if:
 #### Example 3: Tool Uses Deprecated APIs
 
 **Scenario:**
+
 - ToolBox installed: `v1.5.0` (MIN_SUPPORTED_API_VERSION = `1.2.0`)
 - Tool built against: API `v1.0.5`
 - Tool declares: `minAPI: "1.0.0"`
 
 **Result:** ❌ Not Compatible
+
 - Tool's minAPI (1.0.0) >= MIN_SUPPORTED_API_VERSION (1.2.0) ✗
 - Tool uses APIs from v1.0.0 that were removed in breaking change at v1.2.0
 
@@ -94,11 +100,13 @@ A tool is considered **compatible** and will be enabled if:
 #### Example 4: Perfect Compatibility Range
 
 **Scenario:**
+
 - ToolBox installed: `v1.0.5` (MIN_SUPPORTED_API_VERSION = `1.0.2`)
 - Tool built against: API `v1.0.4`
 - Tool declares: `minAPI: "1.0.2"`
 
 **Result:** ✅ Compatible
+
 - Tool's minAPI (1.0.2) >= MIN_SUPPORTED_API_VERSION (1.0.2) ✓
 - ToolBox version (1.0.5) >= tool.minAPI (1.0.2) ✓
 - Tool maxAPI (1.0.4) is ignored - tool works on v1.0.5 because no breaking changes
@@ -113,16 +121,17 @@ Add the `minAPI` field to your tool's `package.json`:
 
 ```json
 {
-  "name": "my-awesome-tool",
-  "version": "1.0.0",
-  "features": {
-    "minAPI": "1.0.12",
-    "multiConnection": "optional"
-  }
+    "name": "my-awesome-tool",
+    "version": "1.0.0",
+    "features": {
+        "minAPI": "1.0.12",
+        "multiConnection": "optional"
+    }
 }
 ```
 
 **How to determine minAPI:**
+
 - Set it to the version of `@pptb/types` you're developing against
 - If you only use stable APIs, you can set it to the oldest version you want to support
 - Consider your user base - setting a very recent version may exclude users on older ToolBox
@@ -148,6 +157,7 @@ This captures the exact `@pptb/types` version used, which becomes the `maxAPI` v
 ### 4. Testing Compatibility
 
 Before releasing your tool, test it with:
+
 - The minimum ToolBox version you claim to support (from `minAPI`)
 - The latest ToolBox version available
 - Any versions in between if there were significant API changes
@@ -173,29 +183,31 @@ When submitting your tool to the marketplace:
 When releasing a new ToolBox version:
 
 1. **Update Package Versions:**
-   ```bash
-   # Update main package.json
-   npm version patch  # or minor/major
-   
-   # Update @pptb/types to match
-   cd packages
-   npm version patch  # Must match main version
-   cd ..
-   ```
+
+    ```bash
+    # Update main package.json
+    npm version patch  # or minor/major
+
+    # Update @pptb/types to match
+    cd packages
+    npm version patch  # Must match main version
+    cd ..
+    ```
 
 2. **Commit Changes:**
-   ```bash
-   git add package.json packages/package.json
-   git commit -m "Bump version to X.Y.Z"
-   ```
+
+    ```bash
+    git add package.json packages/package.json
+    git commit -m "Bump version to X.Y.Z"
+    ```
 
 3. **Release Process (Automated):**
-   - Push to main branch
-   - GitHub Actions will:
-     - Validate versions match
-     - Build and package ToolBox
-     - Publish `@pptb/types` to npm
-     - Create GitHub release
+    - Push to main branch
+    - GitHub Actions will:
+        - Validate versions match
+        - Build and package ToolBox
+        - Publish `@pptb/types` to npm
+        - Create GitHub release
 
 ### Setting Minimum Supported API Version
 
@@ -208,12 +220,14 @@ export const MIN_SUPPORTED_API_VERSION = "1.0.0";
 **When to Update MIN_SUPPORTED_API_VERSION:**
 
 Update this value **ONLY** when introducing breaking changes:
+
 - Removing deprecated APIs
 - Changing existing API signatures in incompatible ways
 - Renaming APIs
 - Changing behavior that breaks existing tools
 
 **Guidelines:**
+
 - Set to the version where breaking changes were introduced
 - Announce breaking changes well in advance (at least 2 major versions)
 - Document what APIs are no longer supported
@@ -221,6 +235,7 @@ Update this value **ONLY** when introducing breaking changes:
 - Tools with minAPI below this version will show as "Not Supported"
 
 **Example Timeline:**
+
 1. v1.0.0: Introduce `executeFunction` API
 2. v1.1.0: Add new `execute` API, mark `executeFunction` as `@deprecated`
 3. v1.2.0: Still support both APIs, warn users
@@ -231,22 +246,23 @@ Update this value **ONLY** when introducing breaking changes:
 ### API Changes Best Practices
 
 1. **Non-Breaking Changes (Patch/Minor):**
-   - Add new optional API methods
-   - Add new optional parameters to existing methods
-   - Fix bugs
-   - Update documentation
+    - Add new optional API methods
+    - Add new optional parameters to existing methods
+    - Fix bugs
+    - Update documentation
 
 2. **Breaking Changes (Major):**
-   - Remove deprecated APIs (after warning period)
-   - Change existing API signatures
-   - Rename APIs
-   - Change behavior in incompatible ways
+    - Remove deprecated APIs (after warning period)
+    - Change existing API signatures
+    - Rename APIs
+    - Change behavior in incompatible ways
+    - Announcing deprecated APIs
 
 3. **Deprecation Process:**
-   - Mark APIs as `@deprecated` in `@pptb/types`
-   - Document replacement APIs
-   - Wait at least 2 major versions before removal
-   - Update `MIN_SUPPORTED_API_VERSION` when removing
+    - Mark APIs as `@deprecated` in `@pptb/types`
+    - Document replacement APIs
+    - Wait at least 2 major versions before removal
+    - Update `MIN_SUPPORTED_API_VERSION` when removing
 
 ---
 
@@ -271,34 +287,36 @@ CREATE INDEX idx_tools_max_api ON tools(max_api);
 When processing a new tool submission or update:
 
 1. **Extract Version Information:**
-   - Read `package.json` → get `features.minAPI`
-   - Read `npm-shrinkwrap.json` → get `dependencies["@pptb/types"].version`
-   - Validate both values are present and valid semver
+    - Read `package.json` → get `features.minAPI`
+    - Read `npm-shrinkwrap.json` → get `dependencies["@pptb/types"].version`
+    - Validate both values are present and valid semver
 
 2. **Validate Versions:**
-   ```typescript
-   // Pseudo-code validation
-   if (!semver.valid(minAPI)) {
-     reject("Invalid minAPI version format");
-   }
-   if (!semver.valid(maxAPI)) {
-     reject("Invalid maxAPI version format");
-   }
-   if (semver.gt(minAPI, maxAPI)) {
-     reject("minAPI cannot be greater than maxAPI");
-   }
-   ```
+
+    ```typescript
+    // Pseudo-code validation
+    if (!semver.valid(minAPI)) {
+        reject("Invalid minAPI version format");
+    }
+    if (!semver.valid(maxAPI)) {
+        reject("Invalid maxAPI version format");
+    }
+    if (semver.gt(minAPI, maxAPI)) {
+        reject("minAPI cannot be greater than maxAPI");
+    }
+    ```
 
 3. **Store in Database:**
-   ```sql
-   INSERT INTO tools (id, name, version, min_api, max_api, ...)
-   VALUES ($1, $2, $3, $4, $5, ...);
-   ```
+
+    ```sql
+    INSERT INTO tools (id, name, version, min_api, max_api, ...)
+    VALUES ($1, $2, $3, $4, $5, ...);
+    ```
 
 4. **Update Local Registry (Backup):**
-   - Update `src/main/data/registry.json` with new tool
-   - Include `minAPI` and `maxAPI` fields
-   - Commit to repository
+    - Update `src/main/data/registry.json` with new tool
+    - Include `minAPI` and `maxAPI` fields
+    - Commit to repository
 
 ### Handling Legacy Tools
 
@@ -383,6 +401,7 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 ```
 
 **Key Points:**
+
 - `maxAPI` does not restrict compatibility - it's for informational purposes only
 - Tools built with older APIs continue to work on newer ToolBox versions
 - Breaking changes are signaled by updating `MIN_SUPPORTED_API_VERSION`
@@ -391,23 +410,23 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 ### Data Flow
 
 1. **Installation:**
-   - User clicks "Install" on a tool
-   - `toolRegistryManager.installTool()` downloads the package
-   - Reads `package.json` for `features.minAPI`
-   - Reads `npm-shrinkwrap.json` for `@pptb/types` version
-   - Stores in `manifest.json` as `minAPI` and `maxAPI`
+    - User clicks "Install" on a tool
+    - `toolRegistryManager.installTool()` downloads the package
+    - Reads `package.json` for `features.minAPI`
+    - Reads `npm-shrinkwrap.json` for `@pptb/types` version
+    - Stores in `manifest.json` as `minAPI` and `maxAPI`
 
 2. **Loading:**
-   - `toolsManager.loadTool()` reads manifest
-   - `loadToolFromManifest()` creates Tool object
-   - `isToolSupported()` checks compatibility
-   - Sets `tool.isSupported` boolean
+    - `toolsManager.loadTool()` reads manifest
+    - `loadToolFromManifest()` creates Tool object
+    - `isToolSupported()` checks compatibility
+    - Sets `tool.isSupported` boolean
 
 3. **UI Display:**
-   - Sidebar and marketplace read `tool.isSupported`
-   - Unsupported tools get red "Not Supported" badge
-   - CSS applies visual indicators (opacity, border)
-   - Launch button disabled with helpful tooltip
+    - Sidebar and marketplace read `tool.isSupported`
+    - Unsupported tools get red "Not Supported" badge
+    - CSS applies visual indicators (opacity, border)
+    - Launch button disabled with helpful tooltip
 
 ---
 
@@ -416,12 +435,14 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 ### Visual Indicators
 
 **Unsupported Tools:**
+
 - Red "⚠ Not Supported" badge in top-right corner
 - Red left border (3px solid #c50f1f)
 - Reduced opacity (70%)
 - Disabled install/launch buttons
 
 **CSS Classes:**
+
 ```scss
 .tool-unsupported-badge {
     background: #c50f1f;
@@ -440,15 +461,17 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 ### User Actions
 
 **Attempting to Launch Unsupported Tool:**
+
 ```
 [Notification]
 Title: "Tool Not Supported"
-Message: "{ToolName} requires a different version of Power Platform ToolBox. 
+Message: "{ToolName} requires a different version of Power Platform ToolBox.
          Please update your ToolBox to use this tool."
 Type: Warning
 ```
 
 **In Marketplace:**
+
 - Install button disabled
 - Tooltip: "This tool requires ToolBox version X.Y.Z or higher"
 - Tool detail modal shows version requirements
@@ -473,39 +496,46 @@ Your ToolBox Version: 1.0.1
 ### Tool Shows as Unsupported
 
 **Check 1: ToolBox Version**
+
 ```bash
 # In ToolBox settings, check "About" section
 Current Version: 1.0.1
 ```
 
 **Check 2: Tool Requirements**
+
 - Right-click tool → "Details"
 - Look for "Minimum Version" and "API Version"
 - Compare with your ToolBox version
 
 **Solution:**
+
 - Update ToolBox to the required version
 - Or contact tool developer to support older versions
 
 ### Tool Works But Shows Unsupported
 
 **Possible Causes:**
+
 1. Tool missing `minAPI` in package.json
 2. Tool missing `npm-shrinkwrap.json`
 3. Registry data outdated
 
 **Solution:**
+
 - Contact tool developer to update submission
 - Reinstall tool after developer updates
 
 ### Version Mismatch in Workflow
 
 **Error in GitHub Actions:**
+
 ```
 ❌ Error: @pptb/types version (1.0.10) does not match ToolBox version (1.0.11)
 ```
 
 **Solution:**
+
 ```bash
 cd packages
 npm version 1.0.11 --no-git-tag-version
@@ -518,23 +548,23 @@ git commit -m "Sync @pptb/types version to 1.0.11"
 ## Future Enhancements
 
 1. **Automatic Updates:**
-   - Prompt user to update ToolBox when loading unsupported tool
-   - Direct link to download page
+    - Prompt user to update ToolBox when loading unsupported tool
+    - Direct link to download page
 
 2. **Version Range Support:**
-   - Allow tools to specify compatible range: `"minAPI": ">=1.0.0 <2.0.0"`
+    - Allow tools to specify compatible range: `"minAPI": ">=1.0.0 <2.0.0"`
 
 3. **API Feature Detection:**
-   - Instead of version numbers, check for specific API features
-   - More flexible for backward compatibility
+    - Instead of version numbers, check for specific API features
+    - More flexible for backward compatibility
 
 4. **Tool Migration Assistance:**
-   - When API changes, provide migration guide
-   - Automated tool updating scripts
+    - When API changes, provide migration guide
+    - Automated tool updating scripts
 
 5. **Registry Analytics:**
-   - Track which ToolBox versions are most common
-   - Help tool developers make version support decisions
+    - Track which ToolBox versions are most common
+    - Help tool developers make version support decisions
 
 ---
 
