@@ -17,6 +17,7 @@ export class LoadingOverlayWindowManager {
     private currentMessage = "Loading...";
     private currentBounds: { x: number; y: number; width: number; height: number } | null = null;
     private isMainWindowClosing = false;
+    private closeHandler: ((e: Electron.Event) => void) | null = null;
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
@@ -54,13 +55,14 @@ export class LoadingOverlayWindowManager {
         
         // Handle close button click - hide the overlay instead of destroying it
         // Allow close during app shutdown to prevent blocking quit
-        this.overlayWindow.on("close", (e) => {
+        this.closeHandler = (e: Electron.Event) => {
             if (!this.isMainWindowClosing) {
                 e.preventDefault();
                 this.hide();
             }
             // Otherwise allow close to proceed during shutdown
-        });
+        };
+        this.overlayWindow.on("close", this.closeHandler);
         
         this.reloadContent();
         this.updateWindowBounds();
@@ -133,10 +135,12 @@ body { display:flex; align-items:center; justify-content:center; position:relati
 
     /**
      * Escape HTML special characters to prevent injection
+     * Note: Order of replacements is critical - ampersand must be first to avoid
+     * double-escaping the ampersands in entities like &lt; and &gt;
      */
     private escapeHtml(text: string): string {
         return text
-            .replace(/&/g, "&amp;")
+            .replace(/&/g, "&amp;")   // Must be first to avoid double-escaping
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
@@ -193,8 +197,11 @@ body { display:flex; align-items:center; justify-content:center; position:relati
     /** Cleanup */
     destroy(): void {
         if (this.overlayWindow) {
-            // Remove the close listener to allow destruction
-            this.overlayWindow.removeAllListeners("close");
+            // Remove the specific close listener to allow destruction
+            if (this.closeHandler) {
+                this.overlayWindow.removeListener("close", this.closeHandler);
+                this.closeHandler = null;
+            }
             this.overlayWindow.destroy();
         }
         this.overlayWindow = null;
