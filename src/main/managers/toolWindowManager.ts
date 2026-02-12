@@ -1,7 +1,7 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
@@ -750,7 +750,18 @@ export class ToolWindowManager {
         try {
             return toolView.getBounds();
         } catch (error) {
-            captureMessage("[ToolWindowManager] Error getting active tool bounds:", "error", { extra: { error } });
+            // Normalize error and capture with full context
+            const normalizedError = error instanceof Error ? error : new Error(String(error));
+            captureException(normalizedError, {
+                tags: {
+                    component: "ToolWindowManager",
+                    method: "getActiveToolBounds",
+                },
+                extra: {
+                    activeToolId: this.activeToolId,
+                    errorMessage: normalizedError.message,
+                },
+            });
             return null;
         }
     }

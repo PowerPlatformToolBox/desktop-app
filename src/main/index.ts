@@ -954,6 +954,18 @@ class ToolBoxApp {
                     // Show overlay with tool panel bounds (or undefined for full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
+                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
+                    captureException(error instanceof Error ? error : new Error(String(error)), {
+                        extra: {
+                            source: "UTIL_CHANNELS.SHOW_LOADING",
+                            context: "Failed to compute active tool bounds for loading overlay; falling back to full-window overlay.",
+                            hasLoadingOverlayWindowManager: !!this.loadingOverlayWindowManager,
+                            hasMainWindow: !!this.mainWindow,
+                            hasToolWindowManager: !!this.toolWindowManager,
+                            activeToolId: this.toolWindowManager?.getActiveToolId() || null,
+                            message,
+                        },
+                    });
                     // On error, show without bounds (full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...");
                 }

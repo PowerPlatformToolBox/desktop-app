@@ -16,6 +16,7 @@ export class LoadingOverlayWindowManager {
     private visible = false;
     private currentMessage = "Loading...";
     private currentBounds: { x: number; y: number; width: number; height: number } | null = null;
+    private isMainWindowClosing = false;
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
@@ -52,9 +53,13 @@ export class LoadingOverlayWindowManager {
         this.overlayWindow.setParentWindow(this.mainWindow);
         
         // Handle close button click - hide the overlay instead of destroying it
+        // Allow close during app shutdown to prevent blocking quit
         this.overlayWindow.on("close", (e) => {
-            e.preventDefault();
-            this.hide();
+            if (!this.isMainWindowClosing) {
+                e.preventDefault();
+                this.hide();
+            }
+            // Otherwise allow close to proceed during shutdown
         });
         
         this.reloadContent();
@@ -98,6 +103,9 @@ export class LoadingOverlayWindowManager {
 
     /** Generate overlay HTML */
     private generateHTML(message: string): string {
+        // Escape message to prevent HTML/script injection
+        const escapedMessage = this.escapeHtml(message);
+        
         return `<!DOCTYPE html><html><head><meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
 <style>
@@ -118,9 +126,21 @@ body { display:flex; align-items:center; justify-content:center; position:relati
 <div class="overlay-container fade-in">
 <button class="close-button" onclick="window.close()" title="Close loading overlay" aria-label="Close loading overlay">✕</button>
 <div class="spinner"></div>
-<div class="message">${message}</div>
+<div class="message">${escapedMessage}</div>
 </div>
 </body></html>`;
+    }
+
+    /**
+     * Escape HTML special characters to prevent injection
+     */
+    private escapeHtml(text: string): string {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 
     /**
@@ -163,11 +183,20 @@ body { display:flex; align-items:center; justify-content:center; position:relati
         this.mainWindow.on("restore", () => {
             if (this.visible) this.show();
         });
+        this.mainWindow.on("close", () => {
+            // Mark that main window is closing so overlay can close too
+            this.isMainWindowClosing = true;
+        });
         this.mainWindow.on("closed", () => this.destroy());
     }
 
     /** Cleanup */
     destroy(): void {
+        if (this.overlayWindow) {
+            // Remove the close listener to allow destruction
+            this.overlayWindow.removeAllListeners("close");
+            this.overlayWindow.destroy();
+        }
         this.overlayWindow = null;
         this.visible = false;
     }
