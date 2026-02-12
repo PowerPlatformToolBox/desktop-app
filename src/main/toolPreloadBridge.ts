@@ -95,6 +95,43 @@ function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
     return ipcRenderer.invoke(channel, ...args);
 }
 
+type ToolSafeConnection = {
+    id: string;
+    name: string;
+    url: string;
+    environment: "Dev" | "Test" | "UAT" | "Production";
+    createdAt?: string;
+    lastUsedAt?: string;
+    isActive?: boolean;
+};
+
+function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
+    if (!connection || typeof connection !== "object") {
+        return null;
+    }
+
+    const source = connection as Record<string, unknown>;
+    const environment = source.environment;
+
+    if (typeof source.id !== "string" || typeof source.name !== "string" || typeof source.url !== "string") {
+        return null;
+    }
+
+    if (environment !== "Dev" && environment !== "Test" && environment !== "UAT" && environment !== "Production") {
+        return null;
+    }
+
+    return {
+        id: source.id,
+        name: source.name,
+        url: source.url,
+        environment,
+        createdAt: typeof source.createdAt === "string" ? source.createdAt : undefined,
+        lastUsedAt: typeof source.lastUsedAt === "string" ? source.lastUsedAt : undefined,
+        isActive: typeof source.isActive === "boolean" ? source.isActive : undefined,
+    };
+}
+
 // Expose toolboxAPI to the tool window
 contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Info
@@ -106,52 +143,22 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Connections API
     connections: {
         // Get tool's primary connection from context
-        getConnection: async () => {
-            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            if (!toolContext || typeof toolContext.connectionId !== "string") {
-                return null;
-            }
-            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
-        },
-        getConnectionUrl: async () => {
-            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            return toolContext?.connectionUrl || null;
-        },
-        getConnectionId: async () => {
-            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            return toolContext?.connectionId || null;
-        },
-        // Backward compatibility: getActiveConnection is an alias for getConnection
-        // Tools call this expecting their own connection, not a global active connection
         getActiveConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
             if (!toolContext || typeof toolContext.connectionId !== "string") {
                 return null;
             }
-            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.connectionId);
+            return toToolSafeConnection(connection);
         },
-        getAll: () => ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTIONS),
-        add: (connection: unknown) => ipcInvoke(CONNECTION_CHANNELS.ADD_CONNECTION, connection),
-        update: (id: string, updates: unknown) => ipcInvoke(CONNECTION_CHANNELS.UPDATE_CONNECTION, id, updates),
-        delete: (id: string) => ipcInvoke(CONNECTION_CHANNELS.DELETE_CONNECTION, id),
-        test: (connection: unknown) => ipcInvoke(CONNECTION_CHANNELS.TEST_CONNECTION, connection),
-        isTokenExpired: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED, connectionId),
-        refreshToken: (connectionId: string) => ipcInvoke(CONNECTION_CHANNELS.REFRESH_TOKEN, connectionId),
         // Secondary connection methods for multi-connection tools
         getSecondaryConnection: async () => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
             if (!toolContext || typeof toolContext.secondaryConnectionId !== "string") {
                 return null;
             }
-            return ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
-        },
-        getSecondaryConnectionUrl: async () => {
-            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            return toolContext?.secondaryConnectionUrl || null;
-        },
-        getSecondaryConnectionId: async () => {
-            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
-            return toolContext?.secondaryConnectionId || null;
+            const connection = await ipcInvoke(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, toolContext.secondaryConnectionId);
+            return toToolSafeConnection(connection);
         },
     },
 
@@ -208,8 +215,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         // Attribute (Column) metadata operations
         createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget),
-        updateAttribute: (entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
-            ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget),
+        updateAttribute: (
+            entityLogicalName: string,
+            attributeIdentifier: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: Record<string, unknown>,
+            connectionTarget?: "primary" | "secondary",
+        ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget),
         deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, entityLogicalName, attributeIdentifier, connectionTarget),
         createPolymorphicLookupAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
@@ -225,7 +237,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             ipcInvoke(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, optionSetDefinition, options, connectionTarget),
         updateGlobalOptionSet: (optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET, optionSetIdentifier, optionSetDefinition, options, connectionTarget),
-        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, optionSetIdentifier, connectionTarget),
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") =>
+            ipcInvoke(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, optionSetIdentifier, connectionTarget),
         // Option value modification actions
         insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, params, connectionTarget),
         updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget),
@@ -273,7 +286,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const { toolId, instanceId } = await getToolIdentifiers();
             return ipcInvoke(TERMINAL_CHANNELS.GET_TOOL_TERMINALS, toolId, instanceId);
         },
-        listAll: () => ipcInvoke(TERMINAL_CHANNELS.GET_ALL_TERMINALS),
         setVisibility: (terminalId: string, visible: boolean) => ipcInvoke(TERMINAL_CHANNELS.SET_VISIBILITY, terminalId, visible),
     },
 
@@ -364,8 +376,13 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
     // Attribute (Column) metadata operations
     createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE, entityLogicalName, attributeDefinition, options, connectionTarget),
-    updateAttribute: (entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
-        ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget),
+    updateAttribute: (
+        entityLogicalName: string,
+        attributeIdentifier: string,
+        attributeDefinition: Record<string, unknown>,
+        options?: Record<string, unknown>,
+        connectionTarget?: "primary" | "secondary",
+    ) => ipcInvoke(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE, entityLogicalName, attributeIdentifier, attributeDefinition, options, connectionTarget),
     deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") =>
         ipcInvoke(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, entityLogicalName, attributeIdentifier, connectionTarget),
     createPolymorphicLookupAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
