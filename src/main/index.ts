@@ -74,7 +74,16 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, MetadataOperationOptions, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import {
+    AttributeMetadataType,
+    EntityRelatedMetadataPath,
+    LastUsedToolEntry,
+    LastUsedToolUpdate,
+    MetadataOperationOptions,
+    ModalWindowMessagePayload,
+    ModalWindowOptions,
+    ToolBoxEvent,
+} from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -88,6 +97,7 @@ import { NotificationWindowManager } from "./managers/notificationWindowManager"
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
+import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 
@@ -111,6 +121,7 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
@@ -139,6 +150,7 @@ class ToolBoxApp {
             this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
 
             this.setupEventListeners();
             this.setupIpcHandlers();
@@ -970,7 +982,7 @@ class ToolBoxApp {
                 try {
                     // Get bounds from the active tool's BrowserView directly
                     const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
-                    
+
                     // Show overlay with tool panel bounds (or undefined for full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
@@ -1061,50 +1073,112 @@ class ToolBoxApp {
             await shell.openExternal(url);
         });
 
-        // Filesystem handlers
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (_, filePath: string) => {
+        // Filesystem handlers with access control
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
+            // Validate access if caller is a tool (null toolId means main window - allow all)
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            }
+
             const { readText } = await import("./utilities/filesystem.js");
             return await readText(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            }
+
             const { readBinary } = await import("./utilities/filesystem.js");
             return await readBinary(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            }
+
             const { exists } = await import("./utilities/filesystem.js");
             return await exists(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            }
+
             const { stat } = await import("./utilities/filesystem.js");
             return await stat(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (_, dirPath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, dirPath);
+            }
+
             const { readDirectory } = await import("./utilities/filesystem.js");
             return await readDirectory(dirPath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (_, filePath: string, content: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            }
+
             const { writeText } = await import("./utilities/filesystem.js");
             return await writeText(filePath, content);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (_, dirPath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
+            // Validate access if caller is a tool
+            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+            if (toolId) {
+                this.toolFilesystemAccessManager.validateAccess(toolId, dirPath);
+            }
+
             const { createDirectory } = await import("./utilities/filesystem.js");
             return await createDirectory(dirPath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const { saveFile } = await import("./utilities/filesystem.js");
-            return await saveFile(defaultPath, content, filters);
+            const selectedPath = await saveFile(defaultPath, content, filters);
+
+            // Grant access to the selected path if a tool called this and user selected a file
+            if (selectedPath) {
+                const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+                if (toolId) {
+                    this.toolFilesystemAccessManager.grantAccess(toolId, selectedPath);
+                }
+            }
+
+            return selectedPath;
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (_, options) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
             const { selectPath } = await import("./utilities/filesystem.js");
-            return await selectPath(options);
+            const selectedPath = await selectPath(options);
+
+            // Grant access to the selected path if a tool called this and user selected something
+            if (selectedPath) {
+                const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
+                if (toolId) {
+                    this.toolFilesystemAccessManager.grantAccess(toolId, selectedPath);
+                }
+            }
+
+            return selectedPath;
         });
 
         // Modal BrowserWindow internal channels (modal preload -> main)
@@ -1566,21 +1640,24 @@ class ToolBoxApp {
         });
 
         // Entity (Table) Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION,
+            async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create entity definition failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
-            } catch (error) {
-                throw new Error(`Create entity definition failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
@@ -1641,7 +1718,14 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+            async (
+                event,
+                entityLogicalName: string,
+                attributeIdentifier: string,
+                attributeDefinition: Record<string, unknown>,
+                options?: MetadataOperationOptions,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1696,21 +1780,24 @@ class ToolBoxApp {
         );
 
         // Relationship Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_RELATIONSHIP,
+            async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create relationship failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
-            } catch (error) {
-                throw new Error(`Create relationship failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
@@ -1750,21 +1837,24 @@ class ToolBoxApp {
         });
 
         // Global Option Set (Choice) CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET,
+            async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create global option set failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
-            } catch (error) {
-                throw new Error(`Create global option set failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
@@ -2194,7 +2284,15 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager, this.terminalManager);
+        this.toolWindowManager = new ToolWindowManager(
+            this.mainWindow,
+            this.browserviewProtocolManager,
+            this.connectionsManager,
+            this.settingsManager,
+            this.toolManager,
+            this.terminalManager,
+            this.toolFilesystemAccessManager,
+        );
 
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
