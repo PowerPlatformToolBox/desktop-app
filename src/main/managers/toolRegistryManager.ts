@@ -452,40 +452,14 @@ export class ToolRegistryManager extends EventEmitter {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
-        // Extract version information
-        let minAPI: string | undefined = tool.minAPI; // From registry
-        let maxAPI: string | undefined = tool.maxAPI; // From registry
+        // Extract version information from registry (Supabase)
+        // These are pre-processed during tool intake and stored in the database
+        const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
+        const maxAPI: string | undefined = tool.maxAPI; // From Supabase tools table (max_api column)
 
-        // If not in registry, try to extract from package.json and npm-shrinkwrap.json
-        if (!minAPI) {
-            if (packageJson.features?.minAPI) {
-                minAPI = packageJson.features.minAPI;
-            } else {
-                logInfo(`[ToolRegistry] Tool ${toolId} does not specify features.minAPI in package.json. Tool will be assumed compatible with all versions.`);
-            }
-        }
-
-        // Try to read maxAPI from npm-shrinkwrap.json (@pptb/types version)
-        if (!maxAPI) {
-            const shrinkwrapPath = path.join(toolPath, "npm-shrinkwrap.json");
-            if (fs.existsSync(shrinkwrapPath)) {
-                try {
-                    const shrinkwrap = JSON.parse(fs.readFileSync(shrinkwrapPath, "utf-8"));
-                    // Look for @pptb/types in dependencies or packages
-                    const pptbTypes = shrinkwrap.dependencies?.["@pptb/types"] || shrinkwrap.packages?.["node_modules/@pptb/types"];
-                    if (pptbTypes?.version) {
-                        maxAPI = pptbTypes.version.replace(/^\^|~/, ""); // Remove ^ or ~ prefix
-                    } else {
-                        logInfo(`[ToolRegistry] Tool ${toolId} npm-shrinkwrap.json does not contain @pptb/types. Tool will be assumed compatible with all versions.`);
-                    }
-                } catch (error) {
-                    captureMessage(`[ToolRegistry] Failed to parse npm-shrinkwrap.json for ${toolId}`, "warning", {
-                        extra: { error },
-                    });
-                }
-            } else {
-                logInfo(`[ToolRegistry] Tool ${toolId} does not have npm-shrinkwrap.json. Tool will be assumed compatible with all versions.`);
-            }
+        // Log if version info is missing (informational only, tools will still work as legacy)
+        if (!minAPI && !maxAPI) {
+            logInfo(`[ToolRegistry] Tool ${toolId} does not have version information in registry. Tool will be treated as compatible with all versions (legacy behavior).`);
         }
 
         // Create manifest

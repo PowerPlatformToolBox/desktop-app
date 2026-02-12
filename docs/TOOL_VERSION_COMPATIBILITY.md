@@ -406,20 +406,20 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
 - Tools built with older APIs continue to work on newer ToolBox versions
 - Breaking changes are signaled by updating `MIN_SUPPORTED_API_VERSION`
 - This approach maximizes forward compatibility
+- Version checking logic is handled by `VersionManager` class
 
 ### Data Flow
 
 1. **Installation:**
     - User clicks "Install" on a tool
     - `toolRegistryManager.installTool()` downloads the package
-    - Reads `package.json` for `features.minAPI`
-    - Reads `npm-shrinkwrap.json` for `@pptb/types` version
+    - Reads `minAPI` and `maxAPI` from Supabase tools table (min_api and max_api columns)
     - Stores in `manifest.json` as `minAPI` and `maxAPI`
 
 2. **Loading:**
     - `toolsManager.loadTool()` reads manifest
     - `loadToolFromManifest()` creates Tool object
-    - `isToolSupported()` checks compatibility
+    - `VersionManager.isToolSupported()` checks compatibility
     - Sets `tool.isSupported` boolean
 
 3. **UI Display:**
@@ -427,6 +427,8 @@ function isToolSupported(minAPI?: string, maxAPI?: string): boolean {
     - Unsupported tools get red "Not Supported" badge
     - CSS applies visual indicators (opacity, border)
     - Launch button disabled with helpful tooltip
+
+**Note:** Version information (min_api and max_api) is pre-processed during tool intake/submission and stored in Supabase. The ToolBox application reads these values from the database, not from the tool package files.
 
 ---
 
