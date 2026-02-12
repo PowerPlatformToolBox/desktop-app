@@ -213,7 +213,7 @@ jobs:
                           Write-Host "Size: $size"
                           
                           # Create new YAML content with correct hashes
-                          $releaseDate = (Get-Date -u -Format 'yyyy-MM-ddTHH:mm:ss.000Z')
+                          $releaseDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')
                           $yml = @{
                               version = $version
                               files = @(
