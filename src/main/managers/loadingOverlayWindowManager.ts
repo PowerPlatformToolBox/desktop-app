@@ -200,11 +200,11 @@ body { display:flex; align-items:center; justify-content:center; position:relati
             // Remove the specific close listener to allow destruction
             if (this.closeHandler) {
                 this.overlayWindow.removeListener("close", this.closeHandler);
-                this.closeHandler = null;
             }
             this.overlayWindow.destroy();
+            this.overlayWindow = null;
         }
-        this.overlayWindow = null;
+        this.closeHandler = null;
         this.visible = false;
     }
 }
