@@ -864,8 +864,25 @@ export class DataverseManager {
                             reject(new Error(`Failed to decompress metadata response: ${(error as Error).message}`));
                         }
                     } else {
-                        const body = Buffer.concat(chunks).toString("utf-8");
-                        reject(new Error(`Failed to retrieve metadata. Status: ${res.statusCode}, Body: ${body}`));
+                        // Error responses may also be compressed - decompress before reading body
+                        try {
+                            const buffer = Buffer.concat(chunks);
+                            const encoding = res.headers["content-encoding"];
+                            let decompressed: Buffer;
+
+                            if (encoding === "gzip") {
+                                decompressed = await gunzipAsync(buffer);
+                            } else if (encoding === "deflate") {
+                                decompressed = await inflateAsync(buffer);
+                            } else {
+                                decompressed = buffer;
+                            }
+
+                            const body = decompressed.toString("utf-8");
+                            reject(new Error(`Failed to retrieve CSDL document. Status: ${res.statusCode}, Body: ${body}`));
+                        } catch (decompressError) {
+                            reject(new Error(`Failed to process error response: ${(decompressError as Error).message}`));
+                        }
                     }
                 });
             });
