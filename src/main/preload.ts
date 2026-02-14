@@ -228,6 +228,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, (_, toolId) => callback(toolId));
     },
 
+    // Protocol deep link events
+    onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
+    },
+
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
         create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>

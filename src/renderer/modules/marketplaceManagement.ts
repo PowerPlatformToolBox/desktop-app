@@ -3,7 +3,7 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "../../common/types";
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
@@ -699,4 +699,81 @@ function clearMarketplaceFilters(): void {
 
     // Reload the marketplace to reflect the cleared filters
     loadMarketplace();
+}
+
+/**
+ * Handle protocol deep link install request
+ * Called when user clicks pptb://install?toolId={toolId}&toolName={toolName}
+ *
+ * @param params - Protocol parameters containing toolId and toolName
+ */
+export async function handleProtocolInstallToolRequest(params: { toolId: string; toolName: string }): Promise<void> {
+    logInfo(`[Protocol] Handling install request for tool: ${params.toolId}`);
+
+    try {
+        // First, fetch tool library to get full tool details
+        await loadToolsLibrary();
+
+        // Find the tool in the library
+        const tool = toolLibrary.find((t) => t.id === params.toolId);
+
+        if (!tool) {
+            captureMessage(`[Protocol] Tool not found in registry: ${params.toolId}`, "warning", {
+                extra: { toolId: params.toolId, toolName: params.toolName },
+            });
+
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Not Found",
+                body: `The tool "${params.toolName}" (${params.toolId}) could not be found in the registry.`,
+                type: "error",
+            });
+
+            return;
+        }
+
+        // Check if already installed
+        const installedTools = await window.toolboxAPI.getAllTools();
+        const isInstalled = installedTools.some((t) => t.id === params.toolId);
+
+        if (isInstalled) {
+            logInfo(`[Protocol] Tool ${params.toolId} is already installed`);
+
+            window.toolboxAPI.utils.showNotification({
+                title: "Already Installed",
+                body: `${tool.name} is already installed.`,
+                type: "info",
+            });
+
+            // Switch to marketplace view to show the tool
+            const marketplaceBtn = document.getElementById("marketplace-btn");
+            if (marketplaceBtn) {
+                marketplaceBtn.click();
+            }
+
+            return;
+        }
+
+        // Show tool detail modal with install option
+        logInfo(`[Protocol] Opening tool detail modal for ${params.toolId}`);
+        await openToolDetail(tool, isInstalled);
+
+        // Show notification to guide user
+        window.toolboxAPI.utils.showNotification({
+            title: "Tool Installation",
+            body: `Click "Install" to add ${tool.name} to your toolbox.`,
+            type: "info",
+        });
+    } catch (error) {
+        const errorMessage = formatError(error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "protocol_install" },
+            extra: { toolId: params.toolId, toolName: params.toolName },
+        });
+
+        window.toolboxAPI.utils.showNotification({
+            title: "Installation Failed",
+            body: `Failed to process installation request: ${errorMessage}`,
+            type: "error",
+        });
+    }
 }

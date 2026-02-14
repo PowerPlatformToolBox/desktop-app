@@ -31,5 +31,13 @@
     },
     "dmg": {
         "sign": true
-    }
+    },
+    "protocols": [
+        {
+            "name": "Power Platform ToolBox Protocol",
+            "schemes": [
+                "pptb"
+            ]
+        }
+    ]
 }

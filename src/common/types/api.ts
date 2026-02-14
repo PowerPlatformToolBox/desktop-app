@@ -229,6 +229,9 @@ export interface ToolboxAPI {
     onToolUpdateStarted: (callback: (toolId: string) => void) => void;
     onToolUpdateCompleted: (callback: (toolId: string) => void) => void;
 
+    // Protocol deep link events
+    onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => void;
+
     // Dataverse namespace
     dataverse: DataverseAPI;
 }

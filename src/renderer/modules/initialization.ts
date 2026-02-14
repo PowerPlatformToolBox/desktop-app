@@ -70,7 +70,7 @@ import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateMan
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
-import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { showPPTBNotification } from "./notifications";
 import { saveSidebarSettings } from "./settingsManagement";
@@ -676,6 +676,16 @@ function setupApplicationEventListeners(): void {
             captureException(err instanceof Error ? err : new Error(String(err)), {
                 tags: { phase: "tools_reload" },
                 level: "warning",
+            });
+        });
+    });
+
+    // Protocol deep link handler
+    window.toolboxAPI.onProtocolInstallToolRequest((params: { toolId: string; toolName: string }) => {
+        handleProtocolInstallToolRequest(params).catch((error) => {
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { phase: "protocol_install" },
+                extra: { toolId: params.toolId, toolName: params.toolName },
             });
         });
     });

@@ -74,7 +74,16 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { AttributeMetadataType, EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, MetadataOperationOptions, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import {
+    AttributeMetadataType,
+    EntityRelatedMetadataPath,
+    LastUsedToolEntry,
+    LastUsedToolUpdate,
+    MetadataOperationOptions,
+    ModalWindowMessagePayload,
+    ModalWindowOptions,
+    ToolBoxEvent,
+} from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -85,6 +94,7 @@ import { InstallIdManager } from "./managers/installIdManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
@@ -101,6 +111,7 @@ class ToolBoxApp {
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
+    private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
     private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
@@ -134,6 +145,7 @@ class ToolBoxApp {
             // Pass Supabase credentials from environment variables or use defaults from constants
             this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
+            this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager);
@@ -970,7 +982,7 @@ class ToolBoxApp {
                 try {
                     // Get bounds from the active tool's BrowserView directly
                     const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
-                    
+
                     // Show overlay with tool panel bounds (or undefined for full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
@@ -1566,21 +1578,24 @@ class ToolBoxApp {
         });
 
         // Entity (Table) Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION, async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION,
+            async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create entity definition failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
-            } catch (error) {
-                throw new Error(`Create entity definition failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
@@ -1641,7 +1656,14 @@ class ToolBoxApp {
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
-            async (event, entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+            async (
+                event,
+                entityLogicalName: string,
+                attributeIdentifier: string,
+                attributeDefinition: Record<string, unknown>,
+                options?: MetadataOperationOptions,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
                 try {
                     const connectionId =
                         connectionTarget === "secondary"
@@ -1696,21 +1718,24 @@ class ToolBoxApp {
         );
 
         // Relationship Metadata CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP, async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_RELATIONSHIP,
+            async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create relationship failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
-            } catch (error) {
-                throw new Error(`Create relationship failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
@@ -1750,21 +1775,24 @@ class ToolBoxApp {
         });
 
         // Global Option Set (Choice) CRUD Operations
-        ipcMain.handle(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET, async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
-            try {
-                const connectionId =
-                    connectionTarget === "secondary"
-                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
-                if (!connectionId) {
-                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
-                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET,
+            async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create global option set failed: ${(error as Error).message}`);
                 }
-                return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
-            } catch (error) {
-                throw new Error(`Create global option set failed: ${(error as Error).message}`);
-            }
-        });
+            },
+        );
 
         ipcMain.handle(
             DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
@@ -2741,12 +2769,38 @@ class ToolBoxApp {
             this.browserviewProtocolManager.registerScheme();
             addBreadcrumb("Registered custom protocol scheme", "init", "info");
 
+            // Register deep link protocol handler (pptb://)
+            this.protocolHandlerManager.registerScheme();
+            addBreadcrumb("Registered pptb:// protocol scheme", "init", "info");
+
             await app.whenReady();
             logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
             addBreadcrumb("Registered protocol handler", "init", "info");
+
+            // Set up deep link protocol handler callback
+            this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
+                logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
+
+                // Bring app window to focus
+                if (this.mainWindow) {
+                    if (this.mainWindow.isMinimized()) {
+                        this.mainWindow.restore();
+                    }
+                    this.mainWindow.focus();
+                }
+
+                // Send event to renderer to handle tool installation
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
+                        toolId: params.toolId,
+                        toolName: params.toolName,
+                    });
+                }
+            });
+            addBreadcrumb("Protocol handler callback registered", "init", "info");
 
             this.createWindow();
             logCheckpoint("Main window created");
