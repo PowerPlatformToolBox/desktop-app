@@ -447,25 +447,6 @@ export class ToolWindowManager {
     }
 
     /**
-     * Get the toolId for a tool instance by its WebContents
-     * This is used for filesystem access control and other tool-scoped operations
-     * @param webContentsId The ID of the WebContents making the request
-     * @returns The toolId or null if not found (null means it's from main window, not a tool)
-     */
-    getToolIdByWebContents(webContentsId: number): string | null {
-        // Find the instance that owns this WebContents
-        for (const [instanceId, toolView] of this.toolViews.entries()) {
-            if (toolView.webContents.id === webContentsId) {
-                // Extract toolId from instanceId (format: toolId-timestamp-random)
-                const toolId = instanceId.split("-").slice(0, -2).join("-");
-                return toolId;
-            }
-        }
-        // Not a tool window - likely the main window
-        return null;
-    }
-
-    /**
      * Get the instanceId for a tool instance by its WebContents
      * This is used for per-instance operations like filesystem access control
      * @param webContentsId The ID of the WebContents making the request
@@ -480,6 +461,21 @@ export class ToolWindowManager {
         }
         // Not a tool window - likely the main window
         return null;
+    }
+
+    /**
+     * Get the toolId for a tool instance by its WebContents
+     * This is used for tool-scoped operations
+     * @param webContentsId The ID of the WebContents making the request
+     * @returns The toolId or null if not found (null means it's from main window, not a tool)
+     */
+    getToolIdByWebContents(webContentsId: number): string | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId) {
+            return null;
+        }
+        // Extract toolId from instanceId (format: toolId-timestamp-random)
+        return instanceId.split("-").slice(0, -2).join("-");
     }
 
     /**
