@@ -1075,10 +1075,10 @@ class ToolBoxApp {
 
         // Filesystem handlers with access control
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
-            // Validate access if caller is a tool (null toolId means main window - allow all)
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            // Validate access if caller is a tool (null instanceId means main window - allow all)
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
             }
 
             const { readText } = await import("./utilities/filesystem.js");
@@ -1087,9 +1087,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
             }
 
             const { readBinary } = await import("./utilities/filesystem.js");
@@ -1098,9 +1098,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
             }
 
             const { exists } = await import("./utilities/filesystem.js");
@@ -1109,9 +1109,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
             }
 
             const { stat } = await import("./utilities/filesystem.js");
@@ -1120,9 +1120,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, dirPath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
             }
 
             const { readDirectory } = await import("./utilities/filesystem.js");
@@ -1131,9 +1131,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, filePath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
             }
 
             const { writeText } = await import("./utilities/filesystem.js");
@@ -1142,9 +1142,9 @@ class ToolBoxApp {
 
         ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
             // Validate access if caller is a tool
-            const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-            if (toolId) {
-                this.toolFilesystemAccessManager.validateAccess(toolId, dirPath);
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
             }
 
             const { createDirectory } = await import("./utilities/filesystem.js");
@@ -1157,9 +1157,9 @@ class ToolBoxApp {
 
             // Grant access to the selected path if a tool called this and user selected a file
             if (selectedPath) {
-                const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-                if (toolId) {
-                    this.toolFilesystemAccessManager.grantAccess(toolId, selectedPath);
+                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (instanceId) {
+                    this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
                 }
             }
 
@@ -1172,9 +1172,9 @@ class ToolBoxApp {
 
             // Grant access to the selected path if a tool called this and user selected something
             if (selectedPath) {
-                const toolId = this.toolWindowManager?.getToolIdByWebContents(event.sender.id);
-                if (toolId) {
-                    this.toolFilesystemAccessManager.grantAccess(toolId, selectedPath);
+                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (instanceId) {
+                    this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
                 }
             }
 

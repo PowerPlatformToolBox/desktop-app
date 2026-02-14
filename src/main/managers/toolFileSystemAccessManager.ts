@@ -5,34 +5,36 @@ import { logInfo, logWarn } from "../../common/sentryHelper";
  * Manages filesystem access permissions for tools
  * Implements a user-consent model where tools can only access paths explicitly selected by users
  * Similar to VS Code Extension Host security model
+ * 
+ * Access is tracked per tool instance (instanceId) to support multiple instances of the same tool
  */
 export class ToolFileSystemAccessManager {
-    // Map: toolId -> Set of allowed absolute paths
+    // Map: instanceId -> Set of allowed absolute paths
     private allowedPaths: Map<string, Set<string>> = new Map();
 
     /**
-     * Grant access to a path for a specific tool
+     * Grant access to a path for a specific tool instance
      * Called automatically when user selects a path via selectPath() or saveFile()
      */
-    grantAccess(toolId: string, filePath: string): void {
+    grantAccess(instanceId: string, filePath: string): void {
         const resolvedPath = path.resolve(filePath);
 
-        if (!this.allowedPaths.has(toolId)) {
-            this.allowedPaths.set(toolId, new Set());
+        if (!this.allowedPaths.has(instanceId)) {
+            this.allowedPaths.set(instanceId, new Set());
         }
 
-        this.allowedPaths.get(toolId)!.add(resolvedPath);
-        logInfo(`[ToolFilesystemAccess] Granted access to tool ${toolId}: ${resolvedPath}`);
+        this.allowedPaths.get(instanceId)!.add(resolvedPath);
+        logInfo(`[ToolFilesystemAccess] Granted access to tool instance ${instanceId}: ${resolvedPath}`);
     }
 
     /**
-     * Check if a tool has access to a specific path
+     * Check if a tool instance has access to a specific path
      * Access is granted if:
      * 1. The exact path was user-selected
      * 2. The path is a descendant of a user-selected directory
      */
-    canAccess(toolId: string, targetPath: string): boolean {
-        const allowedSet = this.allowedPaths.get(toolId);
+    canAccess(instanceId: string, targetPath: string): boolean {
+        const allowedSet = this.allowedPaths.get(instanceId);
         if (!allowedSet || allowedSet.size === 0) {
             return false;
         }
@@ -62,10 +64,10 @@ export class ToolFileSystemAccessManager {
     /**
      * Validate access and throw if denied
      */
-    validateAccess(toolId: string, targetPath: string): void {
-        if (!this.canAccess(toolId, targetPath)) {
+    validateAccess(instanceId: string, targetPath: string): void {
+        if (!this.canAccess(instanceId, targetPath)) {
             const resolvedPath = path.resolve(targetPath);
-            logWarn(`[ToolFilesystemAccess] Access denied for tool ${toolId} to path: ${resolvedPath}`);
+            logWarn(`[ToolFilesystemAccess] Access denied for tool instance ${instanceId} to path: ${resolvedPath}`);
             throw new Error(
                 `Access denied. This tool does not have permission to access "${resolvedPath}". ` +
                     `Please use toolboxAPI.fileSystem.selectPath() to grant access to a directory, ` +
@@ -75,20 +77,20 @@ export class ToolFileSystemAccessManager {
     }
 
     /**
-     * Revoke all access for a tool (called when tool is unloaded)
+     * Revoke all access for a tool instance (called when tool instance is closed)
      */
-    revokeAllAccess(toolId: string): void {
-        const removed = this.allowedPaths.delete(toolId);
+    revokeAllAccess(instanceId: string): void {
+        const removed = this.allowedPaths.delete(instanceId);
         if (removed) {
-            logInfo(`[ToolFilesystemAccess] Revoked all filesystem access for tool: ${toolId}`);
+            logInfo(`[ToolFilesystemAccess] Revoked all filesystem access for tool instance: ${instanceId}`);
         }
     }
 
     /**
-     * Get all allowed paths for a tool (for debugging/auditing)
+     * Get all allowed paths for a tool instance (for debugging/auditing)
      */
-    getAllowedPaths(toolId: string): string[] {
-        const allowedSet = this.allowedPaths.get(toolId);
+    getAllowedPaths(instanceId: string): string[] {
+        const allowedSet = this.allowedPaths.get(instanceId);
         return allowedSet ? Array.from(allowedSet) : [];
     }
 
