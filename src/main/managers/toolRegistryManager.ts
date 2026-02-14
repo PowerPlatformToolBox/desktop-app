@@ -58,7 +58,8 @@ interface SupabaseTool {
     name: string;
     description: string;
     downloadurl: string;
-    iconurl: string;
+    icon?: string; // New column for SVG icon URLs (GitHub Release URL)
+    iconurl: string; // Legacy column, kept for backward compatibility
     readmeurl?: string;
     version?: string;
     checksum?: string;
@@ -171,6 +172,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "name",
                 "description",
                 "downloadurl",
+                "icon",
                 "iconurl",
                 "readmeurl",
                 "version",
@@ -224,7 +226,7 @@ export class ToolRegistryManager extends EventEmitter {
                     description: tool.description,
                     authors: contributors,
                     version: tool.version || "1.0.0",
-                    icon: tool.iconurl,
+                    icon: tool.icon || tool.iconurl, // Prefer new 'icon' column, fallback to 'iconurl' for backward compatibility
                     downloadUrl: tool.downloadurl,
                     readmeUrl: tool.readmeurl,
                     repository: tool.repository,
