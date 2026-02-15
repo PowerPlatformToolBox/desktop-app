@@ -16,12 +16,19 @@ export function escapeHtml(text: string): string {
  * Resolve a tool icon URL, converting bundled paths to pptb-webview:// protocol
  * Icons must be bundled in the tool's dist/ folder
  * @param toolId - The tool identifier
- * @param iconPath - The icon path relative to dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
+ * @param iconPath - The icon path - can be:
+ *   - Relative path for installed tools (e.g., "icon.svg" or "icons/icon.svg")
+ *   - Full GitHub Release URL for marketplace display (e.g., "https://github.com/.../icon.svg")
  * @returns Resolved icon URL suitable for use in img src attribute
  */
 export function resolveToolIconUrl(toolId: string, iconPath: string | undefined): string | undefined {
     if (!iconPath) {
         return undefined;
+    }
+
+    // If it's already a full HTTP(S) URL (e.g., from GitHub Release for marketplace), return as-is
+    if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
+        return iconPath;
     }
 
     // Remove leading ./ or / if present
