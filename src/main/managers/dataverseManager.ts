@@ -1,4 +1,6 @@
 import * as https from "https";
+import * as zlib from "zlib";
+import { promisify } from "util";
 import {
     DataverseConnection,
     ENTITY_RELATED_METADATA_BASE_PATHS,
@@ -91,15 +93,7 @@ export class DataverseManager {
      * Headers that must never be passed as custom headers because they are controlled by makeHttpRequest.
      * Attempting to override these headers will result in validation errors.
      */
-    private static readonly PROTECTED_HEADERS: ReadonlySet<string> = new Set<string>([
-        "authorization",
-        "accept",
-        "content-type",
-        "odata-maxversion",
-        "odata-version",
-        "prefer",
-        "content-length",
-    ]);
+    private static readonly PROTECTED_HEADERS: ReadonlySet<string> = new Set<string>(["authorization", "accept", "content-type", "odata-maxversion", "odata-version", "prefer", "content-length"]);
 
     /**
      * Validates custom headers for metadata operations against the allowed headers list.
@@ -165,10 +159,7 @@ export class DataverseManager {
             }
 
             if (invalidHeaders.length > 0) {
-                errorParts.push(
-                    `Invalid headers for metadata operations: ${invalidHeaders.join(", ")}. ` +
-                        `Allowed headers: ${Array.from(DataverseManager.ALLOWED_METADATA_HEADERS).join(", ")}`,
-                );
+                errorParts.push(`Invalid headers for metadata operations: ${invalidHeaders.join(", ")}. ` + `Allowed headers: ${Array.from(DataverseManager.ALLOWED_METADATA_HEADERS).join(", ")}`);
             }
 
             throw new Error(`Header validation failed${operation}. ${errorParts.join(". ")}`);
@@ -801,6 +792,107 @@ export class DataverseManager {
 
         const response = await this.makeHttpRequest(url, "GET", accessToken, undefined, ['odata.include-annotations="*"']);
         return response.data as { value: Record<string, unknown>[] };
+    }
+
+    /**
+     * Retrieve CSDL/EDMX metadata document for the Dataverse environment
+     *
+     * Returns the complete OData service document containing metadata for all:
+     * - EntityType definitions (tables/entities)
+     * - Property elements (attributes/columns)
+     * - NavigationProperty elements (relationships)
+     * - ComplexType definitions (return types for actions/functions)
+     * - EnumType definitions (picklist/choice enumerations)
+     * - Action definitions (OData Actions - POST operations)
+     * - Function definitions (OData Functions - GET operations)
+     * - EntityContainer metadata
+     *
+     * NOTE: Returns raw XML (1-5MB typical). Response is compressed with gzip for optimal transfer.
+     * The response is automatically decompressed and returned as a string.
+     *
+     * @param connectionId - Connection ID to use
+     * @returns Raw CSDL/EDMX XML document as string
+     *
+     * @throws Error if connection not found, token expired, or request fails
+     */
+    async getCSDLDocument(connectionId: string): Promise<string> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/$metadata`);
+
+        const gunzipAsync = promisify(zlib.gunzip);
+        const inflateAsync = promisify(zlib.inflate);
+
+        return new Promise((resolve, reject) => {
+            const urlObj = new URL(url);
+
+            const options: https.RequestOptions = {
+                hostname: urlObj.hostname,
+                port: 443,
+                path: urlObj.pathname,
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: "application/xml",
+                    "Accept-Encoding": "gzip, deflate",
+                },
+            };
+
+            const req = https.request(options, (res) => {
+                const chunks: Buffer[] = [];
+
+                res.on("data", (chunk: Buffer) => {
+                    chunks.push(chunk);
+                });
+
+                res.on("end", async () => {
+                    if (res.statusCode === 200) {
+                        try {
+                            const buffer = Buffer.concat(chunks);
+                            const encoding = res.headers["content-encoding"];
+
+                            let decompressed: Buffer;
+                            if (encoding === "gzip") {
+                                decompressed = await gunzipAsync(buffer);
+                            } else if (encoding === "deflate") {
+                                decompressed = await inflateAsync(buffer);
+                            } else {
+                                decompressed = buffer;
+                            }
+
+                            resolve(decompressed.toString("utf-8"));
+                        } catch (error) {
+                            reject(new Error(`Failed to decompress metadata response: ${(error as Error).message}`));
+                        }
+                    } else {
+                        // Error responses may also be compressed - decompress before reading body
+                        try {
+                            const buffer = Buffer.concat(chunks);
+                            const encoding = res.headers["content-encoding"];
+                            let decompressed: Buffer;
+
+                            if (encoding === "gzip") {
+                                decompressed = await gunzipAsync(buffer);
+                            } else if (encoding === "deflate") {
+                                decompressed = await inflateAsync(buffer);
+                            } else {
+                                decompressed = buffer;
+                            }
+
+                            const body = decompressed.toString("utf-8");
+                            reject(new Error(`Failed to retrieve CSDL document. Status: ${res.statusCode}, Body: ${body}`));
+                        } catch (decompressError) {
+                            reject(new Error(`Failed to process error response: ${(decompressError as Error).message}`));
+                        }
+                    }
+                });
+            });
+
+            req.on("error", (error) => {
+                reject(new Error(`Metadata request failed: ${error.message}`));
+            });
+
+            req.end();
+        });
     }
 
     /**
