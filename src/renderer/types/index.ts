@@ -86,7 +86,7 @@ export interface ToolDetail {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
-    iconUrl?: string;
+    icon?: string;
     readmeUrl?: string;
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;

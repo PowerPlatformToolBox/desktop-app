@@ -17,7 +17,7 @@ interface ToolPackageJson {
     displayName?: string;
     description?: string;
     author?: string;
-    icon?: string;
+    icon?: string; // Relative path to SVG icon (e.g., "dist/icon.svg")
     cspExceptions?: CspExceptions;
     features?: ToolFeatures;
     repository?: string | { type: string; url: string };
@@ -95,7 +95,7 @@ export class ToolManager extends EventEmitter {
             version: manifest.version,
             description: manifest.description,
             authors: manifest.authors,
-            iconUrl: manifest.icon,
+            icon: manifest.icon,
             cspExceptions: manifest.cspExceptions,
             features: manifest.features,
             categories: manifest.categories,
@@ -458,7 +458,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
@@ -646,7 +646,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)

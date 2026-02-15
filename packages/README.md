@@ -5,6 +5,7 @@ TypeScript type definitions for Power Platform ToolBox APIs.
 - [@pptb/types](#pptbtypes)
     - [Installation](#installation)
     - [Overview](#overview)
+    - [Tool Icon Configuration](#tool-icon-configuration)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
         - [Include specific API types](#include-specific-api-types)
@@ -45,6 +46,83 @@ The `@pptb/types` package provides TypeScript definitions for two main APIs:
 
 1. **ToolBox API** (`window.toolboxAPI`) - Core platform features (connections, utilities, terminals, events)
 2. **Dataverse API** (`window.dataverseAPI`) - Microsoft Dataverse Web API operations
+
+## Tool Icon Configuration
+
+Tools can include an SVG icon that will be displayed throughout the ToolBox UI. Icons are bundled with your tool package and loaded locally for optimal performance.
+
+### Setting Up Your Tool Icon
+
+1. **Create an SVG icon** for your tool (recommended size: 48x48 or larger for scalability)
+2. **Place the icon** in your tool's `dist` folder (e.g., `dist/icon.svg` or `dist/icons/icon.svg`)
+3. **Reference it in package.json**:
+
+```json
+{
+  "name": "my-awesome-tool",
+  "version": "1.0.0",
+  "icon": "icon.svg"
+}
+```
+
+### Icon Path Requirements
+
+- **Format**: SVG only (for theme compatibility and scalability)
+- **Location**: Must be in your tool's `dist/` folder
+- **Path**: Relative to the `dist/` folder (e.g., `icon.svg` for `dist/icon.svg`, or `icons/icon.svg` for `dist/icons/icon.svg`)
+
+### Examples
+
+**Icon at root of dist folder:**
+```json
+{
+  "name": "dataverse-explorer",
+  "version": "1.0.0",
+  "icon": "icon.svg",
+  "main": "dist/index.html"
+}
+```
+
+**Icon in subdirectory of dist:**
+```json
+{
+  "name": "dataverse-explorer",
+  "version": "1.0.0",
+  "icon": "icons/icon.svg",
+  "main": "dist/index.html"
+}
+```
+
+**Project structure:**
+```
+my-tool/
+├── dist/
+│   ├── icon.svg          ← Your tool icon
+│   ├── index.html
+│   └── bundle.js
+├── package.json
+└── README.md
+```
+
+**Or with subdirectory:**
+```
+my-tool/
+├── dist/
+│   ├── icons/
+│   │   └── icon.svg      ← Your tool icon
+│   ├── index.html
+│   └── bundle.js
+├── package.json
+└── README.md
+```
+
+### Benefits of Bundled SVG Icons
+
+- ✅ **Offline support**: Icons work without internet connectivity
+- ✅ **Performance**: No external HTTP requests required
+- ✅ **Consistency**: Icons load with the same reliability as your tool
+- ✅ **Theme-aware**: SVG icons can adapt to light/dark themes via CSS
+- ✅ **Scalability**: Vector format ensures crisp display at any size
 
 ## Usage
 
