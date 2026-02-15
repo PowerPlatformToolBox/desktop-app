@@ -186,6 +186,7 @@ export const DATAVERSE_CHANNELS = {
     UPDATE_OPTION_VALUE: "dataverse.updateOptionValue",
     DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
     ORDER_OPTION: "dataverse.orderOption",
+    GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

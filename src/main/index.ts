@@ -1617,6 +1617,23 @@ class ToolBoxApp {
             }
         });
 
+        // Get CSDL document endpoint
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, async (event, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getCSDLDocument(connectionId);
+            } catch (error) {
+                throw new Error(`Get CSDL document failed: ${(error as Error).message}`);
+            }
+        });
+
         // Dataverse Metadata Helper Utilities
         ipcMain.handle(DATAVERSE_CHANNELS.BUILD_LABEL, async (event, text: string, languageCode?: number) => {
             try {

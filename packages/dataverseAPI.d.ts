@@ -959,6 +959,27 @@ declare namespace DataverseAPI {
         buildLabel: (text: string, languageCode?: number) => Label;
 
         /**
+         * Retrieve the CSDL/EDMX metadata document for the Dataverse environment
+         *
+         * Returns the complete OData service document as raw XML containing metadata for:
+         * - EntityType definitions (tables/entities)
+         * - Property elements (attributes/columns)
+         * - NavigationProperty elements (relationships)
+         * - ComplexType definitions (return types for actions/functions)
+         * - EnumType definitions (picklist/choice enumerations)
+         * - Action definitions (OData Actions - POST operations)
+         * - Function definitions (OData Functions - GET operations)
+         * - EntityContainer metadata
+         *
+         * The response is automatically compressed with gzip during transfer for optimal performance,
+         * then decompressed and returned as a raw XML string.
+         *
+         * @param connectionTarget - Optional connection target for multi-connection tools
+         * @returns Raw CSDL/EDMX XML document as string (typically 1-5MB)
+         */
+        getCSDLDocument: (connectionTarget?: "primary" | "secondary") => Promise<string>;
+
+        /**
          * Get the OData type string for an attribute metadata type
          * Converts AttributeMetadataType enum to full Microsoft.Dynamics.CRM type path
          *
@@ -1142,7 +1163,12 @@ declare namespace DataverseAPI {
          * });
          * await dataverseAPI.publishCustomizations("new_project");
          */
-        createAttribute: (entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+        createAttribute: (
+            entityLogicalName: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ id: string }>;
 
         /**
          * Update an attribute (column) definition
@@ -1179,7 +1205,13 @@ declare namespace DataverseAPI {
          * // Step 4: Publish customizations
          * await dataverseAPI.publishCustomizations("new_project");
          */
-        updateAttribute: (entityLogicalName: string, attributeIdentifier: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        updateAttribute: (
+            entityLogicalName: string,
+            attributeIdentifier: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
 
         /**
          * Delete an attribute (column) from an entity
@@ -1295,7 +1327,12 @@ declare namespace DataverseAPI {
          * @param options - Optional metadata operation options (mergeLabels defaults to true)
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          */
-        updateRelationship: (relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        updateRelationship: (
+            relationshipIdentifier: string,
+            relationshipDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
 
         /**
          * Delete a relationship
@@ -1354,7 +1391,12 @@ declare namespace DataverseAPI {
          * @param options - Optional metadata operation options (mergeLabels defaults to true)
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          */
-        updateGlobalOptionSet: (optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<void>;
+        updateGlobalOptionSet: (
+            optionSetIdentifier: string,
+            optionSetDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
 
         /**
          * Delete a global option set
