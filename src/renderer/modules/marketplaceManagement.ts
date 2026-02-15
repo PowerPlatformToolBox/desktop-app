@@ -233,7 +233,9 @@ export async function loadMarketplace(): Promise<void> {
             // Show all categories for this tool
             const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const isDeprecated = tool.status === "deprecated";
+            const isUnsupported = tool.isSupported === false;
             const deprecatedBadgeHtml = isDeprecated ? '<span class="marketplace-item-deprecated-badge">Deprecated</span>' : "";
+            const unsupportedBadgeHtml = isUnsupported ? '<span class="marketplace-item-unsupported-badge">Not Supported</span>' : "";
             const newBadgeHtml = isNewTool ? '<span class="marketplace-item-new-badge">NEW</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
@@ -261,7 +263,7 @@ export async function loadMarketplace(): Promise<void> {
             if (displayMode === "compact") {
                 // Compact mode: icon, name, version, author only
                 return `
-        <div class="marketplace-item-pptb marketplace-item-compact ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb marketplace-item-compact ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -274,7 +276,7 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? 'disabled' : ''}>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
@@ -286,7 +288,7 @@ export async function loadMarketplace(): Promise<void> {
 
             // Standard mode: full details
             return `
-        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
@@ -309,7 +311,7 @@ export async function loadMarketplace(): Promise<void> {
             <div class="marketplace-item-footer-pptb">
                 ${analyticsHtml}
             </div>
-            <div class="marketplace-item-top-tags">${newBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}</div>
+            <div class="marketplace-item-top-tags">${newBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
         </div>
     `;
         })

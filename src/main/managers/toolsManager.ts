@@ -7,6 +7,7 @@ import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
+import { VersionManager } from "./versionManager";
 
 /**
  * Package.json structure for tool validation
@@ -107,6 +108,9 @@ export class ToolManager extends EventEmitter {
             repository: manifest.repository,
             website: manifest.website,
             readmeUrl: manifest.readme,
+            minAPI: manifest.minAPI,
+            maxAPI: manifest.maxAPI,
+            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
         };
 
         const cached = this.analyticsCache.get(tool.id);

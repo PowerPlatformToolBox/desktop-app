@@ -71,6 +71,8 @@ interface SupabaseTool {
     status?: string; // Tool lifecycle status: active, deprecated, archived
     repository?: string;
     website?: string;
+    min_api?: string; // Minimum ToolBox API version required
+    max_api?: string; // Maximum ToolBox API version tested
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -106,6 +108,8 @@ interface LocalRegistryTool {
     cspExceptions?: CspExceptions;
     features?: Record<string, unknown>;
     status?: string; // Tool lifecycle status: active, deprecated, archived
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
 }
 
 /**
@@ -241,6 +245,8 @@ export class ToolRegistryManager extends EventEmitter {
                     rating,
                     mau,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    minAPI: tool.min_api, // Include min API version from database
+                    maxAPI: tool.max_api, // Include max API version from database
                 } as ToolRegistryEntry;
             });
 
@@ -295,6 +301,8 @@ export class ToolRegistryManager extends EventEmitter {
                     features: tool.features,
                     license: tool.license,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    minAPI: tool.minAPI,
+                    maxAPI: tool.maxAPI,
                 }));
 
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
@@ -444,6 +452,16 @@ export class ToolRegistryManager extends EventEmitter {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
+        // Extract version information from registry (Supabase)
+        // These are pre-processed during tool intake and stored in the database
+        const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
+        const maxAPI: string | undefined = tool.maxAPI; // From Supabase tools table (max_api column)
+
+        // Log if version info is missing (informational only, tools will still work as legacy)
+        if (!minAPI && !maxAPI) {
+            logInfo(`[ToolRegistry] Tool ${toolId} does not have version information in registry. Tool will be treated as compatible with all versions (legacy behavior).`);
+        }
+
         // Create manifest
         // Normalize authors list: prefer registry contributors, fallback to package.json author
         let authors: string[] | undefined = tool.authors;
@@ -477,6 +495,8 @@ export class ToolRegistryManager extends EventEmitter {
             website: tool.website, // Include website URL from registry
             createdAt: tool.createdAt,
             publishedAt: tool.publishedAt,
+            minAPI, // Minimum API version required
+            maxAPI, // Maximum API version tested (from @pptb/types)
         };
 
         // Save to manifest file

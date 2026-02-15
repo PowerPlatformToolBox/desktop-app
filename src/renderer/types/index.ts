@@ -92,4 +92,7 @@ export interface ToolDetail {
     repository?: string;
     website?: string;
     createdAt?: string; // ISO date string from created_at field
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
+    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }

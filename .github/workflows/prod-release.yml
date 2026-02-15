@@ -39,6 +39,28 @@ jobs:
 
                   echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
 
+            - name: Validate @pptb/types version matches ToolBox version
+              shell: bash
+              run: |
+                  TOOLBOX_VERSION=$(node -p "require('./package.json').version")
+                  TYPES_VERSION=$(node -p "require('./packages/package.json').version")
+                  
+                  # Extract major.minor.patch from both versions (ignore pre-release tags)
+                  TOOLBOX_BASE=$(echo "$TOOLBOX_VERSION" | cut -d'-' -f1)
+                  TYPES_BASE=$(echo "$TYPES_VERSION" | cut -d'-' -f1)
+                  
+                  if [ "$TOOLBOX_BASE" != "$TYPES_BASE" ]; then
+                    echo "❌ Error: @pptb/types version ($TYPES_VERSION) does not match ToolBox version ($TOOLBOX_VERSION)"
+                    echo "The base version (major.minor.patch) must be identical for stable releases."
+                    echo ""
+                    echo "To fix this:"
+                    echo "1. Update packages/package.json version to match $TOOLBOX_VERSION"
+                    echo "2. Commit the change and push"
+                    exit 1
+                  fi
+                  
+                  echo "✅ Version validation passed: ToolBox $TOOLBOX_VERSION matches @pptb/types $TYPES_VERSION"
+
     build:
         needs: preflight
         if: >
@@ -668,3 +690,38 @@ jobs:
                   fail_on_unmatched_files: false
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    publish-types:
+        needs: publish-release
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout main branch
+              uses: actions/checkout@v4
+              with:
+                  ref: main
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  registry-url: "https://registry.npmjs.org"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Get version
+              id: version
+              run: |
+                  VERSION=$(node -p "require('./packages/package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Publishing @pptb/types version: $VERSION"
+
+            - name: Publish @pptb/types to npm
+              working-directory: ./packages
+              run: |
+                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} to npm..."
+                  pnpm publish --access public --tag latest --no-git-checks
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
