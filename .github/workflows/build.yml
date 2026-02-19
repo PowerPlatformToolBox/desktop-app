@@ -57,6 +57,6 @@ jobs:
             - name: Verify build output
               run: |
                   if [ "$RUNNER_OS" != "Windows" ]; then
-                    bash buildScripts/verify-build.sh
+                    bash buildScripts/sh/verify-build.sh
                   fi
               shell: bash
