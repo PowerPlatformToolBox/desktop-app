@@ -695,11 +695,97 @@ jobs:
             - name: Display structure of downloaded files
               run: ls -R artifacts
 
+            - name: Merge Windows latest.yml files
+              run: |
+                  echo "🔄 Merging Windows x64 and ARM64 latest.yml files..."
+                  
+                  # Find the Windows YAML files
+                  X64_YML=$(find artifacts/windows-x64-build -name "latest.yml" 2>/dev/null || echo "")
+                  ARM64_YML=$(find artifacts/windows-arm64-build -name "latest.yml" 2>/dev/null || echo "")
+                  
+                  if [[ -z "$X64_YML" || -z "$ARM64_YML" ]]; then
+                      echo "⚠️ One or both Windows YAML files not found. Skipping merge."
+                      echo "X64_YML: $X64_YML"
+                      echo "ARM64_YML: $ARM64_YML"
+                      exit 0
+                  fi
+                  
+                  echo "Found X64 YAML: $X64_YML"
+                  echo "Found ARM64 YAML: $ARM64_YML"
+                  
+                  # Extract version and release date from x64 YAML (should be the same for both)
+                  VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$X64_YML" || echo "unknown")
+                  RELEASE_DATE=$(grep -oP 'releaseDate:\s+\K.+' "$X64_YML" || date -u +'%Y-%m-%dT%H:%M:%S.000Z')
+                  
+                  echo "Version: $VERSION"
+                  echo "Release Date: $RELEASE_DATE"
+                  
+                  # Find the EXE files in each artifact directory
+                  X64_EXE=$(find artifacts/windows-x64-build -name "*-x64-win.exe" -type f | head -n 1)
+                  ARM64_EXE=$(find artifacts/windows-arm64-build -name "*-arm64-win.exe" -type f | head -n 1)
+                  
+                  if [[ -z "$X64_EXE" || -z "$ARM64_EXE" ]]; then
+                      echo "❌ Could not find both x64 and ARM64 EXE files"
+                      echo "X64_EXE: $X64_EXE"
+                      echo "ARM64_EXE: $ARM64_EXE"
+                      exit 1
+                  fi
+                  
+                  echo "Found X64 EXE: $(basename "$X64_EXE")"
+                  echo "Found ARM64 EXE: $(basename "$ARM64_EXE")"
+                  
+                  # Calculate hashes for x64
+                  X64_SHA256=$(sha256sum "$X64_EXE" | awk '{print $1}')
+                  X64_SHA512=$(sha512sum "$X64_EXE" | awk '{print $1}')
+                  X64_SIZE=$(stat -c %s "$X64_EXE" 2>/dev/null || stat -f %z "$X64_EXE" 2>/dev/null)
+                  
+                  echo "X64 SHA256: $X64_SHA256"
+                  echo "X64 SHA512: $X64_SHA512"
+                  echo "X64 Size: $X64_SIZE"
+                  
+                  # Calculate hashes for ARM64
+                  ARM64_SHA256=$(sha256sum "$ARM64_EXE" | awk '{print $1}')
+                  ARM64_SHA512=$(sha512sum "$ARM64_EXE" | awk '{print $1}')
+                  ARM64_SIZE=$(stat -c %s "$ARM64_EXE" 2>/dev/null || stat -f %z "$ARM64_EXE" 2>/dev/null)
+                  
+                  echo "ARM64 SHA256: $ARM64_SHA256"
+                  echo "ARM64 SHA512: $ARM64_SHA512"
+                  echo "ARM64 Size: $ARM64_SIZE"
+                  
+                  # Create merged YAML with both architectures
+                  MERGED_YML="artifacts/latest.yml"
+                  cat > "$MERGED_YML" << EOF
+                  version: $VERSION
+                  files:
+                    - url: $(basename "$X64_EXE")
+                      sha512: $X64_SHA512
+                      sha256: $X64_SHA256
+                      size: $X64_SIZE
+                      blockMapSize: null
+                    - url: $(basename "$ARM64_EXE")
+                      sha512: $ARM64_SHA512
+                      sha256: $ARM64_SHA256
+                      size: $ARM64_SIZE
+                      blockMapSize: null
+                  releaseDate: $RELEASE_DATE
+                  EOF
+                  
+                  echo ""
+                  echo "✅ Merged latest.yml created:"
+                  cat "$MERGED_YML"
+                  
+                  # Remove the individual YAML files so they don't get uploaded
+                  rm -f "$X64_YML" "$ARM64_YML"
+                  echo ""
+                  echo "✅ Individual YAML files removed"
+              shell: bash
+
             - name: Prepare release files
               run: |
                   echo "📦 Preparing release files..."
                   mkdir -p release-files
 
+                  # Copy all release artifacts (excluding individual Windows YAML files which were removed)
                   find artifacts -type f \( -name "*.AppImage" -o -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.pkg" -o -name "*.snap" -o -name "*.deb" -o -name "*.rpm" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
 
                   echo "✅ Release files prepared"
