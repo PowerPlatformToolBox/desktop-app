@@ -615,51 +615,94 @@ jobs:
             - name: Regenerate latest-mac.yml with correct SHA256 hashes
               shell: bash
               run: |
-                  echo "🔄 Regenerating latest-mac.yml with stapled artifact hashes..."
-
-                  # Find all YAML files
-                  YML_FILES=$(find notarize -name "latest*.yml" -o -name "*-mac.yml")
-
-                  if [[ -z "$YML_FILES" ]]; then
-                    echo "⚠️ No YAML files found, skipping regeneration"
-                    exit 0
+                  echo "🔄 Merging macOS x64 and ARM64 latest-mac.yml files..."
+                  
+                  # Find all DMG files
+                  X64_DMG=$(find notarize -name "*-x64-mac.dmg" -type f | head -n 1)
+                  ARM64_DMG=$(find notarize -name "*-arm64-mac.dmg" -type f | head -n 1)
+                  
+                  if [[ -z "$X64_DMG" || -z "$ARM64_DMG" ]]; then
+                      echo "⚠️ One or both macOS DMG files not found. Skipping merge."
+                      echo "X64_DMG: $X64_DMG"
+                      echo "ARM64_DMG: $ARM64_DMG"
+                      
+                      # Fallback to single architecture (original behavior)
+                      YML_FILES=$(find notarize -name "latest*.yml" -o -name "*-mac.yml")
+                      if [[ -n "$YML_FILES" ]]; then
+                          for YML_FILE in $YML_FILES; do
+                              VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$YML_FILE" || echo "unknown")
+                              DMG_FILE=$(find "$(dirname "$YML_FILE")" -maxdepth 1 -name "*.dmg" | head -n 1)
+                              if [[ -n "$DMG_FILE" && -f "$DMG_FILE" ]]; then
+                                  HASH256=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
+                                  HASH512=$(shasum -a 512 "$DMG_FILE" | awk '{print $1}')
+                                  SIZE=$(stat -f '%z' "$DMG_FILE" 2>/dev/null || stat -c '%s' "$DMG_FILE" 2>/dev/null)
+                                  printf "version: %s\nfiles:\n  - url: %s\n    sha512: %s\n    sha256: %s\n    size: %s\n    blockMapSize: null\nreleaseDate: %s\n" \
+                                    "$VERSION" "$(basename "$DMG_FILE")" "$HASH512" "$HASH256" "$SIZE" "$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" > "$YML_FILE"
+                              fi
+                          done
+                      fi
+                      exit 0
                   fi
-
-                  for YML_FILE in $YML_FILES; do
-                    echo "Processing: $YML_FILE"
-                    
-                    # Extract version from existing YAML
-                    VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$YML_FILE" || echo "unknown")
-                    
-                    # Find the stapled DMG file in the same directory
-                    DMG_FILE=$(find "$(dirname "$YML_FILE")" -maxdepth 1 -name "*.dmg" | head -n 1)
-                    
-                    if [[ -n "$DMG_FILE" && -f "$DMG_FILE" ]]; then
-                      echo "  Found DMG: $(basename "$DMG_FILE")"
-                      
-                      # Calculate SHA256 and SHA512 hashes of the stapled DMG
-                      HASH256=$(shasum -a 256 "$DMG_FILE" | awk '{print $1}')
-                      HASH512=$(shasum -a 512 "$DMG_FILE" | awk '{print $1}')
-                      SIZE=$(stat -f '%z' "$DMG_FILE" 2>/dev/null || stat -c '%s' "$DMG_FILE" 2>/dev/null)
-                      
-                      echo "  SHA256: $HASH256"
-                      echo "  SHA512: $HASH512"
-                      echo "  Size: $SIZE"
-                      
-                      # Create new YAML with correct hashes using printf to avoid YAML parsing issues
-                      printf "version: %s\nfiles:\n  - url: %s\n    sha512: %s\n    sha256: %s\n    size: %s\n    blockMapSize: null\nreleaseDate: %s\n" \
-                        "$VERSION" \
-                        "$(basename "$DMG_FILE")" \
-                        "$HASH512" \
-                        "$HASH256" \
-                        "$SIZE" \
-                        "$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" > "$YML_FILE"
-                      echo "  ✅ Updated $YML_FILE"
-                    else
-                      echo "  ⚠️ No DMG found in $(dirname "$YML_FILE")"
-                    fi
+                  
+                  echo "Found X64 DMG: $(basename "$X64_DMG")"
+                  echo "Found ARM64 DMG: $(basename "$ARM64_DMG")"
+                  
+                  # Find any existing YAML to extract version
+                  EXISTING_YML=$(find notarize -name "latest*.yml" -o -name "*-mac.yml" | head -n 1)
+                  VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$EXISTING_YML" 2>/dev/null || echo "unknown")
+                  
+                  echo "Version: $VERSION"
+                  
+                  # Calculate hashes for x64
+                  echo "🔐 Calculating hashes for x64 DMG..."
+                  X64_SHA256=$(shasum -a 256 "$X64_DMG" | awk '{print $1}')
+                  X64_SHA512=$(shasum -a 512 "$X64_DMG" | awk '{print $1}')
+                  X64_SIZE=$(stat -f '%z' "$X64_DMG" 2>/dev/null || stat -c '%s' "$X64_DMG" 2>/dev/null)
+                  
+                  echo "  SHA256: $X64_SHA256"
+                  echo "  SHA512: $X64_SHA512"
+                  echo "  Size: $X64_SIZE"
+                  
+                  # Calculate hashes for ARM64
+                  echo "🔐 Calculating hashes for ARM64 DMG..."
+                  ARM64_SHA256=$(shasum -a 256 "$ARM64_DMG" | awk '{print $1}')
+                  ARM64_SHA512=$(shasum -a 512 "$ARM64_DMG" | awk '{print $1}')
+                  ARM64_SIZE=$(stat -f '%z' "$ARM64_DMG" 2>/dev/null || stat -c '%s' "$ARM64_DMG" 2>/dev/null)
+                  
+                  echo "  SHA256: $ARM64_SHA256"
+                  echo "  SHA512: $ARM64_SHA512"
+                  echo "  Size: $ARM64_SIZE"
+                  
+                  # Create merged YAML with both architectures
+                  MERGED_YML="notarize/latest-mac.yml"
+                  cat > "$MERGED_YML" << EOF
+                  version: $VERSION
+                  files:
+                    - url: $(basename "$X64_DMG")
+                      sha512: $X64_SHA512
+                      sha256: $X64_SHA256
+                      size: $X64_SIZE
+                      blockMapSize: null
+                    - url: $(basename "$ARM64_DMG")
+                      sha512: $ARM64_SHA512
+                      sha256: $ARM64_SHA256
+                      size: $ARM64_SIZE
+                      blockMapSize: null
+                  releaseDate: $(date -u +'%Y-%m-%dT%H:%M:%S.000Z')
+                  EOF
+                  
+                  echo ""
+                  echo "✅ Merged latest-mac.yml created:"
+                  cat "$MERGED_YML"
+                  
+                  # Remove any other YAML files in subdirectories to prevent conflicts
+                  find notarize -name "latest*.yml" -o -name "*-mac.yml" | while read yml; do
+                      if [[ "$yml" != "$MERGED_YML" ]]; then
+                          rm -f "$yml"
+                          echo "Removed: $yml"
+                      fi
                   done
-
+                  
                   echo "✅ Regeneration complete"
 
             - name: Upload stapled macOS artifacts

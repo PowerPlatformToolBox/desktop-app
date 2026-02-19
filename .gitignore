@@ -148,8 +148,9 @@ dist/
 package-lock.json
 .vscode/settings.json
 
-# Generated latest.yml from merge script (example output)
+# Generated YAML files from merge scripts (example outputs)
 buildScripts/latest.yml
+buildScripts/latest-mac.yml
 
 # Any macOS Certificate files
 *.cer
