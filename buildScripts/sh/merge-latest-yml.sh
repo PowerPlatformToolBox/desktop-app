@@ -6,14 +6,14 @@
 # Windows installers for electron-updater auto-update functionality.
 #
 # Usage:
-#   ./merge-windows-latest-yml.sh <version> [release-tag]
+#   ./merge-latest-yml.sh <version> [release-tag]
 #
 # Examples:
 #   # Generate for v1.1.3 (downloads from GitHub release)
-#   ./merge-windows-latest-yml.sh 1.1.3 v1.1.3
+#   ./merge-latest-yml.sh 1.1.3 v1.1.3
 #
 #   # Generate for local files in build/ directory
-#   ./merge-windows-latest-yml.sh 1.1.3
+#   ./merge-latest-yml.sh 1.1.3
 #
 # The script will:
 # 1. Download or locate both x64 and ARM64 Windows EXE files
