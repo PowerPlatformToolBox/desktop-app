@@ -649,7 +649,7 @@ jobs:
                   
                   # Find any existing YAML to extract version
                   EXISTING_YML=$(find notarize -name "latest*.yml" -o -name "*-mac.yml" | head -n 1)
-                  VERSION=$(grep -oP 'version:\s+\K[^\s]+' "$EXISTING_YML" 2>/dev/null || echo "unknown")
+                  VERSION=$(awk '/^version:/{print $2; exit}' "$EXISTING_YML" 2>/dev/null || echo "unknown")
                   
                   echo "Version: $VERSION"
                   
