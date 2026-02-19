@@ -1,0 +1,13 @@
+version: 1.1.3
+files:
+  - url: Power-Platform-ToolBox-1.1.3-x64-win.exe
+    sha512: bf42fd78a40cbe396154344c01ec14ffc34ba16387d8dc947275419d440b03a9aedd42572cfb8289379e15ad1dc3dd75d9dbebc3ad9717022f78f4ead542221c
+    sha256: 12d661ecba740f8b9ed42415f02e8e51139c913f56702b0709890022409f1025
+    size: 83575696
+    blockMapSize: null
+  - url: Power-Platform-ToolBox-1.1.3-arm64-win.exe
+    sha512: a0d08beed14185e1e32edb14afde512118c296768bb1c28423d1886497742cf4431bfdd8fa13978cbc8a3c273ac383889bbd6e565e0608685c036dd72f4671ac
+    sha256: 532829d332ca7b087d65c3e6dd09670b309692a2eb3bca05436788de09d61637
+    size: 86587224
+    blockMapSize: null
+releaseDate: 2026-02-19T10:55:57.000Z
