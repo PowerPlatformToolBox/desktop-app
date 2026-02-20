@@ -321,7 +321,7 @@ export class ToolRegistryManager extends EventEmitter {
                 description: tool.description,
                 authors: tool.authors,
                 version: tool.version,
-                downloadUrl: tool.downloadUrl,
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
                 checksum: tool.checksum,
                 size: tool.size,
                 publishedAt: tool.publishedAt || new Date().toISOString(),
@@ -335,6 +335,31 @@ export class ToolRegistryManager extends EventEmitter {
 
         logInfo(`[ToolRegistry] Fetched ${tools.length} tools from Azure Blob registry`);
         return tools;
+    }
+
+    /**
+     * Resolve a (potentially relative) download URL.
+     * If the URL is already absolute (starts with http:// or https://) it is returned as-is.
+     * Otherwise it is treated as a path relative to the configured azureBlobBaseUrl.
+     * Returns an empty string when the URL is relative but azureBlobBaseUrl is not configured.
+     */
+    private resolveDownloadUrl(downloadUrl: string): string {
+        if (!downloadUrl) {
+            captureMessage("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source", "warning");
+            return "";
+        }
+        if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
+            return downloadUrl;
+        }
+        // Relative path – resolve against Azure Blob base URL
+        if (this.azureBlobBaseUrl) {
+            const base = this.azureBlobBaseUrl.replace(/\/$/, "");
+            const relativePath = downloadUrl.replace(/^\//, "");
+            return `${base}/${relativePath}`;
+        }
+        // No base URL configured – cannot resolve
+        captureMessage(`[ToolRegistry] Cannot resolve relative download URL "${downloadUrl}": AZURE_BLOB_BASE_URL is not configured`, "warning");
+        return "";
     }
 
     /**
@@ -366,7 +391,7 @@ export class ToolRegistryManager extends EventEmitter {
                     authors: tool.authors,
                     version: tool.version,
                     icon: tool.icon,
-                    downloadUrl: tool.downloadUrl,
+                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
                     checksum: tool.checksum,
                     size: tool.size,
                     publishedAt: tool.publishedAt || new Date().toISOString(),

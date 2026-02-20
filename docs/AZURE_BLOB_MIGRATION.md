@@ -25,8 +25,8 @@ All tool assets live in a single public Azure Blob container (anonymous read acc
 **Example:**
 
 ```
-https://pptoolboxstorage.blob.core.windows.net/tools/registry.json
-https://pptoolboxstorage.blob.core.windows.net/tools/packages/pptb-standard-sample-tool-1.0.9.tar.gz
+https://<storage-account>.blob.core.windows.net/tools/registry.json
+https://<storage-account>.blob.core.windows.net/tools/packages/pptb-standard-sample-tool-1.0.9.tar.gz
 ```
 
 ---
@@ -37,7 +37,7 @@ Set the following environment variable before building the app (add it to your `
 
 | Variable | Description | Example |
 |---|---|---|
-| `AZURE_BLOB_BASE_URL` | Full URL to the root of the tools blob container | `https://pptoolboxstorage.blob.core.windows.net/tools` |
+| `AZURE_BLOB_BASE_URL` | Full URL to the root of the tools blob container | `https://<storage-account>.blob.core.windows.net/tools` |
 | `SUPABASE_URL` | Supabase project URL (unchanged) | `https://xyz.supabase.co` |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key (unchanged) | `eyJ...` |
 
@@ -46,7 +46,7 @@ Set the following environment variable before building the app (add it to your `
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-AZURE_BLOB_BASE_URL=https://pptoolboxstorage.blob.core.windows.net/tools
+AZURE_BLOB_BASE_URL=https://<storage-account>.blob.core.windows.net/tools
 ```
 
 > **Note:** `AZURE_BLOB_BASE_URL` is injected at build time via Vite and is **not** a runtime secret. The container must allow anonymous read access (no SAS token required for downloads).
@@ -146,13 +146,13 @@ User submits tool via web app (pptb-web)
   → convert-tool GitHub Action pre-packages the tool from npm (unchanged)
   → Package uploaded to Azure Blob container:
       az storage blob upload \
-        --account-name pptoolboxstorage \
+        --account-name <storage-account> \
         --container-name tools \
         --name "packages/<tool-id>-<version>.tar.gz" \
         --file "<tool-id>-<version>.tar.gz" \
         --auth-mode login
   → Supabase row updated with downloadurl pointing to the Azure Blob URL:
-      https://pptoolboxstorage.blob.core.windows.net/tools/packages/<tool-id>-<version>.tar.gz
+      https://<storage-account>.blob.core.windows.net/tools/packages/<tool-id>-<version>.tar.gz
   → (Optional) registry.json in the blob container is regenerated to include the new entry
 ```
 
@@ -162,7 +162,7 @@ Replace the GitHub Release upload step with an Azure Blob upload step. The CI/CD
 
 | Secret | Description |
 |---|---|
-| `AZURE_STORAGE_ACCOUNT` | Storage account name (e.g. `pptoolboxstorage`) |
+| `AZURE_STORAGE_ACCOUNT` | Storage account name (e.g. `<storage-account>`) |
 | `AZURE_STORAGE_CONTAINER` | Container name (e.g. `tools`) |
 | `AZURE_CREDENTIALS` | Azure service principal credentials JSON (used with `azure/login` action) |
 
@@ -220,7 +220,7 @@ az group create --name pptoolbox-rg --location eastus
 
 # Create storage account
 az storage account create \
-  --name pptoolboxstorage \
+  --name <storage-account> \
   --resource-group pptoolbox-rg \
   --location eastus \
   --sku Standard_LRS \
@@ -229,7 +229,7 @@ az storage account create \
 # Create container with anonymous read access (blobs only)
 az storage container create \
   --name tools \
-  --account-name pptoolboxstorage \
+  --account-name <storage-account> \
   --public-access blob \
   --auth-mode login
 ```
@@ -238,7 +238,7 @@ az storage container create \
 
 ```bash
 az storage blob upload \
-  --account-name pptoolboxstorage \
+  --account-name <storage-account> \
   --container-name tools \
   --name registry.json \
   --file src/main/data/registry.json \
@@ -252,7 +252,7 @@ az storage cors add \
   --methods GET HEAD \
   --origins "https://powerplatformtoolbox.com" \
   --services b \
-  --account-name pptoolboxstorage
+  --account-name <storage-account>
 ```
 
 ---
