@@ -92,6 +92,8 @@ The extracted directory must contain a `package.json` at its root:
 
 Both `registry.json` (bundled) and the Azure Blob `registry.json` share this schema:
 
+> **`downloadUrl` convention:** Use just the **filename** (e.g. `my-tool-1.0.0.tar.gz`). The app automatically resolves it to `<AZURE_BLOB_BASE_URL>/packages/<filename>` at runtime. Absolute HTTPS URLs are also accepted and used as-is (for external or legacy sources).
+
 ```json
 {
     "version": "1.0",
@@ -105,7 +107,7 @@ Both `registry.json` (bundled) and the Azure Blob `registry.json` share this sch
             "description": "Tool description",
             "authors": ["Author Name"],
             "version": "1.0.0",
-            "downloadUrl": "https://<account>.blob.core.windows.net/tools/packages/my-tool-id-1.0.0.tar.gz",
+            "downloadUrl": "my-tool-id-1.0.0.tar.gz",
             "icon": "icon.png",
             "checksum": "sha256:<hex>",
             "size": 75000,

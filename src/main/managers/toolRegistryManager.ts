@@ -340,7 +340,8 @@ export class ToolRegistryManager extends EventEmitter {
     /**
      * Resolve a (potentially relative) download URL.
      * If the URL is already absolute (starts with http:// or https://) it is returned as-is.
-     * Otherwise it is treated as a path relative to the configured azureBlobBaseUrl.
+     * Otherwise it is treated as a filename under the `packages/` folder within the configured
+     * azureBlobBaseUrl (e.g. "my-tool-1.0.0.tar.gz" → "<base>/packages/my-tool-1.0.0.tar.gz").
      * Returns an empty string when the URL is relative but azureBlobBaseUrl is not configured.
      */
     private resolveDownloadUrl(downloadUrl: string): string {
@@ -351,11 +352,11 @@ export class ToolRegistryManager extends EventEmitter {
         if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
             return downloadUrl;
         }
-        // Relative path – resolve against Azure Blob base URL
+        // Relative filename – resolve to <base>/packages/<filename>
         if (this.azureBlobBaseUrl) {
             const base = this.azureBlobBaseUrl.replace(/\/$/, "");
-            const relativePath = downloadUrl.replace(/^\//, "");
-            return `${base}/${relativePath}`;
+            const filename = downloadUrl.replace(/^\//, "");
+            return `${base}/packages/${filename}`;
         }
         // No base URL configured – cannot resolve
         captureMessage(`[ToolRegistry] Cannot resolve relative download URL "${downloadUrl}": AZURE_BLOB_BASE_URL is not configured`, "warning");
