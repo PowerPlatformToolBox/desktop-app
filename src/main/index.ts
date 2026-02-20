@@ -2526,7 +2526,7 @@ class ToolBoxApp {
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
         const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
         const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
-            ? `${azureBlobBaseUrl}/packages/pptb-standard-sample-tool-1.0.9.tar.gz`
+            ? `${azureBlobBaseUrl.replace(/\/$/, "")}/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz`
             : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
         const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-1.0.9.tar.gz");

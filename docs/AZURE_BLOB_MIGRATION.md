@@ -12,21 +12,22 @@ The ToolBox application already fetches tool metadata from **Supabase**. Azure B
 
 ## Azure Blob Container Layout
 
-All tool assets live in a single public Azure Blob container (anonymous read access on blobs):
+All tool assets live in a single public Azure Blob container (anonymous read access on blobs), with each tool version in its own folder — mirroring the GitHub Releases structure:
 
 ```
 <account>.blob.core.windows.net/tools/
-├── registry.json                            # Remote registry index (fallback after Supabase)
-└── packages/
-    ├── <tool-id>-<version>.tar.gz           # Tool package archives
-    └── ...
+├── registry.json                                      # Remote registry index (fallback after Supabase)
+└── <tool-id>-<version>/                               # Per-tool version folder
+    ├── <tool-id>-<version>.tar.gz                     # Tool package archive
+    └── <tool-id>-<version>.svg                        # Tool icon
 ```
 
 **Example:**
 
 ```
 https://<storage-account>.blob.core.windows.net/tools/registry.json
-https://<storage-account>.blob.core.windows.net/tools/packages/pptb-standard-sample-tool-1.0.9.tar.gz
+https://<storage-account>.blob.core.windows.net/tools/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz
+https://<storage-account>.blob.core.windows.net/tools/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.svg
 ```
 
 ---
@@ -92,7 +93,7 @@ The extracted directory must contain a `package.json` at its root:
 
 Both `registry.json` (bundled) and the Azure Blob `registry.json` share this schema:
 
-> **`downloadUrl` convention:** Use just the **filename** (e.g. `my-tool-1.0.0.tar.gz`). The app automatically resolves it to `<AZURE_BLOB_BASE_URL>/packages/<filename>` at runtime. Absolute HTTPS URLs are also accepted and used as-is (for external or legacy sources).
+> **`downloadUrl` convention:** Use just the **filename** (e.g. `my-tool-1.0.0.tar.gz`). The app automatically resolves it to `<AZURE_BLOB_BASE_URL>/my-tool-1.0.0/my-tool-1.0.0.tar.gz` at runtime (the folder name is derived by stripping `.tar.gz`). Absolute HTTPS URLs are also accepted and used as-is (for external or legacy sources).
 
 ```json
 {
@@ -146,15 +147,21 @@ User submits tool via web app (pptb-web)
 User submits tool via web app (pptb-web)
   → Review & approval
   → convert-tool GitHub Action pre-packages the tool from npm (unchanged)
-  → Package uploaded to Azure Blob container:
+  → Both the .tar.gz and .svg (icon) are uploaded to a per-tool version folder in Azure Blob:
       az storage blob upload \
         --account-name <storage-account> \
         --container-name tools \
-        --name "packages/<tool-id>-<version>.tar.gz" \
+        --name "<tool-id>-<version>/<tool-id>-<version>.tar.gz" \
         --file "<tool-id>-<version>.tar.gz" \
         --auth-mode login
+      az storage blob upload \
+        --account-name <storage-account> \
+        --container-name tools \
+        --name "<tool-id>-<version>/<tool-id>-<version>.svg" \
+        --file "<tool-id>-<version>.svg" \
+        --auth-mode login
   → Supabase row updated with downloadurl pointing to the Azure Blob URL:
-      https://<storage-account>.blob.core.windows.net/tools/packages/<tool-id>-<version>.tar.gz
+      https://<storage-account>.blob.core.windows.net/tools/<tool-id>-<version>/<tool-id>-<version>.tar.gz
   → (Optional) registry.json in the blob container is regenerated to include the new entry
 ```
 
@@ -171,18 +178,26 @@ Replace the GitHub Release upload step with an Azure Blob upload step. The CI/CD
 **Example workflow snippet (replace the current GitHub Release upload step):**
 
 ```yaml
-- name: Upload tool package to Azure Blob
+- name: Login to Azure
   uses: azure/login@v2
   with:
     creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-- name: Upload package
+- name: Upload tool package and icon to Azure Blob
   run: |
+    FOLDER="${{ env.TOOL_ID }}-${{ env.TOOL_VERSION }}"
     az storage blob upload \
       --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT }} \
       --container-name ${{ secrets.AZURE_STORAGE_CONTAINER }} \
-      --name "packages/${{ env.TOOL_ID }}-${{ env.TOOL_VERSION }}.tar.gz" \
-      --file "${{ env.TOOL_ID }}-${{ env.TOOL_VERSION }}.tar.gz" \
+      --name "${FOLDER}/${FOLDER}.tar.gz" \
+      --file "${FOLDER}.tar.gz" \
+      --auth-mode login \
+      --overwrite true
+    az storage blob upload \
+      --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT }} \
+      --container-name ${{ secrets.AZURE_STORAGE_CONTAINER }} \
+      --name "${FOLDER}/${FOLDER}.svg" \
+      --file "${FOLDER}.svg" \
       --auth-mode login \
       --overwrite true
 
@@ -205,9 +220,10 @@ Replace the GitHub Release upload step with an Azure Blob upload step. The CI/CD
     SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
     SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
   run: |
+    FOLDER="${{ env.TOOL_ID }}-${{ env.TOOL_VERSION }}"
     node buildScripts/updateSupabase.js \
       "${{ env.TOOL_ID }}" \
-      "https://${{ secrets.AZURE_STORAGE_ACCOUNT }}.blob.core.windows.net/${{ secrets.AZURE_STORAGE_CONTAINER }}/packages/${{ env.TOOL_ID }}-${{ env.TOOL_VERSION }}.tar.gz"
+      "https://${{ secrets.AZURE_STORAGE_ACCOUNT }}.blob.core.windows.net/${{ secrets.AZURE_STORAGE_CONTAINER }}/${FOLDER}/${FOLDER}.tar.gz"
 ```
 
 ---
@@ -262,7 +278,7 @@ az storage cors add \
 ## Transition / Rollout Plan
 
 1. **Create the Azure Blob container** following the setup steps above.
-2. **Upload existing tool packages** to `packages/` in the blob container.
+2. **Upload existing tool packages** to their per-tool version folders in the blob container (e.g. `<tool-id>-<version>/<tool-id>-<version>.tar.gz`).
 3. **Upload an initial `registry.json`** to the blob container root.
 4. **Update Supabase** `downloadurl` column for all tools to point to Azure Blob.
 5. **Set `AZURE_BLOB_BASE_URL`** in the app's build environment and redeploy.
