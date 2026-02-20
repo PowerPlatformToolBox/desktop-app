@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     // Debug: Log if Supabase credentials are loaded
     const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+    const azureBlobBaseUrl = env.AZURE_BLOB_BASE_URL || process.env.AZURE_BLOB_BASE_URL || "";
     const sentryDsn = env.SENTRY_DSN || process.env.SENTRY_DSN || "";
     const sentryAuthToken = env.SENTRY_AUTH_TOKEN || process.env.SENTRY_AUTH_TOKEN || "";
     const sentryOrg = env.SENTRY_ORG || process.env.SENTRY_ORG || "";
@@ -29,6 +30,12 @@ export default defineConfig(({ mode }) => {
     } else {
         console.warn("[Vite] WARNING: Supabase credentials not found in environment");
         console.warn("[Vite] Make sure .env file exists with SUPABASE_URL and SUPABASE_ANON_KEY");
+    }
+
+    if (azureBlobBaseUrl) {
+        console.log("[Vite] Azure Blob base URL loaded successfully");
+    } else {
+        console.warn("[Vite] WARNING: AZURE_BLOB_BASE_URL not set - Azure Blob registry fallback will be disabled");
     }
 
     if (sentryDsn) {
@@ -47,6 +54,7 @@ export default defineConfig(({ mode }) => {
     const envDefines = {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
+        "process.env.AZURE_BLOB_BASE_URL": JSON.stringify(azureBlobBaseUrl),
         "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
     };
 

@@ -22,3 +22,16 @@ export const TOOL_REGISTRY_URL = "https://www.powerplatformtoolbox.com/registry/
  */
 export const SUPABASE_URL = process.env.SUPABASE_URL || "";
 export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
+
+/**
+ * Azure Blob Storage Configuration
+ * Base URL for the Azure Blob container that hosts tool packages and the remote registry.
+ * The container should be publicly readable (anonymous read access for blobs).
+ * Set AZURE_BLOB_BASE_URL to the full container URL, e.g.:
+ *   https://<account>.blob.core.windows.net/tools
+ *
+ * Expected layout inside the container:
+ *   registry.json                            – remote registry index (fallback after Supabase)
+ *   packages/<tool-id>-<version>.tar.gz     – pre-packaged tool archives
+ */
+export const AZURE_BLOB_BASE_URL = process.env.AZURE_BLOB_BASE_URL || "";

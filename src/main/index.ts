@@ -142,8 +142,8 @@ class ToolBoxApp {
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
-            // Pass Supabase credentials from environment variables or use defaults from constants
-            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
+            // Pass Supabase credentials and Azure Blob base URL from environment variables
+            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager, process.env.AZURE_BLOB_BASE_URL);
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
@@ -2520,10 +2520,14 @@ class ToolBoxApp {
 
     /**
      * Check tool download capability
-     * Tests downloading a sample tool from GitHub releases
+     * Tests downloading a tool package from Azure Blob Storage (when configured) or
+     * falls back to checking reachability of the registry endpoint.
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const TEST_TOOL_DOWNLOAD_URL = "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
+        const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
+        const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
+            ? `${azureBlobBaseUrl}/packages/pptb-standard-sample-tool-1.0.9.tar.gz`
+            : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
         const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-1.0.9.tar.gz");
 
@@ -2532,7 +2536,8 @@ class ToolBoxApp {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            logInfo(`[Troubleshooting] Testing download from GitHub release: ${TEST_TOOL_DOWNLOAD_URL}`);
+            const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
+            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -2590,7 +2595,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully downloaded GitHub release asset (${fileSizeMB} MB)`,
+                message: `Successfully downloaded tool package from ${azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release"} (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {
