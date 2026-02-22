@@ -436,6 +436,7 @@ export class DataverseManager {
             systemuser: "systemusers",
             usersettingscollection: "usersettingscollection",
             principalobjectaccess: "principalobjectaccessset",
+            webresource: "webresourceset",
         };
 
         const lowerName = entityLogicalName.toLowerCase();
