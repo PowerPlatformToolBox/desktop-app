@@ -225,6 +225,92 @@ declare namespace DataverseAPI {
     }
 
     /**
+     * Localized label for metadata display names and descriptions
+     */
+    export interface LocalizedLabel {
+        "@odata.type"?: "Microsoft.Dynamics.CRM.LocalizedLabel";
+        Label: string;
+        LanguageCode: number;
+    }
+
+    /**
+     * Label structure for metadata properties
+     */
+    export interface Label {
+        "@odata.type"?: "Microsoft.Dynamics.CRM.Label";
+        LocalizedLabels: LocalizedLabel[];
+        UserLocalizedLabel?: LocalizedLabel;
+    }
+
+    /**
+     * Attribute metadata types for Dataverse columns
+     * Used with getAttributeODataType() to generate full Microsoft.Dynamics.CRM.*AttributeMetadata type strings
+     */
+    export enum AttributeMetadataType {
+        /** Single-line text field */
+        String = "String",
+        /** Multi-line text field */
+        Memo = "Memo",
+        /** Whole number */
+        Integer = "Integer",
+        /** Big integer (large whole number) */
+        BigInt = "BigInt",
+        /** Decimal number */
+        Decimal = "Decimal",
+        /** Floating point number */
+        Double = "Double",
+        /** Currency field */
+        Money = "Money",
+        /** Yes/No (boolean) field */
+        Boolean = "Boolean",
+        /** Date and time */
+        DateTime = "DateTime",
+        /** Lookup (foreign key reference) */
+        Lookup = "Lookup",
+        /** Choice (option set/picklist) */
+        Picklist = "Picklist",
+        /** Multi-select choice */
+        MultiSelectPicklist = "MultiSelectPicklist",
+        /** State field (active/inactive) */
+        State = "State",
+        /** Status field (status reason) */
+        Status = "Status",
+        /** Owner field */
+        Owner = "Owner",
+        /** Customer field (Account or Contact lookup) */
+        Customer = "Customer",
+        /** File attachment field */
+        File = "File",
+        /** Image field */
+        Image = "Image",
+        /** Unique identifier (GUID) */
+        UniqueIdentifier = "UniqueIdentifier",
+    }
+
+    /**
+     * Options for metadata CRUD operations
+     */
+    export interface MetadataOperationOptions {
+        /**
+         * Associate metadata changes with a specific solution
+         * Uses MSCRM.SolutionUniqueName header
+         */
+        solutionUniqueName?: string;
+
+        /**
+         * Preserve existing localized labels during PUT operations
+         * Uses MSCRM.MergeLabels header (defaults to true for updates)
+         */
+        mergeLabels?: boolean;
+
+        /**
+         * Force fresh metadata read after create/update operations
+         * Uses Consistency: Strong header to bypass cache
+         */
+        consistencyStrong?: boolean;
+    }
+
+    /**
      * Dataverse Web API for CRUD operations, queries, and metadata
      */
     export interface API {
@@ -849,6 +935,602 @@ declare namespace DataverseAPI {
          * const status = await dataverseAPI.getImportJobStatus(importJobId, 'secondary');
          */
         getImportJobStatus: (importJobId: string, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+
+        // ========================================
+        // Metadata Helper Utilities
+        // ========================================
+
+        /**
+         * Build a Label structure for metadata display names and descriptions
+         * Helper utility to simplify creating localized labels for metadata operations
+         *
+         * @param text - Display text for the label
+         * @param languageCode - Optional language code (defaults to 1033 for English)
+         * @returns Label object with properly formatted LocalizedLabels array
+         *
+         * @example
+         * const label = dataverseAPI.buildLabel("Account Name");
+         * // Returns: { LocalizedLabels: [{ Label: "Account Name", LanguageCode: 1033 }] }
+         *
+         * @example
+         * // Create label with specific language code
+         * const frenchLabel = dataverseAPI.buildLabel("Nom du compte", 1036);
+         */
+        buildLabel: (text: string, languageCode?: number) => Label;
+
+        /**
+         * Retrieve the CSDL/EDMX metadata document for the Dataverse environment
+         *
+         * Returns the complete OData service document as raw XML containing metadata for:
+         * - EntityType definitions (tables/entities)
+         * - Property elements (attributes/columns)
+         * - NavigationProperty elements (relationships)
+         * - ComplexType definitions (return types for actions/functions)
+         * - EnumType definitions (picklist/choice enumerations)
+         * - Action definitions (OData Actions - POST operations)
+         * - Function definitions (OData Functions - GET operations)
+         * - EntityContainer metadata
+         *
+         * The response is automatically compressed with gzip during transfer for optimal performance,
+         * then decompressed and returned as a raw XML string.
+         *
+         * @param connectionTarget - Optional connection target for multi-connection tools
+         * @returns Raw CSDL/EDMX XML document as string (typically 1-5MB)
+         */
+        getCSDLDocument: (connectionTarget?: "primary" | "secondary") => Promise<string>;
+
+        /**
+         * Get the OData type string for an attribute metadata type
+         * Converts AttributeMetadataType enum to full Microsoft.Dynamics.CRM type path
+         *
+         * @param attributeType - Attribute metadata type enum value
+         * @returns Full OData type string (e.g., "Microsoft.Dynamics.CRM.StringAttributeMetadata")
+         *
+         * @example
+         * const odataType = dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.String);
+         * // Returns: "Microsoft.Dynamics.CRM.StringAttributeMetadata"
+         *
+         * @example
+         * // Use in attribute definition
+         * const attributeDef = {
+         *   "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.Integer),
+         *   "SchemaName": "new_priority",
+         *   "DisplayName": dataverseAPI.buildLabel("Priority")
+         * };
+         */
+        getAttributeODataType: (attributeType: AttributeMetadataType) => string;
+
+        // ========================================
+        // Entity (Table) Metadata CRUD Operations
+        // ========================================
+
+        /**
+         * Create a new entity (table) definition in Dataverse
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param entityDefinition - Entity metadata payload (must include SchemaName, DisplayName, OwnershipType, and at least one Attribute with IsPrimaryName=true)
+         * @param options - Optional metadata operation options (solution assignment, etc.)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the created entity's MetadataId
+         *
+         * @example
+         * // Create a new custom table
+         * const result = await dataverseAPI.createEntityDefinition({
+         *   "@odata.type": "Microsoft.Dynamics.CRM.EntityMetadata",
+         *   "SchemaName": "new_project",
+         *   "DisplayName": dataverseAPI.buildLabel("Project"),
+         *   "DisplayCollectionName": dataverseAPI.buildLabel("Projects"),
+         *   "Description": dataverseAPI.buildLabel("Project tracking table"),
+         *   "OwnershipType": "UserOwned",
+         *   "HasActivities": true,
+         *   "HasNotes": true,
+         *   "Attributes": [{
+         *     "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.String),
+         *     "SchemaName": "new_name",
+         *     "RequiredLevel": { "Value": "None" },
+         *     "MaxLength": 100,
+         *     "FormatName": { "Value": "Text" },
+         *     "IsPrimaryName": true,
+         *     "DisplayName": dataverseAPI.buildLabel("Project Name"),
+         *     "Description": dataverseAPI.buildLabel("The name of the project")
+         *   }]
+         * }, {
+         *   solutionUniqueName: "MySolution"
+         * });
+         *
+         * console.log("Created entity with MetadataId:", result.id);
+         *
+         * // IMPORTANT: Publish customizations to make changes active
+         * await dataverseAPI.publishCustomizations("new_project");
+         */
+        createEntityDefinition: (entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+
+        /**
+         * Update an entity (table) definition
+         * NOTE: Uses PUT method which requires the FULL entity definition (retrieve-modify-PUT pattern)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param entityIdentifier - Entity LogicalName or MetadataId
+         * @param entityDefinition - Complete entity metadata payload with all properties
+         * @param options - Optional metadata operation options (mergeLabels defaults to true to preserve translations)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Retrieve-Modify-PUT Pattern for updating entity metadata
+         *
+         * // Step 1: Retrieve current entity definition
+         * const currentDef = await dataverseAPI.getEntityMetadata("new_project", true);
+         *
+         * // Step 2: Modify desired properties (must include ALL properties, not just changes)
+         * currentDef.DisplayName = dataverseAPI.buildLabel("Updated Project Name");
+         * currentDef.Description = dataverseAPI.buildLabel("Updated description");
+         *
+         * // Step 3: PUT the entire definition back (mergeLabels=true preserves other language translations)
+         * await dataverseAPI.updateEntityDefinition("new_project", currentDef, {
+         *   mergeLabels: true,  // Preserve existing translations
+         *   solutionUniqueName: "MySolution"
+         * });
+         *
+         * // Step 4: Publish customizations to activate changes
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Update using MetadataId instead of LogicalName
+         * await dataverseAPI.updateEntityDefinition(
+         *   "70816501-edb9-4740-a16c-6a5efbc05d84",
+         *   updatedDefinition,
+         *   { mergeLabels: true }
+         * );
+         */
+        updateEntityDefinition: (entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
+         * Delete an entity (table) definition
+         * WARNING: This is a destructive operation that removes the table and all its data
+         *
+         * @param entityIdentifier - Entity LogicalName or MetadataId
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Delete a custom table (will fail if dependencies exist)
+         * await dataverseAPI.deleteEntityDefinition("new_project");
+         *
+         * @example
+         * // Delete using MetadataId
+         * await dataverseAPI.deleteEntityDefinition("70816501-edb9-4740-a16c-6a5efbc05d84");
+         */
+        deleteEntityDefinition: (entityIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        // ========================================
+        // Attribute (Column) Metadata CRUD Operations
+        // ========================================
+
+        /**
+         * Create a new attribute (column) on an existing entity
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param entityLogicalName - Logical name of the entity to add the attribute to
+         * @param attributeDefinition - Attribute metadata payload (must include @odata.type, SchemaName, DisplayName)
+         * @param options - Optional metadata operation options
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the created attribute's MetadataId
+         *
+         * @example
+         * // Create a text column
+         * const result = await dataverseAPI.createAttribute("new_project", {
+         *   "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.String),
+         *   "SchemaName": "new_description",
+         *   "DisplayName": dataverseAPI.buildLabel("Description"),
+         *   "Description": dataverseAPI.buildLabel("Project description"),
+         *   "RequiredLevel": { "Value": "None" },
+         *   "MaxLength": 500,
+         *   "FormatName": { "Value": "Text" }
+         * }, {
+         *   solutionUniqueName: "MySolution"
+         * });
+         *
+         * console.log("Created attribute with MetadataId:", result.id);
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Create a whole number column
+         * await dataverseAPI.createAttribute("new_project", {
+         *   "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.Integer),
+         *   "SchemaName": "new_priority",
+         *   "DisplayName": dataverseAPI.buildLabel("Priority"),
+         *   "RequiredLevel": { "Value": "None" },
+         *   "MinValue": 1,
+         *   "MaxValue": 100
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Create a choice (picklist) column
+         * await dataverseAPI.createAttribute("new_project", {
+         *   "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.Picklist),
+         *   "SchemaName": "new_status",
+         *   "DisplayName": dataverseAPI.buildLabel("Status"),
+         *   "RequiredLevel": { "Value": "None" },
+         *   "OptionSet": {
+         *     "@odata.type": "Microsoft.Dynamics.CRM.OptionSetMetadata",
+         *     "OptionSetType": "Picklist",
+         *     "Options": [
+         *       { "Value": 1, "Label": dataverseAPI.buildLabel("Active") },
+         *       { "Value": 2, "Label": dataverseAPI.buildLabel("On Hold") },
+         *       { "Value": 3, "Label": dataverseAPI.buildLabel("Completed") }
+         *     ]
+         *   }
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         */
+        createAttribute: (
+            entityLogicalName: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ id: string }>;
+
+        /**
+         * Update an attribute (column) definition
+         * NOTE: Uses PUT method which requires the FULL attribute definition (retrieve-modify-PUT pattern)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param entityLogicalName - Logical name of the entity
+         * @param attributeIdentifier - Attribute LogicalName or MetadataId
+         * @param attributeDefinition - Complete attribute metadata payload
+         * @param options - Optional metadata operation options (mergeLabels defaults to true)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * // Retrieve-Modify-PUT Pattern for updating attribute metadata
+         *
+         * // Step 1: Retrieve current attribute definition
+         * const currentAttr = await dataverseAPI.getEntityRelatedMetadata(
+         *   "new_project",
+         *   "Attributes(LogicalName='new_description')"
+         * );
+         *
+         * // Step 2: Modify desired properties
+         * currentAttr.DisplayName = dataverseAPI.buildLabel("Updated Description");
+         * currentAttr.MaxLength = 1000;  // Increase max length
+         *
+         * // Step 3: PUT entire definition back
+         * await dataverseAPI.updateAttribute(
+         *   "new_project",
+         *   "new_description",
+         *   currentAttr,
+         *   { mergeLabels: true }
+         * );
+         *
+         * // Step 4: Publish customizations
+         * await dataverseAPI.publishCustomizations("new_project");
+         */
+        updateAttribute: (
+            entityLogicalName: string,
+            attributeIdentifier: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
+
+        /**
+         * Delete an attribute (column) from an entity
+         * WARNING: This is a destructive operation that removes the column and all its data
+         *
+         * @param entityLogicalName - Logical name of the entity
+         * @param attributeIdentifier - Attribute LogicalName or MetadataId
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * await dataverseAPI.deleteAttribute("new_project", "new_description");
+         *
+         * @example
+         * // Delete using MetadataId
+         * await dataverseAPI.deleteAttribute("new_project", "00aa00aa-bb11-cc22-dd33-44ee44ee44ee");
+         */
+        deleteAttribute: (entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        /**
+         * Create a polymorphic lookup attribute (Customer/Regarding field)
+         * Creates a lookup that can reference multiple entity types
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param entityLogicalName - Logical name of the entity to add the attribute to
+         * @param attributeDefinition - Lookup attribute metadata with Targets array
+         * @param options - Optional metadata operation options
+         * @returns Object containing the created attribute's MetadataId
+         * @param connectionTarget - Optional connection target ("primary" or "secondary")
+         *
+         * @example
+         * // Create a Customer lookup (Account or Contact)
+         * const result = await dataverseAPI.createPolymorphicLookupAttribute("new_order", {
+         *   "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+         *   "SchemaName": "new_CustomerId",
+         *   "LogicalName": "new_customerid",
+         *   "DisplayName": buildLabel("Customer"),
+         *   "Description": buildLabel("Customer for this order"),
+         *   "RequiredLevel": { Value: "None", CanBeChanged: true, ManagedPropertyLogicalName: "canmodifyrequirementlevelsettings" },
+         *   "AttributeType": "Lookup",
+         *   "AttributeTypeName": { Value: "LookupType" },
+         *   "Targets": ["account", "contact"]
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        createPolymorphicLookupAttribute: (
+            entityLogicalName: string,
+            attributeDefinition: Record<string, unknown>,
+            options?: Record<string, unknown>,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<{ AttributeId: string }>;
+
+        // ========================================
+        // Relationship Metadata CRUD Operations
+        // ========================================
+
+        /**
+         * Create a new relationship (1:N or N:N)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param relationshipDefinition - Relationship metadata payload (must include @odata.type for OneToManyRelationshipMetadata or ManyToManyRelationshipMetadata)
+         * @param options - Optional metadata operation options
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the created relationship's MetadataId
+         *
+         * @example
+         * // Create 1:N relationship (Project -> Tasks)
+         * const result = await dataverseAPI.createRelationship({
+         *   "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+         *   "SchemaName": "new_project_tasks",
+         *   "ReferencedEntity": "new_project",
+         *   "ReferencedAttribute": "new_projectid",
+         *   "ReferencingEntity": "task",
+         *   "CascadeConfiguration": {
+         *     "Assign": "NoCascade",
+         *     "Delete": "RemoveLink",
+         *     "Merge": "NoCascade",
+         *     "Reparent": "NoCascade",
+         *     "Share": "NoCascade",
+         *     "Unshare": "NoCascade"
+         *   },
+         *   "Lookup": {
+         *     "@odata.type": dataverseAPI.getAttributeODataType(DataverseAPI.AttributeMetadataType.Lookup),
+         *     "SchemaName": "new_projectid",
+         *     "DisplayName": dataverseAPI.buildLabel("Project"),
+         *     "RequiredLevel": { "Value": "None" }
+         *   }
+         * }, {
+         *   solutionUniqueName: "MySolution"
+         * });
+         *
+         * await dataverseAPI.publishCustomizations();
+         *
+         * @example
+         * // Create N:N relationship (Projects <-> Users)
+         * await dataverseAPI.createRelationship({
+         *   "@odata.type": "Microsoft.Dynamics.CRM.ManyToManyRelationshipMetadata",
+         *   "SchemaName": "new_project_systemuser",
+         *   "Entity1LogicalName": "new_project",
+         *   "Entity2LogicalName": "systemuser",
+         *   "IntersectEntityName": "new_project_systemuser"
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        createRelationship: (relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+
+        /**
+         * Update a relationship definition
+         * NOTE: Uses PUT method which requires the FULL relationship definition (retrieve-modify-PUT pattern)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param relationshipIdentifier - Relationship SchemaName or MetadataId
+         * @param relationshipDefinition - Complete relationship metadata payload
+         * @param options - Optional metadata operation options (mergeLabels defaults to true)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         */
+        updateRelationship: (
+            relationshipIdentifier: string,
+            relationshipDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
+
+        /**
+         * Delete a relationship
+         * WARNING: This removes the relationship and any associated lookup columns
+         *
+         * @param relationshipIdentifier - Relationship SchemaName or MetadataId
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * await dataverseAPI.deleteRelationship("new_project_tasks");
+         */
+        deleteRelationship: (relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        // ========================================
+        // Global Option Set (Choice) CRUD Operations
+        // ========================================
+
+        /**
+         * Create a new global option set (global choice)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param optionSetDefinition - Global option set metadata payload
+         * @param options - Optional metadata operation options
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Object containing the created option set's MetadataId
+         *
+         * @example
+         * const result = await dataverseAPI.createGlobalOptionSet({
+         *   "@odata.type": "Microsoft.Dynamics.CRM.OptionSetMetadata",
+         *   "Name": "new_projectstatus",
+         *   "DisplayName": dataverseAPI.buildLabel("Project Status"),
+         *   "Description": dataverseAPI.buildLabel("Global choice for project status"),
+         *   "OptionSetType": "Picklist",
+         *   "IsGlobal": true,
+         *   "Options": [
+         *     { "Value": 1, "Label": dataverseAPI.buildLabel("Active") },
+         *     { "Value": 2, "Label": dataverseAPI.buildLabel("On Hold") },
+         *     { "Value": 3, "Label": dataverseAPI.buildLabel("Completed") },
+         *     { "Value": 4, "Label": dataverseAPI.buildLabel("Cancelled") }
+         *   ]
+         * }, {
+         *   solutionUniqueName: "MySolution"
+         * });
+         *
+         * await dataverseAPI.publishCustomizations();
+         */
+        createGlobalOptionSet: (optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => Promise<{ id: string }>;
+
+        /**
+         * Update a global option set definition
+         * NOTE: Uses PUT method which requires the FULL option set definition (retrieve-modify-PUT pattern)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param optionSetIdentifier - Option set Name or MetadataId
+         * @param optionSetDefinition - Complete option set metadata payload
+         * @param options - Optional metadata operation options (mergeLabels defaults to true)
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         */
+        updateGlobalOptionSet: (
+            optionSetIdentifier: string,
+            optionSetDefinition: Record<string, unknown>,
+            options?: MetadataOperationOptions,
+            connectionTarget?: "primary" | "secondary",
+        ) => Promise<void>;
+
+        /**
+         * Delete a global option set
+         * WARNING: This will fail if any attributes reference this global option set
+         *
+         * @param optionSetIdentifier - Option set Name or MetadataId
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         *
+         * @example
+         * await dataverseAPI.deleteGlobalOptionSet("new_projectstatus");
+         */
+        deleteGlobalOptionSet: (optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
+
+        // ========================================
+        // Option Value Modification Actions
+        // ========================================
+
+        /**
+         * Insert a new option value into a local or global option set
+         * NOTE: Works for both local option sets (specify EntityLogicalName + AttributeLogicalName)
+         * and global option sets (specify OptionSetName)
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param params - Parameters for inserting the option value
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Result of the insert operation
+         *
+         * @example
+         * // Insert into local option set on an entity
+         * await dataverseAPI.insertOptionValue({
+         *   EntityLogicalName: "new_project",
+         *   AttributeLogicalName: "new_priority",
+         *   Value: 4,
+         *   Label: dataverseAPI.buildLabel("Critical"),
+         *   Description: dataverseAPI.buildLabel("Highest priority level")
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Insert into global option set
+         * await dataverseAPI.insertOptionValue({
+         *   OptionSetName: "new_projectstatus",
+         *   Value: 5,
+         *   Label: dataverseAPI.buildLabel("Archived"),
+         *   SolutionUniqueName: "MySolution"
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        insertOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+
+        /**
+         * Update an existing option value in a local or global option set
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param params - Parameters for updating the option value
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Result of the update operation
+         *
+         * @example
+         * // Update option label in local option set
+         * await dataverseAPI.updateOptionValue({
+         *   EntityLogicalName: "new_project",
+         *   AttributeLogicalName: "new_priority",
+         *   Value: 4,
+         *   Label: dataverseAPI.buildLabel("High Priority"),
+         *   MergeLabels: true  // Preserve other language translations
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Update option in global option set
+         * await dataverseAPI.updateOptionValue({
+         *   OptionSetName: "new_projectstatus",
+         *   Value: 5,
+         *   Label: dataverseAPI.buildLabel("Closed"),
+         *   MergeLabels: true
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+
+        /**
+         * Delete an option value from a local or global option set
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param params - Parameters for deleting the option value
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Result of the delete operation
+         *
+         * @example
+         * // Delete option from local option set
+         * await dataverseAPI.deleteOptionValue({
+         *   EntityLogicalName: "new_project",
+         *   AttributeLogicalName: "new_priority",
+         *   Value: 4
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Delete option from global option set
+         * await dataverseAPI.deleteOptionValue({
+         *   OptionSetName: "new_projectstatus",
+         *   Value: 5
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
+
+        /**
+         * Reorder options in a local or global option set
+         * NOTE: Metadata changes require explicit publishCustomizations() call to become active
+         *
+         * @param params - Parameters for ordering options
+         * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
+         * @returns Result of the order operation
+         *
+         * @example
+         * // Reorder options in local option set
+         * await dataverseAPI.orderOption({
+         *   EntityLogicalName: "new_project",
+         *   AttributeLogicalName: "new_priority",
+         *   Values: [3, 1, 2, 4]  // Reorder by option values
+         * });
+         * await dataverseAPI.publishCustomizations("new_project");
+         *
+         * @example
+         * // Reorder global option set
+         * await dataverseAPI.orderOption({
+         *   OptionSetName: "new_projectstatus",
+         *   Values: [1, 2, 3, 5, 4]
+         * });
+         * await dataverseAPI.publishCustomizations();
+         */
+        orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => Promise<Record<string, unknown>>;
     }
 }
 

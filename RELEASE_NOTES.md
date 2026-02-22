@@ -1,45 +1,44 @@
-# Power Platform ToolBox 1.1.2
+# Power Platform ToolBox 1.1.3
 
 ## Highlights
 
-- MSAL-based authentication isolates tokens per connection and validates access with WhoAmI for more reliable sign-in
-- Troubleshooting modal runs configuration checks and surfaces Sentry diagnostics to speed up support and debugging
-- Tool updates show inline progress and accessible status feedback while tools are updating
-- Terminal UI hides the Terminal button when no terminals exist and includes additional terminal reliability improvements
-- Tool menu adds dynamic feedback and quick DevTools options for tool developers
-- Dataverse API expands with solution deployment/import status helpers and relationship associate/disassociate endpoints
-- Windows and macOS release pipelines improve signing/notarization handling for more trustworthy installers
+- Hardened tool filesystem sandbox so tools can only access user-selected paths and system directories are blocked
+- Connection sign-in supports choosing Chrome/Edge plus a specific browser profile to better isolate sessions per connection
+- Signed Windows installers (EXE/MSI) via Azure Trusted Signing and repackaged portable ZIPs with signed binaries
+- Release metadata now records correct SHA256 and SHA512 hashes for stronger artifact integrity verification
+- macOS release pipeline notarizes and staples DMG/ZIP/PKG artifacts with improved signing verification steps
+- Dataverse API adds metadata CRUD operations and a `getCSDLDocument` helper for retrieving the OData CSDL document
+- Save dialogs support optional file-type filters with extension-based default filter derivation
+- Loading overlay positioning is fixed and includes a manual dismiss button
 
 ## Fixes
 
-- Dataverse Functions now format parameters correctly, avoiding invocation failures
-- Packaged app avoids `ERR_REQUIRE_ESM` issues by properly handling externalized telemetry dependencies
-- Modal dialogs no longer remain always-on-top after closing on Windows 11
-- Connection context menu no longer renders behind BrowserViews
-- Settings form populates correctly on app reload and avoids duplicate IPC handler registration on macOS window recreation
-- macOS notarization scripts handle missing modules/unavailable submission logs and clarify submission/status output
-- Authentication token reuse/refresh reduces unexpected expiry prompts with proactive refresh and expiry detection
+- Connections: hardened auth/session isolation to reduce cross-connection token and browser profile leakage
+- macOS notarization and stapling no longer skips artifacts and handles unavailable submission logs more reliably
+- macOS code signing verification avoids premature `spctl --assess` failures before notarization/stapling completes
+- Release workflows regenerate Windows update metadata with correct SHA256/SHA512 after signing
+- Tool filesystem reads/writes now enforce explicit user-consent access and reject unsafe/system paths
+- Connection and toolbox API handling is more robust for multi-connection scenarios and updated connection fields
+- Release workflow date formatting is consistent across jobs and platforms
 
 ## Developer & Build
 
-- Telemetry identifiers switch from machine ID to install ID for privacy-safe, stable analytics
-- Windows packaging adds ARM64 support, MSI targets, and refactored electron-builder configurations
-- macOS signing/notarization workflows add submission/status retrieval steps and improved error handling
-- `dataverseAPI` types add `deploySolution`, `getImportJobStatus`, and `associate`/`disassociate` helpers
-- `toolboxAPI` adds a `fileSystem` API set (path validation + updated publish/selectPath flows)
-- Sentry logging helpers and noise reduction improve production diagnostics signal-to-noise
+- `dataverseAPI` types expand with metadata CRUD operations and `getCSDLDocument`
+- `toolboxAPI.fileSystem.saveFile` supports filters and derives defaults from filename extensions
+- Added `BrowserManager` for browser detection and profile enumeration used by interactive auth flows
+- Signing/notarization scripts and workflows improved for multi-artifact pipelines and better diagnostics
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-1.1.2-Setup.exe
-- macOS: Power-Platform-ToolBox-1.1.2.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-1.1.2.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-1.1.3-Setup.exe
+- macOS: Power-Platform-ToolBox-1.1.3.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-1.1.3.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed; existing settings and connections continue to work.
-- You may be prompted to sign in again after upgrading because stored tokens and MSAL instances are cleared on app restart.
+- Tool developers: filesystem reads/writes now require `toolboxAPI.fileSystem.selectPath()` or `saveFile()` to grant access.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.1.1...v1.1.2
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.1.2...v1.1.3

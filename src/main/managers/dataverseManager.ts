@@ -1,5 +1,16 @@
 import * as https from "https";
-import { DataverseConnection, ENTITY_RELATED_METADATA_BASE_PATHS, EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../../common/types";
+import * as zlib from "zlib";
+import { promisify } from "util";
+import {
+    DataverseConnection,
+    ENTITY_RELATED_METADATA_BASE_PATHS,
+    EntityRelatedMetadataPath,
+    EntityRelatedMetadataResponse,
+    AttributeMetadataType,
+    Label,
+    LocalizedLabel,
+    MetadataOperationOptions,
+} from "../../common/types";
 import { captureMessage } from "../../common/sentryHelper";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
@@ -56,6 +67,105 @@ export class DataverseManager {
     constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+    }
+
+    /**
+     * Allowed custom headers for metadata operations based on Microsoft Dataverse Web API documentation.
+     * These headers are validated before being passed to HTTP requests for metadata operations.
+     *
+     * Reference documentation:
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/retrieve-metadata-name-metadataid
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-definitions-using-web-api
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-column-definitions-using-web-api
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-relationships-using-web-api
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/multitable-lookup
+     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-optionsets
+     */
+    private static readonly ALLOWED_METADATA_HEADERS: ReadonlySet<string> = new Set<string>([
+        "mscrm.solutionuniquename", // Associates metadata changes with a specific solution (used in CREATE/UPDATE)
+        "mscrm.mergelabels", // Controls label merging: "true" (merge) or "false" (replace) in UPDATE operations
+        "consistency", // Forces reading latest version: "Strong" value (used in GET operations after changes)
+        "if-match", // Standard HTTP header for optimistic concurrency control
+        "if-none-match", // Standard HTTP header for caching control (commonly "null" in examples)
+    ]);
+
+    /**
+     * Headers that must never be passed as custom headers because they are controlled by makeHttpRequest.
+     * Attempting to override these headers will result in validation errors.
+     */
+    private static readonly PROTECTED_HEADERS: ReadonlySet<string> = new Set<string>(["authorization", "accept", "content-type", "odata-maxversion", "odata-version", "prefer", "content-length"]);
+
+    /**
+     * Validates custom headers for metadata operations against the allowed headers list.
+     * Case-insensitive matching per HTTP specification (RFC 2616).
+     *
+     * @param customHeaders - The custom headers to validate
+     * @param operationName - Optional name of the operation for more descriptive error messages
+     * @returns Validated headers object
+     * @throws Error if any header is not in the allowed list or attempts to override protected headers
+     *
+     * @example
+     * ```typescript
+     * // Valid headers
+     * const headers = this.validateMetadataHeaders({
+     *     "MSCRM.SolutionUniqueName": "examplesolution",
+     *     "MSCRM.MergeLabels": "true"
+     * }, "updateEntityDefinition");
+     *
+     * // Invalid header - throws error
+     * this.validateMetadataHeaders({
+     *     "X-Custom-Header": "value" // Not in allowed list
+     * });
+     *
+     * // Protected header - throws error
+     * this.validateMetadataHeaders({
+     *     "Authorization": "Bearer token" // Protected header
+     * });
+     * ```
+     */
+    private validateMetadataHeaders(customHeaders: Record<string, string> | undefined, operationName?: string): Record<string, string> {
+        if (!customHeaders || Object.keys(customHeaders).length === 0) {
+            return {};
+        }
+
+        const validatedHeaders: Record<string, string> = {};
+        const invalidHeaders: string[] = [];
+        const protectedHeaders: string[] = [];
+
+        for (const [headerName, headerValue] of Object.entries(customHeaders)) {
+            const normalizedHeaderName = headerName.toLowerCase();
+
+            // Check if attempting to override protected headers
+            if (DataverseManager.PROTECTED_HEADERS.has(normalizedHeaderName)) {
+                protectedHeaders.push(headerName);
+                continue;
+            }
+
+            // Check if header is in allowed list
+            if (DataverseManager.ALLOWED_METADATA_HEADERS.has(normalizedHeaderName)) {
+                validatedHeaders[headerName] = headerValue;
+            } else {
+                invalidHeaders.push(headerName);
+            }
+        }
+
+        // Build detailed error message if validation failed
+        if (protectedHeaders.length > 0 || invalidHeaders.length > 0) {
+            const errorParts: string[] = [];
+            const operation = operationName ? ` in ${operationName}` : "";
+
+            if (protectedHeaders.length > 0) {
+                errorParts.push(`Protected headers cannot be overridden: ${protectedHeaders.join(", ")}`);
+            }
+
+            if (invalidHeaders.length > 0) {
+                errorParts.push(`Invalid headers for metadata operations: ${invalidHeaders.join(", ")}. ` + `Allowed headers: ${Array.from(DataverseManager.ALLOWED_METADATA_HEADERS).join(", ")}`);
+            }
+
+            throw new Error(`Header validation failed${operation}. ${errorParts.join(". ")}`);
+        }
+
+        return validatedHeaders;
     }
 
     /**
@@ -383,6 +493,94 @@ export class DataverseManager {
 
     /**
      * Execute a Dataverse Web API action or function
+     *
+     * This is a generic method that can execute any standard or custom action/function.
+     * Supports both bound operations (on specific entity records) and unbound operations.
+     *
+     * @param connectionId - Connection ID to use
+     * @param request - Operation request details
+     * @param request.operationName - Name of the action or function to execute
+     * @param request.operationType - "action" (POST) or "function" (GET)
+     * @param request.parameters - Parameters to pass to the operation
+     * @param request.entityName - (For bound operations) Entity logical name
+     * @param request.entityId - (For bound operations) Entity record ID
+     * @returns Response object from the operation
+     *
+     * @example
+     * // CreateCustomerRelationships - Create customer lookup attribute (returns HTTP 200 with body)
+     * const customerResult = await dataverseManager.execute(connectionId, {
+     *   operationName: "CreateCustomerRelationships",
+     *   operationType: "action",
+     *   parameters: {
+     *     Lookup: {
+     *       "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+     *       SchemaName: "new_CustomerId",
+     *       DisplayName: dataverseManager.buildLabel("Customer"),
+     *       RequiredLevel: { Value: "None" },
+     *       Targets: ["account", "contact"]
+     *     },
+     *     OneToManyRelationships: [
+     *       {
+     *         "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+     *         SchemaName: "new_order_customer_account",
+     *         ReferencedEntity: "account",
+     *         ReferencingEntity: "new_order"
+     *       },
+     *       {
+     *         "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+     *         SchemaName: "new_order_customer_contact",
+     *         ReferencedEntity: "contact",
+     *         ReferencingEntity: "new_order"
+     *       }
+     *     ]
+     *   }
+     * });
+     * // Returns: { AttributeId: "guid", RelationshipIds: ["guid1", "guid2"] }
+     *
+     * @example
+     * // InsertStatusValue - Add status value to status choice column
+     * await dataverseManager.execute(connectionId, {
+     *   operationName: "InsertStatusValue",
+     *   operationType: "action",
+     *   parameters: {
+     *     EntityLogicalName: "new_project",
+     *     AttributeLogicalName: "statuscode",
+     *     Value: 100000000,
+     *     Label: dataverseManager.buildLabel("Custom Status"),
+     *     StateCode: 0 // Active state
+     *   }
+     * });
+     *
+     * @example
+     * // UpdateStateValue - Update state value metadata
+     * await dataverseManager.execute(connectionId, {
+     *   operationName: "UpdateStateValue",
+     *   operationType: "action",
+     *   parameters: {
+     *     EntityLogicalName: "new_project",
+     *     AttributeLogicalName: "statecode",
+     *     Value: 1,
+     *     Label: dataverseManager.buildLabel("Inactive"),
+     *     DefaultStatus: 2
+     *   }
+     * });
+     *
+     * @example
+     * // Bound action - Execute on specific record
+     * await dataverseManager.execute(connectionId, {
+     *   entityName: "account",
+     *   entityId: "guid",
+     *   operationName: "CustomAction",
+     *   operationType: "action",
+     *   parameters: { param1: "value" }
+     * });
+     *
+     * @example
+     * // Function call - Uses GET with parameters in URL
+     * const result = await dataverseManager.execute(connectionId, {
+     *   operationName: "WhoAmI",
+     *   operationType: "function"
+     * });
      */
     async execute(
         connectionId: string,
@@ -544,7 +742,37 @@ export class DataverseManager {
 
     /**
      * Query data from Dataverse using OData query parameters
+     *
+     * This method can query any Dataverse endpoint including entity data, metadata (EntityDefinitions,
+     * GlobalOptionSetDefinitions, etc.), and system entities.
+     *
+     * @param connectionId - Connection ID to use
      * @param odataQuery - OData query string with parameters like $select, $filter, $orderby, $top, $skip, $expand
+     * @returns Query result with value array
+     *
+     * @example
+     * // Query entity records
+     * const accounts = await dataverseManager.queryData(connectionId,
+     *   "accounts?$select=name,accountnumber&$filter=statecode eq 0&$top=10"
+     * );
+     *
+     * @example
+     * // Retrieve a global option set by name
+     * const optionSet = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(Name='new_projectstatus')"
+     * );
+     *
+     * @example
+     * // Retrieve all global option sets
+     * const allOptionSets = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions?$select=Name,DisplayName,OptionSetType"
+     * );
+     *
+     * @example
+     * // Retrieve global option set by MetadataId
+     * const optionSetById = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(guid)?$select=Name,Options"
+     * );
      */
     async queryData(connectionId: string, odataQuery: string): Promise<{ value: Record<string, unknown>[] }> {
         if (!odataQuery || !odataQuery.trim()) {
@@ -567,9 +795,117 @@ export class DataverseManager {
     }
 
     /**
+     * Retrieve CSDL/EDMX metadata document for the Dataverse environment
+     *
+     * Returns the complete OData service document containing metadata for all:
+     * - EntityType definitions (tables/entities)
+     * - Property elements (attributes/columns)
+     * - NavigationProperty elements (relationships)
+     * - ComplexType definitions (return types for actions/functions)
+     * - EnumType definitions (picklist/choice enumerations)
+     * - Action definitions (OData Actions - POST operations)
+     * - Function definitions (OData Functions - GET operations)
+     * - EntityContainer metadata
+     *
+     * NOTE: Returns raw XML (1-5MB typical). Response is compressed with gzip for optimal transfer.
+     * The response is automatically decompressed and returned as a string.
+     *
+     * @param connectionId - Connection ID to use
+     * @returns Raw CSDL/EDMX XML document as string
+     *
+     * @throws Error if connection not found, token expired, or request fails
+     */
+    async getCSDLDocument(connectionId: string): Promise<string> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/$metadata`);
+
+        const gunzipAsync = promisify(zlib.gunzip);
+        const inflateAsync = promisify(zlib.inflate);
+
+        return new Promise((resolve, reject) => {
+            const urlObj = new URL(url);
+
+            const options: https.RequestOptions = {
+                hostname: urlObj.hostname,
+                port: 443,
+                path: urlObj.pathname,
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: "application/xml",
+                    "Accept-Encoding": "gzip, deflate",
+                },
+            };
+
+            const req = https.request(options, (res) => {
+                const chunks: Buffer[] = [];
+
+                res.on("data", (chunk: Buffer) => {
+                    chunks.push(chunk);
+                });
+
+                res.on("end", async () => {
+                    if (res.statusCode === 200) {
+                        try {
+                            const buffer = Buffer.concat(chunks);
+                            const encoding = res.headers["content-encoding"];
+
+                            let decompressed: Buffer;
+                            if (encoding === "gzip") {
+                                decompressed = await gunzipAsync(buffer);
+                            } else if (encoding === "deflate") {
+                                decompressed = await inflateAsync(buffer);
+                            } else {
+                                decompressed = buffer;
+                            }
+
+                            resolve(decompressed.toString("utf-8"));
+                        } catch (error) {
+                            reject(new Error(`Failed to decompress metadata response: ${(error as Error).message}`));
+                        }
+                    } else {
+                        // Error responses may also be compressed - decompress before reading body
+                        try {
+                            const buffer = Buffer.concat(chunks);
+                            const encoding = res.headers["content-encoding"];
+                            let decompressed: Buffer;
+
+                            if (encoding === "gzip") {
+                                decompressed = await gunzipAsync(buffer);
+                            } else if (encoding === "deflate") {
+                                decompressed = await inflateAsync(buffer);
+                            } else {
+                                decompressed = buffer;
+                            }
+
+                            const body = decompressed.toString("utf-8");
+                            reject(new Error(`Failed to retrieve CSDL document. Status: ${res.statusCode}, Body: ${body}`));
+                        } catch (decompressError) {
+                            reject(new Error(`Failed to process error response: ${(decompressError as Error).message}`));
+                        }
+                    }
+                });
+            });
+
+            req.on("error", (error) => {
+                reject(new Error(`Metadata request failed: ${error.message}`));
+            });
+
+            req.end();
+        });
+    }
+
+    /**
      * Make an HTTP request to Dataverse Web API
      */
-    private makeHttpRequest(url: string, method: string, accessToken: string, body?: Record<string, unknown>, preferOptions?: string[]): Promise<{ data: unknown; headers: Record<string, string> }> {
+    private makeHttpRequest(
+        url: string,
+        method: string,
+        accessToken: string,
+        body?: Record<string, unknown>,
+        preferOptions?: string[],
+        customHeaders?: Record<string, string>,
+    ): Promise<{ data: unknown; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const bodyData = body ? JSON.stringify(body) : undefined;
@@ -587,6 +923,8 @@ export class DataverseManager {
                 path: urlObj.pathname + urlObj.search,
                 method: method,
                 headers: {
+                    // Spread custom headers first, then override with required headers to prevent accidental overwrites
+                    ...(customHeaders || {}),
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/json",
                     "OData-MaxVersion": "4.0",
@@ -1009,5 +1347,699 @@ export class DataverseManager {
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${primaryEntitySetName}(${primaryEntityId})/${relationshipName}(${relatedEntityId})/$ref`);
 
         await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    // ========================================
+    // Metadata Helper Utilities
+    // ========================================
+
+    /**
+     * Build a Label structure for metadata properties
+     * @param text - Display text for the label
+     * @param languageCode - Language code (defaults to 1033 for English)
+     * @returns Label object with LocalizedLabels array
+     *
+     * @example
+     * const label = dataverseManager.buildLabel("Account Name");
+     * // Returns: { LocalizedLabels: [{ Label: "Account Name", LanguageCode: 1033, IsManaged: false }], UserLocalizedLabel: { Label: "Account Name", LanguageCode: 1033, IsManaged: false } }
+     */
+    buildLabel(text: string, languageCode: number = 1033): Label {
+        const localizedLabel: LocalizedLabel = {
+            "@odata.type": "Microsoft.Dynamics.CRM.LocalizedLabel",
+            Label: text,
+            LanguageCode: languageCode,
+            IsManaged: false,
+        };
+
+        return {
+            "@odata.type": "Microsoft.Dynamics.CRM.Label",
+            LocalizedLabels: [localizedLabel],
+            UserLocalizedLabel: localizedLabel,
+        };
+    }
+
+    /**
+     * Get the OData type string for an attribute metadata type
+     * @param attributeType - Attribute metadata type enum value
+     * @returns Full OData type string (e.g., "Microsoft.Dynamics.CRM.StringAttributeMetadata")
+     *
+     * @example
+     * const odataType = dataverseManager.getAttributeODataType(AttributeMetadataType.String);
+     * // Returns: "Microsoft.Dynamics.CRM.StringAttributeMetadata"
+     */
+    getAttributeODataType(attributeType: AttributeMetadataType): string {
+        return `Microsoft.Dynamics.CRM.${attributeType}AttributeMetadata`;
+    }
+
+    /**
+     * Build custom headers for metadata operations
+     */
+    private buildMetadataHeaders(options?: MetadataOperationOptions): Record<string, string> {
+        const headers: Record<string, string> = {};
+
+        if (options?.solutionUniqueName) {
+            headers["MSCRM.SolutionUniqueName"] = options.solutionUniqueName;
+        }
+
+        if (options?.mergeLabels !== undefined) {
+            headers["MSCRM.MergeLabels"] = String(options.mergeLabels);
+        }
+
+        if (options?.consistencyStrong) {
+            headers["Consistency"] = "Strong";
+        }
+
+        // Validate headers against allowed list (defensive programming - ensures type-safe options produce valid headers)
+        return this.validateMetadataHeaders(headers);
+    }
+
+    /**
+     * Detect if a string is a GUID (MetadataId) or a logical name
+     */
+    private isGuid(value: string): boolean {
+        const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return guidRegex.test(value);
+    }
+
+    // ========================================
+    // Entity (Table) Metadata CRUD Operations
+    // ========================================
+
+    /**
+     * Create a new entity (table) definition
+     * @param connectionId - Connection ID to use
+     * @param entityDefinition - Entity metadata payload (must include SchemaName, DisplayName, OwnershipType, and at least one Attribute with IsPrimaryName=true)
+     * @param options - Optional metadata operation options
+     * @returns Object containing the created entity's MetadataId
+     *
+     * @example
+     * const result = await dataverseManager.createEntityDefinition(connectionId, {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.EntityMetadata",
+     *   "SchemaName": "new_project",
+     *   "DisplayName": dataverseManager.buildLabel("Project"),
+     *   "OwnershipType": "UserOwned",
+     *   "HasActivities": true,
+     *   "Attributes": [{
+     *     "@odata.type": "Microsoft.Dynamics.CRM.StringAttributeMetadata",
+     *     "SchemaName": "new_name",
+     *     "IsPrimaryName": true,
+     *     "MaxLength": 100,
+     *     "DisplayName": dataverseManager.buildLabel("Project Name")
+     *   }]
+     * }, { solutionUniqueName: "MySolution" });
+     *
+     * // Remember to publish customizations after creating metadata
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async createEntityDefinition(connectionId: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<{ id: string }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions`);
+        const headers = this.buildMetadataHeaders(options);
+
+        const response = await this.makeHttpRequest(url, "POST", accessToken, entityDefinition, undefined, headers);
+
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
+        const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve MetadataId from response. The OData-EntityId header was missing.");
+        }
+        return {
+            id: this.extractIdFromUrl(entityId),
+        };
+    }
+
+    /**
+     * Update an entity (table) definition
+     * NOTE: This uses PUT which requires the FULL entity definition (retrieve-modify-PUT pattern)
+     * @param connectionId - Connection ID to use
+     * @param entityIdentifier - Entity LogicalName or MetadataId
+     * @param entityDefinition - Complete entity metadata payload with all properties
+     * @param options - Optional metadata operation options (mergeLabels defaults to true)
+     *
+     * @example
+     * // Step 1: Retrieve current definition
+     * const currentDef = await dataverseManager.getEntityMetadata(connectionId, "new_project", true);
+     *
+     * // Step 2: Modify desired properties
+     * currentDef.DisplayName = dataverseManager.buildLabel("Updated Project Name");
+     *
+     * // Step 3: PUT the entire definition back (mergeLabels preserves other language labels)
+     * await dataverseManager.updateEntityDefinition(connectionId, "new_project", currentDef, { mergeLabels: true });
+     *
+     * // Step 4: Publish customizations
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async updateEntityDefinition(connectionId: string, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs LogicalName
+        const isMetadataId = this.isGuid(entityIdentifier);
+        const identifier = isMetadataId ? entityIdentifier : `LogicalName='${encodeURIComponent(entityIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${identifier})`);
+
+        // Default mergeLabels to true for updates to preserve localized labels
+        const headers = this.buildMetadataHeaders({
+            ...options,
+            mergeLabels: options?.mergeLabels !== undefined ? options.mergeLabels : true,
+        });
+
+        await this.makeHttpRequest(url, "PUT", accessToken, entityDefinition, undefined, headers);
+    }
+
+    /**
+     * Delete an entity (table) definition
+     * @param connectionId - Connection ID to use
+     * @param entityIdentifier - Entity LogicalName or MetadataId
+     *
+     * @example
+     * await dataverseManager.deleteEntityDefinition(connectionId, "new_project");
+     */
+    async deleteEntityDefinition(connectionId: string, entityIdentifier: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs LogicalName
+        const isMetadataId = this.isGuid(entityIdentifier);
+        const identifier = isMetadataId ? entityIdentifier : `LogicalName='${encodeURIComponent(entityIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${identifier})`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    // ========================================
+    // Attribute (Column) Metadata CRUD Operations
+    // ========================================
+
+    /**
+     * Create a new attribute (column) on an existing entity
+     * @param connectionId - Connection ID to use
+     * @param entityLogicalName - Logical name of the entity to add the attribute to
+     * @param attributeDefinition - Attribute metadata payload (must include @odata.type, SchemaName, DisplayName)
+     * @param options - Optional metadata operation options
+     * @returns Object containing the created attribute's MetadataId
+     *
+     * @example
+     * const result = await dataverseManager.createAttribute(connectionId, "new_project", {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.StringAttributeMetadata",
+     *   "SchemaName": "new_description",
+     *   "DisplayName": dataverseManager.buildLabel("Description"),
+     *   "MaxLength": 500,
+     *   "FormatName": { "Value": "Text" }
+     * }, { solutionUniqueName: "MySolution" });
+     *
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async createAttribute(connectionId: string, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<{ id: string }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const encodedLogicalName = encodeURIComponent(entityLogicalName);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/Attributes`);
+        const headers = this.buildMetadataHeaders(options);
+
+        const response = await this.makeHttpRequest(url, "POST", accessToken, attributeDefinition, undefined, headers);
+
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
+        const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve attribute MetadataId from response. The OData-EntityId header was missing.");
+        }
+        return {
+            id: this.extractIdFromUrl(entityId),
+        };
+    }
+
+    /**
+     * Update an attribute (column) definition
+     * NOTE: This uses PUT which requires the FULL attribute definition (retrieve-modify-PUT pattern)
+     * @param connectionId - Connection ID to use
+     * @param entityLogicalName - Logical name of the entity
+     * @param attributeIdentifier - Attribute LogicalName or MetadataId
+     * @param attributeDefinition - Complete attribute metadata payload
+     * @param options - Optional metadata operation options (mergeLabels defaults to true)
+     *
+     * @example
+     * // Retrieve current attribute definition
+     * const currentAttr = await dataverseManager.getEntityRelatedMetadata(
+     *   connectionId, "new_project", "Attributes(LogicalName='new_description')"
+     * );
+     *
+     * // Modify properties
+     * currentAttr.DisplayName = dataverseManager.buildLabel("Updated Description");
+     *
+     * // PUT entire definition back
+     * await dataverseManager.updateAttribute(connectionId, "new_project", "new_description", currentAttr, { mergeLabels: true });
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async updateAttribute(
+        connectionId: string,
+        entityLogicalName: string,
+        attributeIdentifier: string,
+        attributeDefinition: Record<string, unknown>,
+        options?: MetadataOperationOptions,
+    ): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const encodedLogicalName = encodeURIComponent(entityLogicalName);
+
+        // Auto-detect MetadataId vs LogicalName
+        const isMetadataId = this.isGuid(attributeIdentifier);
+        const identifier = isMetadataId ? attributeIdentifier : `LogicalName='${encodeURIComponent(attributeIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/Attributes(${identifier})`);
+
+        // Default mergeLabels to true for updates
+        const headers = this.buildMetadataHeaders({
+            ...options,
+            mergeLabels: options?.mergeLabels !== undefined ? options.mergeLabels : true,
+        });
+
+        await this.makeHttpRequest(url, "PUT", accessToken, attributeDefinition, undefined, headers);
+    }
+
+    /**
+     * Delete an attribute (column) from an entity
+     * @param connectionId - Connection ID to use
+     * @param entityLogicalName - Logical name of the entity
+     * @param attributeIdentifier - Attribute LogicalName or MetadataId
+     *
+     * @example
+     * await dataverseManager.deleteAttribute(connectionId, "new_project", "new_description");
+     */
+    async deleteAttribute(connectionId: string, entityLogicalName: string, attributeIdentifier: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const encodedLogicalName = encodeURIComponent(entityLogicalName);
+
+        // Auto-detect MetadataId vs LogicalName
+        const isMetadataId = this.isGuid(attributeIdentifier);
+        const identifier = isMetadataId ? attributeIdentifier : `LogicalName='${encodeURIComponent(attributeIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/Attributes(${identifier})`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    /**
+     * Create a polymorphic lookup attribute (Customer/Regarding field)
+     * Creates a lookup that can reference multiple entity types
+     *
+     * NOTE: For customer lookups specifically (account/contact), you can alternatively use the
+     * CreateCustomerRelationships action via execute() method, which creates both the lookup
+     * attribute and the relationships in a single operation and returns more detailed response.
+     *
+     * @param connectionId - Connection ID to use
+     * @param entityLogicalName - Logical name of the entity to add the attribute to
+     * @param attributeDefinition - Lookup attribute metadata with Targets array
+     * @param options - Optional metadata operation options
+     * @returns Object containing the created attribute's MetadataId
+     *
+     * @example
+     * // Create a Customer lookup (Account or Contact)
+     * const result = await dataverseManager.createPolymorphicLookupAttribute(connectionId, "new_order", {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+     *   "SchemaName": "new_CustomerId",
+     *   "LogicalName": "new_customerid",
+     *   "DisplayName": dataverseManager.buildLabel("Customer"),
+     *   "Description": dataverseManager.buildLabel("Customer for this order"),
+     *   "RequiredLevel": { Value: "None", CanBeChanged: true, ManagedPropertyLogicalName: "canmodifyrequirementlevelsettings" },
+     *   "AttributeType": "Lookup",
+     *   "AttributeTypeName": { Value: "LookupType" },
+     *   "Targets": ["account", "contact"]
+     * });
+     *
+     * @example
+     * // Create a Regarding lookup (custom entities)
+     * const result = await dataverseManager.createPolymorphicLookupAttribute(connectionId, "new_note", {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+     *   "SchemaName": "new_RegardingObjectId",
+     *   "LogicalName": "new_regardingobjectid",
+     *   "DisplayName": dataverseManager.buildLabel("Regarding"),
+     *   "Description": dataverseManager.buildLabel("Item this note is about"),
+     *   "RequiredLevel": { Value: "None", CanBeChanged: true, ManagedPropertyLogicalName: "canmodifyrequirementlevelsettings" },
+     *   "AttributeType": "Lookup",
+     *   "AttributeTypeName": { Value: "LookupType" },
+     *   "Targets": ["account", "contact", "new_project", "new_task"]
+     * }, { solutionUniqueName: "MyCustomSolution" });
+     */
+    async createPolymorphicLookupAttribute(
+        connectionId: string,
+        entityLogicalName: string,
+        attributeDefinition: Record<string, unknown>,
+        options?: MetadataOperationOptions,
+    ): Promise<{ AttributeId: string }> {
+        // Validate Targets array is present
+        if (!attributeDefinition.Targets || !Array.isArray(attributeDefinition.Targets) || attributeDefinition.Targets.length === 0) {
+            throw new Error("Polymorphic lookup attribute requires a non-empty Targets array with entity logical names");
+        }
+
+        // Ensure AttributeType and AttributeTypeName are set correctly
+        if (!attributeDefinition.AttributeType) {
+            attributeDefinition.AttributeType = "Lookup";
+        }
+        if (!attributeDefinition.AttributeTypeName) {
+            attributeDefinition.AttributeTypeName = { Value: "LookupType" };
+        }
+
+        // Use the standard createAttribute method (it supports polymorphic lookups)
+        const result = await this.createAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+        return { AttributeId: result.id };
+    }
+
+    // ========================================
+    // Relationship Metadata CRUD Operations
+    // ========================================
+
+    /**
+     * Create a new relationship
+     * @param connectionId - Connection ID to use
+     * @param relationshipDefinition - Relationship metadata payload (must include @odata.type for OneToManyRelationshipMetadata or ManyToManyRelationshipMetadata)
+     * @param options - Optional metadata operation options
+     * @returns Object containing the created relationship's MetadataId
+     *
+     * @example
+     * // Create 1:N relationship with cascade configuration
+     * const result = await dataverseManager.createRelationship(connectionId, {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+     *   "SchemaName": "new_project_tasks",
+     *   "ReferencedEntity": "new_project",
+     *   "ReferencedAttribute": "new_projectid",
+     *   "ReferencingEntity": "task",
+     *   "CascadeConfiguration": {
+     *     "Assign": "NoCascade",
+     *     "Delete": "RemoveLink",
+     *     "Merge": "NoCascade",
+     *     "Reparent": "NoCascade",
+     *     "Share": "NoCascade",
+     *     "Unshare": "NoCascade"
+     *   },
+     *   "Lookup": {
+     *     "@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+     *     "SchemaName": "new_projectid",
+     *     "DisplayName": dataverseManager.buildLabel("Project")
+     *   }
+     * }, { solutionUniqueName: "MySolution" });
+     *
+     * await dataverseManager.publishCustomizations(connectionId);
+     */
+    async createRelationship(connectionId: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<{ id: string }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/RelationshipDefinitions`);
+        const headers = this.buildMetadataHeaders(options);
+
+        const response = await this.makeHttpRequest(url, "POST", accessToken, relationshipDefinition, undefined, headers);
+
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
+        const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve relationship MetadataId from response. The OData-EntityId header was missing.");
+        }
+        return {
+            id: this.extractIdFromUrl(entityId),
+        };
+    }
+
+    /**
+     * Update a relationship definition
+     * NOTE: This uses PUT which requires the FULL relationship definition (retrieve-modify-PUT pattern)
+     * @param connectionId - Connection ID to use
+     * @param relationshipIdentifier - Relationship SchemaName or MetadataId
+     * @param relationshipDefinition - Complete relationship metadata payload
+     * @param options - Optional metadata operation options (mergeLabels defaults to true)
+     *
+     * @example
+     * // Update cascade configuration on existing relationship
+     * const existingRel = await dataverseManager.getRelationship(connectionId, "new_project_tasks");
+     * existingRel.CascadeConfiguration = {
+     *   "Assign": "NoCascade",
+     *   "Delete": "Cascade",  // Changed from RemoveLink to Cascade
+     *   "Merge": "NoCascade",
+     *   "Reparent": "NoCascade",
+     *   "Share": "NoCascade",
+     *   "Unshare": "NoCascade"
+     * };
+     * await dataverseManager.updateRelationship(connectionId, "new_project_tasks", existingRel);
+     */
+    async updateRelationship(connectionId: string, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs SchemaName
+        const isMetadataId = this.isGuid(relationshipIdentifier);
+        const identifier = isMetadataId ? relationshipIdentifier : `SchemaName='${encodeURIComponent(relationshipIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/RelationshipDefinitions(${identifier})`);
+
+        const headers = this.buildMetadataHeaders({
+            ...options,
+            mergeLabels: options?.mergeLabels !== undefined ? options.mergeLabels : true,
+        });
+
+        await this.makeHttpRequest(url, "PUT", accessToken, relationshipDefinition, undefined, headers);
+    }
+
+    /**
+     * Delete a relationship
+     * @param connectionId - Connection ID to use
+     * @param relationshipIdentifier - Relationship SchemaName or MetadataId
+     */
+    async deleteRelationship(connectionId: string, relationshipIdentifier: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs SchemaName
+        const isMetadataId = this.isGuid(relationshipIdentifier);
+        const identifier = isMetadataId ? relationshipIdentifier : `SchemaName='${encodeURIComponent(relationshipIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/RelationshipDefinitions(${identifier})`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    // ========================================
+    // Global Option Set (Choice) CRUD Operations
+    // ========================================
+
+    /**
+     * Create a new global option set (choice)
+     *
+     * NOTE: To retrieve global option sets after creation, use queryData() method with
+     * "GlobalOptionSetDefinitions" endpoint or use getEntityRelatedMetadata() for options
+     * associated with specific entities.
+     *
+     * @param connectionId - Connection ID to use
+     * @param optionSetDefinition - Global option set metadata payload
+     * @param options - Optional metadata operation options
+     * @returns Object containing the created option set's MetadataId
+     *
+     * @example
+     * const result = await dataverseManager.createGlobalOptionSet(connectionId, {
+     *   "@odata.type": "Microsoft.Dynamics.CRM.OptionSetMetadata",
+     *   "Name": "new_projectstatus",
+     *   "DisplayName": dataverseManager.buildLabel("Project Status"),
+     *   "OptionSetType": "Picklist",
+     *   "Options": [
+     *     { "Value": 1, "Label": dataverseManager.buildLabel("Active") },
+     *     { "Value": 2, "Label": dataverseManager.buildLabel("On Hold") },
+     *     { "Value": 3, "Label": dataverseManager.buildLabel("Completed") }
+     *   ]
+     * }, { solutionUniqueName: "MySolution" });
+     *
+     * await dataverseManager.publishCustomizations(connectionId);
+     *
+     * // Retrieve the created option set
+     * const optionSet = await dataverseManager.queryData(connectionId,
+     *   "GlobalOptionSetDefinitions(Name='new_projectstatus')"
+     * );
+     */
+    async createGlobalOptionSet(connectionId: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<{ id: string }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/GlobalOptionSetDefinitions`);
+        const headers = this.buildMetadataHeaders(options);
+
+        const response = await this.makeHttpRequest(url, "POST", accessToken, optionSetDefinition, undefined, headers);
+
+        // Extract MetadataId from OData-EntityId header
+        // Metadata operations return 204 No Content with no body, header is the only source
+        const entityId = response.headers["odata-entityid"];
+        if (!entityId) {
+            throw new Error("Failed to retrieve global option set MetadataId from response. The OData-EntityId header was missing.");
+        }
+        return {
+            id: this.extractIdFromUrl(entityId),
+        };
+    }
+
+    /**
+     * Update a global option set definition
+     * NOTE: This uses PUT which requires the FULL option set definition (retrieve-modify-PUT pattern)
+     * @param connectionId - Connection ID to use
+     * @param optionSetIdentifier - Option set Name or MetadataId
+     * @param optionSetDefinition - Complete option set metadata payload
+     * @param options - Optional metadata operation options (mergeLabels defaults to true)
+     */
+    async updateGlobalOptionSet(connectionId: string, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs Name
+        const isMetadataId = this.isGuid(optionSetIdentifier);
+        const identifier = isMetadataId ? optionSetIdentifier : `Name='${encodeURIComponent(optionSetIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/GlobalOptionSetDefinitions(${identifier})`);
+
+        const headers = this.buildMetadataHeaders({
+            ...options,
+            mergeLabels: options?.mergeLabels !== undefined ? options.mergeLabels : true,
+        });
+
+        await this.makeHttpRequest(url, "PUT", accessToken, optionSetDefinition, undefined, headers);
+    }
+
+    /**
+     * Delete a global option set
+     * @param connectionId - Connection ID to use
+     * @param optionSetIdentifier - Option set Name or MetadataId
+     */
+    async deleteGlobalOptionSet(connectionId: string, optionSetIdentifier: string): Promise<void> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+
+        // Auto-detect MetadataId vs Name
+        const isMetadataId = this.isGuid(optionSetIdentifier);
+        const identifier = isMetadataId ? optionSetIdentifier : `Name='${encodeURIComponent(optionSetIdentifier)}'`;
+
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/GlobalOptionSetDefinitions(${identifier})`);
+
+        await this.makeHttpRequest(url, "DELETE", accessToken);
+    }
+
+    // ========================================
+    // Option Value Modification Actions
+    // ========================================
+
+    /**
+     * Insert a new option value into a local or global option set
+     *
+     * NOTE: This method is for standard choice columns. For Status choice columns (statuscode),
+     * use the InsertStatusValue action via execute() method instead, which requires additional
+     * StateCode parameter to associate the status with a state.
+     *
+     * Works for both local option sets (specify EntityLogicalName + AttributeLogicalName)
+     * and global option sets (specify OptionSetName).
+     *
+     * @param connectionId - Connection ID to use
+     * @param params - Parameters for inserting the option value
+     * @param params.Value - Integer value for the option
+     * @param params.Label - Label for the option
+     * @param params.EntityLogicalName - (For local option sets) Entity logical name
+     * @param params.AttributeLogicalName - (For local option sets) Attribute logical name
+     * @param params.OptionSetName - (For global option sets) Option set name
+     * @param params.SolutionUniqueName - Optional solution unique name
+     * @returns Object containing the new option value
+     *
+     * @example
+     * // Insert into local option set
+     * await dataverseManager.insertOptionValue(connectionId, {
+     *   EntityLogicalName: "new_project",
+     *   AttributeLogicalName: "new_priority",
+     *   Value: 4,
+     *   Label: dataverseManager.buildLabel("Critical")
+     * });
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     *
+     * @example
+     * // Insert into global option set
+     * await dataverseManager.insertOptionValue(connectionId, {
+     *   OptionSetName: "new_projectstatus",
+     *   Value: 4,
+     *   Label: dataverseManager.buildLabel("Cancelled")
+     * });
+     * await dataverseManager.publishCustomizations(connectionId);
+     */
+    async insertOptionValue(connectionId: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return await this.execute(connectionId, {
+            operationName: "InsertOptionValue",
+            operationType: "action",
+            parameters: params,
+        });
+    }
+
+    /**
+     * Update an existing option value in a local or global option set
+     *
+     * @param connectionId - Connection ID to use
+     * @param params - Parameters for updating the option value
+     * @param params.Value - Integer value of the option to update
+     * @param params.Label - New label for the option
+     * @param params.EntityLogicalName - (For local option sets) Entity logical name
+     * @param params.AttributeLogicalName - (For local option sets) Attribute logical name
+     * @param params.OptionSetName - (For global option sets) Option set name
+     * @param params.MergeLabels - Optional boolean to merge labels (defaults to false)
+     *
+     * @example
+     * await dataverseManager.updateOptionValue(connectionId, {
+     *   EntityLogicalName: "new_project",
+     *   AttributeLogicalName: "new_priority",
+     *   Value: 4,
+     *   Label: buildLabel("High Priority"),
+     *   MergeLabels: true
+     * });
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async updateOptionValue(connectionId: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return await this.execute(connectionId, {
+            operationName: "UpdateOptionValue",
+            operationType: "action",
+            parameters: params,
+        });
+    }
+
+    /**
+     * Delete an option value from a local or global option set
+     *
+     * @param connectionId - Connection ID to use
+     * @param params - Parameters for deleting the option value
+     * @param params.Value - Integer value of the option to delete
+     * @param params.EntityLogicalName - (For local option sets) Entity logical name
+     * @param params.AttributeLogicalName - (For local option sets) Attribute logical name
+     * @param params.OptionSetName - (For global option sets) Option set name
+     *
+     * @example
+     * await dataverseManager.deleteOptionValue(connectionId, {
+     *   EntityLogicalName: "new_project",
+     *   AttributeLogicalName: "new_priority",
+     *   Value: 4
+     * });
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async deleteOptionValue(connectionId: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return await this.execute(connectionId, {
+            operationName: "DeleteOptionValue",
+            operationType: "action",
+            parameters: params,
+        });
+    }
+
+    /**
+     * Reorder options in a local or global option set
+     *
+     * @param connectionId - Connection ID to use
+     * @param params - Parameters for ordering options
+     * @param params.Values - Array of option values in desired order
+     * @param params.EntityLogicalName - (For local option sets) Entity logical name
+     * @param params.AttributeLogicalName - (For local option sets) Attribute logical name
+     * @param params.OptionSetName - (For global option sets) Option set name
+     *
+     * @example
+     * await dataverseManager.orderOption(connectionId, {
+     *   EntityLogicalName: "new_project",
+     *   AttributeLogicalName: "new_priority",
+     *   Values: [3, 1, 2, 4] // Reorder options by value
+     * });
+     * await dataverseManager.publishCustomizations(connectionId, "new_project");
+     */
+    async orderOption(connectionId: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return await this.execute(connectionId, {
+            operationName: "OrderOption",
+            operationType: "action",
+            parameters: params,
+        });
     }
 }

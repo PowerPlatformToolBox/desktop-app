@@ -82,8 +82,6 @@ declare namespace ToolBoxAPI {
         name: string;
         url: string;
         environment: "Dev" | "Test" | "UAT" | "Production";
-        clientId?: string;
-        tenantId?: string;
         createdAt: string;
         lastUsedAt?: string;
         /**
@@ -155,16 +153,6 @@ declare namespace ToolBoxAPI {
          * Get the secondary connection for multi-connection tools
          */
         getSecondaryConnection: () => Promise<DataverseConnection | null>;
-
-        /**
-         * Get the secondary connection URL for multi-connection tools
-         */
-        getSecondaryConnectionUrl: () => Promise<string | null>;
-
-        /**
-         * Get the secondary connection ID for multi-connection tools
-         */
-        getSecondaryConnectionId: () => Promise<string | null>;
     }
 
     /**
@@ -272,7 +260,7 @@ declare namespace ToolBoxAPI {
          *   JSON.stringify(data, null, 2),
          *   [{name: "JSON", extensions: ["json"]}, {name: "Text", extensions: ["txt"]}]
          * );
-         * 
+         *
          * // Save without filters (auto-derived from extension)
          * await toolboxAPI.fileSystem.saveFile("config.xml", xmlContent);
          */
