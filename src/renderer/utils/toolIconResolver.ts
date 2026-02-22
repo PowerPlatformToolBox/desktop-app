@@ -31,12 +31,17 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
         return iconPath;
     }
 
-    // Remove leading ./ or / if present
-    const normalizedPath = iconPath.replace(/^\.?\//, "");
+    // Normalize path separators and remove leading ./ or / if present
+    let normalizedPath = iconPath.replace(/\\/g, "/").replace(/^\.?\//, "");
+
+    // The pptb-webview protocol handler already serves files from the tool's dist/ folder.
+    // If a tool manifest includes a path like "dist/icon.svg", strip the leading "dist/"
+    // to avoid requesting dist/dist/icon.svg.
+    normalizedPath = normalizedPath.replace(/^dist\//, "");
 
     // Only support SVG files bundled in dist/ folder
     if (normalizedPath.endsWith(".svg")) {
-        return `pptb-webview://${toolId}/dist/${normalizedPath}`;
+        return `pptb-webview://${toolId}/${normalizedPath}`;
     }
 
     // For non-SVG paths, return undefined to trigger fallback
@@ -54,7 +59,7 @@ export function resolveToolIconUrl(toolId: string, iconPath: string | undefined)
 export function generateToolIconHtml(toolId: string, iconPath: string | undefined, toolName: string, defaultIcon: string): string {
     const resolvedUrl = resolveToolIconUrl(toolId, iconPath);
     const escapedToolName = escapeHtml(toolName);
-    
+
     // Validate defaultIcon is a safe URL (not javascript: or data:text/html protocols)
     // Note: defaultIcon is application-controlled, but validate defensively
     const safeDefaultIcon = isSafeIconUrl(defaultIcon) ? escapeHtml(defaultIcon) : "";
