@@ -18,6 +18,7 @@ TypeScript type definitions for Power Platform ToolBox APIs.
         - [FetchXML Queries](#fetchxml-queries)
         - [Metadata Operations](#metadata-operations)
         - [Execute Actions/Functions](#execute-actionsfunctions)
+        - [Deploy Solutions](#deploy-solutions)
     - [API Reference](#api-reference)
         - [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
             - [Connections](#connections-1)

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co; frame-src 'self' pptb-webview:"
+            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform ToolBox</title>
         <link rel="stylesheet" href="styles.scss" />
@@ -341,7 +341,9 @@
                                         <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
                                         <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
                                     </div>
-                                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span>
+                                    <span class="setting-hint settings-inline-hint"
+                                        >Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span
+                                    >
                                 </div>
                             </section>
 

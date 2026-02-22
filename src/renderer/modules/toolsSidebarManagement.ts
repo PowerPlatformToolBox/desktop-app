@@ -5,6 +5,7 @@
 
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
+import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
@@ -174,18 +175,9 @@ export async function loadSidebarTools(): Promise<void> {
             .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean }) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
 
-                // Icon handling (retain improved fallback logic)
+                // Icon handling using utility function
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-                let toolIconHtml = "";
-                if (tool.iconUrl) {
-                    if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
-                        toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
-                    } else {
-                        toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
-                    }
-                } else {
-                    toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
-                }
+                const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, defaultToolIcon);
 
                 // Asset paths
                 const infoIconPath = "icons/light/info_filled.svg";
@@ -326,6 +318,9 @@ export async function loadSidebarTools(): Promise<void> {
                     </div>`;
             })
             .join("");
+
+        // Ensure SVG mask icons are initialized (theme-aware icons via currentColor)
+        applyToolIconMasks(toolsList);
 
         // Add click event listeners to launch tools
         toolsList.querySelectorAll(".tool-item-pptb").forEach((item) => {
