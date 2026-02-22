@@ -57,7 +57,8 @@ interface SupabaseTool {
     packagename?: string;
     name: string;
     description: string;
-    downloadurl: string;
+    download?: string; // new Azure Blob download URL (used by app v1.2+)
+    downloadurl: string; // legacy download URL (used by app v1.1.3 and older)
     iconurl: string;
     readmeurl?: string;
     version?: string;
@@ -172,6 +173,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "packagename",
                 "name",
                 "description",
+                "download",
                 "downloadurl",
                 "iconurl",
                 "readmeurl",
@@ -227,7 +229,7 @@ export class ToolRegistryManager extends EventEmitter {
                     authors: contributors,
                     version: tool.version || "1.0.0",
                     iconUrl: tool.iconurl,
-                    downloadUrl: tool.downloadurl,
+                    downloadUrl: tool.download || tool.downloadurl,
                     readmeUrl: tool.readmeurl,
                     repository: tool.repository,
                     website: tool.website,
