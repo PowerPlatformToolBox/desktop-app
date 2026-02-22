@@ -62,16 +62,66 @@ export function generateToolIconHtml(toolId: string, iconPath: string | undefine
 
     // Validate defaultIcon is a safe URL (not javascript: or data:text/html protocols)
     // Note: defaultIcon is application-controlled, but validate defensively
-    const safeDefaultIcon = isSafeIconUrl(defaultIcon) ? escapeHtml(defaultIcon) : "";
+    const safeDefaultIconUrl = isSafeIconUrl(defaultIcon) ? defaultIcon : "";
+    const safeDefaultIconAttr = safeDefaultIconUrl ? escapeHtml(safeDefaultIconUrl) : "";
 
     if (resolvedUrl) {
+        // If the resolved URL is an SVG, prefer a CSS mask element so the icon can inherit `currentColor`
+        // and automatically adapt to light/dark theme.
+        if (isSvgUrl(resolvedUrl)) {
+            const escapedResolvedUrl = escapeHtml(resolvedUrl);
+            const fallbackAttr = safeDefaultIconAttr ? ` data-pptb-icon-fallback="${safeDefaultIconAttr}"` : "";
+            return `<span class="tool-item-icon-img pptb-svg-mask-icon" role="img" aria-label="${escapedToolName} icon" data-pptb-icon-url="${escapedResolvedUrl}"${fallbackAttr}></span>`;
+        }
+
+        // Non-SVG: render as a normal <img>
         const escapedResolvedUrl = escapeHtml(resolvedUrl);
         // Only add onerror handler if we have a safe fallback icon
-        const onerrorAttr = safeDefaultIcon ? ` onerror="this.src='${safeDefaultIcon}'"` : "";
+        const onerrorAttr = safeDefaultIconAttr ? ` onerror="this.src='${safeDefaultIconAttr}'"` : "";
         return `<img src="${escapedResolvedUrl}" alt="${escapedToolName} icon" class="tool-item-icon-img"${onerrorAttr} />`;
     } else {
-        return safeDefaultIcon ? `<img src="${safeDefaultIcon}" alt="${escapedToolName} icon" class="tool-item-icon-img" />` : "";
+        return safeDefaultIconAttr ? `<img src="${safeDefaultIconAttr}" alt="${escapedToolName} icon" class="tool-item-icon-img" />` : "";
     }
+}
+
+/**
+ * Apply CSS mask URLs for theme-aware SVG icons.
+ *
+ * We avoid putting the raw URL inside an inline `style="..."` string during HTML generation;
+ * instead, we set it via DOM APIs to reduce injection risk and to keep escaping correct.
+ */
+export function applyToolIconMasks(root: ParentNode = document): void {
+    const elements = root.querySelectorAll<HTMLElement>(".pptb-svg-mask-icon[data-pptb-icon-url]");
+    elements.forEach((el) => {
+        const iconUrl = el.getAttribute("data-pptb-icon-url");
+        if (!iconUrl) return;
+
+        // Set CSS variable used by the mask CSS.
+        // Use JSON.stringify to safely quote/escape characters in the CSS string.
+        el.style.setProperty("--pptb-icon-url", `url(${JSON.stringify(iconUrl)})`);
+
+        const fallbackUrl = el.getAttribute("data-pptb-icon-fallback");
+        if (!fallbackUrl) return;
+
+        // Optional fallback: preflight load; if it fails, replace with fallback <img>.
+        // Note: This may cause an extra request, but keeps UX consistent.
+        const probe = new Image();
+        probe.onerror = () => {
+            const img = document.createElement("img");
+            img.className = "tool-item-icon-img";
+            img.src = fallbackUrl;
+
+            const ariaLabel = el.getAttribute("aria-label") || "";
+            img.alt = ariaLabel;
+
+            el.replaceWith(img);
+        };
+        probe.src = iconUrl;
+    });
+}
+
+function isSvgUrl(url: string): boolean {
+    return /\.svg([?#].*)?$/i.test(url);
 }
 
 /**

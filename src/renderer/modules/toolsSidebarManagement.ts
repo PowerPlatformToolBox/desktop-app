@@ -5,7 +5,7 @@
 
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
-import { generateToolIconHtml } from "../utils/toolIconResolver";
+import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
@@ -318,6 +318,9 @@ export async function loadSidebarTools(): Promise<void> {
                     </div>`;
             })
             .join("");
+
+        // Ensure SVG mask icons are initialized (theme-aware icons via currentColor)
+        applyToolIconMasks(toolsList);
 
         // Add click event listeners to launch tools
         toolsList.querySelectorAll(".tool-item-pptb").forEach((item) => {

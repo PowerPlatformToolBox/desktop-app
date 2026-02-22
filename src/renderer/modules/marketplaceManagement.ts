@@ -8,7 +8,7 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
-import { escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
+import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -305,6 +305,9 @@ export async function loadMarketplace(): Promise<void> {
     `;
         })
         .join("");
+
+    // Ensure SVG mask icons are initialized (theme-aware icons via currentColor)
+    applyToolIconMasks(marketplaceList);
 
     // Add click handlers for marketplace items to open detail view
     marketplaceList.querySelectorAll(".marketplace-item-pptb").forEach((item) => {
