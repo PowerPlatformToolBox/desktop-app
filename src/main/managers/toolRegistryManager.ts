@@ -8,7 +8,7 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 
 /**
@@ -57,7 +57,8 @@ interface SupabaseTool {
     packagename?: string;
     name: string;
     description: string;
-    downloadurl: string;
+    download?: string; // new Azure Blob download URL (used by app v1.2+)
+    downloadurl: string; // legacy download URL (used by app v1.1.3 and older)
     icon?: string; // New column for SVG icon URLs (GitHub Release URL)
     iconurl: string; // Legacy column, kept for backward compatibility
     readmeurl?: string;
@@ -120,13 +121,15 @@ export class ToolRegistryManager extends EventEmitter {
     private useLocalFallback: boolean = false;
     private localRegistryPath: string;
     private installIdManager: InstallIdManager | null = null;
+    private azureBlobBaseUrl: string;
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
         this.localRegistryPath = path.join(__dirname, "data", "registry.json");
         this.installIdManager = installIdManager || null;
+        this.azureBlobBaseUrl = azureBlobBaseUrl || AZURE_BLOB_BASE_URL;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -158,9 +161,9 @@ export class ToolRegistryManager extends EventEmitter {
      * Fetch the tool registry from Supabase database or local fallback
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
-        // Use local fallback if Supabase is not configured
+        // Use remote/local fallback if Supabase is not configured
         if (this.useLocalFallback) {
-            return this.fetchLocalRegistry();
+            return this.fetchFallbackRegistry();
         }
 
         try {
@@ -171,6 +174,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "packagename",
                 "name",
                 "description",
+                "download",
                 "downloadurl",
                 "icon",
                 "iconurl",
@@ -226,8 +230,8 @@ export class ToolRegistryManager extends EventEmitter {
                     description: tool.description,
                     authors: contributors,
                     version: tool.version || "1.0.0",
+                    downloadUrl: tool.download || tool.downloadurl,
                     icon: tool.icon || tool.iconurl, // Prefer new 'icon' column, fallback to 'iconurl' for backward compatibility
-                    downloadUrl: tool.downloadurl,
                     readmeUrl: tool.readmeurl,
                     repository: tool.repository,
                     website: tool.website,
@@ -254,6 +258,116 @@ export class ToolRegistryManager extends EventEmitter {
             });
             throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Fetch the tool registry from Azure Blob Storage or local JSON file.
+     * Azure Blob is tried first (when configured), then the local registry.json.
+     */
+    private async fetchFallbackRegistry(): Promise<ToolRegistryEntry[]> {
+        if (this.azureBlobBaseUrl) {
+            try {
+                const tools = await this.fetchAzureBlobRegistry();
+                if (tools.length > 0) {
+                    return tools;
+                }
+            } catch (error) {
+                captureMessage(`[ToolRegistry] Azure Blob registry fetch failed, falling back to local: ${(error as Error).message}`, "warning", {
+                    extra: { error },
+                });
+            }
+        }
+        return this.fetchLocalRegistry();
+    }
+
+    /**
+     * Fetch the tool registry from an Azure Blob Storage container.
+     * Expects a registry.json file at <azureBlobBaseUrl>/registry.json with the
+     * same shape as the local registry.json fallback file.
+     */
+    private async fetchAzureBlobRegistry(): Promise<ToolRegistryEntry[]> {
+        const registryUrl = `${this.azureBlobBaseUrl}/registry.json`;
+        logInfo(`[ToolRegistry] Fetching registry from Azure Blob: ${registryUrl}`);
+
+        const rawJson = await new Promise<string>((resolve, reject) => {
+            const protocol = registryUrl.startsWith("https") ? https : http;
+            protocol
+                .get(registryUrl, (res) => {
+                    if (res.statusCode !== 200) {
+                        reject(new Error(`Azure Blob registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
+                        return;
+                    }
+                    const chunks: Buffer[] = [];
+                    res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                    res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                    res.on("error", reject);
+                })
+                .on("error", reject);
+        });
+
+        let registryData: LocalRegistryFile;
+        try {
+            registryData = JSON.parse(rawJson) as LocalRegistryFile;
+        } catch (parseError) {
+            throw new Error(`Failed to parse Azure Blob registry.json from ${registryUrl}: ${(parseError as Error).message}`);
+        }
+
+        if (!registryData.tools || registryData.tools.length === 0) {
+            logInfo(`[ToolRegistry] No tools found in Azure Blob registry`);
+            return [];
+        }
+
+        const tools: ToolRegistryEntry[] = registryData.tools
+            .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+            .map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                authors: tool.authors,
+                version: tool.version,
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || new Date().toISOString(),
+                repository: tool.repository,
+                website: tool.homepage,
+                cspExceptions: tool.cspExceptions,
+                features: tool.features,
+                license: tool.license,
+                status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+            }));
+
+        logInfo(`[ToolRegistry] Fetched ${tools.length} tools from Azure Blob registry`);
+        return tools;
+    }
+
+    /**
+     * Resolve a (potentially relative) download URL.
+     * If the URL is already absolute (starts with http:// or https://) it is returned as-is.
+     * Otherwise it is treated as a filename where the folder is derived by stripping the
+     * `.tar.gz` extension from the filename, mirroring the per-tool folder layout used on
+     * GitHub Releases (e.g. "my-tool-1.0.0.tar.gz" → "<base>/my-tool-1.0.0/my-tool-1.0.0.tar.gz").
+     * Returns an empty string when the URL is relative but azureBlobBaseUrl is not configured.
+     */
+    private resolveDownloadUrl(downloadUrl: string): string {
+        if (!downloadUrl) {
+            captureMessage("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source", "warning");
+            return "";
+        }
+        if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
+            return downloadUrl;
+        }
+        // Relative filename – resolve to <base>/<folder>/<filename>
+        // where <folder> = filename without the .tar.gz extension
+        if (this.azureBlobBaseUrl) {
+            const base = this.azureBlobBaseUrl.replace(/\/$/, "");
+            const filename = downloadUrl.replace(/^\//, "");
+            const folder = filename.replace(/\.tar\.gz$/, "");
+            return `${base}/${folder}/${filename}`;
+        }
+        // No base URL configured – cannot resolve
+        captureMessage(`[ToolRegistry] Cannot resolve relative download URL "${downloadUrl}": AZURE_BLOB_BASE_URL is not configured`, "warning");
+        return "";
     }
 
     /**
@@ -285,7 +399,7 @@ export class ToolRegistryManager extends EventEmitter {
                     authors: tool.authors,
                     version: tool.version,
                     icon: tool.icon,
-                    downloadUrl: tool.downloadUrl,
+                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
                     checksum: tool.checksum,
                     size: tool.size,
                     publishedAt: tool.publishedAt || new Date().toISOString(),

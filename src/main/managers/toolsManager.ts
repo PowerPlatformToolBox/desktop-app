@@ -37,10 +37,10 @@ export class ToolManager extends EventEmitter {
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
     private updatingTools: Set<string> = new Set();
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl);
         this.ensureToolsDirectory();
 
         // Forward registry events
