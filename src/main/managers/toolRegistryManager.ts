@@ -639,6 +639,10 @@ export class ToolRegistryManager extends EventEmitter {
         return this.readInstalledManifest();
     }
 
+    getInstalledToolsSync(): ToolManifest[] {
+        return this.readInstalledManifest();
+    }
+
     getInstalledManifestSync(toolId: string): ToolManifest | null {
         const tools = this.readInstalledManifest();
         return tools.find((tool) => tool.id === toolId) || null;

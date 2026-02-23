@@ -143,7 +143,13 @@ class ToolBoxApp {
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
-            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager, process.env.AZURE_BLOB_BASE_URL);
+            this.toolManager = new ToolManager(
+                path.join(app.getPath("userData"), "tools"),
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_ANON_KEY,
+                this.installIdManager,
+                process.env.AZURE_BLOB_BASE_URL,
+            );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();

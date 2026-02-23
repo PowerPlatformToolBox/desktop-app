@@ -52,6 +52,39 @@ export class ToolManager extends EventEmitter {
         });
     }
 
+    private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
+        const tool: Tool = {
+            id: manifest.id,
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description,
+            authors: manifest.authors,
+            icon: manifest.icon,
+            cspExceptions: manifest.cspExceptions,
+            features: manifest.features,
+            categories: manifest.categories,
+            license: manifest.license,
+            downloads: manifest.downloads,
+            rating: manifest.rating,
+            mau: manifest.mau,
+            status: manifest.status,
+            repository: manifest.repository,
+            website: manifest.website,
+            readmeUrl: manifest.readme,
+            publishedAt: manifest.publishedAt,
+            createdAt: manifest.createdAt,
+        };
+
+        const cached = this.analyticsCache.get(tool.id);
+        if (cached) {
+            tool.downloads = cached.downloads;
+            tool.rating = cached.rating;
+            tool.mau = cached.mau;
+        }
+
+        return tool;
+    }
+
     /**
      * Ensure the tools directory exists
      */
@@ -158,7 +191,16 @@ export class ToolManager extends EventEmitter {
      */
     getTool(toolId: string): Tool | undefined {
         const tool = this.tools.get(toolId);
-        return tool;
+        if (tool) {
+            return tool;
+        }
+
+        const manifest = this.registryManager.getInstalledManifestSync(toolId);
+        if (manifest) {
+            return this.createToolFromInstalledManifest(manifest);
+        }
+
+        return undefined;
     }
 
     getInstalledManifestSync(toolId: string): ToolManifest | null {
@@ -169,7 +211,25 @@ export class ToolManager extends EventEmitter {
      * Get all loaded tools
      */
     getAllTools(): Tool[] {
-        return Array.from(this.tools.values());
+        const toolsById = new Map<string, Tool>();
+
+        // Prefer installed tools from manifest so the sidebar stays stable even
+        // when a tool is temporarily unloaded during update.
+        const installedManifests = this.registryManager.getInstalledToolsSync();
+        installedManifests.forEach((manifest) => {
+            const loaded = this.tools.get(manifest.id);
+            toolsById.set(manifest.id, loaded || this.createToolFromInstalledManifest(manifest));
+        });
+
+        // Include any loaded tools that might not be in the registry manifest
+        // (e.g., local dev tools).
+        this.tools.forEach((tool, id) => {
+            if (!toolsById.has(id)) {
+                toolsById.set(id, tool);
+            }
+        });
+
+        return Array.from(toolsById.values());
     }
 
     /**
