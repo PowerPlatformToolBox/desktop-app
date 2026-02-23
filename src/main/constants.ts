@@ -31,7 +31,9 @@ export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
  *   https://<account>.blob.core.windows.net/tools
  *
  * Expected layout inside the container:
- *   registry.json                            – remote registry index (fallback after Supabase)
- *   packages/<tool-id>-<version>.tar.gz     – pre-packaged tool archives
+ *   registry.json                                                     – remote registry index (fallback after Supabase)
+ *   packages/<tool-id>-<version>/<tool-id>-<version>.tar.gz          – pre-packaged tool archive
+ *   packages/<tool-id>-<version>/icon-light.png                      – light theme icon for the tool/version
+ *   packages/<tool-id>-<version>/icon-dark.png                       – dark theme icon for the tool/version
  */
 export const AZURE_BLOB_BASE_URL = process.env.AZURE_BLOB_BASE_URL || "";
