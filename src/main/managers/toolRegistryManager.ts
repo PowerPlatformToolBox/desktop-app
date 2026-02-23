@@ -331,6 +331,7 @@ export class ToolRegistryManager extends EventEmitter {
                 publishedAt: tool.publishedAt || new Date().toISOString(),
                 repository: tool.repository,
                 website: tool.homepage,
+                icon: tool.icon,
                 cspExceptions: tool.cspExceptions,
                 features: tool.features,
                 license: tool.license,
