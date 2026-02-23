@@ -8,6 +8,7 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
+import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -65,7 +66,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     authors: tool.authors,
                     categories: tool.categories,
                     version: tool.version,
-                    iconUrl: tool.iconUrl,
+                    icon: tool.icon,
                     downloads: tool.downloads,
                     rating: tool.rating,
                     mau: tool.mau,
@@ -242,19 +243,9 @@ export async function loadMarketplace(): Promise<void> {
             </div>`;
             const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
-            // Icon handling (retain improved fallback logic)
+            // Icon handling using utility function
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
-            let toolIconHtml = "";
-            if (tool.iconUrl) {
-                if (tool.iconUrl.startsWith("http://") || tool.iconUrl.startsWith("https://")) {
-                    toolIconHtml = `<img src="${tool.iconUrl}" alt="${tool.name} icon" class="tool-item-icon-img" onerror="this.src='${defaultToolIcon}'" />`;
-                } else {
-                    toolIconHtml = `<span class="tool-item-icon-text">${tool.iconUrl}</span>`;
-                }
-            } else {
-                toolIconHtml = `<img src="${defaultToolIcon}" alt="Tool icon" class="tool-item-icon-img" />`;
-            }
-
+            const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, defaultToolIcon);
             const defaultInstallIcon = isDarkTheme ? "icons/dark/install.svg" : "icons/light/install.svg";
 
             // Render based on display mode
@@ -314,6 +305,9 @@ export async function loadMarketplace(): Promise<void> {
     `;
         })
         .join("");
+
+    // Ensure SVG mask icons are initialized (theme-aware icons via currentColor)
+    applyToolIconMasks(marketplaceList);
 
     // Add click handlers for marketplace items to open detail view
     marketplaceList.querySelectorAll(".marketplace-item-pptb").forEach((item) => {
@@ -639,26 +633,20 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
 }
 
 function buildToolIconHtml(tool: ToolDetail): string {
+    // defaultToolIcon is a safe data:image/svg+xml URI generated from application constant
     const defaultToolIcon = svgToDataUri(DEFAULT_TOOL_ICON_DARK_SVG);
-    const iconUrl = tool.iconUrl;
+    const resolvedIconUrl = resolveToolIconUrl(tool.id, tool.icon);
 
-    if (!iconUrl) {
-        return `<img src="${defaultToolIcon}" alt="${escapeHtml(tool.name)} icon" />`;
+    // Validate the generated data URI is safe (defensive check)
+    const escapedDefaultIcon = defaultToolIcon.startsWith("data:image/") ? escapeHtml(defaultToolIcon) : "";
+
+    if (!resolvedIconUrl) {
+        return escapedDefaultIcon ? `<img src="${escapedDefaultIcon}" alt="${escapeHtml(tool.name)} icon" />` : "";
     }
 
-    if (iconUrl.startsWith("http://") || iconUrl.startsWith("https://")) {
-        return `<img src="${iconUrl}" alt="${escapeHtml(tool.name)} icon" onerror="this.src='${defaultToolIcon}'" />`;
-    }
-
-    if (iconUrl.length <= 4) {
-        return `<span style="font-size:48px;line-height:1">${escapeHtml(iconUrl)}</span>`;
-    }
-
-    return `<span style="font-size:20px;font-weight:600">${escapeHtml(iconUrl)}</span>`;
-}
-
-function escapeHtml(value: string): string {
-    return value ? value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;") : "";
+    const escapedResolvedUrl = escapeHtml(resolvedIconUrl);
+    const onerrorAttr = escapedDefaultIcon ? ` onerror="this.src='${escapedDefaultIcon}'"` : "";
+    return `<img src="${escapedResolvedUrl}" alt="${escapeHtml(tool.name)} icon"${onerrorAttr} />`;
 }
 
 function svgToDataUri(svgContent: string): string {

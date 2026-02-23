@@ -2029,7 +2029,24 @@ body.dark-theme .search-filter-btn.active img {
 .tool-item-icon-img {
     width: 20px;
     height: 20px;
+}
+
+img.tool-item-icon-img {
     object-fit: contain;
+}
+
+/* Theme-aware SVG icon rendering using CSS masks (inherits `currentColor`). */
+.pptb-svg-mask-icon {
+    display: inline-block;
+    background-color: currentColor;
+    -webkit-mask-image: var(--pptb-icon-url);
+    mask-image: var(--pptb-icon-url);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
 }
 
 .tool-item-icon-text {

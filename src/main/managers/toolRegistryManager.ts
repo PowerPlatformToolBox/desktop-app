@@ -59,7 +59,8 @@ interface SupabaseTool {
     description: string;
     download?: string; // new Azure Blob download URL (used by app v1.2+)
     downloadurl: string; // legacy download URL (used by app v1.1.3 and older)
-    iconurl: string;
+    icon?: string; // New column for SVG icon URLs (GitHub Release URL)
+    iconurl: string; // Legacy column, kept for backward compatibility
     readmeurl?: string;
     version?: string;
     checksum?: string;
@@ -175,6 +176,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "description",
                 "download",
                 "downloadurl",
+                "icon",
                 "iconurl",
                 "readmeurl",
                 "version",
@@ -228,8 +230,8 @@ export class ToolRegistryManager extends EventEmitter {
                     description: tool.description,
                     authors: contributors,
                     version: tool.version || "1.0.0",
-                    iconUrl: tool.iconurl,
                     downloadUrl: tool.download || tool.downloadurl,
+                    icon: tool.icon || tool.iconurl, // Prefer new 'icon' column, fallback to 'iconurl' for backward compatibility
                     readmeUrl: tool.readmeurl,
                     repository: tool.repository,
                     website: tool.website,
@@ -576,7 +578,7 @@ export class ToolRegistryManager extends EventEmitter {
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
             authors,
-            icon: tool.iconUrl || packageJson.icon,
+            icon: tool.icon || packageJson.icon,
             installPath: toolPath,
             installedAt: new Date().toISOString(),
             source: "registry",
