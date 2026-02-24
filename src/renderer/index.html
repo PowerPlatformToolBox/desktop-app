@@ -29,6 +29,9 @@
                     <button class="activity-item" data-sidebar="marketplace" title="Tools Marketplace">
                         <img id="marketplace-icon" src="icons/dark/marketplace.svg" alt="Marketplace Icon" class="activity-icon" />
                     </button>
+                    <button class="activity-item" id="global-search-btn" title="Global Search (Ctrl+Shift+P)">
+                        <img id="search-icon" src="icons/dark/search.svg" alt="Search Icon" class="activity-icon" />
+                    </button>
                     <button class="activity-item" data-sidebar="debug" title="Debug / Install by Package">
                         <img id="debug-icon" src="icons/dark/debug.svg" alt="Debug Icon" class="activity-icon" />
                     </button>
@@ -800,6 +803,32 @@
 
         <!-- VS Code-style Notification Container -->
         <div id="notification-container" class="notification-container"></div>
+
+        <!-- Global Search Command Palette -->
+        <div id="global-search-overlay" class="global-search-overlay" style="display: none" role="dialog" aria-modal="true" aria-label="Global Search">
+            <div class="global-search-container">
+                <div class="global-search-input-wrapper">
+                    <img src="icons/dark/search.svg" alt="" class="global-search-input-icon" id="global-search-input-icon" />
+                    <input
+                        type="text"
+                        id="global-search-input"
+                        class="global-search-input"
+                        placeholder="Search tools, connections, settings..."
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                    <kbd class="global-search-kbd">ESC</kbd>
+                </div>
+                <div class="global-search-results" id="global-search-results" role="listbox">
+                    <!-- Results populated dynamically -->
+                </div>
+                <div class="global-search-footer">
+                    <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+                    <span><kbd>↵</kbd> select</span>
+                    <span><kbd>ESC</kbd> close</span>
+                </div>
+            </div>
+        </div>
 
         <script type="module" src="renderer.ts"></script>
     </body>

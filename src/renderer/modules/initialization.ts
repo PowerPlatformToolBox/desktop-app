@@ -69,6 +69,7 @@ import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constant
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
@@ -139,6 +140,9 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up homepage actions
         setupHomepageActions();
+
+        // Set up global search command palette
+        initializeGlobalSearch();
 
         addBreadcrumb("UI components initialized", "init", "info");
 
