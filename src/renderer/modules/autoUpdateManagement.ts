@@ -70,12 +70,16 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
     onBrowserWindowModalClosed(onClosed);
 
     updateModalOpen = true;
-    await showBrowserWindowModal({
-        id: UPDATE_NOTIFICATION_MODAL_ID,
-        html,
-        width: UPDATE_NOTIFICATION_MODAL_WIDTH,
-        height: UPDATE_NOTIFICATION_MODAL_HEIGHT,
-    });
+    try {
+        await showBrowserWindowModal({
+            id: UPDATE_NOTIFICATION_MODAL_ID,
+            html,
+            width: UPDATE_NOTIFICATION_MODAL_WIDTH,
+            height: UPDATE_NOTIFICATION_MODAL_HEIGHT,
+        });
+    } catch (_error) {
+        onClosed();
+    }
 }
 
 /**
