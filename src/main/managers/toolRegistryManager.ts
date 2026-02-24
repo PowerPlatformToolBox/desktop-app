@@ -123,6 +123,18 @@ export class ToolRegistryManager extends EventEmitter {
     private installIdManager: InstallIdManager | null = null;
     private azureBlobBaseUrl: string;
 
+    // Registry fetch de-duping + caching
+    private registryFetchInFlight: Promise<ToolRegistryEntry[]> | null = null;
+    private registryCache: {
+        tools: ToolRegistryEntry[];
+        fetchedAtMs: number;
+        source: "supabase" | "azureBlob" | "local";
+    } | null = null;
+
+    // Multiple renderer modules request the registry during startup (homepage stats, marketplace, etc.).
+    // Keep this short so the marketplace stays fresh, but long enough to prevent thrash.
+    private static readonly REGISTRY_CACHE_TTL_MS = 30_000;
+
     constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
@@ -161,11 +173,47 @@ export class ToolRegistryManager extends EventEmitter {
      * Fetch the tool registry from Supabase database or local fallback
      */
     async fetchRegistry(): Promise<ToolRegistryEntry[]> {
-        // Use remote/local fallback if Supabase is not configured
-        if (this.useLocalFallback) {
-            return this.fetchFallbackRegistry();
+        const now = Date.now();
+
+        // Serve from cache when still fresh
+        if (this.registryCache && now - this.registryCache.fetchedAtMs < ToolRegistryManager.REGISTRY_CACHE_TTL_MS) {
+            return this.registryCache.tools;
         }
 
+        // If a fetch is already running, await it instead of starting another one.
+        if (this.registryFetchInFlight) {
+            return this.registryFetchInFlight;
+        }
+
+        this.registryFetchInFlight = (async () => {
+            // Use remote/local fallback if Supabase is not configured
+            if (this.useLocalFallback) {
+                const tools = await this.fetchFallbackRegistry();
+                this.registryCache = {
+                    tools,
+                    fetchedAtMs: Date.now(),
+                    source: this.azureBlobBaseUrl ? "azureBlob" : "local",
+                };
+                return tools;
+            }
+
+            const tools = await this.fetchRegistryFromSupabase();
+            this.registryCache = {
+                tools,
+                fetchedAtMs: Date.now(),
+                source: "supabase",
+            };
+            return tools;
+        })();
+
+        try {
+            return await this.registryFetchInFlight;
+        } finally {
+            this.registryFetchInFlight = null;
+        }
+    }
+
+    private async fetchRegistryFromSupabase(): Promise<ToolRegistryEntry[]> {
         try {
             logInfo(`[ToolRegistry] Fetching registry from Supabase (new schema)`);
 
