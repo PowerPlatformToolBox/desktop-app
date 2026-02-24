@@ -4743,3 +4743,23 @@ body.dark-theme .global-search-item-badge.badge-settings {
     background: var(--border-color);
     margin: 4px 0;
 }
+
+/* Highlight pulse for focused setting element */
+@keyframes global-search-pulse {
+    0% {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+    30% {
+        outline: 2px solid var(--accent-color);
+        outline-offset: 3px;
+    }
+    100% {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+}
+
+.global-search-highlight {
+    animation: global-search-pulse 1.5s ease-out;
+}

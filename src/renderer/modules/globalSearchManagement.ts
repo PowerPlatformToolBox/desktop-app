@@ -9,7 +9,7 @@ import type { DataverseConnection } from "../../common/types/connection";
 import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
 import { escapeHtml } from "../utils/toolIconResolver";
-import { getToolLibrary } from "./marketplaceManagement";
+import { getToolLibrary, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,14 +33,16 @@ let currentResults: SearchResult[] = [];
 
 // ── Static settings entries ───────────────────────────────────────────────────
 
-const SETTINGS_ENTRIES: Array<{ name: string; description: string; action: () => void }> = [
-    { name: "Theme", description: "Change the application theme (light / dark / system)", action: () => switchSidebar("settings") },
-    { name: "Auto Update", description: "Configure automatic updates", action: () => switchSidebar("settings") },
-    { name: "Debug Menu", description: "Show or hide the debug / install panel", action: () => switchSidebar("settings") },
-    { name: "Terminal Font", description: "Customize the integrated terminal font", action: () => switchSidebar("settings") },
-    { name: "Connections", description: "Manage Dataverse connections", action: () => switchSidebar("connections") },
-    { name: "Installed Tools", description: "Browse installed tools", action: () => switchSidebar("tools") },
-    { name: "Marketplace", description: "Browse and install tools from the marketplace", action: () => switchSidebar("marketplace") },
+const SETTINGS_ENTRIES: Array<{ name: string; description: string; focusId?: string }> = [
+    { name: "Theme", description: "Change the application theme (light / dark / system)", focusId: "sidebar-theme-select" },
+    { name: "Auto Update", description: "Configure automatic updates", focusId: "sidebar-auto-update-check" },
+    { name: "Debug Menu", description: "Show or hide the debug / install panel", focusId: "sidebar-show-debug-menu-check" },
+    { name: "Terminal Font", description: "Customize the integrated terminal font", focusId: "sidebar-terminal-font-select" },
+    { name: "Deprecated Tools", description: "Control visibility of deprecated tools", focusId: "sidebar-deprecated-tools-select" },
+    { name: "Tool Display Mode", description: "Choose standard or compact tool display", focusId: "sidebar-tool-display-mode-select" },
+    { name: "Connections", description: "Manage Dataverse connections" },
+    { name: "Installed Tools", description: "Browse installed tools" },
+    { name: "Marketplace", description: "Browse and install tools from the marketplace" },
 ];
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -111,6 +113,27 @@ function syncInputIconTheme(): void {
     }
 }
 
+// ── Settings focus helper ─────────────────────────────────────────────────────
+
+/**
+ * Switch to settings sidebar and focus/scroll a specific setting element.
+ */
+function navigateToSetting(focusId: string | undefined): void {
+    switchSidebar("settings");
+    if (!focusId) return;
+
+    // Wait for sidebar transition then focus/scroll the element
+    requestAnimationFrame(() => {
+        const el = document.getElementById(focusId) as HTMLElement | null;
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus();
+        // Highlight briefly so the user sees the focused setting
+        el.classList.add("global-search-highlight");
+        setTimeout(() => el.classList.remove("global-search-highlight"), 1500);
+    });
+}
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 async function runSearch(query: string): Promise<void> {
@@ -123,15 +146,23 @@ async function runSearch(query: string): Promise<void> {
         const installedTools = installedRaw as Tool[];
         for (const tool of installedTools) {
             if (matches(q, tool.name, tool.description)) {
+                const toolId = tool.id;
                 results.push({
-                    id: `installed:${tool.id}`,
+                    id: `installed:${toolId}`,
                     name: tool.name,
                     description: tool.description ?? "",
                     category: "installed",
-                    iconUrl: undefined, // resolved below
                     action: () => {
                         closeGlobalSearch();
-                        switchSidebar("tools");
+                        // Dynamically import to avoid circular dependency
+                        import("./toolManagement")
+                            .then(({ launchTool }) => launchTool(toolId))
+                            .catch((err) => {
+                                captureException(err instanceof Error ? err : new Error(String(err)), {
+                                    tags: { context: "global_search", action: "launch_tool" },
+                                    level: "warning",
+                                });
+                            });
                     },
                 });
             }
@@ -144,6 +175,7 @@ async function runSearch(query: string): Promise<void> {
             // Skip tools already shown in installed list
             if (installedIds.has(tool.id)) continue;
             if (matches(q, tool.name, tool.description)) {
+                const toolSnapshot = tool;
                 results.push({
                     id: `marketplace:${tool.id}`,
                     name: tool.name,
@@ -151,7 +183,12 @@ async function runSearch(query: string): Promise<void> {
                     category: "marketplace",
                     action: () => {
                         closeGlobalSearch();
-                        switchSidebar("marketplace");
+                        openToolDetail(toolSnapshot, false).catch((err) => {
+                            captureException(err instanceof Error ? err : new Error(String(err)), {
+                                tags: { context: "global_search", action: "open_tool_detail" },
+                                level: "warning",
+                            });
+                        });
                     },
                 });
             }
@@ -178,12 +215,25 @@ async function runSearch(query: string): Promise<void> {
         // 4. Settings entries
         for (const entry of SETTINGS_ENTRIES) {
             if (matches(q, entry.name, entry.description)) {
+                const focusId = entry.focusId;
+                const entryName = entry.name;
                 results.push({
-                    id: `settings:${entry.name}`,
-                    name: entry.name,
+                    id: `settings:${entryName}`,
+                    name: entryName,
                     description: entry.description,
                     category: "settings",
-                    action: entry.action,
+                    action: () => {
+                        closeGlobalSearch();
+                        if (entryName === "Connections") {
+                            switchSidebar("connections");
+                        } else if (entryName === "Installed Tools") {
+                            switchSidebar("tools");
+                        } else if (entryName === "Marketplace") {
+                            switchSidebar("marketplace");
+                        } else {
+                            navigateToSetting(focusId);
+                        }
+                    },
                 });
             }
         }
@@ -255,6 +305,12 @@ function renderResults(results: SearchResult[]): void {
         connection: "badge-connection",
         settings: "badge-settings",
     };
+    const actionHints: Record<ResultCategory, string> = {
+        installed: "Launch",
+        marketplace: "View Details",
+        connection: "Go to Connections",
+        settings: "Go to Settings",
+    };
 
     let html = "";
     let globalIdx = 0;
@@ -267,6 +323,7 @@ function renderResults(results: SearchResult[]): void {
         for (const result of group) {
             const isSelected = globalIdx === selectedIndex;
             const badgeClass = badgeClasses[result.category];
+            const hint = actionHints[result.category];
             html += `
                 <div class="global-search-item${isSelected ? " selected" : ""}" data-index="${globalIdx}" role="option" aria-selected="${isSelected}" tabindex="-1">
                     <div class="global-search-item-icon">
@@ -276,7 +333,7 @@ function renderResults(results: SearchResult[]): void {
                         <div class="global-search-item-name">${escapeHtml(result.name)}</div>
                         <div class="global-search-item-desc">${escapeHtml(result.description)}</div>
                     </div>
-                    <span class="global-search-item-badge ${badgeClass}">${escapeHtml(sectionLabels[result.category])}</span>
+                    <span class="global-search-item-badge ${badgeClass}" title="${escapeHtml(hint)}">${escapeHtml(sectionLabels[result.category])}</span>
                 </div>`;
             globalIdx++;
         }
@@ -428,3 +485,4 @@ export function initializeGlobalSearch(): void {
 
     logInfo("Global search initialized", {});
 }
+
