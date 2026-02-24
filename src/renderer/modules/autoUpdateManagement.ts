@@ -3,6 +3,85 @@
  * Handles application auto-update UI and status
  */
 
+import { getUpdateNotificationModalControllerScript } from "../modals/updateNotification/controller";
+import { getUpdateNotificationModalView } from "../modals/updateNotification/view";
+import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+
+const UPDATE_NOTIFICATION_MODAL_ID = "update-notification";
+const UPDATE_NOTIFICATION_MODAL_CHANNELS = {
+    download: "update-notification:download",
+    install: "update-notification:install",
+    dismiss: "update-notification:dismiss",
+    openExternal: "update-notification:open-external",
+} as const;
+
+const UPDATE_NOTIFICATION_MODAL_WIDTH = 560;
+const UPDATE_NOTIFICATION_MODAL_HEIGHT = 540;
+
+let updateModalOpen = false;
+
+/**
+ * Build and show the update notification modal
+ */
+async function showUpdateNotificationModal(type: "available" | "downloaded", version: string, releaseNotes?: string | null): Promise<void> {
+    if (updateModalOpen) {
+        return;
+    }
+
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const currentVersion = (await window.toolboxAPI.getAppVersion().catch(() => "")) as string;
+
+    const { styles, body } = getUpdateNotificationModalView({
+        type,
+        version,
+        currentVersion,
+        releaseNotes,
+        isDarkTheme,
+    });
+
+    const script = getUpdateNotificationModalControllerScript({
+        type,
+        channels: UPDATE_NOTIFICATION_MODAL_CHANNELS,
+    });
+
+    const html = `${styles}\n${body}\n${script}`.trim();
+
+    const onMessage = (payload: { channel: string; data?: unknown }) => {
+        if (!payload) return;
+        if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.download) {
+            window.toolboxAPI.downloadUpdate().catch(() => undefined);
+        } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.install) {
+            window.toolboxAPI.quitAndInstall();
+        } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.openExternal) {
+            const url = (payload.data as { url?: string })?.url;
+            if (url) {
+                window.toolboxAPI.openExternal(url).catch(() => undefined);
+            }
+        }
+    };
+
+    const onClosed = () => {
+        updateModalOpen = false;
+        offBrowserWindowModalMessage(onMessage);
+        offBrowserWindowModalClosed(onClosed);
+    };
+
+    onBrowserWindowModalMessage(onMessage);
+    onBrowserWindowModalClosed(onClosed);
+
+    updateModalOpen = true;
+    try {
+        await showBrowserWindowModal({
+            id: UPDATE_NOTIFICATION_MODAL_ID,
+            html,
+            width: UPDATE_NOTIFICATION_MODAL_WIDTH,
+            height: UPDATE_NOTIFICATION_MODAL_HEIGHT,
+        });
+    } catch (_error) {
+        onClosed();
+    }
+}
+
 /**
  * Update UI elements for check for updates button
  */
@@ -153,6 +232,7 @@ export function setupAutoUpdateListeners(): void {
     window.toolboxAPI.onUpdateAvailable((info: any) => {
         showUpdateStatus(`Update available: Version ${info.version}`, "success");
         updateCheckForUpdatesUI("available", `Update available: Version ${info.version}`);
+        void showUpdateNotificationModal("available", info.version, info.releaseNotes as string | null);
     });
 
     window.toolboxAPI.onUpdateNotAvailable(() => {
@@ -164,12 +244,18 @@ export function setupAutoUpdateListeners(): void {
         showUpdateProgress();
         updateProgress(progress.percent);
         showUpdateStatus(`Downloading update: ${progress.percent}%`, "info");
+        void sendBrowserWindowModalMessage({ channel: "update:progress", data: { percent: progress.percent } }).catch(() => undefined);
     });
 
     window.toolboxAPI.onUpdateDownloaded((info: any) => {
         hideUpdateProgress();
         showUpdateStatus(`Update downloaded: Version ${info.version}. Restart to install.`, "success");
         updateCheckForUpdatesUI("idle");
+        if (updateModalOpen) {
+            void sendBrowserWindowModalMessage({ channel: "update:downloaded", data: { version: info.version } }).catch(() => undefined);
+        } else {
+            void showUpdateNotificationModal("downloaded", info.version);
+        }
     });
 
     window.toolboxAPI.onUpdateError((error: string) => {

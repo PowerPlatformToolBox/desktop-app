@@ -18,7 +18,7 @@ interface ToolPackageJson {
     displayName?: string;
     description?: string;
     author?: string;
-    icon?: string;
+    icon?: string; // Relative path to SVG icon (e.g., "dist/icon.svg")
     cspExceptions?: CspExceptions;
     features?: ToolFeatures;
     repository?: string | { type: string; url: string };
@@ -38,10 +38,10 @@ export class ToolManager extends EventEmitter {
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
     private updatingTools: Set<string> = new Set();
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -51,6 +51,39 @@ export class ToolManager extends EventEmitter {
         this.registryManager.on("tool:uninstalled", (toolId) => {
             this.emit("tool:uninstalled", toolId);
         });
+    }
+
+    private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
+        const tool: Tool = {
+            id: manifest.id,
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description,
+            authors: manifest.authors,
+            icon: manifest.icon,
+            cspExceptions: manifest.cspExceptions,
+            features: manifest.features,
+            categories: manifest.categories,
+            license: manifest.license,
+            downloads: manifest.downloads,
+            rating: manifest.rating,
+            mau: manifest.mau,
+            status: manifest.status,
+            repository: manifest.repository,
+            website: manifest.website,
+            readmeUrl: manifest.readme,
+            publishedAt: manifest.publishedAt,
+            createdAt: manifest.createdAt,
+        };
+
+        const cached = this.analyticsCache.get(tool.id);
+        if (cached) {
+            tool.downloads = cached.downloads;
+            tool.rating = cached.rating;
+            tool.mau = cached.mau;
+        }
+
+        return tool;
     }
 
     /**
@@ -96,7 +129,7 @@ export class ToolManager extends EventEmitter {
             version: manifest.version,
             description: manifest.description,
             authors: manifest.authors,
-            iconUrl: manifest.icon,
+            icon: manifest.icon,
             cspExceptions: manifest.cspExceptions,
             features: manifest.features,
             categories: manifest.categories,
@@ -162,7 +195,16 @@ export class ToolManager extends EventEmitter {
      */
     getTool(toolId: string): Tool | undefined {
         const tool = this.tools.get(toolId);
-        return tool;
+        if (tool) {
+            return tool;
+        }
+
+        const manifest = this.registryManager.getInstalledManifestSync(toolId);
+        if (manifest) {
+            return this.createToolFromInstalledManifest(manifest);
+        }
+
+        return undefined;
     }
 
     getInstalledManifestSync(toolId: string): ToolManifest | null {
@@ -173,7 +215,25 @@ export class ToolManager extends EventEmitter {
      * Get all loaded tools
      */
     getAllTools(): Tool[] {
-        return Array.from(this.tools.values());
+        const toolsById = new Map<string, Tool>();
+
+        // Prefer installed tools from manifest so the sidebar stays stable even
+        // when a tool is temporarily unloaded during update.
+        const installedManifests = this.registryManager.getInstalledToolsSync();
+        installedManifests.forEach((manifest) => {
+            const loaded = this.tools.get(manifest.id);
+            toolsById.set(manifest.id, loaded || this.createToolFromInstalledManifest(manifest));
+        });
+
+        // Include any loaded tools that might not be in the registry manifest
+        // (e.g., local dev tools).
+        this.tools.forEach((tool, id) => {
+            if (!toolsById.has(id)) {
+                toolsById.set(id, tool);
+            }
+        });
+
+        return Array.from(toolsById.values());
     }
 
     /**
@@ -462,7 +522,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
@@ -650,7 +710,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)

@@ -74,7 +74,16 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { EntityRelatedMetadataPath, LastUsedToolEntry, LastUsedToolUpdate, ModalWindowMessagePayload, ModalWindowOptions, ToolBoxEvent } from "../common/types";
+import {
+    AttributeMetadataType,
+    EntityRelatedMetadataPath,
+    LastUsedToolEntry,
+    LastUsedToolUpdate,
+    MetadataOperationOptions,
+    ModalWindowMessagePayload,
+    ModalWindowOptions,
+    ToolBoxEvent,
+} from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -88,6 +97,7 @@ import { NotificationWindowManager } from "./managers/notificationWindowManager"
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
+import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 
@@ -111,6 +121,7 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
@@ -131,14 +142,21 @@ class ToolBoxApp {
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
-            // Pass Supabase credentials from environment variables or use defaults from constants
-            this.toolManager = new ToolManager(path.join(app.getPath("userData"), "tools"), process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, this.installIdManager);
+            // Pass Supabase credentials and Azure Blob base URL from environment variables
+            this.toolManager = new ToolManager(
+                path.join(app.getPath("userData"), "tools"),
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_ANON_KEY,
+                this.installIdManager,
+                process.env.AZURE_BLOB_BASE_URL,
+            );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
 
             this.setupEventListeners();
             this.setupIpcHandlers();
@@ -397,6 +415,26 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DISASSOCIATE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DEPLOY_SOLUTION);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_IMPORT_JOB_STATUS);
+        // Metadata operations
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.BUILD_LABEL);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
     }
 
     /**
@@ -944,10 +982,31 @@ class ToolBoxApp {
             this.api.copyToClipboard(text);
         });
 
-        // Show loading handler (overlay window above BrowserViews)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, (_, message: string) => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.show(message || "Loading...");
+        // Show loading handler (overlay window above tool panel area only)
+        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
+            if (this.loadingOverlayWindowManager && this.mainWindow) {
+                try {
+                    // Get bounds from the active tool's BrowserView directly
+                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
+
+                    // Show overlay with tool panel bounds (or undefined for full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
+                } catch (error) {
+                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
+                    captureException(error instanceof Error ? error : new Error(String(error)), {
+                        extra: {
+                            source: "UTIL_CHANNELS.SHOW_LOADING",
+                            context: "Failed to compute active tool bounds for loading overlay; falling back to full-window overlay.",
+                            hasLoadingOverlayWindowManager: !!this.loadingOverlayWindowManager,
+                            hasMainWindow: !!this.mainWindow,
+                            hasToolWindowManager: !!this.toolWindowManager,
+                            activeToolId: this.toolWindowManager?.getActiveToolId() || null,
+                            message,
+                        },
+                    });
+                    // On error, show without bounds (full window fallback)
+                    this.loadingOverlayWindowManager.show(message || "Loading...");
+                }
             } else if (this.mainWindow) {
                 // Fallback to legacy in-DOM loading screen if manager not ready
                 this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
@@ -1020,50 +1079,112 @@ class ToolBoxApp {
             await shell.openExternal(url);
         });
 
-        // Filesystem handlers
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (_, filePath: string) => {
+        // Filesystem handlers with access control
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_TEXT, async (event, filePath: string) => {
+            // Validate access if caller is a tool (null instanceId means main window - allow all)
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
+            }
+
             const { readText } = await import("./utilities/filesystem.js");
             return await readText(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_BINARY, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
+            }
+
             const { readBinary } = await import("./utilities/filesystem.js");
             return await readBinary(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.EXISTS, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
+            }
+
             const { exists } = await import("./utilities/filesystem.js");
             return await exists(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (_, filePath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.STAT, async (event, filePath: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
+            }
+
             const { stat } = await import("./utilities/filesystem.js");
             return await stat(filePath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (_, dirPath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.READ_DIRECTORY, async (event, dirPath: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
+            }
+
             const { readDirectory } = await import("./utilities/filesystem.js");
             return await readDirectory(dirPath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (_, filePath: string, content: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.WRITE_TEXT, async (event, filePath: string, content: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, filePath);
+            }
+
             const { writeText } = await import("./utilities/filesystem.js");
             return await writeText(filePath, content);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (_, dirPath: string) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.CREATE_DIRECTORY, async (event, dirPath: string) => {
+            // Validate access if caller is a tool
+            const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+            if (instanceId) {
+                this.toolFilesystemAccessManager.validateAccess(instanceId, dirPath);
+            }
+
             const { createDirectory } = await import("./utilities/filesystem.js");
             return await createDirectory(dirPath);
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (_, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.SAVE_FILE, async (event, defaultPath: string, content: string | Buffer, filters?: Array<{ name: string; extensions: string[] }>) => {
             const { saveFile } = await import("./utilities/filesystem.js");
-            return await saveFile(defaultPath, content, filters);
+            const selectedPath = await saveFile(defaultPath, content, filters);
+
+            // Grant access to the selected path if a tool called this and user selected a file
+            if (selectedPath) {
+                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (instanceId) {
+                    this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
+                }
+            }
+
+            return selectedPath;
         });
 
-        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (_, options) => {
+        ipcMain.handle(FILESYSTEM_CHANNELS.SELECT_PATH, async (event, options) => {
             const { selectPath } = await import("./utilities/filesystem.js");
-            return await selectPath(options);
+            const selectedPath = await selectPath(options);
+
+            // Grant access to the selected path if a tool called this and user selected something
+            if (selectedPath) {
+                const instanceId = this.toolWindowManager?.getInstanceIdByWebContents(event.sender.id);
+                if (instanceId) {
+                    this.toolFilesystemAccessManager.grantAccess(instanceId, selectedPath);
+                }
+            }
+
+            return selectedPath;
         });
 
         // Modal BrowserWindow internal channels (modal preload -> main)
@@ -1501,6 +1622,364 @@ class ToolBoxApp {
                 throw new Error(`Dataverse getImportJobStatus failed: ${(error as Error).message}`);
             }
         });
+
+        // Get CSDL document endpoint
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT, async (event, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.getCSDLDocument(connectionId);
+            } catch (error) {
+                throw new Error(`Get CSDL document failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Dataverse Metadata Helper Utilities
+        ipcMain.handle(DATAVERSE_CHANNELS.BUILD_LABEL, async (event, text: string, languageCode?: number) => {
+            try {
+                return this.dataverseManager.buildLabel(text, languageCode);
+            } catch (error) {
+                throw new Error(`Build label failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.GET_ATTRIBUTE_ODATA_TYPE, async (event, attributeType: string) => {
+            try {
+                // Validate attributeType is a valid enum value
+                const validTypes = Object.values(AttributeMetadataType);
+                if (!validTypes.includes(attributeType as AttributeMetadataType)) {
+                    throw new Error(`Invalid attribute type: "${attributeType}". Valid types are: ${validTypes.join(", ")}`);
+                }
+                return this.dataverseManager.getAttributeODataType(attributeType as AttributeMetadataType);
+            } catch (error) {
+                throw new Error(`Get attribute OData type failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Entity (Table) Metadata CRUD Operations
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ENTITY_DEFINITION,
+            async (event, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createEntityDefinition(connectionId, entityDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create entity definition failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ENTITY_DEFINITION,
+            async (event, entityIdentifier: string, entityDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateEntityDefinition(connectionId, entityIdentifier, entityDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update entity definition failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ENTITY_DEFINITION, async (event, entityIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteEntityDefinition(connectionId, entityIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete entity definition failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Attribute (Column) Metadata CRUD Operations
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_ATTRIBUTE,
+            async (
+                event,
+                entityLogicalName: string,
+                attributeIdentifier: string,
+                attributeDefinition: Record<string, unknown>,
+                options?: MetadataOperationOptions,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateAttribute(connectionId, entityLogicalName, attributeIdentifier, attributeDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_ATTRIBUTE, async (event, entityLogicalName: string, attributeIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteAttribute(connectionId, entityLogicalName, attributeIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete attribute failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_POLYMORPHIC_LOOKUP_ATTRIBUTE,
+            async (event, entityLogicalName: string, attributeDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createPolymorphicLookupAttribute(connectionId, entityLogicalName, attributeDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create polymorphic lookup attribute failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        // Relationship Metadata CRUD Operations
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_RELATIONSHIP,
+            async (event, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createRelationship(connectionId, relationshipDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create relationship failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_RELATIONSHIP,
+            async (event, relationshipIdentifier: string, relationshipDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateRelationship(connectionId, relationshipIdentifier, relationshipDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update relationship failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_RELATIONSHIP, async (event, relationshipIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteRelationship(connectionId, relationshipIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete relationship failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Global Option Set (Choice) CRUD Operations
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.CREATE_GLOBAL_OPTION_SET,
+            async (event, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    return await this.dataverseManager.createGlobalOptionSet(connectionId, optionSetDefinition, options);
+                } catch (error) {
+                    throw new Error(`Create global option set failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(
+            DATAVERSE_CHANNELS.UPDATE_GLOBAL_OPTION_SET,
+            async (event, optionSetIdentifier: string, optionSetDefinition: Record<string, unknown>, options?: MetadataOperationOptions, connectionTarget?: "primary" | "secondary") => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+                    await this.dataverseManager.updateGlobalOptionSet(connectionId, optionSetIdentifier, optionSetDefinition, options);
+                    return { success: true };
+                } catch (error) {
+                    throw new Error(`Update global option set failed: ${(error as Error).message}`);
+                }
+            },
+        );
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_GLOBAL_OPTION_SET, async (event, optionSetIdentifier: string, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                await this.dataverseManager.deleteGlobalOptionSet(connectionId, optionSetIdentifier);
+                return { success: true };
+            } catch (error) {
+                throw new Error(`Delete global option set failed: ${(error as Error).message}`);
+            }
+        });
+
+        // Option Value Modification Actions
+        ipcMain.handle(DATAVERSE_CHANNELS.INSERT_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.insertOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Insert option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.updateOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Update option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.deleteOptionValue(connectionId, params);
+            } catch (error) {
+                throw new Error(`Delete option value failed: ${(error as Error).message}`);
+            }
+        });
+
+        ipcMain.handle(DATAVERSE_CHANNELS.ORDER_OPTION, async (event, params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => {
+            try {
+                const connectionId =
+                    connectionTarget === "secondary"
+                        ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                        : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+                if (!connectionId) {
+                    const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                    throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                }
+                return await this.dataverseManager.orderOption(connectionId, params);
+            } catch (error) {
+                throw new Error(`Order option failed: ${(error as Error).message}`);
+            }
+        });
     }
     /**
      * Create application menu
@@ -1828,7 +2307,15 @@ class ToolBoxApp {
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
-        this.toolWindowManager = new ToolWindowManager(this.mainWindow, this.browserviewProtocolManager, this.connectionsManager, this.settingsManager, this.toolManager, this.terminalManager);
+        this.toolWindowManager = new ToolWindowManager(
+            this.mainWindow,
+            this.browserviewProtocolManager,
+            this.connectionsManager,
+            this.settingsManager,
+            this.toolManager,
+            this.terminalManager,
+            this.toolFilesystemAccessManager,
+        );
 
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
@@ -2039,19 +2526,24 @@ class ToolBoxApp {
 
     /**
      * Check tool download capability
-     * Tests downloading a sample tool from GitHub releases
+     * Tests downloading a tool package from Azure Blob Storage (when configured) or
+     * falls back to checking reachability of the registry endpoint.
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const TEST_TOOL_DOWNLOAD_URL = "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/pptb-standard-sample-tool-1.0.9/pptb-standard-sample-tool-1.0.9.tar.gz";
+        const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
+        const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
+            ? `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`
+            : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/test/pptb-standard-sample-tool-download-test.tar.gz";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
-        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-1.0.9.tar.gz");
+        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-download-test.tar.gz");
 
         try {
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            logInfo(`[Troubleshooting] Testing download from GitHub release: ${TEST_TOOL_DOWNLOAD_URL}`);
+            const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
+            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -2109,7 +2601,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully downloaded GitHub release asset (${fileSizeMB} MB)`,
+                message: `Successfully downloaded tool package from ${azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release"} (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {

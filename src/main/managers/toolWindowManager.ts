@@ -1,13 +1,14 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
 import { TerminalManager } from "./terminalManager";
+import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
 
 /**
@@ -30,6 +31,7 @@ export class ToolWindowManager {
     private settingsManager: SettingsManager;
     private toolManager: ToolManager;
     private terminalManager: TerminalManager;
+    private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     /**
      * Maps tool instanceId (NOT toolId) to BrowserView.
      *
@@ -65,6 +67,7 @@ export class ToolWindowManager {
         settingsManager: SettingsManager,
         toolManager: ToolManager,
         terminalManager: TerminalManager,
+        toolFilesystemAccessManager: ToolFileSystemAccessManager,
     ) {
         this.mainWindow = mainWindow;
         this.browserviewProtocolManager = browserviewProtocolManager;
@@ -72,6 +75,7 @@ export class ToolWindowManager {
         this.settingsManager = settingsManager;
         this.toolManager = toolManager;
         this.terminalManager = terminalManager;
+        this.toolFilesystemAccessManager = toolFilesystemAccessManager;
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
@@ -394,6 +398,9 @@ export class ToolWindowManager {
             // Dispose any terminals created by this tool instance
             this.terminalManager.closeToolInstanceTerminals(instanceId);
 
+            // Revoke filesystem access for this specific tool instance
+            this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
@@ -437,6 +444,38 @@ export class ToolWindowManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Get the instanceId for a tool instance by its WebContents
+     * This is used for per-instance operations like filesystem access control
+     * @param webContentsId The ID of the WebContents making the request
+     * @returns The instanceId or null if not found (null means it's from main window, not a tool)
+     */
+    getInstanceIdByWebContents(webContentsId: number): string | null {
+        // Find the instance that owns this WebContents
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) {
+                return instanceId;
+            }
+        }
+        // Not a tool window - likely the main window
+        return null;
+    }
+
+    /**
+     * Get the toolId for a tool instance by its WebContents
+     * This is used for tool-scoped operations
+     * @param webContentsId The ID of the WebContents making the request
+     * @returns The toolId or null if not found (null means it's from main window, not a tool)
+     */
+    getToolIdByWebContents(webContentsId: number): string | null {
+        const instanceId = this.getInstanceIdByWebContents(webContentsId);
+        if (!instanceId) {
+            return null;
+        }
+        // Extract toolId from instanceId (format: toolId-timestamp-random)
+        return instanceId.split("-").slice(0, -2).join("-");
     }
 
     /**
@@ -731,6 +770,39 @@ export class ToolWindowManager {
      */
     getActiveToolId(): string | null {
         return this.activeToolId;
+    }
+
+    /**
+     * Get the bounds of the active tool's BrowserView
+     * @returns The bounds of the active tool's BrowserView, or null if no tool is active
+     */
+    getActiveToolBounds(): { x: number; y: number; width: number; height: number } | null {
+        if (!this.activeToolId) {
+            return null;
+        }
+
+        const toolView = this.toolViews.get(this.activeToolId);
+        if (!toolView) {
+            return null;
+        }
+
+        try {
+            return toolView.getBounds();
+        } catch (error) {
+            // Normalize error and capture with full context
+            const normalizedError = error instanceof Error ? error : new Error(String(error));
+            captureException(normalizedError, {
+                tags: {
+                    component: "ToolWindowManager",
+                    method: "getActiveToolBounds",
+                },
+                extra: {
+                    activeToolId: this.activeToolId,
+                    errorMessage: normalizedError.message,
+                },
+            });
+            return null;
+        }
     }
 
     /**

@@ -34,7 +34,7 @@ export interface Tool {
     publishedAt?: string;
     createdAt?: string; // ISO date string from created_at field
     authors?: string[];
-    iconUrl?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
     npmPackageName?: string; // For npm-installed tools - package name in node_modules
@@ -63,7 +63,7 @@ export interface ToolRegistryEntry {
     description: string;
     authors?: string[]; // full list of contributors
     version: string;
-    iconUrl?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     downloadUrl: string;
     readmeUrl?: string; // URL or relative path to README file
     checksum?: string;
@@ -93,7 +93,7 @@ export interface ToolManifest {
     version: string;
     description: string;
     authors?: string[]; // contributors list
-    icon?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     installPath: string;
     installedAt: string;
     source: "registry" | "npm" | "local"; // Track installation source
