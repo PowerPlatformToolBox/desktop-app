@@ -2,6 +2,7 @@ export interface UpdateNotificationModalChannelIds {
     download: string;
     install: string;
     dismiss: string;
+    openExternal: string;
 }
 
 export interface UpdateNotificationModalControllerConfig {
@@ -63,6 +64,17 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
     closeBtn?.addEventListener("click", () => {
         modalBridge.send(CONFIG.channels.dismiss, { installOnExit: false });
         modalBridge.close();
+    });
+
+    // Handle "View full release notes" link — open in external browser via main process
+    document.querySelectorAll("a.update-release-notes-link").forEach((link) => {
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            const url = link instanceof HTMLAnchorElement ? link.href : "";
+            if (url) {
+                modalBridge.send(CONFIG.channels.openExternal, { url });
+            }
+        });
     });
 
     modalBridge.onMessage?.((payload) => {

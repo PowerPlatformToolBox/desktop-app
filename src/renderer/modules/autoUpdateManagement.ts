@@ -12,6 +12,7 @@ const UPDATE_NOTIFICATION_MODAL_CHANNELS = {
     download: "update-notification:download",
     install: "update-notification:install",
     dismiss: "update-notification:dismiss",
+    openExternal: "update-notification:open-external",
 } as const;
 
 const UPDATE_NOTIFICATION_MODAL_WIDTH = 560;
@@ -51,6 +52,11 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
             window.toolboxAPI.downloadUpdate().catch(() => undefined);
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.install) {
             window.toolboxAPI.quitAndInstall();
+        } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.openExternal) {
+            const url = (payload.data as { url?: string })?.url;
+            if (url) {
+                window.toolboxAPI.openExternal(url).catch(() => undefined);
+            }
         }
     };
 

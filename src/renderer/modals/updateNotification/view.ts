@@ -223,6 +223,19 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         margin-bottom: 4px;
     }
 
+    .update-release-notes-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 13px;
+        color: ${model.isDarkTheme ? "#6eb3e6" : "#0e639c"};
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .update-release-notes-link:hover {
+        text-decoration: underline;
+    }
+
     .update-modal-footer {
         display: flex;
         gap: 10px;
@@ -261,7 +274,7 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
     }
 </style>`;
 
-    const releaseNotesHtml = buildReleaseNotesHtml(model.releaseNotes);
+    const releaseNotesHtml = buildReleaseNotesHtml(model.releaseNotes, model.version);
 
     const processSteps = isAvailable
         ? [
@@ -272,7 +285,7 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         : [
               { n: "1", text: "Click <strong>Restart &amp; Install</strong> to apply the update now." },
               { n: "2", text: "The app will close and restart automatically." },
-              { n: "3", text: "Your work and settings will be preserved." },
+              { n: "3", text: "Any in-progress work in open tools will be lost. Your app settings and connections will be preserved." },
           ];
 
     const heroIcon = isAvailable
@@ -329,33 +342,73 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
     return { styles, body };
 }
 
-function buildReleaseNotesHtml(releaseNotes: string | null | undefined): string {
+function buildReleaseNotesHtml(releaseNotes: string | null | undefined, version: string): string {
     if (!releaseNotes) {
         return "";
     }
 
     // releaseNotes from electron-updater can be a string (HTML or plain text) or an array of objects
-    let notesText = typeof releaseNotes === "string" ? releaseNotes.trim() : "";
-    if (!notesText) {
+    const rawText = typeof releaseNotes === "string" ? releaseNotes.trim() : "";
+    if (!rawText) {
         return "";
     }
+
+    // Extract only the ## Highlights section from the markdown-formatted release notes.
+    // The release notes follow a structured format with sections like ## Highlights, ## Fixes, etc.
+    const highlightsText = extractHighlightsSection(rawText);
 
     // Sanitize using an allowlist approach: strip all tags except safe formatting elements,
     // and strip all attributes from allowed tags to prevent XSS via event handlers or
     // javascript: URLs in the inline data URL modal context.
-    const ALLOWED_TAGS = new Set(["b", "i", "em", "strong", "ul", "ol", "li", "p", "br", "code", "pre", "h1", "h2", "h3", "h4", "span"]);
-    notesText = notesText.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g, (match, tag: string) => {
-        if (!ALLOWED_TAGS.has(tag.toLowerCase())) {
-            return "";
-        }
-        // Keep only the tag name, strip all attributes
-        const isClosing = match.startsWith("</");
-        return isClosing ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`;
-    });
+    const ALLOWED_TAGS = new Set(["b", "i", "em", "strong", "ul", "ol", "li", "p", "br", "code", "pre", "span"]);
+    const sanitize = (html: string) =>
+        html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g, (match, tag: string) => {
+            if (!ALLOWED_TAGS.has(tag.toLowerCase())) {
+                return "";
+            }
+            // Keep only the tag name, strip all attributes
+            const isClosing = match.startsWith("</");
+            return isClosing ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`;
+        });
 
+    const fullNotesUrl = `https://github.com/PowerPlatformToolBox/desktop-app/releases/tag/v${version}`;
+
+    if (highlightsText) {
+        // Convert the extracted plain-text bullet list to basic HTML list items
+        const listItems = highlightsText
+            .split("\n")
+            .map((line) => line.replace(/^-\s*/, "").trim())
+            .filter((line) => line.length > 0)
+            .map((line) => `<li>${sanitize(line)}</li>`)
+            .join("\n");
+
+        return `
+<div class="update-release-notes-section">
+    <p class="update-release-notes-title">Highlights</p>
+    <div class="update-release-notes-content"><ul>${listItems}</ul></div>
+    <a class="update-release-notes-link" href="${fullNotesUrl}">View full release notes &#8594;</a>
+</div>`;
+    }
+
+    // Fallback: no structured highlights found — show sanitized raw notes with a link
+    const sanitizedRaw = sanitize(rawText);
     return `
 <div class="update-release-notes-section">
     <p class="update-release-notes-title">Release Notes</p>
-    <div class="update-release-notes-content">${notesText}</div>
+    <div class="update-release-notes-content">${sanitizedRaw}</div>
+    <a class="update-release-notes-link" href="${fullNotesUrl}">View full release notes &#8594;</a>
 </div>`;
+}
+
+/**
+ * Extract the content of the "## Highlights" section from markdown-formatted release notes.
+ * Returns the raw bullet-list text, or an empty string if the section is not found.
+ */
+function extractHighlightsSection(markdown: string): string {
+    // Match the ## Highlights section up to the next ## heading or end of string
+    const match = /^##\s+Highlights\s*\n([\s\S]*?)(?=^##\s|\s*$)/im.exec(markdown);
+    if (!match) {
+        return "";
+    }
+    return match[1].trim();
 }
