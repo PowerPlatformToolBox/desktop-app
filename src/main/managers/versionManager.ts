@@ -63,24 +63,32 @@ export class VersionManager {
     static isToolSupported(minAPI?: string, maxAPI?: string): boolean {
         // If no version constraints, assume compatible (legacy tools)
         if (!minAPI && !maxAPI) {
+            console.log("[VersionManager] No version constraints - legacy tool is compatible");
             return true;
         }
 
         const toolboxVersion = VersionManager.getToolBoxVersion();
+        console.log("[VersionManager] Checking compatibility:", { minAPI, maxAPI, toolboxVersion, MIN_SUPPORTED_API_VERSION });
 
         // Check minimum version requirements
         if (minAPI) {
             // Tool's minAPI must be >= MIN_SUPPORTED_API_VERSION
             // This ensures the tool doesn't require APIs that have been deprecated/removed
-            if (VersionManager.compareVersions(minAPI, MIN_SUPPORTED_API_VERSION) < 0) {
+            const minAPIvsMinSupported = VersionManager.compareVersions(minAPI, MIN_SUPPORTED_API_VERSION);
+            console.log("[VersionManager] minAPI vs MIN_SUPPORTED_API_VERSION:", { minAPI, MIN_SUPPORTED_API_VERSION, comparison: minAPIvsMinSupported });
+            if (minAPIvsMinSupported < 0) {
                 // Tool requires APIs older than what we support
+                console.log("[VersionManager] INCOMPATIBLE: Tool minAPI < MIN_SUPPORTED_API_VERSION");
                 return false;
             }
 
             // Tool's minAPI must be <= current ToolBox version
             // This ensures the current ToolBox has the minimum APIs the tool needs
-            if (VersionManager.compareVersions(toolboxVersion, minAPI) < 0) {
+            const toolboxVsMinAPI = VersionManager.compareVersions(toolboxVersion, minAPI);
+            console.log("[VersionManager] toolboxVersion vs minAPI:", { toolboxVersion, minAPI, comparison: toolboxVsMinAPI });
+            if (toolboxVsMinAPI < 0) {
                 // Current ToolBox version is older than what tool requires
+                console.log("[VersionManager] INCOMPATIBLE: toolboxVersion < minAPI");
                 return false;
             }
         }
@@ -89,6 +97,7 @@ export class VersionManager {
         // to work on newer ToolBox versions unless we introduce breaking changes
         // Breaking changes are tracked by updating MIN_SUPPORTED_API_VERSION
 
+        console.log("[VersionManager] COMPATIBLE");
         return true;
     }
 
