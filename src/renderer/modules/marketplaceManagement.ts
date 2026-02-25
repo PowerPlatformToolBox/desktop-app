@@ -295,7 +295,7 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}">
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? 'disabled' : ''}>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
@@ -614,6 +614,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
         metaBadges: metaBadges.map((badge) => escapeHtml(badge)),
         categories: categories,
         isInstalled,
+        isSupported: tool.isSupported,
         readmeUrl: tool.readmeUrl,
         isDarkTheme,
         repository: tool.repository,
@@ -627,6 +628,7 @@ function buildToolDetailModalHtml(tool: ToolDetail, isInstalled: boolean): strin
             toolId: tool.id,
             toolName: tool.name,
             isInstalled,
+            isSupported: tool.isSupported,
             readmeUrl: tool.readmeUrl || null,
             reviewUrl: `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`,
             repositoryUrl: tool.repository || null,

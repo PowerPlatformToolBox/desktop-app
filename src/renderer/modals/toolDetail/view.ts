@@ -14,6 +14,7 @@ export interface ToolDetailModalViewModel {
     metaBadges: string[];
     categories: string[];
     isInstalled: boolean;
+    isSupported?: boolean;
     readmeUrl?: string;
     isDarkTheme: boolean;
     repository?: string;
@@ -284,7 +285,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
                 <p class="tool-detail-authors">By ${model.authors}</p>
                 ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                 <div class="tool-detail-actions">
-                    <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""}>Install</button>
+                    <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${model.isInstalled ? 'style="display:none"' : ""} ${model.isSupported === false ? 'disabled title="This tool is not compatible with your version of Power Platform ToolBox"' : ""}>Install</button>
                     <span id="tool-detail-installed-badge" class="tool-installed-badge" ${model.isInstalled ? "" : 'style="display:none"'}>Installed</span>
                 </div>
                 ${linksMarkup}
