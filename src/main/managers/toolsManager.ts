@@ -74,6 +74,9 @@ export class ToolManager extends EventEmitter {
             readmeUrl: manifest.readme,
             publishedAt: manifest.publishedAt,
             createdAt: manifest.createdAt,
+            minAPI: manifest.minAPI,
+            maxAPI: manifest.maxAPI,
+            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
         };
 
         const cached = this.analyticsCache.get(tool.id);
