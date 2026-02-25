@@ -719,6 +719,84 @@ export class ToolRegistryManager extends EventEmitter {
         return tools.find((tool) => tool.id === toolId) || null;
     }
 
+    /**
+     * Get tool information from Supabase registry
+     */
+    async getToolFromRegistry(toolId: string): Promise<ToolRegistryEntry | null> {
+        try {
+            const { data, error } = await this.supabase
+                .from("tools")
+                .select("id, name, version, description, authors, icon, downloads, rating, mau, repository, website, readme, published_at, created_at, categories, license, min_api, max_api")
+                .eq("id", toolId)
+                .single();
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data) {
+                return null;
+            }
+
+            return {
+                id: data.id,
+                name: data.name,
+                version: data.version,
+                description: data.description || "",
+                authors: data.authors || [],
+                icon: data.icon || "",
+                downloads: data.downloads || 0,
+                rating: data.rating || 0,
+                mau: data.mau || 0,
+                repository: data.repository,
+                website: data.website,
+                readme: data.readme,
+                publishedAt: data.published_at,
+                createdAt: data.created_at,
+                categories: data.categories || [],
+                license: data.license,
+                minAPI: data.min_api,
+                maxAPI: data.max_api,
+            };
+        } catch (error) {
+            captureMessage(`[ToolRegistry] Failed to fetch tool ${toolId} from registry: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
+            return null;
+        }
+    }
+
+    /**
+     * Update fields in an installed tool's manifest
+     */
+    async updateInstalledManifest(toolId: string, updates: Partial<ToolManifest>): Promise<void> {
+        try {
+            const tools = this.readInstalledManifest();
+            const toolIndex = tools.findIndex((tool) => tool.id === toolId);
+
+            if (toolIndex === -1) {
+                throw new Error(`Tool ${toolId} not found in installed manifest`);
+            }
+
+            // Update the tool with new fields
+            tools[toolIndex] = { ...tools[toolIndex], ...updates };
+
+            // Write back to manifest file
+            const manifestData = {
+                tools: tools,
+                lastUpdated: new Date().toISOString(),
+            };
+
+            fs.writeFileSync(this.manifestPath, JSON.stringify(manifestData, null, 2), "utf-8");
+            captureMessage(`[ToolRegistry] Updated manifest for ${toolId}`, "info");
+        } catch (error) {
+            captureMessage(`[ToolRegistry] Failed to update manifest for ${toolId}: ${(error as Error).message}`, "error", {
+                extra: { error },
+            });
+            throw error;
+        }
+    }
+
     private readInstalledManifest(): ToolManifest[] {
         if (!fs.existsSync(this.manifestPath)) {
             return [];
