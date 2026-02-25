@@ -199,6 +199,8 @@ export class ToolManager extends EventEmitter {
     getTool(toolId: string): Tool | undefined {
         const tool = this.tools.get(toolId);
         if (tool) {
+            // Always recompute isSupported in case ToolBox version changed
+            tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
             return tool;
         }
 
@@ -225,13 +227,21 @@ export class ToolManager extends EventEmitter {
         const installedManifests = this.registryManager.getInstalledToolsSync();
         installedManifests.forEach((manifest) => {
             const loaded = this.tools.get(manifest.id);
-            toolsById.set(manifest.id, loaded || this.createToolFromInstalledManifest(manifest));
+            if (loaded) {
+                // Always recompute isSupported in case ToolBox version changed
+                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI, loaded.maxAPI);
+                toolsById.set(manifest.id, loaded);
+            } else {
+                toolsById.set(manifest.id, this.createToolFromInstalledManifest(manifest));
+            }
         });
 
         // Include any loaded tools that might not be in the registry manifest
         // (e.g., local dev tools).
         this.tools.forEach((tool, id) => {
             if (!toolsById.has(id)) {
+                // Recompute isSupported for these tools too
+                tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
                 toolsById.set(id, tool);
             }
         });
