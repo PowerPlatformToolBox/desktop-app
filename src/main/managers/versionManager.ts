@@ -61,14 +61,19 @@ export class VersionManager {
      *    unless breaking changes are introduced (tracked by MIN_SUPPORTED_API_VERSION)
      */
     static isToolSupported(minAPI?: string, maxAPI?: string): boolean {
+        const toolboxVersion = VersionManager.getToolBoxVersion();
+        
+        // Log all calls with stack trace
+        console.log("[VersionManager] isToolSupported called:", { minAPI, maxAPI, toolboxVersion, MIN_SUPPORTED_API_VERSION });
+        console.log("[VersionManager] Call stack:", new Error().stack);
+        
         // If no version constraints, assume compatible (legacy tools)
         if (!minAPI && !maxAPI) {
             console.log("[VersionManager] No version constraints - legacy tool is compatible");
             return true;
         }
 
-        const toolboxVersion = VersionManager.getToolBoxVersion();
-        console.log("[VersionManager] Checking compatibility:", { minAPI, maxAPI, toolboxVersion, MIN_SUPPORTED_API_VERSION });
+        console.log("[VersionManager] Checking compatibility with version constraints");
 
         // Check minimum version requirements
         if (minAPI) {
