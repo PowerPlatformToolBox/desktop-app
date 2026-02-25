@@ -830,35 +830,9 @@ jobs:
 
     publish-types:
         needs: publish-release
-        runs-on: ubuntu-latest
+        uses: ./.github/workflows/publish-npm-types.yml
+        with:
+            branch: main
+            tag: latest
+        secrets: inherit
 
-        steps:
-            - name: Checkout main branch
-              uses: actions/checkout@v4
-              with:
-                  ref: main
-                  fetch-depth: 0
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: "20"
-                  registry-url: "https://registry.npmjs.org"
-
-            - name: Install pnpm
-              run: npm install -g pnpm@10.18.3
-
-            - name: Get version
-              id: version
-              run: |
-                  VERSION=$(node -p "require('./packages/package.json').version")
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
-                  echo "📦 Publishing @pptb/types version: $VERSION"
-
-            - name: Publish @pptb/types to npm
-              working-directory: ./packages
-              run: |
-                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} to npm..."
-                  pnpm publish --access public --tag latest --no-git-checks
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

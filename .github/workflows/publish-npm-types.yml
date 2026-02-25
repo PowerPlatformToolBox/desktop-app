@@ -1,0 +1,52 @@
+name: Publish @pptb/types to npm
+
+on:
+    workflow_call:
+        inputs:
+            branch:
+                description: "Branch to checkout"
+                required: true
+                type: string
+            tag:
+                description: "npm tag (latest or beta)"
+                required: true
+                type: string
+
+permissions:
+    contents: read
+    id-token: write # Required for npm trusted publishing
+
+jobs:
+    publish-types:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout branch
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.branch }}
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  registry-url: "https://registry.npmjs.org"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Get version
+              id: version
+              run: |
+                  VERSION=$(node -p "require('./packages/package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Publishing @pptb/types version: $VERSION with tag: ${{ inputs.tag }}"
+
+            - name: Publish @pptb/types to npm
+              working-directory: ./packages
+              run: |
+                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with tag ${{ inputs.tag }} to npm..."
+                  pnpm publish --access public --tag ${{ inputs.tag }} --no-git-checks --provenance
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

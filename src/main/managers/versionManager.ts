@@ -1,4 +1,5 @@
-import { MIN_SUPPORTED_API_VERSION, TOOLBOX_VERSION } from "../constants";
+import { app } from "electron";
+import { MIN_SUPPORTED_API_VERSION } from "../constants";
 
 /**
  * Version Manager
@@ -65,6 +66,8 @@ export class VersionManager {
             return true;
         }
 
+        const toolboxVersion = VersionManager.getToolBoxVersion();
+
         // Check minimum version requirements
         if (minAPI) {
             // Tool's minAPI must be >= MIN_SUPPORTED_API_VERSION
@@ -76,7 +79,7 @@ export class VersionManager {
 
             // Tool's minAPI must be <= current ToolBox version
             // This ensures the current ToolBox has the minimum APIs the tool needs
-            if (VersionManager.compareVersions(TOOLBOX_VERSION, minAPI) < 0) {
+            if (VersionManager.compareVersions(toolboxVersion, minAPI) < 0) {
                 // Current ToolBox version is older than what tool requires
                 return false;
             }
@@ -90,10 +93,10 @@ export class VersionManager {
     }
 
     /**
-     * Get the current ToolBox version
+     * Get the current ToolBox version from Electron app
      */
     static getToolBoxVersion(): string {
-        return TOOLBOX_VERSION;
+        return app.getVersion();
     }
 
     /**
