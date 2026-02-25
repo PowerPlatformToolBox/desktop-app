@@ -75,6 +75,9 @@ export async function loadToolsLibrary(): Promise<void> {
                     repository: tool.repository,
                     website: tool.website,
                     createdAt: tool.createdAt, // Use createdAt for new tool detection
+                    minAPI: tool.minAPI, // Include min API version
+                    maxAPI: tool.maxAPI, // Include max API version
+                    isSupported: tool.isSupported, // Include compatibility status
                 }) as ToolDetail,
         );
 

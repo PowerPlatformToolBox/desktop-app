@@ -255,8 +255,17 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools() {
-        return await this.registryManager.fetchRegistry();
+    async fetchAvailableTools(): Promise<Tool[]> {
+        const registryTools = await this.registryManager.fetchRegistry();
+        
+        // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
+        return registryTools.map((registryTool) => {
+            const tool: Tool = {
+                ...registryTool,
+                isSupported: VersionManager.isToolSupported(registryTool.minAPI, registryTool.maxAPI),
+            };
+            return tool;
+        });
     }
 
     /**

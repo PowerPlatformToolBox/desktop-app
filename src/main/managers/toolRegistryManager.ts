@@ -242,6 +242,8 @@ export class ToolRegistryManager extends EventEmitter {
                 "status",
                 "repository",
                 "website",
+                "min_api",
+                "max_api",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
