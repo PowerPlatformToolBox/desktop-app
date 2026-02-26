@@ -137,6 +137,7 @@ export const UPDATE_CHANNELS = {
     DOWNLOAD_UPDATE: "download-update",
     QUIT_AND_INSTALL: "quit-and-install",
     GET_APP_VERSION: "get-app-version",
+    GET_VERSION_COMPATIBILITY_INFO: "get-version-compatibility-info",
 } as const;
 
 // Dataverse-related IPC channels

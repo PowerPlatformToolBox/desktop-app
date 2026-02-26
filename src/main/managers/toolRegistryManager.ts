@@ -775,6 +775,8 @@ export class ToolRegistryManager extends EventEmitter {
             mau: manifestEntry.mau,
             publishedAt: manifestEntry.publishedAt,
             createdAt: manifestEntry.createdAt,
+            minAPI: manifestEntry.minAPI,
+            maxAPI: manifestEntry.maxAPI,
         };
     }
 

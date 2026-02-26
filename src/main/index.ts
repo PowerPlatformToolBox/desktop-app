@@ -100,6 +100,7 @@ import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { VersionManager } from "./managers/versionManager";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -393,6 +394,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UPDATE_CHANNELS.DOWNLOAD_UPDATE);
         ipcMain.removeHandler(UPDATE_CHANNELS.QUIT_AND_INSTALL);
         ipcMain.removeHandler(UPDATE_CHANNELS.GET_APP_VERSION);
+        ipcMain.removeHandler(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO);
 
         // Dataverse handlers
         ipcMain.removeHandler(DATAVERSE_CHANNELS.CREATE);
@@ -1242,6 +1244,13 @@ class ToolBoxApp {
 
         ipcMain.handle(UPDATE_CHANNELS.GET_APP_VERSION, () => {
             return this.autoUpdateManager.getCurrentVersion();
+        });
+
+        ipcMain.handle(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO, () => {
+            return {
+                appVersion: this.autoUpdateManager.getCurrentVersion(),
+                minSupportedApiVersion: VersionManager.getMinSupportedApiVersion(),
+            };
         });
 
         // Dataverse API handlers

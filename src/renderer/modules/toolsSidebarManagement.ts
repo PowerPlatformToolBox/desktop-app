@@ -5,6 +5,7 @@
 
 import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
+import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
@@ -25,6 +26,7 @@ export async function loadSidebarTools(): Promise<void> {
         const favoriteTools = await window.toolboxAPI.getFavoriteTools();
         const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
         const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
+        const versionInfo = await window.toolboxAPI.getVersionCompatibilityInfo().catch(() => null);
 
         if (tools.length === 0) {
             toolsList.innerHTML = `
@@ -191,6 +193,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const description = tool.description || "";
                 const isDeprecated = tool.status === "deprecated";
                 const isUnsupported = tool.isSupported === false;
+                const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
                 // Show up to two categories, with a +N indicator if more remain
                 const categoriesHtml = (() => {
                     if (!tool.categories || !tool.categories.length) return "";
@@ -201,9 +204,7 @@ export async function loadSidebarTools(): Promise<void> {
                     return `${visibleHtml}${moreHtml}`;
                 })();
                 const deprecatedBadgeHtml = isDeprecated ? '<span class="tool-deprecated-badge" title="This tool is deprecated">⚠ Deprecated</span>' : "";
-                const unsupportedBadgeHtml = isUnsupported
-                    ? '<span class="tool-unsupported-badge" title="This tool requires a different version of ToolBox">⚠ Not Supported</span>'
-                    : "";
+                const unsupportedBadgeHtml = isUnsupported ? `<span class="tool-unsupported-badge" title="${getUnsupportedBadgeTitle(unsupportedRequirement)}">⚠ Not Supported</span>` : "";
 
                 // Get tool source icon
                 const sourceIconHtml = getToolSourceIconHtml(tool.id);

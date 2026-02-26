@@ -209,6 +209,7 @@ export interface ToolboxAPI {
     downloadUpdate: () => Promise<void>;
     quitAndInstall: () => Promise<void>;
     getAppVersion: () => Promise<string>;
+    getVersionCompatibilityInfo: () => Promise<{ appVersion: string; minSupportedApiVersion: string }>;
     onUpdateChecking: (callback: () => void) => void;
     onUpdateAvailable: (callback: (info: unknown) => void) => void;
     onUpdateNotAvailable: (callback: () => void) => void;

@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     downloadUpdate: () => ipcRenderer.invoke(UPDATE_CHANNELS.DOWNLOAD_UPDATE),
     quitAndInstall: () => ipcRenderer.invoke(UPDATE_CHANNELS.QUIT_AND_INSTALL),
     getAppVersion: () => ipcRenderer.invoke(UPDATE_CHANNELS.GET_APP_VERSION),
+    getVersionCompatibilityInfo: () => ipcRenderer.invoke(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO),
     onUpdateChecking: (callback: () => void) => {
         ipcRenderer.on(EVENT_CHANNELS.UPDATE_CHECKING, callback);
     },

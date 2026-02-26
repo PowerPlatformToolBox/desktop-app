@@ -73,21 +73,21 @@ This feature allows tools to declare version compatibility requirements, prevent
 ## ✅ Phase 3: Documentation (COMPLETED)
 
 - [x] Create `TOOL_VERSION_COMPATIBILITY.md` with:
-  - [x] Overview and version compatibility rules
-  - [x] Guide for tool developers
-  - [x] Guide for ToolBox maintainers
-  - [x] Guide for registry administrators
-  - [x] Technical implementation details
-  - [x] User experience documentation
-  - [x] Troubleshooting guide
+    - [x] Overview and version compatibility rules
+    - [x] Guide for tool developers
+    - [x] Guide for ToolBox maintainers
+    - [x] Guide for registry administrators
+    - [x] Technical implementation details
+    - [x] User experience documentation
+    - [x] Troubleshooting guide
 
 - [x] Create `SUPABASE_SCHEMA_UPDATES.md` with:
-  - [x] Database schema changes
-  - [x] Migration scripts
-  - [x] Validation rules
-  - [x] API changes
-  - [x] Testing procedures
-  - [x] Monitoring queries
+    - [x] Database schema changes
+    - [x] Migration scripts
+    - [x] Validation rules
+    - [x] API changes
+    - [x] Testing procedures
+    - [x] Monitoring queries
 
 - [x] Create this implementation checklist
 
@@ -97,42 +97,42 @@ This feature allows tools to declare version compatibility requirements, prevent
 
 ### Supabase Schema Migration
 
-- [ ] Connect to Supabase SQL Editor
-- [ ] Run schema update script:
-  ```sql
-  ALTER TABLE tools 
-    ADD COLUMN IF NOT EXISTS min_api TEXT,
-    ADD COLUMN IF NOT EXISTS max_api TEXT;
-  ```
+- [x] Connect to Supabase SQL Editor
+- [x] Run schema update script:
+    ```sql
+    ALTER TABLE tools
+      ADD COLUMN IF NOT EXISTS min_api TEXT,
+      ADD COLUMN IF NOT EXISTS max_api TEXT;
+    ```
 - [ ] Add column comments:
-  ```sql
-  COMMENT ON COLUMN tools.min_api IS 'Minimum ToolBox API version required';
-  COMMENT ON COLUMN tools.max_api IS 'Maximum ToolBox API version tested';
-  ```
-- [ ] Create performance indexes:
-  ```sql
-  CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api) 
-    WHERE min_api IS NOT NULL;
-  CREATE INDEX IF NOT EXISTS idx_tools_max_api ON tools(max_api) 
-    WHERE max_api IS NOT NULL;
-  CREATE INDEX IF NOT EXISTS idx_tools_versions ON tools(min_api, max_api) 
-    WHERE min_api IS NOT NULL AND max_api IS NOT NULL;
-  ```
-- [ ] Verify indexes were created:
-  ```sql
-  SELECT indexname, indexdef 
-  FROM pg_indexes 
-  WHERE tablename = 'tools' AND indexname LIKE '%api%';
-  ```
-- [ ] Test with sample data insertion
+    ```sql
+    COMMENT ON COLUMN tools.min_api IS 'Minimum ToolBox API version required';
+    COMMENT ON COLUMN tools.max_api IS 'Maximum ToolBox API version tested';
+    ```
+- [x] Create performance indexes:
+    ```sql
+    CREATE INDEX IF NOT EXISTS idx_tools_min_api ON tools(min_api)
+      WHERE min_api IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_tools_max_api ON tools(max_api)
+      WHERE max_api IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_tools_versions ON tools(min_api, max_api)
+      WHERE min_api IS NOT NULL AND max_api IS NOT NULL;
+    ```
+- [x] Verify indexes were created:
+    ```sql
+    SELECT indexname, indexdef
+    FROM pg_indexes
+    WHERE tablename = 'tools' AND indexname LIKE '%api%';
+    ```
+- [x] Test with sample data insertion
 - [ ] Document rollback procedure
 
 ### Data Migration Strategy
 
 - [ ] Decide on strategy for existing tools:
-  - Option A: Leave as NULL (backward compatible)
-  - Option B: Set to default version (e.g., "1.0.0")
-  - Option C: Backfill from tool packages
+    - Option A: Leave as NULL (backward compatible)
+    - Option B: Set to default version (e.g., "1.0.0")
+    - Option C: Backfill from tool packages
 - [ ] If backfilling, develop extraction script
 - [ ] Test backfill script on subset of tools
 - [ ] Execute backfill for all tools
@@ -151,16 +151,16 @@ This feature allows tools to declare version compatibility requirements, prevent
 ### Repository Secrets
 
 - [ ] Generate npm access token:
-  1. Log into npm account
-  2. Navigate to Access Tokens
-  3. Generate new "Automation" token
-  4. Copy token value
+    1. Log into npm account
+    2. Navigate to Access Tokens
+    3. Generate new "Automation" token
+    4. Copy token value
 - [ ] Add `NPM_TOKEN` secret to GitHub repository:
-  1. Go to repository Settings → Secrets and variables → Actions
-  2. Click "New repository secret"
-  3. Name: `NPM_TOKEN`
-  4. Value: [paste token]
-  5. Click "Add secret"
+    1. Go to repository Settings → Secrets and variables → Actions
+    2. Click "New repository secret"
+    3. Name: `NPM_TOKEN`
+    4. Value: [paste token]
+    5. Click "Add secret"
 - [ ] Verify token has publish permissions for `@pptb` scope
 - [ ] Test token with manual publish (optional)
 
@@ -179,18 +179,18 @@ This feature allows tools to declare version compatibility requirements, prevent
 
 - [ ] Modify tool submission form to mention version requirements
 - [ ] Update submission validation to check for:
-  - [ ] `features.minAPI` in package.json
-  - [ ] Valid semver format for minAPI
-  - [ ] Presence of npm-shrinkwrap.json
-  - [ ] `@pptb/types` in shrinkwrap dependencies
+    - [ ] `features.minAPI` in package.json
+    - [ ] Valid semver format for minAPI
+    - [ ] Presence of npm-shrinkwrap.json
+    - [ ] `@pptb/types` in shrinkwrap dependencies
 - [ ] Add extraction logic:
-  - [ ] Read `package.json` → extract `features.minAPI`
-  - [ ] Read `npm-shrinkwrap.json` → extract `@pptb/types` version
-  - [ ] Remove semver prefixes (^, ~) from maxAPI
+    - [ ] Read `package.json` → extract `features.minAPI`
+    - [ ] Read `npm-shrinkwrap.json` → extract `@pptb/types` version
+    - [ ] Remove semver prefixes (^, ~) from maxAPI
 - [ ] Add validation logic:
-  - [ ] Validate semver format
-  - [ ] Check minAPI <= maxAPI if both present
-  - [ ] Check minAPI >= MIN_SUPPORTED_API_VERSION
+    - [ ] Validate semver format
+    - [ ] Check minAPI <= maxAPI if both present
+    - [ ] Check minAPI >= MIN_SUPPORTED_API_VERSION
 - [ ] Update database insert/update to include version fields
 - [ ] Test with sample tool submission
 
@@ -217,43 +217,46 @@ Add to tool submission guidelines:
 
 - [ ] Draft announcement email/post
 - [ ] Include:
-  - [ ] Feature overview
-  - [ ] Why it matters
-  - [ ] How to update existing tools
-  - [ ] Link to documentation
-  - [ ] Migration deadline (if any)
+    - [ ] Feature overview
+    - [ ] Why it matters
+    - [ ] How to update existing tools
+    - [ ] Link to documentation
+    - [ ] Migration deadline (if any)
 - [ ] Post announcement in:
-  - [ ] GitHub Discussions
-  - [ ] Discord/Slack community
-  - [ ] Developer newsletter
-  - [ ] Blog post
+    - [ ] GitHub Discussions
+    - [ ] Discord/Slack community
+    - [ ] Developer newsletter
+    - [ ] Blog post
 - [ ] Send direct emails to active tool developers
 
 ### User Communication
 
 - [ ] Update main documentation/wiki
 - [ ] Add section to user guide explaining:
-  - [ ] What "Not Supported" badge means
-  - [ ] How to update ToolBox
-  - [ ] What to do if tool shows as unsupported
+    - [ ] What "Not Supported" badge means
+    - [ ] How to update ToolBox
+    - [ ] What to do if tool shows as unsupported
 - [ ] Create FAQ entries
 - [ ] Prepare support team with common questions
 
 ### Release Notes
 
 - [ ] Add to CHANGELOG.md:
-  ```markdown
-  ## [Version X.Y.Z] - YYYY-MM-DD
-  
-  ### Added
-  - Tool version compatibility checking
-  - Visual indicators for unsupported tools
-  - Automatic @pptb/types publishing in release workflow
-  
-  ### Changed
-  - Tools now require minimum version specification
-  - Install button disabled for incompatible tools
-  ```
+
+    ```markdown
+    ## [Version X.Y.Z] - YYYY-MM-DD
+
+    ### Added
+
+    - Tool version compatibility checking
+    - Visual indicators for unsupported tools
+    - Automatic @pptb/types publishing in release workflow
+
+    ### Changed
+
+    - Tools now require minimum version specification
+    - Install button disabled for incompatible tools
+    ```
 
 ---
 
@@ -262,33 +265,33 @@ Add to tool submission guidelines:
 ### Manual Testing
 
 - [ ] **Test 1: Tool Installation**
-  1. Install a test tool with version info
-  2. Verify minAPI and maxAPI are captured in manifest.json
-  3. Check tool displays correctly in sidebar
+    1. Install a test tool with version info
+    2. Verify minAPI and maxAPI are captured in manifest.json
+    3. Check tool displays correctly in sidebar
 
 - [ ] **Test 2: Compatibility Check**
-  1. Temporarily modify MIN_SUPPORTED_API_VERSION
-  2. Verify tool shows "Not Supported" badge
-  3. Attempt to launch tool
-  4. Verify warning notification appears
-  5. Restore original constant
+    1. Temporarily modify MIN_SUPPORTED_API_VERSION
+    2. Verify tool shows "Not Supported" badge
+    3. Attempt to launch tool
+    4. Verify warning notification appears
+    5. Restore original constant
 
 - [ ] **Test 3: UI Display**
-  1. View tool in sidebar (both compact and standard modes)
-  2. View tool in marketplace
-  3. Verify badge appears correctly
-  4. Verify install button is disabled
-  5. Check visual styling (opacity, border)
+    1. View tool in sidebar (both compact and standard modes)
+    2. View tool in marketplace
+    3. Verify badge appears correctly
+    4. Verify install button is disabled
+    5. Check visual styling (opacity, border)
 
 - [ ] **Test 4: Legacy Tools**
-  1. Install a tool without version info
-  2. Verify it's treated as compatible (no badge)
-  3. Verify it can be launched normally
+    1. Install a tool without version info
+    2. Verify it's treated as compatible (no badge)
+    3. Verify it can be launched normally
 
 - [ ] **Test 5: Marketplace Filtering**
-  1. Browse marketplace with various ToolBox versions
-  2. Verify unsupported tools are clearly marked
-  3. Verify install button behavior
+    1. Browse marketplace with various ToolBox versions
+    2. Verify unsupported tools are clearly marked
+    3. Verify install button behavior
 
 ### Automated Testing
 
@@ -354,10 +357,10 @@ If critical issues are discovered:
 ### Database Rollback
 
 1. Backup current data:
-   ```sql
-   CREATE TABLE tools_version_backup AS
-   SELECT id, min_api, max_api FROM tools;
-   ```
+    ```sql
+    CREATE TABLE tools_version_backup AS
+    SELECT id, min_api, max_api FROM tools;
+    ```
 2. Drop indexes and constraints
 3. Remove columns
 4. Restore from backup if needed
@@ -391,28 +394,27 @@ The feature is considered successfully implemented when:
 
 ## Resources
 
-- **Documentation**: 
-  - `docs/TOOL_VERSION_COMPATIBILITY.md`
-  - `docs/SUPABASE_SCHEMA_UPDATES.md`
-  
+- **Documentation**:
+    - `docs/TOOL_VERSION_COMPATIBILITY.md`
+    - `docs/SUPABASE_SCHEMA_UPDATES.md`
 - **Code Changes**:
-  - `src/common/types/tool.ts`
-  - `src/main/constants.ts`
-  - `src/main/managers/toolsManager.ts`
-  - `src/main/managers/toolRegistryManager.ts`
-  - `src/renderer/modules/toolManagement.ts`
-  - `src/renderer/modules/toolsSidebarManagement.ts`
-  - `src/renderer/modules/marketplaceManagement.ts`
-  - `src/renderer/styles.scss`
+    - `src/common/types/tool.ts`
+    - `src/main/constants.ts`
+    - `src/main/managers/toolsManager.ts`
+    - `src/main/managers/toolRegistryManager.ts`
+    - `src/renderer/modules/toolManagement.ts`
+    - `src/renderer/modules/toolsSidebarManagement.ts`
+    - `src/renderer/modules/marketplaceManagement.ts`
+    - `src/renderer/styles.scss`
 
 - **Workflows**:
-  - `.github/workflows/prod-release.yml`
-  - `.github/workflows/nightly-release.yml`
+    - `.github/workflows/prod-release.yml`
+    - `.github/workflows/nightly-release.yml`
 
 - **External Resources**:
-  - [Semantic Versioning](https://semver.org/)
-  - [npm Shrinkwrap Docs](https://docs.npmjs.com/cli/v8/commands/npm-shrinkwrap)
-  - [Supabase Documentation](https://supabase.com/docs)
+    - [Semantic Versioning](https://semver.org/)
+    - [npm Shrinkwrap Docs](https://docs.npmjs.com/cli/v8/commands/npm-shrinkwrap)
+    - [Supabase Documentation](https://supabase.com/docs)
 
 ---
 

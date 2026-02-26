@@ -8,6 +8,7 @@ import type { ModalWindowClosedPayload, ModalWindowMessagePayload, Tool } from "
 import { getToolDetailModalControllerScript } from "../modals/toolDetail/controller";
 import { getToolDetailModalView } from "../modals/toolDetail/view";
 import type { ToolDetail } from "../types/index";
+import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadSidebarTools } from "./toolsSidebarManagement";
@@ -113,6 +114,7 @@ export async function loadMarketplace(): Promise<void> {
 
     // Get display mode setting
     const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
+    const versionInfo = await window.toolboxAPI.getVersionCompatibilityInfo().catch(() => null);
 
     // Get filter and sort values
     const searchInput = document.getElementById("marketplace-search-input") as HTMLInputElement | null;
@@ -238,8 +240,9 @@ export async function loadMarketplace(): Promise<void> {
             const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const isDeprecated = tool.status === "deprecated";
             const isUnsupported = tool.isSupported === false;
+            const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
             const deprecatedBadgeHtml = isDeprecated ? '<span class="marketplace-item-deprecated-badge">Deprecated</span>' : "";
-            const unsupportedBadgeHtml = isUnsupported ? '<span class="marketplace-item-unsupported-badge">Not Supported</span>' : "";
+            const unsupportedBadgeHtml = isUnsupported ? `<span class="marketplace-item-unsupported-badge" title="${getUnsupportedBadgeTitle(unsupportedRequirement)}">Not Supported</span>` : "";
             const newBadgeHtml = isNewTool ? '<span class="marketplace-item-new-badge">NEW</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
@@ -270,7 +273,7 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? 'disabled' : ''}>
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? "disabled" : ""}>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>
@@ -295,7 +298,7 @@ export async function loadMarketplace(): Promise<void> {
                     ${
                         isInstalled
                             ? '<span class="marketplace-item-installed-icon" title="Installed">✓</span>'
-                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? 'disabled' : ''}>
+                            : `<button class="install-button" data-action="install" data-tool-id="${tool.id}" aria-label="Install ${tool.name}" title="Install ${tool.name}" ${isUnsupported ? "disabled" : ""}>
                             <img width="18" height="18" src="${defaultInstallIcon}" alt="" aria-hidden="true" /></button>`
                     }
                 </div>

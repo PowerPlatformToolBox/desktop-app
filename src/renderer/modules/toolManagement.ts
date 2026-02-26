@@ -6,6 +6,7 @@
 import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
+import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
@@ -97,9 +98,18 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Check if tool is supported by current ToolBox version
         if (tool.isSupported === false) {
+            const versionInfo = await window.toolboxAPI.getVersionCompatibilityInfo().catch((error) => {
+                logWarn("Failed to retrieve version compatibility info for unsupported tool message", {
+                    error: error instanceof Error ? error.message : String(error),
+                    toolId,
+                });
+                return null;
+            });
+
+            const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Not Supported",
-                body: `${tool.name} requires a different version of Power Platform ToolBox. Please update your ToolBox to use this tool.`,
+                body: getUnsupportedToolMessage(tool.name, unsupportedRequirement),
                 type: "warning",
             });
             return;
