@@ -49,6 +49,8 @@ export class ToolManager extends EventEmitter {
             this.emit("tool:installed", manifest);
         });
         this.registryManager.on("tool:uninstalled", (toolId) => {
+            // Clear from cache when uninstalled
+            this.tools.delete(toolId);
             this.emit("tool:uninstalled", toolId);
         });
     }
@@ -105,32 +107,10 @@ export class ToolManager extends EventEmitter {
     async loadTool(toolId: string): Promise<Tool> {
         try {
             // Load from registry manifest
-            let manifest = await this.registryManager.getInstalledManifest(toolId);
+            const manifest = await this.registryManager.getInstalledManifest(toolId);
             if (!manifest) {
                 throw new Error(`Tool ${toolId} not found in registry`);
             }
-
-            // Migration: If manifest is missing version fields, try to fetch from registry
-            if (!manifest.minAPI && !manifest.maxAPI) {
-                try {
-                    const registryEntry = await this.registryManager.getToolFromRegistry(toolId);
-                    if (registryEntry && (registryEntry.minAPI || registryEntry.maxAPI)) {
-                        // Update manifest with version info
-                        manifest.minAPI = registryEntry.minAPI;
-                        manifest.maxAPI = registryEntry.maxAPI;
-                        // Update the stored manifest
-                        await this.registryManager.updateInstalledManifest(toolId, {
-                            minAPI: manifest.minAPI,
-                            maxAPI: manifest.maxAPI,
-                        });
-                        captureMessage(`[ToolManager] Updated manifest for ${toolId} with version info from registry`, "info");
-                    }
-                } catch (error) {
-                    // Non-fatal - tool will be treated as legacy
-                    captureMessage(`[ToolManager] Failed to migrate version info for ${toolId}:`, "warning", { extra: { error } });
-                }
-            }
-
             const tool = this.loadToolFromManifest(manifest);
 
             // Refresh analytics for this tool only (non-blocking)

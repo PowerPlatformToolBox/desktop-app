@@ -61,12 +61,12 @@ export class VersionManager {
      *    unless breaking changes are introduced (tracked by MIN_SUPPORTED_API_VERSION)
      */
     static isToolSupported(minAPI?: string, maxAPI?: string): boolean {
+        const toolboxVersion = VersionManager.getToolBoxVersion();
+        
         // If no version constraints, assume compatible (legacy tools)
         if (!minAPI && !maxAPI) {
             return true;
         }
-
-        const toolboxVersion = VersionManager.getToolBoxVersion();
 
         // Check minimum version requirements
         if (minAPI) {
