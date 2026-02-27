@@ -49,8 +49,8 @@ export interface Tool {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
-    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }
 

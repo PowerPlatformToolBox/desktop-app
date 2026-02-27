@@ -47,6 +47,7 @@ export class VersionManager {
             }
         }
 
+        // TODO: For future enhancement, if installed ToolBox version is less than the the API tool is built on
         // maxAPI is informational only - tools built with older APIs will continue
         // to work on newer ToolBox versions unless we introduce breaking changes
         // Breaking changes are tracked by updating MIN_SUPPORTED_API_VERSION
