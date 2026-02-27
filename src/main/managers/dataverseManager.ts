@@ -418,7 +418,8 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const entitySetName = this.getEntitySetName(entityLogicalName);
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/${entitySetName}(${id})`);
-
+        //console.log("Delete URL:", url);
+       // const url2 = "https://orgb8b744e5.crm.dynamics.com/api/data/v9.2/RelationshipDefinitions(ba273702-1614-f111-8341-6045bd0a6647)";
         await this.makeHttpRequest(url, "DELETE", accessToken);
     }
 
@@ -437,6 +438,7 @@ export class DataverseManager {
             usersettingscollection: "usersettingscollection",
             principalobjectaccess: "principalobjectaccessset",
             webresource: "webresourceset",
+            relationshipdefinition: "RelationshipDefinitions"
         };
 
         const lowerName = entityLogicalName.toLowerCase();
