@@ -71,6 +71,7 @@ jobs:
             - name: Publish @pptb/types to npm
               working-directory: ./packages
               run: |
-                  printf "registry=https://registry.npmjs.org/\n" > "$NPM_CONFIG_USERCONFIG"
                   echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with tag ${{ inputs.tag }} to npm..."
                   npm publish --access public --tag ${{ inputs.tag }} --provenance
+              env:
+                  NODE_AUTH_TOKEN: "" # Forces npm to use the OCDC token for authentication
