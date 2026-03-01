@@ -220,24 +220,15 @@ export class ProtocolHandlerManager {
     }
 
     /**
-     * Sanitize and validate toolName
+     * Sanitize and validate toolName (expects an already-decoded value)
      */
     private sanitizeToolName(toolName: string): string {
         if (!toolName || typeof toolName !== "string") {
             return "";
         }
 
-        // Decode URL encoding
-        let decoded = toolName;
-        try {
-            decoded = decodeURIComponent(toolName);
-        } catch (error) {
-            // If decode fails, use original
-            captureMessage("[ProtocolHandler] Failed to decode toolName", "warning", { extra: { toolName } });
-        }
-
         // Trim and limit length
-        const trimmed = decoded.trim();
+        const trimmed = toolName.trim();
         return trimmed.substring(0, ProtocolHandlerManager.MAX_TOOL_NAME_LENGTH);
     }
 
