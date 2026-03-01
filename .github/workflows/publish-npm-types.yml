@@ -1,6 +1,20 @@
 name: Publish @pptb/types to npm
 
 on:
+    workflow_dispatch:
+        inputs:
+            branch:
+                description: "Branch to checkout"
+                required: true
+                type: string
+            tag:
+                description: "npm tag (latest or beta)"
+                required: true
+                type: string
+            version:
+                description: "Version to publish for @pptb/types (must match app version)"
+                required: false
+                type: string
     workflow_call:
         inputs:
             branch:
@@ -35,7 +49,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
-                  registry-url: "https://registry.npmjs.org/"
 
             - name: Get version
               id: version
