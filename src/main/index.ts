@@ -2773,6 +2773,11 @@ class ToolBoxApp {
             this.protocolHandlerManager.registerScheme();
             addBreadcrumb("Registered pptb:// protocol scheme", "init", "info");
 
+            // Initialize early protocol listeners (single-instance lock, open-url, second-instance)
+            // MUST be called before app.whenReady() so no deep link is missed.
+            this.protocolHandlerManager.initialize();
+            addBreadcrumb("Protocol handler early listeners registered", "init", "info");
+
             await app.whenReady();
             logCheckpoint("Electron app ready");
 
@@ -2780,7 +2785,13 @@ class ToolBoxApp {
             this.browserviewProtocolManager.registerHandler();
             addBreadcrumb("Registered protocol handler", "init", "info");
 
-            // Set up deep link protocol handler callback
+            this.createWindow();
+            logCheckpoint("Main window created");
+
+            // Set up deep link protocol handler callback after the main window exists.
+            // The callback defers IPC delivery until the renderer has finished loading so
+            // that protocol URLs captured during startup (buffered in pendingUrls) are
+            // reliably delivered even on a cold launch via pptb://.
             this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
                 logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
@@ -2792,18 +2803,27 @@ class ToolBoxApp {
                     this.mainWindow.focus();
                 }
 
-                // Send event to renderer to handle tool installation
+                // Deliver the IPC event to the renderer.  If the renderer is still
+                // loading (e.g. cold launch via protocol URL), defer until it finishes.
                 if (this.mainWindow) {
-                    this.mainWindow.webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
-                        toolId: params.toolId,
-                        toolName: params.toolName,
-                    });
+                    const webContents = this.mainWindow.webContents;
+                    const deliver = (): void => {
+                        if (!webContents.isDestroyed()) {
+                            webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
+                                toolId: params.toolId,
+                                toolName: params.toolName,
+                            });
+                        }
+                    };
+
+                    if (webContents.isLoading()) {
+                        webContents.once("did-finish-load", deliver);
+                    } else {
+                        deliver();
+                    }
                 }
             });
             addBreadcrumb("Protocol handler callback registered", "init", "info");
-
-            this.createWindow();
-            logCheckpoint("Main window created");
 
             // Load all installed tools from registry
             try {
