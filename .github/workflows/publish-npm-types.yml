@@ -35,7 +35,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
-                  registry-url: "https://registry.npmjs.org"
 
             - name: Get version
               id: version
@@ -56,6 +55,9 @@ jobs:
 
             - name: Publish @pptb/types to npm
               working-directory: ./packages
+              env:
+                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
               run: |
+                  printf "registry=https://registry.npmjs.org/\n" > "$NPM_CONFIG_USERCONFIG"
                   echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with tag ${{ inputs.tag }} to npm..."
                   npm publish --access public --tag ${{ inputs.tag }} --provenance
