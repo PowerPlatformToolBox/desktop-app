@@ -227,9 +227,28 @@ export class ProtocolHandlerManager {
             return "";
         }
 
-        // Trim and limit length
-        const trimmed = toolName.trim();
-        return trimmed.substring(0, ProtocolHandlerManager.MAX_TOOL_NAME_LENGTH);
+        // Trim and limit length before escaping
+        const trimmed = decoded.trim().substring(0, ProtocolHandlerManager.MAX_TOOL_NAME_LENGTH);
+
+        // HTML-encode special characters to prevent HTML/JS injection when rendered in notification HTML
+        const escaped = trimmed.replace(/[&<>"']/g, (char) => {
+            switch (char) {
+                case "&":
+                    return "&amp;";
+                case "<":
+                    return "&lt;";
+                case ">":
+                    return "&gt;";
+                case "\"":
+                    return "&quot;";
+                case "'":
+                    return "&#39;";
+                default:
+                    return char;
+            }
+        });
+
+        return escaped;
     }
 
     /**
