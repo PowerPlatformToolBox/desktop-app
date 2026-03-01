@@ -75,3 +75,4 @@ jobs:
                   npm publish --access public --tag ${{ inputs.tag }} --provenance
               env:
                   NODE_AUTH_TOKEN: "" # Forces npm to use the OCDC token for authentication
+                  NPM_CONFIG_USERCONFIG: "" # Prevents npm from using any user-level config that might interfere with CI publishing
