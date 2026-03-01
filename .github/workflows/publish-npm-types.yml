@@ -1,0 +1,63 @@
+name: Publish @pptb/types to npm
+
+on:
+    workflow_call:
+        inputs:
+            branch:
+                description: "Branch to checkout"
+                required: true
+                type: string
+            tag:
+                description: "npm tag (latest or beta)"
+                required: true
+                type: string
+            version:
+                description: "Version to publish for @pptb/types (must match app version)"
+                required: false
+                type: string
+
+permissions:
+    contents: read
+    id-token: write # Required for npm trusted publishing
+
+jobs:
+    publish-types:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout branch
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.branch }}
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Get version
+              id: version
+              run: |
+                  if [ -n "${{ inputs.version }}" ]; then
+                    VERSION="${{ inputs.version }}"
+                  else
+                    VERSION=$(node -p "require('./package.json').version")
+                  fi
+
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "📦 Publishing @pptb/types version: $VERSION with tag: ${{ inputs.tag }}"
+
+            - name: Sync @pptb/types version to app version
+              working-directory: ./packages
+              run: |
+                  npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+
+            - name: Publish @pptb/types to npm
+              working-directory: ./packages
+              env:
+                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
+              run: |
+                  printf "registry=https://registry.npmjs.org/\n" > "$NPM_CONFIG_USERCONFIG"
+                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with tag ${{ inputs.tag }} to npm..."
+                  npm publish --access public --tag ${{ inputs.tag }} --provenance
