@@ -49,14 +49,22 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
     const onMessage = (payload: { channel: string; data?: unknown }) => {
         if (!payload) return;
         if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.download) {
-            window.toolboxAPI.downloadUpdate().catch(() => undefined);
+            window.toolboxAPI.downloadUpdate().catch((error: unknown) => {
+                void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: (error as Error)?.message ?? "Failed to download the update. Please check your connection and try again." } }).catch(() => undefined);
+            });
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.install) {
-            window.toolboxAPI.quitAndInstall();
+            window.toolboxAPI.quitAndInstall().catch((error: unknown) => {
+                void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: (error as Error)?.message ?? "Failed to restart and install the update." } }).catch(() => undefined);
+            });
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.openExternal) {
             const url = (payload.data as { url?: string })?.url;
             if (url) {
                 window.toolboxAPI.openExternal(url).catch(() => undefined);
             }
+        } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.dismiss) {
+            // The modal is closing. autoInstallOnAppQuit=true means a downloaded update
+            // will automatically be installed when the app quits normally, so no explicit
+            // action is required here regardless of the installOnExit payload value.
         }
     };
 
@@ -262,5 +270,8 @@ export function setupAutoUpdateListeners(): void {
         hideUpdateProgress();
         showUpdateStatus(`Update error: ${error}`, "error");
         updateCheckForUpdatesUI("error", `Update error: ${error}`);
+        if (updateModalOpen) {
+            void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: error } }).catch(() => undefined);
+        }
     });
 }
