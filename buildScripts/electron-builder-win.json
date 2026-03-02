@@ -35,5 +35,13 @@
         "allowToChangeInstallationDirectory": true,
         "createDesktopShortcut": true,
         "createStartMenuShortcut": true
-    }
+    },
+    "protocols": [
+        {
+            "name": "Power Platform ToolBox Protocol",
+            "schemes": [
+                "pptb"
+            ]
+        }
+    ]
 }

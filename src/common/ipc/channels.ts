@@ -190,6 +190,11 @@ export const DATAVERSE_CHANNELS = {
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
 } as const;
 
+// Protocol handler-related IPC channels
+export const PROTOCOL_CHANNELS = {
+    PROTOCOL_INSTALL_TOOL: "protocol:install-tool",
+} as const;
+
 // Event-related IPC channels (from main to renderer)
 export const EVENT_CHANNELS = {
     TOOLBOX_EVENT: "toolbox-event",
@@ -211,6 +216,7 @@ export const EVENT_CHANNELS = {
     MODAL_WINDOW_MESSAGE: "modal-window:message",
     TOOL_UPDATE_STARTED: "tool:update-started",
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
+    PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

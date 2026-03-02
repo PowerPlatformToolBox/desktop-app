@@ -94,6 +94,7 @@ import { InstallIdManager } from "./managers/installIdManager";
 import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
@@ -112,6 +113,7 @@ class ToolBoxApp {
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
+    private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
     private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
@@ -152,6 +154,7 @@ class ToolBoxApp {
                 process.env.AZURE_BLOB_BASE_URL,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
+            this.protocolHandlerManager = new ProtocolHandlerManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager);
@@ -2876,6 +2879,15 @@ class ToolBoxApp {
             this.browserviewProtocolManager.registerScheme();
             addBreadcrumb("Registered custom protocol scheme", "init", "info");
 
+            // Register deep link protocol handler (pptb://)
+            this.protocolHandlerManager.registerScheme();
+            addBreadcrumb("Registered pptb:// protocol scheme", "init", "info");
+
+            // Initialize early protocol listeners (single-instance lock, open-url, second-instance)
+            // MUST be called before app.whenReady() so no deep link is missed.
+            this.protocolHandlerManager.initialize();
+            addBreadcrumb("Protocol handler early listeners registered", "init", "info");
+
             await app.whenReady();
             logCheckpoint("Electron app ready");
 
@@ -2885,6 +2897,43 @@ class ToolBoxApp {
 
             this.createWindow();
             logCheckpoint("Main window created");
+
+            // Set up deep link protocol handler callback after the main window exists.
+            // The callback defers IPC delivery until the renderer has finished loading so
+            // that protocol URLs captured during startup (buffered in pendingUrls) are
+            // reliably delivered even on a cold launch via pptb://.
+            this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
+                logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
+
+                // Bring app window to focus
+                if (this.mainWindow) {
+                    if (this.mainWindow.isMinimized()) {
+                        this.mainWindow.restore();
+                    }
+                    this.mainWindow.focus();
+                }
+
+                // Deliver the IPC event to the renderer.  If the renderer is still
+                // loading (e.g. cold launch via protocol URL), defer until it finishes.
+                if (this.mainWindow) {
+                    const webContents = this.mainWindow.webContents;
+                    const deliver = (): void => {
+                        if (!webContents.isDestroyed()) {
+                            webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
+                                toolId: params.toolId,
+                                toolName: params.toolName,
+                            });
+                        }
+                    };
+
+                    if (webContents.isLoading()) {
+                        webContents.once("did-finish-load", deliver);
+                    } else {
+                        deliver();
+                    }
+                }
+            });
+            addBreadcrumb("Protocol handler callback registered", "init", "info");
 
             // Load all installed tools from registry
             try {
