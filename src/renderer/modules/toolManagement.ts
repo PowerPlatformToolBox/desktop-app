@@ -321,28 +321,37 @@ export async function createTab(instanceId: string, tool: any, instanceNumber: n
     name.textContent = displayName;
     name.title = displayName;
 
-    // Get environment name from connection and add as subtext
+    // Get connection name and environment from connection and add as subtext
     let environmentSubtext = "";
     try {
         const openTool = openTools.get(instanceId);
-        const connections = await window.toolboxAPI.connections.getAll();
-        
-        const primaryEnv = openTool?.connectionId 
-            ? connections.find((c: any) => c.id === openTool.connectionId)?.environment 
-            : null;
-        
-        const secondaryEnv = openTool?.secondaryConnectionId 
-            ? connections.find((c: any) => c.id === openTool.secondaryConnectionId)?.environment 
-            : null;
-        
-        // Display both environments if both exist, otherwise just the primary
-        if (primaryEnv && secondaryEnv) {
-            environmentSubtext = `${primaryEnv} / ${secondaryEnv}`;
-        } else if (primaryEnv) {
-            environmentSubtext = primaryEnv;
+
+        let primaryLabel: string | null = null;
+        let secondaryLabel: string | null = null;
+
+        if (openTool?.connectionId) {
+            const primaryConnection = await window.toolboxAPI.connections.getById(openTool.connectionId);
+            if (primaryConnection) {
+                primaryLabel = `${primaryConnection.name} (${primaryConnection.environment})`;
+            }
+        }
+
+        if (openTool?.secondaryConnectionId) {
+            const secondaryConnection = await window.toolboxAPI.connections.getById(openTool.secondaryConnectionId);
+            if (secondaryConnection) {
+                secondaryLabel = `${secondaryConnection.name} (${secondaryConnection.environment})`;
+            }
+        }
+
+        // Display both connections if both exist, otherwise just the primary
+        if (primaryLabel && secondaryLabel) {
+            environmentSubtext = `${primaryLabel} / ${secondaryLabel}`;
+        } else if (primaryLabel) {
+            environmentSubtext = primaryLabel;
         }
     } catch (error) {
-        logWarn("Failed to fetch environment name for tab:", { error });
+        const normalizedError = error instanceof Error ? error.message : String(error);
+        logWarn("Failed to fetch environment name for tab:", { error: normalizedError });
     }
 
     // Create a container for the name and subtext
