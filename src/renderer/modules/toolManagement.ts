@@ -332,14 +332,14 @@ export async function createTab(instanceId: string, tool: any, instanceNumber: n
         if (openTool?.connectionId) {
             const primaryConnection = await window.toolboxAPI.connections.getById(openTool.connectionId);
             if (primaryConnection) {
-                primaryLabel = `${primaryConnection.name} (${primaryConnection.environment})`;
+                primaryLabel = primaryConnection.name;
             }
         }
 
         if (openTool?.secondaryConnectionId) {
             const secondaryConnection = await window.toolboxAPI.connections.getById(openTool.secondaryConnectionId);
             if (secondaryConnection) {
-                secondaryLabel = `${secondaryConnection.name} (${secondaryConnection.environment})`;
+                secondaryLabel = secondaryConnection.name;
             }
         }
 
