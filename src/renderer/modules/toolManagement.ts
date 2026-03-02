@@ -276,7 +276,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         });
 
         // Create and add tab with instance number if multiple instances exist
-        createTab(instanceId, tool, instanceNumber);
+        await createTab(instanceId, tool, instanceNumber);
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(instanceId);
@@ -304,7 +304,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 /**
  * Create a tab for a tool instance
  */
-export function createTab(instanceId: string, tool: any, instanceNumber: number = 1): void {
+export async function createTab(instanceId: string, tool: any, instanceNumber: number = 1): Promise<void> {
     const toolTabs = document.getElementById("tool-tabs");
     if (!toolTabs) return;
 
@@ -320,6 +320,43 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     const displayName = instanceNumber > 1 ? `${tool.name} (${instanceNumber})` : tool.name;
     name.textContent = displayName;
     name.title = displayName;
+
+    // Get environment name from connection and add as subtext
+    let environmentSubtext = "";
+    try {
+        const openTool = openTools.get(instanceId);
+        const connections = await window.toolboxAPI.connections.getAll();
+        
+        const primaryEnv = openTool?.connectionId 
+            ? connections.find((c: any) => c.id === openTool.connectionId)?.environment 
+            : null;
+        
+        const secondaryEnv = openTool?.secondaryConnectionId 
+            ? connections.find((c: any) => c.id === openTool.secondaryConnectionId)?.environment 
+            : null;
+        
+        // Display both environments if both exist, otherwise just the primary
+        if (primaryEnv && secondaryEnv) {
+            environmentSubtext = `${primaryEnv} / ${secondaryEnv}`;
+        } else if (primaryEnv) {
+            environmentSubtext = primaryEnv;
+        }
+    } catch (error) {
+        logWarn("Failed to fetch environment name for tab:", { error });
+    }
+
+    // Create a container for the name and subtext
+    const nameContainer = document.createElement("div");
+    nameContainer.className = "tool-tab-name-container";
+    nameContainer.appendChild(name);
+
+    // Add environment name as subtext if available
+    if (environmentSubtext) {
+        const subtext = document.createElement("span");
+        subtext.className = "tool-tab-subtext";
+        subtext.textContent = environmentSubtext;
+        nameContainer.appendChild(subtext);
+    }
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -378,7 +415,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
-    tab.appendChild(name);
+    tab.appendChild(nameContainer);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
