@@ -4,6 +4,7 @@
  */
 
 import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
+import { marked } from "marked";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
@@ -569,8 +570,6 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     void loadToolReadme(panel, tool.readmeUrl);
 }
 
-const MARKED_CDN_SRC = "https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js";
-
 async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<void> {
     const readmeContainer = panel.querySelector<HTMLElement>("#tool-detail-readme-content");
     if (!readmeContainer) return;
@@ -582,14 +581,9 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
         const response = await fetch(readmeUrl, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const markdown = await response.text();
-        const markedLib = await ensureMarkedLoaded();
-        if (markedLib && typeof markedLib.parse === "function") {
-            // Note: marked renders markdown to HTML; README content comes from tool authors' repositories.
-            // Script tags injected via innerHTML are not executed by browsers, limiting script injection risk.
-            readmeContainer.innerHTML = markedLib.parse(markdown);
-        } else {
-            readmeContainer.textContent = markdown;
-        }
+        // Note: marked renders markdown to HTML; README content comes from tool authors' repositories.
+        // Script tags injected via innerHTML are not executed by browsers, limiting script injection risk.
+        readmeContainer.innerHTML = marked.parse(markdown) as string;
         // Open all links in the README via the external browser
         readmeContainer.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
             a.addEventListener("click", (e) => {
@@ -609,26 +603,6 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
         });
         readmeContainer.textContent = "Unable to load README.";
     }
-}
-
-function ensureMarkedLoaded(): Promise<{ parse: (src: string) => string } | undefined> {
-    const win = window as Window & { marked?: { parse: (src: string) => string } };
-    if (win.marked) return Promise.resolve(win.marked);
-    return new Promise((resolve) => {
-        const existing = document.querySelector(`script[data-third-party="marked"]`);
-        if (existing) {
-            existing.addEventListener("load", () => resolve(win.marked));
-            existing.addEventListener("error", () => resolve(undefined));
-            return;
-        }
-        const script = document.createElement("script");
-        script.src = MARKED_CDN_SRC;
-        script.async = true;
-        script.dataset.thirdParty = "marked";
-        script.onload = () => resolve(win.marked);
-        script.onerror = () => resolve(undefined);
-        document.head.appendChild(script);
-    });
 }
 
 function buildToolIconHtml(tool: ToolDetail): string {

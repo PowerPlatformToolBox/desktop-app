@@ -424,8 +424,8 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
 
     const name = document.createElement("span");
     name.className = "tool-tab-name";
-    name.textContent = displayName;
-    name.title = `${displayName} – Details`;
+    name.textContent = `${displayName} - Details`;
+    name.title = `${displayName} - Details`;
     tab.appendChild(name);
 
     const closeBtn = document.createElement("button");
@@ -519,6 +519,12 @@ export async function switchToTool(instanceId: string): Promise<void> {
             });
         });
 
+        // Hide the BrowserView placeholder so detail panel gets full space
+        const toolPanelContent = document.getElementById("tool-panel-content");
+        if (toolPanelContent) {
+            toolPanelContent.style.display = "none";
+        }
+
         // Show detail panel and populate with this tab's content
         const detailPanel = document.getElementById("tool-detail-content-panel");
         if (detailPanel) {
@@ -538,7 +544,11 @@ export async function switchToTool(instanceId: string): Promise<void> {
         return;
     }
 
-    // Regular tool tab: hide detail panel, show BrowserView
+    // Regular tool tab: restore tool-panel-content, hide detail panel, show BrowserView
+    const toolPanelContent = document.getElementById("tool-panel-content");
+    if (toolPanelContent) {
+        toolPanelContent.style.display = "";
+    }
     const detailPanel = document.getElementById("tool-detail-content-panel");
     if (detailPanel) {
         detailPanel.style.display = "none";
@@ -588,6 +598,11 @@ export function closeTool(instanceId: string): void {
             if (detailPanel) {
                 detailPanel.style.display = "none";
                 detailPanel.removeAttribute("data-tab-id");
+            }
+            // Restore tool-panel-content visibility for when a real tool is shown next
+            const toolPanelContent = document.getElementById("tool-panel-content");
+            if (toolPanelContent) {
+                toolPanelContent.style.display = "";
             }
         }
     } else {
