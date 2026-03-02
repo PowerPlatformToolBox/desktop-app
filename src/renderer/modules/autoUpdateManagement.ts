@@ -49,15 +49,21 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
     const onMessage = (payload: { channel: string; data?: unknown }) => {
         if (!payload) return;
         if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.download) {
-            window.toolboxAPI.downloadUpdate().catch(() => undefined);
+            window.toolboxAPI.downloadUpdate().catch((error: unknown) => {
+                void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: (error as Error)?.message ?? "Failed to download the update. Please check your connection and try again." } }).catch(() => undefined);
+            });
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.install) {
-            window.toolboxAPI.quitAndInstall();
+            window.toolboxAPI.quitAndInstall().catch((error: unknown) => {
+                void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: (error as Error)?.message ?? "Failed to restart and install the update." } }).catch(() => undefined);
+            });
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.openExternal) {
             const url = (payload.data as { url?: string })?.url;
             if (url) {
                 window.toolboxAPI.openExternal(url).catch(() => undefined);
             }
         }
+        // Note: The dismiss channel is handled by the autoInstallOnAppQuit=true setting,
+        // which automatically installs the update when the app exits normally.
     };
 
     const onClosed = () => {
@@ -262,5 +268,8 @@ export function setupAutoUpdateListeners(): void {
         hideUpdateProgress();
         showUpdateStatus(`Update error: ${error}`, "error");
         updateCheckForUpdatesUI("error", `Update error: ${error}`);
+        if (updateModalOpen) {
+            void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: error } }).catch(() => undefined);
+        }
     });
 }

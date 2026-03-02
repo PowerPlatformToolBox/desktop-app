@@ -28,6 +28,12 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
     const progressFill = document.getElementById("update-progress-fill");
     const progressLabel = document.getElementById("update-progress-label");
 
+    // effectiveType tracks the current state and is updated when a download
+    // completes inside an already-open "available" modal, so the action button
+    // correctly sends "install" instead of "download" after the transition, and
+    // the dismiss logic correctly sets installOnExit only when in "downloaded" state.
+    let effectiveType = CONFIG.type;
+
     const setDownloadingState = (percent) => {
         if (progressWrap) progressWrap.style.display = "flex";
         if (progressFill) progressFill.style.width = percent + "%";
@@ -41,9 +47,25 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
         }
     };
 
+    const setErrorState = (message) => {
+        if (progressWrap) progressWrap.style.display = "none";
+        if (actionBtn instanceof HTMLButtonElement) {
+            actionBtn.disabled = false;
+            actionBtn.textContent = effectiveType === "downloaded" ? "Restart & Install Now" : "Download & Install";
+        }
+        if (laterBtn instanceof HTMLButtonElement) {
+            laterBtn.disabled = false;
+        }
+        if (progressLabel) {
+            progressLabel.textContent = message || "Unable to complete update. Please check your connection and try again.";
+            progressLabel.style.color = "#d13438";
+            if (progressWrap) progressWrap.style.display = "flex";
+        }
+    };
+
     actionBtn?.addEventListener("click", () => {
         if (!(actionBtn instanceof HTMLButtonElement) || actionBtn.disabled) return;
-        if (CONFIG.type === "available") {
+        if (effectiveType === "available") {
             setDownloadingState(0);
             modalBridge.send(CONFIG.channels.download, {});
         } else {
@@ -57,7 +79,7 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
 
     laterBtn?.addEventListener("click", () => {
         if (!(laterBtn instanceof HTMLButtonElement) || laterBtn.disabled) return;
-        modalBridge.send(CONFIG.channels.dismiss, { installOnExit: CONFIG.type === "downloaded" });
+        modalBridge.send(CONFIG.channels.dismiss, { installOnExit: effectiveType === "downloaded" });
         modalBridge.close();
     });
 
@@ -84,6 +106,7 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
             setDownloadingState(percent);
         }
         if (payload.channel === "update:downloaded") {
+            effectiveType = "downloaded";
             if (progressWrap) progressWrap.style.display = "none";
             if (actionBtn instanceof HTMLButtonElement) {
                 actionBtn.disabled = false;
@@ -93,6 +116,10 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
                 laterBtn.disabled = false;
                 laterBtn.textContent = "Install on Exit";
             }
+        }
+        if (payload.channel === "update:error") {
+            const message = typeof payload.data?.message === "string" ? payload.data.message : undefined;
+            setErrorState(message);
         }
     });
 })();
