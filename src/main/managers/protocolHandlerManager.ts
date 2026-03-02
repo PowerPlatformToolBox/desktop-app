@@ -46,6 +46,7 @@ export class ProtocolHandlerManager {
 
     private protocolCallback: ProtocolHandlerCallback | null = null;
     private recentProtocolRequests: number[] = [];
+    private pendingUrls: string[] = [];
 
     constructor() {
         logInfo("[ProtocolHandler] Initializing protocol handler manager");
@@ -74,66 +75,87 @@ export class ProtocolHandlerManager {
     }
 
     /**
-     * Set up protocol handling after app is ready
-     * Handles deep links when app is launched or when already running
+     * Initialize early protocol listeners - must be called BEFORE app.whenReady().
+     * Acquires the single-instance lock, registers the open-url and second-instance
+     * event handlers, and buffers any startup protocol URL from process.argv so that
+     * no deep link is lost before the main window exists.
      */
-    setupProtocolHandler(callback: ProtocolHandlerCallback): void {
-        this.protocolCallback = callback;
-
-        // Handle protocol URL when app is launched via protocol (macOS)
-        app.on("open-url", (event, url) => {
-            event.preventDefault();
-            logInfo(`[ProtocolHandler] Received open-url event: ${url}`);
-            this.handleProtocolUrl(url).catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { manager: "ProtocolHandler", trigger: "open-url" },
-                });
-            });
-        });
-
-        // Handle protocol URL when app is already running (Windows/Linux second-instance)
+    initialize(): void {
+        // Acquire the single-instance lock as early as possible so a second launch
+        // forwards its command line to the first instance and then quits.
         const gotTheLock = app.requestSingleInstanceLock();
-
         if (!gotTheLock) {
             logInfo("[ProtocolHandler] Another instance is already running, quitting this instance");
             app.quit();
             return;
         }
 
-        app.on("second-instance", (event, commandLine) => {
+        // macOS: open-url is emitted before (or around) app.whenReady() – must be
+        // registered here so we never miss a launch-via-protocol event.
+        app.on("open-url", (event, url) => {
+            event.preventDefault();
+            logInfo(`[ProtocolHandler] Received open-url event: ${url}`);
+            this.bufferOrHandle(url, "open-url");
+        });
+
+        // Windows/Linux: a second instance forwards its command line here.
+        app.on("second-instance", (_event, commandLine) => {
             logInfo("[ProtocolHandler] Second instance detected, processing command line");
-
-            // Protocol URL is in the command line arguments (Windows/Linux)
             const url = commandLine.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
-
             if (url) {
                 logInfo(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
-                this.handleProtocolUrl(url).catch((error) => {
-                    captureException(error instanceof Error ? error : new Error(String(error)), {
-                        tags: { manager: "ProtocolHandler", trigger: "second-instance" },
-                    });
-                });
+                this.bufferOrHandle(url, "second-instance");
             }
         });
 
-        // Handle protocol URL in command line args at startup (Windows/Linux first launch)
+        // Windows/Linux first launch via protocol URL: the URL is in process.argv.
         if (process.platform === "win32" || process.platform === "linux") {
             const protocolUrl = process.argv.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
-
             if (protocolUrl) {
-                logInfo(`[ProtocolHandler] Processing protocol URL from startup: ${protocolUrl}`);
-                // Delay slightly to ensure app is fully initialized
-                setTimeout(() => {
-                    this.handleProtocolUrl(protocolUrl).catch((error) => {
-                        captureException(error instanceof Error ? error : new Error(String(error)), {
-                            tags: { manager: "ProtocolHandler", trigger: "startup" },
-                        });
-                    });
-                }, 1000);
+                logInfo(`[ProtocolHandler] Buffering protocol URL from startup args: ${protocolUrl}`);
+                this.pendingUrls.push(protocolUrl);
             }
         }
 
-        logInfo("[ProtocolHandler] Protocol handler setup completed");
+        logInfo("[ProtocolHandler] Early protocol listeners registered");
+    }
+
+    /**
+     * Register the protocol handler callback and flush any URLs that were buffered
+     * before the callback was available.  Must be called AFTER the main window has
+     * been created so that the callback can safely deliver IPC to the renderer.
+     */
+    setupProtocolHandler(callback: ProtocolHandlerCallback): void {
+        this.protocolCallback = callback;
+
+        // Process any URLs received before the callback was registered.
+        const buffered = this.pendingUrls.splice(0);
+        for (const url of buffered) {
+            logInfo(`[ProtocolHandler] Processing buffered protocol URL: ${url}`);
+            this.handleProtocolUrl(url).catch((error) => {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { manager: "ProtocolHandler", trigger: "buffered" },
+                });
+            });
+        }
+
+        logInfo("[ProtocolHandler] Protocol handler callback registered");
+    }
+
+    /**
+     * Buffer the URL for later processing, or handle it immediately if the
+     * callback has already been registered.
+     */
+    private bufferOrHandle(url: string, trigger: string): void {
+        if (this.protocolCallback) {
+            this.handleProtocolUrl(url).catch((error) => {
+                captureException(error instanceof Error ? error : new Error(String(error)), {
+                    tags: { manager: "ProtocolHandler", trigger },
+                });
+            });
+        } else {
+            this.pendingUrls.push(url);
+        }
     }
 
     /**
@@ -228,7 +250,7 @@ export class ProtocolHandlerManager {
         }
 
         // Trim and limit length before escaping
-        const trimmed = decoded.trim().substring(0, ProtocolHandlerManager.MAX_TOOL_NAME_LENGTH);
+        const trimmed = toolName.trim().substring(0, ProtocolHandlerManager.MAX_TOOL_NAME_LENGTH);
 
         // HTML-encode special characters to prevent HTML/JS injection when rendered in notification HTML
         const escaped = trimmed.replace(/[&<>"']/g, (char) => {
