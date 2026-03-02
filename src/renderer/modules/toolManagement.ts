@@ -27,6 +27,9 @@ const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
 
+// Detail tab state - maps tabId to render callback for tool detail tabs
+const detailTabs = new Map<string, (panel: HTMLElement) => void>();
+
 /**
  * Check if a connection token is expired
  * @param tokenExpiry ISO date string of token expiry
@@ -388,6 +391,93 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
 }
 
 /**
+ * Open a tool detail tab (shows tool details as a tab instead of a modal dialog)
+ * @param tabId Unique identifier for the tab (e.g., "tool-detail-{toolId}")
+ * @param displayName Name shown on the tab
+ * @param renderContent Callback that populates the detail panel with content
+ */
+export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void): Promise<void> {
+    // If this tool's detail tab is already open, just switch to it
+    if (openTools.has(tabId)) {
+        // Refresh content in case install state changed
+        detailTabs.set(tabId, renderContent);
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (detailPanel) {
+            detailPanel.removeAttribute("data-tab-id");
+        }
+        await switchToTool(tabId);
+        return;
+    }
+
+    // Store the render callback
+    detailTabs.set(tabId, renderContent);
+
+    // Create the tab element
+    const toolTabs = document.getElementById("tool-tabs");
+    if (!toolTabs) return;
+
+    const tab = document.createElement("div");
+    tab.className = "tool-tab tool-detail-tab";
+    tab.id = `tool-tab-${tabId}`;
+    tab.setAttribute("data-instance-id", tabId);
+    tab.setAttribute("draggable", "false");
+
+    const name = document.createElement("span");
+    name.className = "tool-tab-name";
+    name.textContent = displayName;
+    name.title = `${displayName} – Details`;
+    tab.appendChild(name);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "tool-tab-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close";
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTool(tabId);
+    });
+    tab.appendChild(closeBtn);
+
+    tab.addEventListener("click", () => {
+        switchToTool(tabId);
+    });
+
+    // Middle-click to close
+    tab.addEventListener("mousedown", (e) => {
+        if (e.button === MIDDLE_MOUSE_BUTTON) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeTool(tabId);
+        }
+    });
+
+    toolTabs.appendChild(tab);
+
+    // Register as an open tool entry (detail tab variant)
+    openTools.set(tabId, {
+        instanceId: tabId,
+        toolId: tabId,
+        tool: { name: displayName },
+        isPinned: false,
+        connectionId: null,
+        secondaryConnectionId: null,
+        isDetailTab: true,
+    });
+
+    // Ensure tool panel is visible
+    hideHomePage();
+    const toolPanel = document.getElementById("tool-panel");
+    if (toolPanel) {
+        toolPanel.style.display = "flex";
+    }
+
+    // Switch to the new detail tab
+    await switchToTool(tabId);
+
+    updateTabScrollButtons();
+}
+
+/**
  * Get the current display name for a tool tab instance
  */
 export function getToolInstanceDisplayName(instanceId: string): string | null {
@@ -417,6 +507,43 @@ export async function switchToTool(instanceId: string): Promise<void> {
         activeTab.classList.add("active");
     }
 
+    const openTool = openTools.get(instanceId);
+
+    // Handle tool detail tabs (no BrowserView - content is rendered inline)
+    if (openTool?.isDetailTab) {
+        // Hide any active BrowserView
+        window.toolboxAPI.hideToolWindows().catch((error: any) => {
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { phase: "hide_tool_windows" },
+                level: "error",
+            });
+        });
+
+        // Show detail panel and populate with this tab's content
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (detailPanel) {
+            const currentTabId = detailPanel.getAttribute("data-tab-id");
+            if (currentTabId !== instanceId) {
+                const renderContent = detailTabs.get(instanceId);
+                if (renderContent) {
+                    detailPanel.innerHTML = "";
+                    renderContent(detailPanel);
+                    detailPanel.setAttribute("data-tab-id", instanceId);
+                }
+            }
+            detailPanel.style.display = "flex";
+        }
+
+        await updateActiveToolConnectionStatus();
+        return;
+    }
+
+    // Regular tool tab: hide detail panel, show BrowserView
+    const detailPanel = document.getElementById("tool-detail-content-panel");
+    if (detailPanel) {
+        detailPanel.style.display = "none";
+    }
+
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
     window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
@@ -437,8 +564,8 @@ export function closeTool(instanceId: string): void {
     const openTool = openTools.get(instanceId);
     if (!openTool) return;
 
-    // Check if tab is pinned
-    if (openTool.isPinned) {
+    // Check if tab is pinned (only for real tool instances, not detail tabs)
+    if (!openTool.isDetailTab && openTool.isPinned) {
         window.toolboxAPI.utils.showNotification({
             title: "Cannot Close Pinned Tab",
             body: "Unpin the tab before closing it",
@@ -453,14 +580,26 @@ export function closeTool(instanceId: string): void {
         tab.remove();
     }
 
-    // Close the tool window via IPC
-    // The ToolWindowManager will destroy the BrowserView
-    window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_close", instanceId },
-            level: "error",
+    if (openTool.isDetailTab) {
+        // Detail tab: clean up render callback and hide detail panel if active
+        detailTabs.delete(instanceId);
+        if (activeToolId === instanceId) {
+            const detailPanel = document.getElementById("tool-detail-content-panel");
+            if (detailPanel) {
+                detailPanel.style.display = "none";
+                detailPanel.removeAttribute("data-tab-id");
+            }
+        }
+    } else {
+        // Real tool: close the tool window via IPC
+        // The ToolWindowManager will destroy the BrowserView
+        window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { phase: "tool_close", instanceId },
+                level: "error",
+            });
         });
-    });
+    }
 
     // Remove from open tools
     openTools.delete(instanceId);
@@ -593,14 +732,16 @@ function handleDragEnd(e: DragEvent, tab: HTMLElement): void {
  */
 export function saveSession(): void {
     const session: SessionData = {
-        openTools: Array.from(openTools.entries()).map(([instanceId, tool]) => ({
-            instanceId,
-            toolId: tool.toolId,
-            isPinned: tool.isPinned,
-            connectionId: tool.connectionId,
-            secondaryConnectionId: tool.secondaryConnectionId,
-        })),
-        activeToolId,
+        openTools: Array.from(openTools.entries())
+            .filter(([, tool]) => !tool.isDetailTab)
+            .map(([instanceId, tool]) => ({
+                instanceId,
+                toolId: tool.toolId,
+                isPinned: tool.isPinned,
+                connectionId: tool.connectionId,
+                secondaryConnectionId: tool.secondaryConnectionId,
+            })),
+        activeToolId: activeToolId && openTools.get(activeToolId)?.isDetailTab ? null : activeToolId,
     };
     localStorage.setItem("toolbox-session", JSON.stringify(session));
 }

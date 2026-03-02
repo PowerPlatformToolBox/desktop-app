@@ -12,6 +12,7 @@ export interface OpenTool {
     isPinned: boolean;
     connectionId: string | null; // Primary connection
     secondaryConnectionId: string | null; // Secondary connection (for multi-connection tools)
+    isDetailTab?: boolean; // True for tool detail view tabs (not real tool instances)
 }
 
 /**

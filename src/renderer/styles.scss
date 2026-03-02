@@ -1513,6 +1513,11 @@ body.dark-theme .settings-section-card {
     border-bottom: 2px solid #8a8886;
 }
 
+/* Tool detail tabs have a slightly different indicator */
+.tool-tab.tool-detail-tab.active {
+    border-bottom: 2px solid var(--accent-color);
+}
+
 .tool-tab-icon {
     font-size: 16px;
 }
@@ -1744,6 +1749,212 @@ body.dark-theme .settings-section-card {
     width: 100%;
     height: 100%;
     border: none;
+}
+
+/* Tool detail tab content panel */
+#tool-detail-content-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-color);
+}
+
+.tool-detail-tab-header {
+    display: flex;
+    gap: 16px;
+    padding: 24px 28px 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.tool-detail-tab-header-left {
+    display: flex;
+    gap: 24px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tool-detail-tab-icon-shell {
+    width: 80px;
+    height: 80px;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--input-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tool-detail-tab-icon img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+}
+
+.tool-detail-tab-icon span {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-detail-tab-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.tool-detail-tab-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tool-detail-tab-tags span {
+    border-radius: 999px;
+    padding: 2px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--input-background);
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+.tool-detail-tab-name {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.tool-detail-tab-description {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.tool-detail-tab-authors {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.tool-detail-tab-meta-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.tool-detail-tab-meta-list span + span::before {
+    content: "•";
+    margin-right: 6px;
+    color: var(--text-secondary);
+}
+
+.tool-detail-tab-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.tool-detail-tab-installed-badge {
+    border: 1px solid rgba(16, 124, 16, 0.35);
+    background: #107c10;
+    color: white;
+    padding: 5px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tool-detail-tab-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.tool-detail-tab-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.tool-detail-tab-link:hover {
+    text-decoration: underline;
+}
+
+.tool-detail-tab-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 16px 28px 20px;
+    overflow: hidden;
+}
+
+.tool-detail-tab-readme-card {
+    background: var(--input-background);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tool-detail-tab-readme-card h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tool-detail-tab-markdown {
+    flex: 1;
+    overflow-y: auto;
+    line-height: 1.6;
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.tool-detail-tab-markdown h1,
+.tool-detail-tab-markdown h2,
+.tool-detail-tab-markdown h3,
+.tool-detail-tab-markdown h4 {
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.tool-detail-tab-markdown pre {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+}
+
+.tool-detail-tab-markdown a {
+    color: var(--primary-color);
+}
+
+.tool-detail-tab-markdown img {
+    max-width: 100%;
 }
 
 .btn-icon {
