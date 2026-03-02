@@ -456,7 +456,7 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
     // Register as an open tool entry (detail tab variant)
     openTools.set(tabId, {
         instanceId: tabId,
-        toolId: tabId,
+        toolId: "",
         tool: { name: displayName },
         isPinned: false,
         connectionId: null,

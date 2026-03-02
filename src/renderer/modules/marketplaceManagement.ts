@@ -12,6 +12,17 @@ import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUr
 import { loadSidebarTools } from "./toolsSidebarManagement";
 import { openToolDetailTab } from "./toolManagement";
 
+// Disable raw HTML pass-through in markdown rendering to prevent XSS via inline event handlers.
+// marked's html() renderer is invoked for both block HTML (Tokens.HTML) and inline HTML (Tokens.Tag),
+// so escaping here covers all raw HTML in README content.
+marked.use({
+    renderer: {
+        html({ text }: { text: string }): string {
+            return escapeHtml(text);
+        },
+    },
+});
+
 interface InstalledTool {
     id: string;
     version: string;
@@ -566,11 +577,12 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     // Apply icon masks for SVG icons
     applyToolIconMasks(panel);
 
-    // Async README loading
-    void loadToolReadme(panel, tool.readmeUrl);
+    // Async README loading — pass the tabId so stale fetches are discarded
+    const tabId = `tool-detail-${tool.id}`;
+    void loadToolReadme(panel, tool.readmeUrl, tabId);
 }
 
-async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<void> {
+async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined, tabId: string): Promise<void> {
     const readmeContainer = panel.querySelector<HTMLElement>("#tool-detail-readme-content");
     if (!readmeContainer) return;
     if (!readmeUrl) {
@@ -581,8 +593,12 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
         const response = await fetch(readmeUrl, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const markdown = await response.text();
-        // Note: marked renders markdown to HTML; README content comes from tool authors' repositories.
-        // Script tags injected via innerHTML are not executed by browsers, limiting script injection risk.
+
+        // Discard if the user switched away from this detail tab while the fetch was in flight
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (!detailPanel || detailPanel.getAttribute("data-tab-id") !== tabId) return;
+
+        // Note: marked renders markdown to HTML with raw HTML blocks escaped (see marked.use configuration above).
         readmeContainer.innerHTML = marked.parse(markdown) as string;
         // Open all links in the README via the external browser
         readmeContainer.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
@@ -601,7 +617,11 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
             tags: { phase: "readme_load" },
             level: "error",
         });
-        readmeContainer.textContent = "Unable to load README.";
+        // Only write the error message if this tab is still active
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (detailPanel && detailPanel.getAttribute("data-tab-id") === tabId) {
+            readmeContainer.textContent = "Unable to load README.";
+        }
     }
 }
 
