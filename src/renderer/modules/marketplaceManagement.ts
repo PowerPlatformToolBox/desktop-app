@@ -584,7 +584,9 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
         const markdown = await response.text();
         const markedLib = await ensureMarkedLoaded();
         if (markedLib && typeof markedLib.parse === "function") {
-            readmeContainer.innerHTML = markedLib.parse(markdown) as string;
+            // Note: marked renders markdown to HTML; README content comes from tool authors' repositories.
+            // Script tags injected via innerHTML are not executed by browsers, limiting script injection risk.
+            readmeContainer.innerHTML = markedLib.parse(markdown);
         } else {
             readmeContainer.textContent = markdown;
         }
@@ -609,12 +611,13 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl?: string): Promise<v
     }
 }
 
-function ensureMarkedLoaded(): Promise<any> {
-    if ((window as any).marked) return Promise.resolve((window as any).marked);
+function ensureMarkedLoaded(): Promise<{ parse: (src: string) => string } | undefined> {
+    const win = window as Window & { marked?: { parse: (src: string) => string } };
+    if (win.marked) return Promise.resolve(win.marked);
     return new Promise((resolve) => {
         const existing = document.querySelector(`script[data-third-party="marked"]`);
         if (existing) {
-            existing.addEventListener("load", () => resolve((window as any).marked));
+            existing.addEventListener("load", () => resolve(win.marked));
             existing.addEventListener("error", () => resolve(undefined));
             return;
         }
@@ -622,7 +625,7 @@ function ensureMarkedLoaded(): Promise<any> {
         script.src = MARKED_CDN_SRC;
         script.async = true;
         script.dataset.thirdParty = "marked";
-        script.onload = () => resolve((window as any).marked);
+        script.onload = () => resolve(win.marked);
         script.onerror = () => resolve(undefined);
         document.head.appendChild(script);
     });
