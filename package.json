@@ -60,6 +60,7 @@
     "ansi-to-html": "^0.7.2",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
+    "marked": "17.0.3",
     "uuid": "^13.0.0"
   },
   "build": {

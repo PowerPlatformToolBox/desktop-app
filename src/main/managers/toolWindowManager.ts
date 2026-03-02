@@ -121,6 +121,7 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
     }
 
     /**
@@ -160,6 +161,14 @@ export class ToolWindowManager {
         // Update tool connection
         ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
             return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
+        });
+
+        // Hide all tool windows (used when showing tool detail tabs)
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.HIDE_ALL, async () => {
+            this.mainWindow.setBrowserView(null);
+            this.activeToolId = null;
+            this.invokeActiveToolChangedCallback();
+            return true;
         });
 
         // Restore renderer-provided bounds flow

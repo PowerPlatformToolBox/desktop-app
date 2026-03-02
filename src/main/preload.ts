@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, instanceId, tool, primaryConnectionId, secondaryConnectionId),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
+    hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
