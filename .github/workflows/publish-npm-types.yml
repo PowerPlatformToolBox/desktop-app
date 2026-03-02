@@ -1,7 +1,7 @@
 name: Publish @pptb/types to npm
 
 on:
-    workflow_call:
+    workflow_dispatch:
         inputs:
             branch:
                 description: "Branch to checkout"
@@ -12,7 +12,18 @@ on:
                 required: true
                 type: string
             version:
-                description: "Version to publish for @pptb/types (must match app version)"
+                description: "Version to publish for @pptb/types"
+                required: false
+                type: string
+    workflow_call:
+        inputs:
+            branch:
+                required: true
+                type: string
+            tag:
+                required: true
+                type: string
+            version:
                 required: false
                 type: string
 
@@ -23,7 +34,6 @@ permissions:
 jobs:
     publish-types:
         runs-on: ubuntu-latest
-
         steps:
             - name: Checkout branch
               uses: actions/checkout@v4
@@ -35,7 +45,7 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
-                  registry-url: "https://registry.npmjs.org/"
+                  # REMOVED: registry-url (This is what causes the ENEEDAUTH error)
 
             - name: Get version
               id: version
@@ -45,20 +55,17 @@ jobs:
                   else
                     VERSION=$(node -p "require('./package.json').version")
                   fi
-
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
-                  echo "📦 Publishing @pptb/types version: $VERSION with tag: ${{ inputs.tag }}"
 
-            - name: Sync @pptb/types version to app version
+            - name: Sync @pptb/types version
               working-directory: ./packages
               run: |
                   npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
             - name: Publish @pptb/types to npm
               working-directory: ./packages
-              env:
-                  NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npmrc
               run: |
-                  printf "registry=https://registry.npmjs.org/\n" > "$NPM_CONFIG_USERCONFIG"
-                  echo "Publishing @pptb/types@${{ steps.version.outputs.version }} with tag ${{ inputs.tag }} to npm..."
                   npm publish --access public --tag ${{ inputs.tag }} --provenance
+              env:
+                  # Use an empty config to ignore the root .npmrc that you mentioned
+                  NPM_CONFIG_USERCONFIG: /dev/null
