@@ -886,15 +886,15 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    publish-types-beta:
-        needs: [check-commits, publish-release, create-release-draft]
-        if: needs.check-commits.outputs.should_build == 'true'
-        permissions:
-            contents: read
-            id-token: write
-        uses: ./.github/workflows/publish-npm-types.yml
-        with:
-            branch: dev
-            tag: beta
-            version: ${{ needs.create-release-draft.outputs.new_version }}
-        secrets: inherit
+    # publish-types-beta:
+    #     needs: [check-commits, publish-release, create-release-draft]
+    #     if: needs.check-commits.outputs.should_build == 'true'
+    #     permissions:
+    #         contents: read
+    #         id-token: write
+    #     uses: ./.github/workflows/publish-npm-types.yml
+    #     with:
+    #         branch: dev
+    #         tag: beta
+    #         version: ${{ needs.create-release-draft.outputs.new_version }}
+    #     secrets: inherit
