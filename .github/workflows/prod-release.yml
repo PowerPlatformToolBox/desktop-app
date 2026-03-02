@@ -828,14 +828,14 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    publish-types:
-        needs: [publish-release, create-release-draft]
-        permissions:
-            contents: read
-            id-token: write
-        uses: ./.github/workflows/publish-npm-types.yml
-        with:
-            branch: main
-            tag: latest
-            version: ${{ needs.create-release-draft.outputs.version }}
-        secrets: inherit
+    # publish-types:
+    #     needs: [publish-release, create-release-draft]
+    #     permissions:
+    #         contents: read
+    #         id-token: write
+    #     uses: ./.github/workflows/publish-npm-types.yml
+    #     with:
+    #         branch: main
+    #         tag: latest
+    #         version: ${{ needs.create-release-draft.outputs.version }}
+    #     secrets: inherit
