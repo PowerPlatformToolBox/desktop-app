@@ -37,7 +37,10 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
     const setDownloadingState = (percent) => {
         if (progressWrap) progressWrap.style.display = "flex";
         if (progressFill) progressFill.style.width = percent + "%";
-        if (progressLabel) progressLabel.textContent = "Downloading update\\u2026 " + percent + "%";
+        if (progressLabel) {
+            progressLabel.textContent = "Downloading update\\u2026 " + percent + "%";
+            progressLabel.style.color = "";
+        }
         if (actionBtn instanceof HTMLButtonElement) {
             actionBtn.disabled = true;
             actionBtn.textContent = "Downloading\\u2026";

@@ -61,9 +61,11 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
             if (url) {
                 window.toolboxAPI.openExternal(url).catch(() => undefined);
             }
+        } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.dismiss) {
+            // The modal is closing. autoInstallOnAppQuit=true means a downloaded update
+            // will automatically be installed when the app quits normally, so no explicit
+            // action is required here regardless of the installOnExit payload value.
         }
-        // Note: The dismiss channel is handled by the autoInstallOnAppQuit=true setting,
-        // which automatically installs the update when the app exits normally.
     };
 
     const onClosed = () => {
