@@ -1,6 +1,6 @@
+import { type CspExceptionSource, normalizeCspExceptionSource } from "../../../common/types";
 import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
-import { type CspExceptionSource, normalizeCspExceptionSource } from "../../../common/types";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -289,7 +289,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
             </p>
             <p>
                 If you are unsure, decline and check the tool's documentation or contact its author before proceeding.
-                <a href="https://docs.powerplatformtoolbox.com/tool-development/csp-configuration" target="_blank" rel="noopener noreferrer" class="csp-learn-more">Learn more about website permissions.</a>
+                <a href="https://docs.powerplatformtoolbox.com/data-access" target="_blank" rel="noopener noreferrer" class="csp-learn-more">Learn more about website permissions.</a>
             </p>
         </div>
     </div>
