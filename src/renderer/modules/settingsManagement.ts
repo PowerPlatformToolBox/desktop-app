@@ -3,7 +3,7 @@
  * Handles user settings UI and persistence
  */
 
-import { DEFAULT_TERMINAL_FONT } from "../constants";
+import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT } from "../constants";
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
@@ -38,7 +38,7 @@ export async function loadSidebarSettings(): Promise<void> {
             deprecatedToolsVisibility: settings.deprecatedToolsVisibility ?? "hide-all",
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
-            notificationDuration: settings.notificationDuration ?? 5000,
+            notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
         };
 
         themeSelect.value = settings.theme;
@@ -48,7 +48,7 @@ export async function loadSidebarSettings(): Promise<void> {
         toolDisplayModeSelect.value = settings.toolDisplayMode ?? "standard";
 
         if (notificationDurationSelect) {
-            notificationDurationSelect.value = String(settings.notificationDuration ?? 5000);
+            notificationDurationSelect.value = String(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;

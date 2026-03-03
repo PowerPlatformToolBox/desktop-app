@@ -175,7 +175,7 @@ export class NotificationWindowManager {
         this.updateWindow();
 
         // Auto-dismiss after duration
-        const duration = options.duration || 5000;
+        const duration = options.duration !== undefined ? options.duration : 5000;
         if (duration > 0) {
             setTimeout(() => {
                 const index = this.notifications.indexOf(options);

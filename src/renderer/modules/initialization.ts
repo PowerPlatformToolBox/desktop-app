@@ -65,7 +65,7 @@ if (sentryConfig) {
     logInfo("[Sentry] Telemetry disabled - no DSN configured");
 }
 
-import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
+import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
@@ -703,7 +703,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
-    setDefaultNotificationDuration(settings.notificationDuration ?? 5000);
+    setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
 }
 
 /**

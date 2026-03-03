@@ -109,8 +109,10 @@ export function showPPTBNotification(options: NotificationOptions): void {
     // Store callbacks for later invocation with TTL for automatic cleanup
     if (options.actions && actions) {
         const duration = options.duration !== undefined ? options.duration : defaultNotificationDuration;
-        // Callback expires after notification duration plus a buffer to handle edge cases
-        const expiresAt = Date.now() + duration + CALLBACK_TTL_BUFFER_MS;
+        // For persistent notifications (duration === 0), use a very large TTL so callbacks
+        // remain available until the user explicitly dismisses the notification.
+        const effectiveDuration = duration === 0 ? Number.MAX_SAFE_INTEGER - Date.now() : duration;
+        const expiresAt = Date.now() + effectiveDuration + CALLBACK_TTL_BUFFER_MS;
         
         actions.forEach((action: { label: string; callback: string }, index: number) => {
             const originalCallback = options.actions![index].callback;
