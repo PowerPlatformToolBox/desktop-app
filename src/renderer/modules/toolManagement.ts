@@ -279,6 +279,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         });
 
         // Create and add tab with instance number if multiple instances exist
+        // Tab is appended synchronously; connection subtext is populated asynchronously
         createTab(instanceId, tool, instanceNumber);
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
@@ -323,6 +324,46 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     const displayName = instanceNumber > 1 ? `${tool.name} (${instanceNumber})` : tool.name;
     name.textContent = displayName;
     name.title = displayName;
+
+    // Create a container for the name and subtext
+    const nameContainer = document.createElement("div");
+    nameContainer.className = "tool-tab-name-container";
+    nameContainer.appendChild(name);
+
+    // Fetch connection names asynchronously and populate subtext once ready
+    (async () => {
+        let connectionSubtext = "";
+        try {
+            const openTool = openTools.get(instanceId);
+
+            const [primaryConnection, secondaryConnection] = await Promise.all([
+                openTool?.connectionId ? window.toolboxAPI.connections.getById(openTool.connectionId) : Promise.resolve(null),
+                openTool?.secondaryConnectionId ? window.toolboxAPI.connections.getById(openTool.secondaryConnectionId) : Promise.resolve(null),
+            ]);
+
+            const primaryLabel = primaryConnection?.name ?? null;
+            const secondaryLabel = secondaryConnection?.name ?? null;
+
+            // Display both connections if both exist, otherwise just the primary
+            if (primaryLabel && secondaryLabel) {
+                connectionSubtext = `${primaryLabel} / ${secondaryLabel}`;
+            } else if (primaryLabel) {
+                connectionSubtext = primaryLabel;
+            }
+        } catch (error) {
+            const normalizedError = error instanceof Error ? error.message : String(error);
+            logWarn("Failed to fetch connection names for tab:", { error: normalizedError });
+        }
+
+        // Add connection names as subtext if available
+        if (connectionSubtext) {
+            const subtext = document.createElement("span");
+            subtext.className = "tool-tab-subtext";
+            subtext.textContent = connectionSubtext;
+            subtext.title = connectionSubtext;
+            nameContainer.appendChild(subtext);
+        }
+    })();
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -381,7 +422,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
-    tab.appendChild(name);
+    tab.appendChild(nameContainer);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
