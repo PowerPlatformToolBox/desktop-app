@@ -1,3 +1,4 @@
+import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
@@ -20,21 +21,16 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
-    // Build list of CSP exceptions
-    let exceptionsHtml = "";
-    for (const [directive, sources] of Object.entries(model.cspExceptions)) {
-        if (Array.isArray(sources) && sources.length > 0) {
-            const directiveName = directive.replace("-src", "").replace(/-/g, " ");
-            exceptionsHtml += `
-                <div class="csp-exception">
-                    <strong>${directiveName}:</strong>
-                    <ul>
-                        ${sources.map((source: string) => `<li><code>${source}</code></li>`).join("")}
-                    </ul>
-                </div>
-            `;
+    // Build flat list of unique CSP source expressions across all directives
+    const allSources = new Set<string>();
+    for (const sources of Object.values(model.cspExceptions)) {
+        if (Array.isArray(sources)) {
+            sources.forEach((source: string) => allSources.add(source));
         }
     }
+    const exceptionsHtml = Array.from(allSources)
+        .map((source: string) => `<li><code>${escapeHtml(source)}</code></li>`)
+        .join("");
 
     const styles =
         getModalStyles(isDarkTheme) +
@@ -70,39 +66,24 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         border-radius: 8px;
-        padding: 16px;
+        padding: 12px 16px;
         margin: 16px 0;
         max-height: 300px;
         overflow-y: auto;
     }
 
-    .csp-exception {
-        margin-bottom: 16px;
-    }
-
-    .csp-exception:last-child {
-        margin-bottom: 0;
-    }
-
-    .csp-exception strong {
-        display: block;
-        margin-bottom: 8px;
-        color: #4cc2ff;
-        text-transform: capitalize;
-    }
-
-    .csp-exception ul {
+    .csp-exceptions-list ul {
         margin: 0;
         padding-left: 20px;
     }
 
-    .csp-exception li {
+    .csp-exceptions-list li {
         margin: 4px 0;
         font-size: 13px;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.8)" : "rgba(0, 0, 0, 0.8)"};
     }
 
-    .csp-exception code {
+    .csp-exceptions-list code {
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.06)"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
         border-radius: 3px;
@@ -145,42 +126,47 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         margin: 4px 0;
         font-size: 13px;
     }
+
+    .csp-learn-more {
+        color: #4cc2ff;
+    }
 </style>`;
 
     const body = `
 <div class="modal-panel">
     <div class="modal-header">
         <div>
-            <p class="modal-eyebrow">⚠️ Security Permissions</p>
-            <h3>Review Required</h3>
+            <p class="modal-eyebrow">⚠️ Permission Request</p>
+            <h3>Website Access Required</h3>
         </div>
     </div>
     <div class="modal-body">
         <p>
-            <span class="tool-name">${model.toolName}</span> by <span class="tool-author">${authorsList}</span>
-            is requesting permission to access external resources.
+            <strong class="tool-name">${escapeHtml(model.toolName)}</strong> by <span class="tool-author">${escapeHtml(authorsList)}</span>
+            wants to connect to websites outside this application.
         </p>
         <p>
-            This tool needs the following Content Security Policy (CSP) exceptions to function properly:
+            Only allow if you trust this tool and the author(s) who created it.
+            Allowing access means this tool can download information, load content, and communicate with the listed websites:
         </p>
         <div class="csp-exceptions-list">
-            ${exceptionsHtml}
+            <ul>
+                ${exceptionsHtml}
+            </ul>
         </div>
         <div class="csp-warning">
             <p>
-                <strong>⚠️ Important:</strong> Only grant these permissions if you trust this tool and its author. 
-                These permissions will allow the tool to:
+                <strong>⚠️ Only allow if you trust this tool.</strong>
             </p>
-            <ul>
-                <li>Make network requests to the specified domains</li>
-                <li>Load scripts and styles from external sources</li>
-                <li>Access external resources as specified above</li>
-            </ul>
+            <p>
+                If you are unsure, decline and check the tool's documentation or contact its author before proceeding.
+                <a href="https://docs.powerplatformtoolbox.com/tool-development/csp-configuration" target="_blank" rel="noopener noreferrer" class="csp-learn-more">Learn more about website permissions.</a>
+            </p>
         </div>
     </div>
     <div class="modal-footer">
         <button id="csp-decline-btn" class="fluent-button fluent-button-secondary">Decline</button>
-        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Accept &amp; Continue</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Allow &amp; Continue</button>
     </div>
 </div>`;
 
