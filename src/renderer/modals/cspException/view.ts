@@ -1,4 +1,5 @@
 import { getModalStyles } from "../sharedStyles";
+import { escapeHtml } from "../../utils/toolIconResolver";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -20,15 +21,15 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
-    // Build flat list of unique domains across all CSP directives
-    const allDomains = new Set<string>();
+    // Build flat list of unique CSP source expressions across all directives
+    const allSources = new Set<string>();
     for (const sources of Object.values(model.cspExceptions)) {
         if (Array.isArray(sources)) {
-            sources.forEach((source: string) => allDomains.add(source));
+            sources.forEach((source: string) => allSources.add(source));
         }
     }
-    const exceptionsHtml = Array.from(allDomains)
-        .map((domain: string) => `<li><code>${domain}</code></li>`)
+    const exceptionsHtml = Array.from(allSources)
+        .map((source: string) => `<li><code>${escapeHtml(source)}</code></li>`)
         .join("");
 
     const styles =
@@ -141,7 +142,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     </div>
     <div class="modal-body">
         <p>
-            <strong>${model.toolName}</strong> by <span class="tool-author">${authorsList}</span>
+            <strong class="tool-name">${escapeHtml(model.toolName)}</strong> by <span class="tool-author">${escapeHtml(authorsList)}</span>
             wants to connect to websites outside this application.
         </p>
         <p>
