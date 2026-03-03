@@ -809,7 +809,7 @@ function setupToolboxEventListeners(): void {
                 title: notificationData.title,
                 body: notificationData.body,
                 type: notificationData.type || "info",
-                duration: notificationData.duration || 5000,
+                duration: notificationData.duration,
             });
         }
 
