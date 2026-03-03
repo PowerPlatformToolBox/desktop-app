@@ -46,8 +46,28 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         if (Array.isArray(sources)) {
             sources.forEach((source: CspExceptionSource) => {
                 const entry = normalizeCspExceptionSource(source);
-                if (!allEntries.has(entry.domain)) {
+                const existing = allEntries.get(entry.domain);
+                if (!existing) {
                     allEntries.set(entry.domain, entry);
+                } else {
+                    // Merge duplicate domains deterministically:
+                    // - Treat as required if any occurrence is required.
+                    // - Prefer non-empty exception reasons, combining if they differ.
+                    const mergedOptional = (existing.optional ?? false) && (entry.optional ?? false) ? true : undefined;
+                    let mergedReason: string | undefined;
+                    const existingReason = existing.exceptionReason && existing.exceptionReason.trim().length > 0 ? existing.exceptionReason : undefined;
+                    const newReason = entry.exceptionReason && entry.exceptionReason.trim().length > 0 ? entry.exceptionReason : undefined;
+                    if (existingReason && newReason && existingReason !== newReason) {
+                        mergedReason = `${existingReason}\n\n${newReason}`;
+                    } else {
+                        mergedReason = existingReason ?? newReason;
+                    }
+                    allEntries.set(entry.domain, {
+                        ...existing,
+                        ...entry,
+                        optional: mergedOptional,
+                        exceptionReason: mergedReason,
+                    });
                 }
             });
         }
