@@ -5,6 +5,7 @@
 
 import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
+import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -229,8 +230,19 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent with the selected optional domains
-                await window.toolboxAPI.grantCspConsent(tool.id, approvedOptionalDomains);
+                // Grant consent — store required domains (for future re-consent detection) and selected optional domains
+                const requiredDomains: string[] = [];
+                for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
+                    if (Array.isArray(sources)) {
+                        for (const s of sources) {
+                            const entry = normalizeCspExceptionSource(s);
+                            if (!entry.optional) {
+                                requiredDomains.push(entry.domain);
+                            }
+                        }
+                    }
+                }
+                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
             }
         }
 
