@@ -1,3 +1,5 @@
+import type { CspExceptionSource } from "../../../common/types";
+
 export interface CspExceptionModalChannelIds {
     acceptConsent: string;
     declineConsent: string;
@@ -7,7 +9,7 @@ export interface CspExceptionData {
     toolName: string;
     authors: string[];
     cspExceptions: {
-        [directive: string]: string[];
+        [directive: string]: CspExceptionSource[];
     };
 }
 

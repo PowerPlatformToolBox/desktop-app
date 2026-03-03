@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
+import { type CspExceptionSource, normalizeCspExceptionSource } from "../../../common/types";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -9,8 +10,24 @@ export interface ModalViewTemplate {
 export interface CspExceptionModalViewModel {
     toolName: string;
     authors: string[];
-    cspExceptions: { [directive: string]: string[] };
+    cspExceptions: { [directive: string]: CspExceptionSource[] };
     isDarkTheme: boolean;
+}
+
+/**
+ * Render a subset of inline Markdown to safe HTML.
+ * Supports: **bold**, *italic*, `inline code`.
+ * All text is HTML-escaped first to prevent injection.
+ */
+function renderMarkdownInline(text: string): string {
+    let result = escapeHtml(text);
+    // Bold: **text** (non-greedy, processed before italic)
+    result = result.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    // Italic: *text* — use lookahead/lookbehind to avoid matching ** bold markers
+    result = result.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+    // Inline code: `text`
+    result = result.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    return result;
 }
 
 /**
@@ -21,15 +38,30 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
-    // Build flat list of unique CSP source expressions across all directives
-    const allSources = new Set<string>();
+    // Build flat list of unique CSP source expressions across all directives, keyed by domain
+    const allEntries = new Map<string, { domain: string; exceptionReason?: string; optional?: boolean }>();
     for (const sources of Object.values(model.cspExceptions)) {
         if (Array.isArray(sources)) {
-            sources.forEach((source: string) => allSources.add(source));
+            sources.forEach((source: CspExceptionSource) => {
+                const entry = normalizeCspExceptionSource(source);
+                if (!allEntries.has(entry.domain)) {
+                    allEntries.set(entry.domain, entry);
+                }
+            });
         }
     }
-    const exceptionsHtml = Array.from(allSources)
-        .map((source: string) => `<li><code>${escapeHtml(source)}</code></li>`)
+    const exceptionsHtml = Array.from(allEntries.values())
+        .map((entry) => {
+            let html = `<li><code>${escapeHtml(entry.domain)}</code>`;
+            if (entry.optional) {
+                html += ` <span class="csp-optional-badge">Optional</span>`;
+            }
+            if (entry.exceptionReason) {
+                html += `<div class="csp-exception-reason">${renderMarkdownInline(entry.exceptionReason)}</div>`;
+            }
+            html += `</li>`;
+            return html;
+        })
         .join("");
 
     const styles =
@@ -129,6 +161,31 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     .csp-learn-more {
         color: #4cc2ff;
+    }
+
+    .csp-exception-reason {
+        font-size: 12px;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.55)" : "rgba(0, 0, 0, 0.55)"};
+        margin-top: 4px;
+        line-height: 1.4;
+    }
+
+    .csp-exception-reason code {
+        font-size: 11px;
+    }
+
+    .csp-optional-badge {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.08)"};
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.5)"};
+        vertical-align: middle;
+        margin-left: 6px;
     }
 </style>`;
 

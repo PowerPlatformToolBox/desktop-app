@@ -2,6 +2,7 @@ import { app, protocol } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import { captureMessage, logInfo } from "../../common/sentryHelper";
+import { normalizeCspExceptionSource } from "../../common/types";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
 
@@ -296,7 +297,7 @@ export class BrowserviewProtocolManager {
                 if (!directives[directive]) {
                     directives[directive] = ["'self'"];
                 }
-                directives[directive].push(...sources);
+                directives[directive].push(...sources.map((s) => normalizeCspExceptionSource(s).domain));
             }
         }
 
