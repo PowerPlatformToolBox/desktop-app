@@ -1,5 +1,5 @@
 import Store from "electron-store";
-import { LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
+import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
 
 /**
  * Manages user settings using electron-store
@@ -24,8 +24,6 @@ export class SettingsManager {
                 installedTools: [],
                 favoriteTools: [],
                 cspConsents: {}, // Track CSP consent for each tool
-                cspRequiredConsents: {}, // Required domains that were consented to per tool
-                cspOptionalConsents: {}, // Track which optional CSP domains were approved per tool
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
@@ -169,7 +167,7 @@ export class SettingsManager {
      */
     hasCspConsent(toolId: string): boolean {
         const cspConsents = this.store.get("cspConsents") || {};
-        return cspConsents[toolId] === true;
+        return cspConsents[toolId]?.allowed === true;
     }
 
     /**
@@ -180,16 +178,8 @@ export class SettingsManager {
      */
     grantCspConsent(toolId: string, requiredDomains: string[] = [], approvedOptionalDomains: string[] = []): void {
         const cspConsents = this.store.get("cspConsents") || {};
-        cspConsents[toolId] = true;
+        cspConsents[toolId] = { allowed: true, required: requiredDomains, optional: approvedOptionalDomains };
         this.store.set("cspConsents", cspConsents);
-
-        const cspRequiredConsents = this.store.get("cspRequiredConsents") || {};
-        cspRequiredConsents[toolId] = requiredDomains;
-        this.store.set("cspRequiredConsents", cspRequiredConsents);
-
-        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
-        cspOptionalConsents[toolId] = approvedOptionalDomains;
-        this.store.set("cspOptionalConsents", cspOptionalConsents);
     }
 
     /**
@@ -199,20 +189,12 @@ export class SettingsManager {
         const cspConsents = this.store.get("cspConsents") || {};
         delete cspConsents[toolId];
         this.store.set("cspConsents", cspConsents);
-
-        const cspRequiredConsents = this.store.get("cspRequiredConsents") || {};
-        delete cspRequiredConsents[toolId];
-        this.store.set("cspRequiredConsents", cspRequiredConsents);
-
-        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
-        delete cspOptionalConsents[toolId];
-        this.store.set("cspOptionalConsents", cspOptionalConsents);
     }
 
     /**
-     * Get all tools with CSP consent
+     * Get all tools with CSP consent (keyed by tool ID)
      */
-    getCspConsents(): { [toolId: string]: boolean } {
+    getCspConsents(): { [toolId: string]: CspConsentRecord } {
         return this.store.get("cspConsents") || {};
     }
 
@@ -220,16 +202,16 @@ export class SettingsManager {
      * Get the list of required domains that were consented to for a tool
      */
     getApprovedRequiredDomains(toolId: string): string[] {
-        const cspRequiredConsents = this.store.get("cspRequiredConsents") || {};
-        return cspRequiredConsents[toolId] || [];
+        const cspConsents = this.store.get("cspConsents") || {};
+        return cspConsents[toolId]?.required ?? [];
     }
 
     /**
      * Get the list of approved optional domains for a tool
      */
     getApprovedOptionalDomains(toolId: string): string[] {
-        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
-        return cspOptionalConsents[toolId] || [];
+        const cspConsents = this.store.get("cspConsents") || {};
+        return cspConsents[toolId]?.optional ?? [];
     }
 
     /**

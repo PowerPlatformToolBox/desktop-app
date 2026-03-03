@@ -6,7 +6,7 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
-import { LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { Tool, ToolContext, ToolSettings } from "./tool";
 
@@ -139,7 +139,7 @@ export interface ToolboxAPI {
     hasCspConsent: (toolId: string) => Promise<boolean>;
     grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
-    getCspConsents: () => Promise<{ [toolId: string]: boolean }>;
+    getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
 
     // Webview URL generation
     getToolWebviewUrl: (toolId: string) => Promise<string>;

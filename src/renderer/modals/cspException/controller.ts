@@ -31,9 +31,9 @@ export function getCspExceptionModalControllerScript(channels: CspExceptionModal
     const acceptButton = document.getElementById("csp-accept-btn");
     const declineButton = document.getElementById("csp-decline-btn");
 
-    // Handle accept button — collect which optional domains are checked
+    // Handle accept button — collect which optional (non-disabled) domains are checked
     acceptButton?.addEventListener('click', () => {
-        const checkboxes = document.querySelectorAll('.csp-optional-checkbox');
+        const checkboxes = document.querySelectorAll('.csp-optional-checkbox:not([disabled])');
         const approvedOptionalDomains = [];
         checkboxes.forEach((cb) => {
             if (cb.checked) {

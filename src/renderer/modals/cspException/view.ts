@@ -56,14 +56,16 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const requiredEntries = Array.from(allEntries.values()).filter((e) => !e.optional);
     const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
 
-    const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false): string => {
+    const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false): string => {
         const domainHtml = `<code>${escapeHtml(entry.domain)}</code>`;
         const reasonHtml = entry.exceptionReason ? `<div class="csp-exception-reason">${renderMarkdownInline(entry.exceptionReason)}</div>` : "";
         if (isCheckbox) {
+            const disabledAttr = isDisabled ? " disabled" : "";
+            const itemClass = isDisabled ? "csp-optional-item csp-required-item" : "csp-optional-item";
             return `
-            <li class="csp-optional-item">
+            <li class="${itemClass}">
                 <label class="csp-optional-label">
-                    <input type="checkbox" class="csp-optional-checkbox" value="${escapeHtml(entry.domain)}" checked>
+                    <input type="checkbox" class="csp-optional-checkbox" value="${escapeHtml(entry.domain)}" checked${disabledAttr}>
                     <span class="csp-optional-content">
                         ${domainHtml}
                         ${reasonHtml}
@@ -74,8 +76,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         return `<li>${domainHtml}${reasonHtml}</li>`;
     };
 
-    const requiredHtml = requiredEntries.map((e) => renderEntryItem(e, false)).join("");
-    const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true)).join("");
+    const requiredHtml = requiredEntries.map((e) => renderEntryItem(e, true, true)).join("");
+    const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true, false)).join("");
 
     const requiredSectionHtml =
         requiredEntries.length > 0
@@ -209,6 +211,15 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         height: 14px;
         cursor: pointer;
         accent-color: #0e639c;
+    }
+
+    .csp-required-item .csp-optional-checkbox {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .csp-required-item .csp-optional-label {
+        cursor: default;
     }
 
     .csp-optional-content {
