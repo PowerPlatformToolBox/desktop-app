@@ -231,17 +231,18 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 }
 
                 // Grant consent — store required domains (for future re-consent detection) and selected optional domains
-                const requiredDomains: string[] = [];
+                const requiredDomainsSet = new Set<string>();
                 for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
                     if (Array.isArray(sources)) {
                         for (const s of sources) {
                             const entry = normalizeCspExceptionSource(s);
                             if (!entry.optional) {
-                                requiredDomains.push(entry.domain);
+                                requiredDomainsSet.add(entry.domain);
                             }
                         }
                     }
                 }
+                const requiredDomains = Array.from(requiredDomainsSet).sort();
                 await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
             }
         }
