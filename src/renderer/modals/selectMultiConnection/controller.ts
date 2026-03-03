@@ -62,6 +62,32 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
         };
         return labels[authType] || authType;
     };
+
+    const escapeHtml = (value) => {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const getBrowserBadgeMarkup = (conn) => {
+        const browserType = conn.browserType;
+        if (!browserType || browserType === "default") return "";
+        const profileName = conn.browserProfileName || conn.browserProfile;
+        if (!profileName) return "";
+        const browserLabels = { chrome: "Chrome", edge: "Edge" };
+        const browserLabel = browserLabels[browserType] || "Browser";
+        const iconPaths = { chrome: "icons/logos/chrome.png", edge: "icons/logos/edge.png" };
+        const iconPath = iconPaths[browserType];
+        const safeProfile = escapeHtml(profileName);
+        const safeTitle = escapeHtml(browserLabel + " \xb7 " + profileName);
+        const iconMarkup = iconPath
+            ? \`<img src="\${iconPath}" alt="\${browserLabel} icon" class="browser-profile-icon" />\`
+            : \`<span class="browser-profile-icon browser-profile-icon-fallback">\${browserLabel.charAt(0).toUpperCase()}</span>\`;
+        return \`<span class="browser-profile-badge" title="\${safeTitle}">\${iconMarkup}<span class="browser-profile-label">\${safeProfile}</span></span>\`;
+    };
 ${sortingUtilities}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
@@ -165,6 +191,7 @@ ${sortingUtilities}
                         <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                     </div>
+                    \${getBrowserBadgeMarkup(conn) ? \`<div class="connection-item-meta-right">\${getBrowserBadgeMarkup(conn)}</div>\` : ''}
                 </div>
             </div>
         \`;

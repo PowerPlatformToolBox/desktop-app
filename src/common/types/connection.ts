@@ -73,6 +73,9 @@ export interface UIConnectionData {
     isActive: boolean;
     lastUsedAt?: string;
     createdAt?: string;
+    browserType?: BrowserType;
+    browserProfile?: string;
+    browserProfileName?: string;
 }
 
 /**

@@ -390,6 +390,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                         // If highlightConnectionId is set (tool-specific modal), use it to mark as active
                         // Otherwise, mark none as active since there's no global active connection
                         isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
+                        browserType: conn.browserType,
+                        browserProfile: conn.browserProfile,
+                        browserProfileName: conn.browserProfileName,
                     }),
                 ),
             },
@@ -577,6 +580,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     lastUsedAt: conn.lastUsedAt,
                     createdAt: conn.createdAt,
                     isActive: false,
+                    browserType: conn.browserType,
+                    browserProfile: conn.browserProfile,
+                    browserProfileName: conn.browserProfileName,
                 })),
             },
         });
