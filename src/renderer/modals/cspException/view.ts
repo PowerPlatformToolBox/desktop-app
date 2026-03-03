@@ -1,5 +1,5 @@
-import { getModalStyles } from "../sharedStyles";
 import { escapeHtml } from "../../utils/toolIconResolver";
+import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -146,8 +146,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
             wants to connect to websites outside this application.
         </p>
         <p>
-            Only allow this if you trust the tool and who created it.
-            Allowing access means the tool can download information, load content, and communicate with the listed websites:
+            Only allow if you trust this tool and the author(s) who created it.
+            Allowing access means this tool can download information, load content, and communicate with the listed websites:
         </p>
         <div class="csp-exceptions-list">
             <ul>
@@ -156,11 +156,11 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         </div>
         <div class="csp-warning">
             <p>
-                <strong>⚠️ Only allow this if you trust the tool.</strong>
+                <strong>⚠️ Only allow if you trust this tool.</strong>
             </p>
             <p>
                 If you are unsure, decline and check the tool's documentation or contact its author before proceeding.
-                <a href="https://docs.pptoolbox.com/security/csp-exceptions" target="_blank" rel="noopener noreferrer" class="csp-learn-more">Learn more about website permissions.</a>
+                <a href="https://docs.powerplatformtoolbox.com/tool-development/csp-configuration" target="_blank" rel="noopener noreferrer" class="csp-learn-more">Learn more about website permissions.</a>
             </p>
         </div>
     </div>
