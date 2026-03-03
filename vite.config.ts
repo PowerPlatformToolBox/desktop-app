@@ -241,6 +241,8 @@ export default defineConfig(({ mode }) => {
             // Only include source maps when not building for production
             sourcemap: enableSourceMap,
             outDir: "dist/renderer",
+            // Inline assets up to 100 KB as base64 data URIs so they work in data: URL modal contexts
+            assetsInlineLimit: 102400,
             rollupOptions: {
                 input: path.resolve(__dirname, "src/renderer/index.html"),
                 output: {

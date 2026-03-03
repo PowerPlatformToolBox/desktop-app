@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
 export interface SelectConnectionModalChannelIds {
@@ -74,7 +75,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
         if (!profileName) return "";
         const browserLabels = { chrome: "Chrome", edge: "Edge" };
         const browserLabel = browserLabels[browserType] || "Browser";
-        const iconPaths = { chrome: "icons/logos/chrome.png", edge: "icons/logos/edge.png" };
+        const iconPaths = { chrome: ${JSON.stringify(chromeIconUrl)}, edge: ${JSON.stringify(edgeIconUrl)} };
         const iconPath = iconPaths[browserType];
         const safeProfile = escapeHtml(profileName);
         const safeTitle = escapeHtml(browserLabel + " \xb7 " + profileName);

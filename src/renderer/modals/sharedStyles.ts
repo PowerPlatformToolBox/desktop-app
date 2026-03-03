@@ -526,5 +526,47 @@ export function getModalStyles(isDarkTheme: boolean): string {
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         margin: 4px 0;
     }
+
+    .connection-item-meta-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .browser-profile-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: ${isDarkTheme ? "#2d2d30" : "#ffffff"};
+        font-size: 11px;
+        color: ${isDarkTheme ? "#f3f2f1" : "#323130"};
+        line-height: 1;
+    }
+
+    .browser-profile-icon {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+    }
+
+    .browser-profile-icon-fallback {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.08)"};
+        color: ${isDarkTheme ? "#f3f2f1" : "#323130"};
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .browser-profile-label {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 </style>`;
 }
