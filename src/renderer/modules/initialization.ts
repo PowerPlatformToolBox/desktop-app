@@ -73,7 +73,7 @@ import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { showPPTBNotification } from "./notifications";
+import { showPPTBNotification, setDefaultNotificationDuration } from "./notifications";
 import { saveSidebarSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -703,6 +703,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
+    setDefaultNotificationDuration(settings.notificationDuration ?? 5000);
 }
 
 /**

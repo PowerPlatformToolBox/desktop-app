@@ -59,6 +59,7 @@ export interface UserSettings {
     language: string;
     autoUpdate: boolean;
     terminalFont: string;
+    notificationDuration: number; // Duration in milliseconds (0 = persistent)
     showDebugMenu: boolean;
     deprecatedToolsVisibility?: DeprecatedToolsVisibility;
     toolDisplayMode?: ToolDisplayMode;

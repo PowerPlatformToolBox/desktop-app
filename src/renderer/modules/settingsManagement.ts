@@ -6,6 +6,7 @@
 import { DEFAULT_TERMINAL_FONT } from "../constants";
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
+import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -24,6 +25,7 @@ export async function loadSidebarSettings(): Promise<void> {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
+    const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -36,6 +38,7 @@ export async function loadSidebarSettings(): Promise<void> {
             deprecatedToolsVisibility: settings.deprecatedToolsVisibility ?? "hide-all",
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
+            notificationDuration: settings.notificationDuration ?? 5000,
         };
 
         themeSelect.value = settings.theme;
@@ -43,6 +46,10 @@ export async function loadSidebarSettings(): Promise<void> {
         showDebugMenuCheck.checked = settings.showDebugMenu ?? false;
         deprecatedToolsSelect.value = settings.deprecatedToolsVisibility ?? "hide-all";
         toolDisplayModeSelect.value = settings.toolDisplayMode ?? "standard";
+
+        if (notificationDurationSelect) {
+            notificationDurationSelect.value = String(settings.notificationDuration ?? 5000);
+        }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
 
@@ -82,6 +89,7 @@ export async function saveSidebarSettings(): Promise<void> {
     const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any; // Fluent UI select element
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
+    const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -92,6 +100,8 @@ export async function saveSidebarSettings(): Promise<void> {
         terminalFont = customFontInput.value.trim() || DEFAULT_TERMINAL_FONT;
     }
 
+    const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : 5000;
+
     const currentSettings = {
         theme: themeSelect.value,
         autoUpdate: autoUpdateCheck.checked,
@@ -99,6 +109,7 @@ export async function saveSidebarSettings(): Promise<void> {
         deprecatedToolsVisibility: deprecatedToolsSelect.value,
         toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
+        notificationDuration,
     };
 
     // Only include changed settings in the update
@@ -122,6 +133,9 @@ export async function saveSidebarSettings(): Promise<void> {
     if (currentSettings.terminalFont !== originalSettings.terminalFont) {
         changedSettings.terminalFont = currentSettings.terminalFont;
     }
+    if (currentSettings.notificationDuration !== originalSettings.notificationDuration) {
+        changedSettings.notificationDuration = currentSettings.notificationDuration;
+    }
 
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
@@ -131,6 +145,7 @@ export async function saveSidebarSettings(): Promise<void> {
         applyTheme(currentSettings.theme);
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
+        setDefaultNotificationDuration(currentSettings.notificationDuration);
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {

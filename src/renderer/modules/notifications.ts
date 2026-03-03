@@ -4,6 +4,7 @@
  */
 
 import type { NotificationOptions } from "../types/index";
+import { DEFAULT_NOTIFICATION_DURATION } from "../constants";
 
 // Store callbacks for notification actions with their expiry timestamps
 interface CallbackEntry {
@@ -24,6 +25,16 @@ let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
 // Flag to track if the notification action listener is already set up
 let isNotificationActionListenerSetUp = false;
+
+// Default notification display duration (can be overridden by user settings)
+let defaultNotificationDuration: number = DEFAULT_NOTIFICATION_DURATION;
+
+/**
+ * Update the default notification duration used when no explicit duration is provided
+ */
+export function setDefaultNotificationDuration(duration: number): void {
+    defaultNotificationDuration = duration;
+}
 
 /**
  * Clean up expired callbacks to prevent memory leaks
@@ -97,7 +108,7 @@ export function showPPTBNotification(options: NotificationOptions): void {
 
     // Store callbacks for later invocation with TTL for automatic cleanup
     if (options.actions && actions) {
-        const duration = options.duration || 5000;
+        const duration = options.duration !== undefined ? options.duration : defaultNotificationDuration;
         // Callback expires after notification duration plus a buffer to handle edge cases
         const expiresAt = Date.now() + duration + CALLBACK_TTL_BUFFER_MS;
         
@@ -118,7 +129,7 @@ export function showPPTBNotification(options: NotificationOptions): void {
         title: options.title,
         body: options.body,
         type: options.type || "info",
-        duration: options.duration || 5000,
+        duration: options.duration !== undefined ? options.duration : defaultNotificationDuration,
         actions,
     });
 }
