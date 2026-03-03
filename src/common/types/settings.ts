@@ -67,6 +67,7 @@ export interface UserSettings {
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
     cspConsents: { [toolId: string]: boolean }; // Track CSP consent for each tool
+    cspOptionalConsents: { [toolId: string]: string[] }; // Track which optional CSP domains were approved per tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics

@@ -24,6 +24,7 @@ export class SettingsManager {
                 installedTools: [],
                 favoriteTools: [],
                 cspConsents: {}, // Track CSP consent for each tool
+                cspOptionalConsents: {}, // Track which optional CSP domains were approved per tool
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
@@ -172,11 +173,17 @@ export class SettingsManager {
 
     /**
      * Grant CSP consent for a tool
+     * @param toolId - The tool ID
+     * @param approvedOptionalDomains - Optional domains approved by the user (empty means none approved)
      */
-    grantCspConsent(toolId: string): void {
+    grantCspConsent(toolId: string, approvedOptionalDomains: string[] = []): void {
         const cspConsents = this.store.get("cspConsents") || {};
         cspConsents[toolId] = true;
         this.store.set("cspConsents", cspConsents);
+
+        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
+        cspOptionalConsents[toolId] = approvedOptionalDomains;
+        this.store.set("cspOptionalConsents", cspOptionalConsents);
     }
 
     /**
@@ -186,6 +193,10 @@ export class SettingsManager {
         const cspConsents = this.store.get("cspConsents") || {};
         delete cspConsents[toolId];
         this.store.set("cspConsents", cspConsents);
+
+        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
+        delete cspOptionalConsents[toolId];
+        this.store.set("cspOptionalConsents", cspOptionalConsents);
     }
 
     /**
@@ -193,6 +204,14 @@ export class SettingsManager {
      */
     getCspConsents(): { [toolId: string]: boolean } {
         return this.store.get("cspConsents") || {};
+    }
+
+    /**
+     * Get the list of approved optional domains for a tool
+     */
+    getApprovedOptionalDomains(toolId: string): string[] {
+        const cspOptionalConsents = this.store.get("cspOptionalConsents") || {};
+        return cspOptionalConsents[toolId] || [];
     }
 
     /**

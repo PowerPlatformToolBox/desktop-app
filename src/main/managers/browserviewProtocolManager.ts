@@ -281,6 +281,9 @@ export class BrowserviewProtocolManager {
         // Only apply CSP exceptions if consent is granted
         const cspExceptions = hasConsent ? tool.cspExceptions || {} : {};
 
+        // Get the set of optional domains the user has explicitly approved
+        const approvedOptionalDomains = new Set<string>(hasConsent ? this.settingsManager.getApprovedOptionalDomains(tool.id) : []);
+
         // Default CSP directives for tools
         const directives: { [key: string]: string[] } = {
             "default-src": ["'self'"],
@@ -297,7 +300,14 @@ export class BrowserviewProtocolManager {
                 if (!directives[directive]) {
                     directives[directive] = ["'self'"];
                 }
-                directives[directive].push(...sources.map((s) => normalizeCspExceptionSource(s).domain));
+                for (const s of sources) {
+                    const entry = normalizeCspExceptionSource(s);
+                    // Skip optional domains that were not approved by the user
+                    if (entry.optional && !approvedOptionalDomains.has(entry.domain)) {
+                        continue;
+                    }
+                    directives[directive].push(entry.domain);
+                }
             }
         }
 

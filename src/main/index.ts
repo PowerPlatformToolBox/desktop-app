@@ -895,8 +895,8 @@ class ToolBoxApp {
             return this.settingsManager.hasCspConsent(toolId);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, (_, toolId) => {
-            this.settingsManager.grantCspConsent(toolId);
+        ipcMain.handle(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, (_, toolId, approvedOptionalDomains?: string[]) => {
+            this.settingsManager.grantCspConsent(toolId, approvedOptionalDomains);
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, (_, toolId) => {

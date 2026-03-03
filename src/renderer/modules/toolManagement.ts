@@ -211,15 +211,15 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (!hasConsent) {
                 // Show consent dialog using BrowserWindow modal framework
-                let consentGranted = false;
+                let approvedOptionalDomains: string[] | null = null;
                 try {
-                    consentGranted = await openCspExceptionModal(tool);
+                    approvedOptionalDomains = await openCspExceptionModal(tool);
                 } catch (error) {
                     logInfo("CSP consent modal closed without selection:", { error });
-                    consentGranted = false;
+                    approvedOptionalDomains = null;
                 }
 
-                if (!consentGranted) {
+                if (approvedOptionalDomains === null) {
                     // User declined or closed, don't load the tool
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
@@ -229,8 +229,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent
-                await window.toolboxAPI.grantCspConsent(tool.id);
+                // Grant consent with the selected optional domains
+                await window.toolboxAPI.grantCspConsent(tool.id, approvedOptionalDomains);
             }
         }
 
