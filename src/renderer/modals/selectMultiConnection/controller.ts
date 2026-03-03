@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
 export interface SelectMultiConnectionModalChannelIds {
@@ -61,6 +62,32 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
             usernamePassword: "Username/Password"
         };
         return labels[authType] || authType;
+    };
+
+    const escapeHtml = (value) => {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const getBrowserBadgeMarkup = (conn) => {
+        const browserType = conn.browserType;
+        if (!browserType || browserType === "default") return "";
+        const profileName = conn.browserProfileName || conn.browserProfile;
+        if (!profileName) return "";
+        const browserLabels = { chrome: "Chrome", edge: "Edge" };
+        const browserLabel = browserLabels[browserType] || "Browser";
+        const iconPaths = { chrome: ${JSON.stringify(chromeIconUrl)}, edge: ${JSON.stringify(edgeIconUrl)} };
+        const iconPath = iconPaths[browserType];
+        const safeProfile = escapeHtml(profileName);
+        const safeTitle = escapeHtml(browserLabel + " \xb7 " + profileName);
+        const iconMarkup = iconPath
+            ? \`<img src="\${iconPath}" alt="\${browserLabel} icon" class="browser-profile-icon" />\`
+            : \`<span class="browser-profile-icon browser-profile-icon-fallback">\${browserLabel.charAt(0).toUpperCase()}</span>\`;
+        return \`<span class="browser-profile-badge" title="\${safeTitle}">\${iconMarkup}<span class="browser-profile-label">\${safeProfile}</span></span>\`;
     };
 ${sortingUtilities}
     const getFilteredConnections = () => {
@@ -145,26 +172,29 @@ ${sortingUtilities}
         const connectionHtml = (conn, idPrefix, isDisabled = false) => {
             const isAuthenticated = (idPrefix === 'primary' && conn.id === authenticatedPrimaryConnectionId) ||
                                    (idPrefix === 'secondary' && conn.id === authenticatedSecondaryConnectionId);
+            const browserBadge = getBrowserBadgeMarkup(conn);
+            const safeId = escapeHtml(conn.id);
             
             return \`
             <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
-                 data-connection-id="\${conn.id}" 
+                 data-connection-id="\${safeId}" 
                  data-list="\${idPrefix}">
                 <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
+                    <div class="connection-name">\${escapeHtml(conn.name)}</div>
                     <div class="connection-actions">
                         \${isAuthenticated 
                             ? '<div class="connected-badge">&#x2705&nbsp;Connected</div>' 
-                            : '<button class="connect-button" data-connection-id="' + conn.id + '" data-list="' + idPrefix + '">Connect</button>'
+                            : '<button class="connect-button" data-connection-id="' + safeId + '" data-list="' + idPrefix + '">Connect</button>'
                         }
                     </div>
                 </div>
-                <div class="connection-url">\${conn.url}</div>
+                <div class="connection-url">\${escapeHtml(conn.url)}</div>
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
-                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                        <span class="connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}">\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                     </div>
+                    \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
             </div>
         \`;

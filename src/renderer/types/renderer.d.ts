@@ -3,7 +3,7 @@
  * Re-exports shared types and extends with renderer-specific definitions
  */
 
-import type { ToolboxAPI, ToolContext } from "../common/types";
+import type { ToolboxAPI, ToolContext } from "../../common/types";
 
 // Re-export for convenience
 export type { ToolboxAPI, ToolContext };
