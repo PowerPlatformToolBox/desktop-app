@@ -276,7 +276,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         });
 
         // Create and add tab with instance number if multiple instances exist
-        await createTab(instanceId, tool, instanceNumber);
+        // Tab is appended synchronously; connection subtext is populated asynchronously
+        createTab(instanceId, tool, instanceNumber);
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
         switchToTool(instanceId);
@@ -304,7 +305,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 /**
  * Create a tab for a tool instance
  */
-export async function createTab(instanceId: string, tool: any, instanceNumber: number = 1): Promise<void> {
+export function createTab(instanceId: string, tool: any, instanceNumber: number = 1): void {
     const toolTabs = document.getElementById("tool-tabs");
     if (!toolTabs) return;
 
@@ -321,51 +322,45 @@ export async function createTab(instanceId: string, tool: any, instanceNumber: n
     name.textContent = displayName;
     name.title = displayName;
 
-    // Get connection name and environment from connection and add as subtext
-    let environmentSubtext = "";
-    try {
-        const openTool = openTools.get(instanceId);
-
-        let primaryLabel: string | null = null;
-        let secondaryLabel: string | null = null;
-
-        if (openTool?.connectionId) {
-            const primaryConnection = await window.toolboxAPI.connections.getById(openTool.connectionId);
-            if (primaryConnection) {
-                primaryLabel = primaryConnection.name;
-            }
-        }
-
-        if (openTool?.secondaryConnectionId) {
-            const secondaryConnection = await window.toolboxAPI.connections.getById(openTool.secondaryConnectionId);
-            if (secondaryConnection) {
-                secondaryLabel = secondaryConnection.name;
-            }
-        }
-
-        // Display both connections if both exist, otherwise just the primary
-        if (primaryLabel && secondaryLabel) {
-            environmentSubtext = `${primaryLabel} / ${secondaryLabel}`;
-        } else if (primaryLabel) {
-            environmentSubtext = primaryLabel;
-        }
-    } catch (error) {
-        const normalizedError = error instanceof Error ? error.message : String(error);
-        logWarn("Failed to fetch environment name for tab:", { error: normalizedError });
-    }
-
     // Create a container for the name and subtext
     const nameContainer = document.createElement("div");
     nameContainer.className = "tool-tab-name-container";
     nameContainer.appendChild(name);
 
-    // Add environment name as subtext if available
-    if (environmentSubtext) {
-        const subtext = document.createElement("span");
-        subtext.className = "tool-tab-subtext";
-        subtext.textContent = environmentSubtext;
-        nameContainer.appendChild(subtext);
-    }
+    // Fetch connection names asynchronously and populate subtext once ready
+    (async () => {
+        let connectionSubtext = "";
+        try {
+            const openTool = openTools.get(instanceId);
+
+            const [primaryConnection, secondaryConnection] = await Promise.all([
+                openTool?.connectionId ? window.toolboxAPI.connections.getById(openTool.connectionId) : Promise.resolve(null),
+                openTool?.secondaryConnectionId ? window.toolboxAPI.connections.getById(openTool.secondaryConnectionId) : Promise.resolve(null),
+            ]);
+
+            const primaryLabel = primaryConnection?.name ?? null;
+            const secondaryLabel = secondaryConnection?.name ?? null;
+
+            // Display both connections if both exist, otherwise just the primary
+            if (primaryLabel && secondaryLabel) {
+                connectionSubtext = `${primaryLabel} / ${secondaryLabel}`;
+            } else if (primaryLabel) {
+                connectionSubtext = primaryLabel;
+            }
+        } catch (error) {
+            const normalizedError = error instanceof Error ? error.message : String(error);
+            logWarn("Failed to fetch connection names for tab:", { error: normalizedError });
+        }
+
+        // Add connection names as subtext if available
+        if (connectionSubtext) {
+            const subtext = document.createElement("span");
+            subtext.className = "tool-tab-subtext";
+            subtext.textContent = connectionSubtext;
+            subtext.title = connectionSubtext;
+            nameContainer.appendChild(subtext);
+        }
+    })();
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
