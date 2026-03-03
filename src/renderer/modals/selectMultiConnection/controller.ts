@@ -172,27 +172,29 @@ ${sortingUtilities}
         const connectionHtml = (conn, idPrefix, isDisabled = false) => {
             const isAuthenticated = (idPrefix === 'primary' && conn.id === authenticatedPrimaryConnectionId) ||
                                    (idPrefix === 'secondary' && conn.id === authenticatedSecondaryConnectionId);
+            const browserBadge = getBrowserBadgeMarkup(conn);
+            const safeId = escapeHtml(conn.id);
             
             return \`
             <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
-                 data-connection-id="\${conn.id}" 
+                 data-connection-id="\${safeId}" 
                  data-list="\${idPrefix}">
                 <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
+                    <div class="connection-name">\${escapeHtml(conn.name)}</div>
                     <div class="connection-actions">
                         \${isAuthenticated 
                             ? '<div class="connected-badge">&#x2705&nbsp;Connected</div>' 
-                            : '<button class="connect-button" data-connection-id="' + conn.id + '" data-list="' + idPrefix + '">Connect</button>'
+                            : '<button class="connect-button" data-connection-id="' + safeId + '" data-list="' + idPrefix + '">Connect</button>'
                         }
                     </div>
                 </div>
-                <div class="connection-url">\${conn.url}</div>
+                <div class="connection-url">\${escapeHtml(conn.url)}</div>
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
-                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                        <span class="connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}">\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                     </div>
-                    \${getBrowserBadgeMarkup(conn) ? \`<div class="connection-item-meta-right">\${getBrowserBadgeMarkup(conn)}</div>\` : ''}
+                    \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
             </div>
         \`;

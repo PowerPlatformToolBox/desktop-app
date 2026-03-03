@@ -154,22 +154,25 @@ ${sortingUtilities}
             return;
         }
 
-        connectionsListContainer.innerHTML = connections.map(conn => \`
-            <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${conn.id}">
+        connectionsListContainer.innerHTML = connections.map(conn => {
+            const browserBadge = getBrowserBadgeMarkup(conn);
+            return \`
+            <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${escapeHtml(conn.id)}">
                 <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
+                    <div class="connection-name">\${escapeHtml(conn.name)}</div>
                 </div>
-                <div class="connection-url">\${conn.url}</div>
+                <div class="connection-url">\${escapeHtml(conn.url)}</div>
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
-                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                        <span class="connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}">\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
                         \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
-                    \${getBrowserBadgeMarkup(conn) ? \`<div class="connection-item-meta-right">\${getBrowserBadgeMarkup(conn)}</div>\` : ''}
+                    \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
             </div>
-        \`).join('');
+        \`;
+        }).join('');
 
         // Add click handlers to connection items
         const connectionItems = connectionsListContainer.querySelectorAll('.connection-item');
