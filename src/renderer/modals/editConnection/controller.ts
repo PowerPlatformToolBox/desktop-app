@@ -295,7 +295,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const colorLabel = document.getElementById("connection-environment-color-label");
     const clearColorBtn = document.getElementById("clear-environment-color");
     if (colorInput instanceof HTMLInputElement) {
-        colorInput.dataset.customSet = "false";
+        if (!colorInput.dataset.customSet) colorInput.dataset.customSet = "false";
         colorInput.addEventListener("input", () => {
             colorInput.dataset.customSet = "true";
             if (colorLabel) colorLabel.textContent = colorInput.value;
@@ -314,7 +314,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const categoryColorLabel = document.getElementById("connection-category-color-label");
     const clearCategoryColorBtn = document.getElementById("clear-category-color");
     if (categoryColorInput instanceof HTMLInputElement) {
-        categoryColorInput.dataset.customSet = "false";
+        if (!categoryColorInput.dataset.customSet) categoryColorInput.dataset.customSet = "false";
         categoryColorInput.addEventListener("input", () => {
             categoryColorInput.dataset.customSet = "true";
             if (categoryColorLabel) categoryColorLabel.textContent = categoryColorInput.value;

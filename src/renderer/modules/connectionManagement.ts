@@ -1322,7 +1322,7 @@ function getEnvBadgeMarkup(conn: DataverseConnection): string {
         const safeColor = escapeHtml(conn.environmentColor);
         return `<span class="connection-env-badge" style="background-color:${safeColor}1a;color:${safeColor};border:1px solid ${safeColor}4d">${safeEnv}</span>`;
     }
-    return `<span class="connection-env-badge env-${env.toLowerCase()}">${safeEnv}</span>`;
+    return `<span class="connection-env-badge env-${escapeHtml(env.toLowerCase())}">${safeEnv}</span>`;
 }
 
 function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
@@ -1597,18 +1597,18 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        // Group connections by category
+        // Group connections by category (empty string = uncategorized / "Default")
         const groupMap = new Map<string, DataverseConnection[]>();
         sortedConnections.forEach((conn: DataverseConnection) => {
-            const key = conn.category || "Default";
+            const key = conn.category || "";
             if (!groupMap.has(key)) groupMap.set(key, []);
             groupMap.get(key)!.push(conn);
         });
 
-        // Sort groups: "Default" first, then alphabetical
+        // Sort groups: uncategorized ("") first, then alphabetical
         const groupKeys = Array.from(groupMap.keys()).sort((a, b) => {
-            if (a === "Default") return -1;
-            if (b === "Default") return 1;
+            if (a === "") return -1;
+            if (b === "") return 1;
             return a.localeCompare(b);
         });
 
@@ -1617,12 +1617,14 @@ export async function loadSidebarConnections(): Promise<void> {
             const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
             const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
             const envBadgeMarkup = getEnvBadgeMarkup(conn);
+            const safeName = escapeHtml(conn.name || "");
+            const safeUrl = escapeHtml(conn.url || "");
             return `
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
-                                <div class="connection-item-name-pptb">${conn.name}</div>
+                                <div class="connection-item-name-pptb">${safeName}</div>
                             </div>
                         </div>
                         <div class="connection-item-header-right-pptb">
@@ -1631,7 +1633,7 @@ export async function loadSidebarConnections(): Promise<void> {
                             </button>
                         </div>
                     </div>
-                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-url-pptb">${safeUrl}</div>
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
@@ -1645,17 +1647,18 @@ export async function loadSidebarConnections(): Promise<void> {
             `;
         };
 
-        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "Default");
+        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
 
         if (useGroups) {
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
-                    const escapedKey = escapeHtml(groupKey);
+                    const displayKey = groupKey === "" ? "Default" : groupKey;
+                    const escapedKey = escapeHtml(displayKey);
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
-                        <div class="connection-group-header" data-category="${escapedKey}">
+                        <div class="connection-group-header" data-category="${escapedKey}" role="button" tabindex="0" aria-expanded="true">
                             <span class="connection-group-title">${escapedKey}</span>
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
@@ -1687,15 +1690,24 @@ export async function loadSidebarConnections(): Promise<void> {
 
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
-            header.addEventListener("click", () => {
-                // Find the sibling items element within the same parent group
-                const group = header.closest(".connection-group");
+            const headerEl = header as HTMLElement;
+            const toggleGroup = () => {
+                const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;
                 const isCollapsed = items.classList.contains("collapsed");
                 items.classList.toggle("collapsed", !isCollapsed);
-                const toggle = header.querySelector(".connection-group-toggle");
+                const toggle = headerEl.querySelector(".connection-group-toggle");
                 if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
+                headerEl.setAttribute("aria-expanded", (!isCollapsed).toString());
+            };
+            headerEl.addEventListener("click", toggleGroup);
+            headerEl.addEventListener("keydown", (event: Event) => {
+                const ke = event as KeyboardEvent;
+                if (ke.key === "Enter" || ke.key === " ") {
+                    ke.preventDefault();
+                    toggleGroup();
+                }
             });
         });
 
