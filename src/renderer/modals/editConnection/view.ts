@@ -27,16 +27,6 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 <input type="text" id="connection-name" class="modal-input" placeholder="Production" />
             </div>
             <div class="form-group">
-                <label for="connection-category">Category (Optional)</label>
-                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" />
-            </div>
-        </div>
-        <div class="form-group">
-            <label for="connection-url">Environment URL</label>
-            <input type="text" id="connection-url" class="modal-input" placeholder="https://org.crm.dynamics.com" />
-        </div>
-        <div class="form-row-two-col">
-            <div class="form-group">
                 <label for="connection-authentication-type">Authentication Type</label>
                 <select id="connection-authentication-type" class="modal-input">
                     <option value="interactive">Microsoft Login (OAuth)</option>
@@ -45,6 +35,12 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                     <option value="connectionString">Connection String</option>
                 </select>
             </div>
+        </div>
+        <div class="form-group">
+            <label for="connection-url">Environment URL</label>
+            <input type="text" id="connection-url" class="modal-input" placeholder="https://org.crm.dynamics.com" />
+        </div>
+        <div class="form-row-two-col">
             <div class="form-group">
                 <label for="connection-environment">Environment</label>
                 <select id="connection-environment" class="modal-input">
@@ -54,78 +50,96 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                     <option value="Production">Production</option>
                 </select>
             </div>
-        </div>
-        <div class="form-group">
-            <label for="connection-environment-color">Environment Color (Optional)</label>
-            <div class="color-picker-row">
-                <input type="color" id="connection-environment-color" class="modal-color-input" value="#000000" />
-                <span class="color-picker-label" id="connection-environment-color-label">Pick a custom color for the environment badge</span>
-                <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+            <div class="form-group">
+                <label for="connection-environment-color">Environment Color (Optional)</label>
+                <div class="color-picker-row">
+                    <input type="color" id="connection-environment-color" class="modal-color-input" value="#000000" />
+                    <span class="color-picker-label" id="connection-environment-color-label">Pick a custom color for the environment badge</span>
+                    <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+                </div>
             </div>
         </div>
-        <div class="field-group">
-            <span class="section-label">Browser Settings (Optional)</span>
-            <label for="connection-browser-type">Browser</label>
-            <select id="connection-browser-type" class="modal-input">
-                <option value="default">System Default</option>
-                <option value="chrome">Google Chrome</option>
-                <option value="edge">Microsoft Edge</option>
-            </select>
-            <p class="helper-text">Choose which browser to use when opening URLs with authentication. Defaults to your system's default browser.</p>
-            <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
-                <span>⚠️ Selected browser is not installed. URLs will open using the system default browser.</span>
+        <div class="form-row-two-col">
+            <div class="form-group">
+                <label for="connection-category">Category (Optional)</label>
+                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" />
             </div>
-            <label for="connection-browser-profile">Browser Profile</label>
-            <select id="connection-browser-profile" class="modal-input" disabled>
-                <option value="">No profile needed</option>
-            </select>
-            <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
-        </div>
-        <div id="interactive-fields" class="field-group" style="display: none">
-            <span class="section-label">Microsoft Login Options</span>
-            <label for="connection-username">Username / Email (Optional)</label>
-            <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
-            <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
-            <label for="connection-optional-client-id">Client ID (Optional)</label>
-            <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
-            <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
-            <label for="connection-tenant-id">Tenant ID (Optional)</label>
-            <input type="text" id="connection-tenant-id" class="modal-input" placeholder="organizations" />
-            <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
-        </div>
-        <div id="client-secret-fields" class="field-group" style="display: none">
-            <span class="section-label">Client Secret Authentication</span>
-            <label for="connection-client-id">Client ID</label>
-            <input type="text" id="connection-client-id" class="modal-input" placeholder="00000000-0000-0000-0000-000000000000" />
-            <label for="connection-client-secret">Client Secret</label>
-            <div class="password-wrapper">
-                <input type="password" id="connection-client-secret" class="modal-input" placeholder="client-secret" />
-                <button type="button" id="toggle-client-secret" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
+            <div class="form-group">
+                <label for="connection-category-color">Category Color (Optional)</label>
+                <div class="color-picker-row">
+                    <input type="color" id="connection-category-color" class="modal-color-input" value="#000000" />
+                    <span class="color-picker-label" id="connection-category-color-label">Pick a color for the category</span>
+                    <button type="button" id="clear-category-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+                </div>
             </div>
-            <label for="connection-tenant-id-cs">Tenant ID</label>
-            <input type="text" id="connection-tenant-id-cs" class="modal-input" placeholder="tenant-id" />
         </div>
-        <div id="username-password-fields" class="field-group" style="display: none">
-            <span class="section-label">Username &amp; Password</span>
-            <label for="connection-username-up">Username</label>
-            <input type="text" id="connection-username-up" class="modal-input" placeholder="user@domain.com" />
-            <label for="connection-password">Password</label>
-            <div class="password-wrapper">
-                <input type="password" id="connection-password" class="modal-input" placeholder="password" />
-                <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
+        <div class="form-row-two-col form-row-sections">
+            <div class="field-group">
+                <span class="section-label">Browser Settings (Optional)</span>
+                <label for="connection-browser-type">Browser</label>
+                <select id="connection-browser-type" class="modal-input">
+                    <option value="default">System Default</option>
+                    <option value="chrome">Google Chrome</option>
+                    <option value="edge">Microsoft Edge</option>
+                </select>
+                <p class="helper-text">Choose which browser to use when opening URLs with authentication. Defaults to your system's default browser.</p>
+                <div id="browser-not-installed-warning" class="modal-warning" style="display: none;">
+                    <span>⚠️ Selected browser is not installed. URLs will open using the system default browser.</span>
+                </div>
+                <label for="connection-browser-profile">Browser Profile</label>
+                <select id="connection-browser-profile" class="modal-input" disabled>
+                    <option value="">No profile needed</option>
+                </select>
+                <p class="helper-text">Select a browser profile to use. Profiles will be loaded when you select a browser above.</p>
             </div>
-            <label for="connection-optional-client-id-up">Client ID (Optional)</label>
-            <input type="text" id="connection-optional-client-id-up" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
-            <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
-            <label for="connection-tenant-id-up">Tenant ID (Optional)</label>
-            <input type="text" id="connection-tenant-id-up" class="modal-input" placeholder="organizations" />
-            <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
-        </div>
-        <div id="connection-string-fields" class="field-group" style="display: none">
-            <span class="section-label">Connection String</span>
-            <label for="connection-string-input">Connection String</label>
-            <textarea id="connection-string-input" class="modal-input" rows="4" placeholder="AuthType=Office365;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com"></textarea>
-            <p class="helper-text">Enter your connection string. Supports Office365, OAuth, and ClientSecret authentication types. URL and authentication details will be extracted automatically.</p>
+            <div class="auth-fields-column">
+                <div id="interactive-fields" class="field-group" style="display: none">
+                    <span class="section-label">Microsoft Login Options</span>
+                    <label for="connection-username">Username / Email (Optional)</label>
+                    <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
+                    <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
+                    <label for="connection-optional-client-id">Client ID (Optional)</label>
+                    <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
+                    <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
+                    <label for="connection-tenant-id">Tenant ID (Optional)</label>
+                    <input type="text" id="connection-tenant-id" class="modal-input" placeholder="organizations" />
+                    <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
+                </div>
+                <div id="client-secret-fields" class="field-group" style="display: none">
+                    <span class="section-label">Client Secret Authentication</span>
+                    <label for="connection-client-id">Client ID</label>
+                    <input type="text" id="connection-client-id" class="modal-input" placeholder="00000000-0000-0000-0000-000000000000" />
+                    <label for="connection-client-secret">Client Secret</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="connection-client-secret" class="modal-input" placeholder="client-secret" />
+                        <button type="button" id="toggle-client-secret" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
+                    </div>
+                    <label for="connection-tenant-id-cs">Tenant ID</label>
+                    <input type="text" id="connection-tenant-id-cs" class="modal-input" placeholder="tenant-id" />
+                </div>
+                <div id="username-password-fields" class="field-group" style="display: none">
+                    <span class="section-label">Username &amp; Password</span>
+                    <label for="connection-username-up">Username</label>
+                    <input type="text" id="connection-username-up" class="modal-input" placeholder="user@domain.com" />
+                    <label for="connection-password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="connection-password" class="modal-input" placeholder="password" />
+                        <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
+                    </div>
+                    <label for="connection-optional-client-id-up">Client ID (Optional)</label>
+                    <input type="text" id="connection-optional-client-id-up" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
+                    <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
+                    <label for="connection-tenant-id-up">Tenant ID (Optional)</label>
+                    <input type="text" id="connection-tenant-id-up" class="modal-input" placeholder="organizations" />
+                    <p class="helper-text">Defaults to 'organizations' for multi-tenant authentication. Specify your tenant ID for single-tenant apps.</p>
+                </div>
+                <div id="connection-string-fields" class="field-group" style="display: none">
+                    <span class="section-label">Connection String</span>
+                    <label for="connection-string-input">Connection String</label>
+                    <textarea id="connection-string-input" class="modal-input" rows="4" placeholder="AuthType=Office365;Username=user@domain.com;Password=password;Url=https://org.crm.dynamics.com"></textarea>
+                    <p class="helper-text">Enter your connection string. Supports Office365, OAuth, and ClientSecret authentication types. URL and authentication details will be extracted automatically.</p>
+                </div>
+            </div>
         </div>
     </div>
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>

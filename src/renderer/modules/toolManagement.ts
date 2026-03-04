@@ -973,7 +973,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
 
                         // Update tool panel border based on both primary and secondary environment
-                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment, primaryConnection.environmentColor, secondaryConnection.environmentColor, primaryConnection.categoryColor);
                         return;
                     }
                 } else {
@@ -990,7 +990,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             }
 
             // Update tool panel border based on primary environment only
-            updateToolPanelBorder(primaryConnection.environment);
+            updateToolPanelBorder(primaryConnection.environment, null, primaryConnection.environmentColor, null, primaryConnection.categoryColor);
             return;
         }
     } else if (toolConnectionId) {
@@ -1010,7 +1010,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                 statusElement.className = `connection-status connected ${envClass}`;
             }
             // Update tool panel border based on environment
-            updateToolPanelBorder(toolConnection.environment);
+            updateToolPanelBorder(toolConnection.environment, null, toolConnection.environmentColor, null, toolConnection.categoryColor);
             return;
         }
     }
@@ -1025,44 +1025,59 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null): void {
+function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null, environmentColor?: string | null, secondaryEnvironmentColor?: string | null, categoryColor?: string | null): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
         const classesToRemove = Array.from(toolPanelWrapper.classList).filter((cls) => cls.startsWith("env-") || cls.startsWith("multi-env-"));
         classesToRemove.forEach((cls) => toolPanelWrapper.classList.remove(cls));
+        // Reset inline styles
+        toolPanelWrapper.style.border = "";
+        toolPanelWrapper.style.borderImage = "";
 
-        // Add the appropriate class based on environment(s)
+        // Add the appropriate class or inline style based on environment(s)
         if (environment && secondaryEnvironment) {
-            const primaryEnvClass = environment.toLowerCase();
-            const secondaryEnvClass = secondaryEnvironment.toLowerCase();
-
-            // If both environments are the same, use single environment class for efficiency
-            if (primaryEnvClass === secondaryEnvClass) {
-                toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+            if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
+                const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : environmentColor;
+                toolPanelWrapper.style.border = "5px solid transparent";
+                toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${environmentColor} 50%, ${secColor} 50%) 1`;
             } else {
-                // Multi-connection: use split border with both environments
-                const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
-                toolPanelWrapper.classList.add(multiEnvClass);
+                const primaryEnvClass = environment.toLowerCase();
+                const secondaryEnvClass = secondaryEnvironment.toLowerCase();
+                if (primaryEnvClass === secondaryEnvClass) {
+                    toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+                } else {
+                    const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+                    toolPanelWrapper.classList.add(multiEnvClass);
+                }
             }
         } else if (environment) {
-            // Single connection: use solid border
-            const envClass = `env-${environment.toLowerCase()}`;
-            toolPanelWrapper.classList.add(envClass);
+            if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
+                toolPanelWrapper.style.border = `5px solid ${environmentColor}`;
+            } else {
+                const envClass = `env-${environment.toLowerCase()}`;
+                toolPanelWrapper.classList.add(envClass);
+            }
         }
     }
 
-    // Update the active tab with environment class
+    // Update the active tab with environment class or category color
     if (activeToolId) {
         const activeTab = document.getElementById(`tool-tab-${activeToolId}`);
         if (activeTab) {
             // Remove all environment classes from tab
             activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+            // Reset inline style
+            activeTab.style.borderBottom = "";
 
-            // Add the appropriate class based on environment (use primary for tabs)
+            // Add the appropriate class or inline style based on environment (use primary for tabs)
             if (environment) {
-                const envClass = `env-${environment.toLowerCase()}`;
-                activeTab.classList.add(envClass);
+                if (categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor)) {
+                    activeTab.style.borderBottom = `5px solid ${categoryColor}`;
+                } else {
+                    const envClass = `env-${environment.toLowerCase()}`;
+                    activeTab.classList.add(envClass);
+                }
             }
         }
     }

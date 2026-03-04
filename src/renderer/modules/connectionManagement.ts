@@ -49,6 +49,7 @@ interface ConnectionFormPayload {
     browserProfileName?: string;
     category?: string;
     environmentColor?: string;
+    categoryColor?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -395,6 +396,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                         browserType: conn.browserType,
                         browserProfile: conn.browserProfile,
                         browserProfileName: conn.browserProfileName,
+                        category: conn.category,
+                        environmentColor: conn.environmentColor,
+                        categoryColor: conn.categoryColor,
                     }),
                 ),
             },
@@ -585,6 +589,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     browserType: conn.browserType,
                     browserProfile: conn.browserProfile,
                     browserProfileName: conn.browserProfileName,
+                    category: conn.category,
+                    environmentColor: conn.environmentColor,
+                    categoryColor: conn.categoryColor,
                 })),
             },
         });
@@ -1187,8 +1194,11 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         const category = sanitizeInput(formPayload.category);
         const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
         const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+        const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+        const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
         connection.category = category || undefined;
         connection.environmentColor = environmentColor;
+        connection.categoryColor = categoryColor;
 
         return connection;
     }
@@ -1216,8 +1226,11 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     const category = sanitizeInput(formPayload.category);
     const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
     const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+    const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+    const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
     connection.category = category || undefined;
     connection.environmentColor = environmentColor;
+    connection.categoryColor = categoryColor;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1504,6 +1517,33 @@ export async function loadSidebarConnections(): Promise<void> {
         }
         const sortOption = sortSelect ? coerceConnectionsSortOption(sortSelect.value) : savedSort;
 
+        // Build unique categories for the category filter dropdown
+        const categoryFilter = document.getElementById("connections-category-filter") as HTMLSelectElement | null;
+        if (categoryFilter) {
+            const allCategories = new Set<string>();
+            connections.forEach((conn: DataverseConnection) => {
+                if (conn.category) allCategories.add(conn.category);
+            });
+            const currentCategoryValue = categoryFilter.value;
+            // Rebuild options (keep "All Categories" + "__default__" if there are any uncategorized)
+            const hasDefault = connections.some((conn: DataverseConnection) => !conn.category);
+            let optionsHtml = '<option value="">All Categories</option>';
+            if (hasDefault) {
+                optionsHtml += '<option value="__default__">Default (No Category)</option>';
+            }
+            allCategories.forEach((cat) => {
+                optionsHtml += `<option value="${cat.replace(/"/g, "&quot;")}">${cat.replace(/</g, "&lt;")}</option>`;
+            });
+            categoryFilter.innerHTML = optionsHtml;
+            // Restore previous selection if still valid
+            if (currentCategoryValue) {
+                categoryFilter.value = currentCategoryValue;
+            }
+        }
+
+        // Category filter
+        const selectedCategory = categoryFilter?.value || "";
+
         // Apply filters
         const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
@@ -1522,6 +1562,14 @@ export async function loadSidebarConnections(): Promise<void> {
             // Authentication type filter
             if (selectedAuthType && conn.authenticationType !== selectedAuthType) {
                 return false;
+            }
+
+            // Category filter
+            if (selectedCategory) {
+                if (selectedCategory === "__default__") {
+                    return !conn.category;
+                }
+                return conn.category === selectedCategory;
             }
 
             return true;
@@ -1549,14 +1597,27 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        connectionsList.innerHTML = sortedConnections
-            .map((conn: DataverseConnection) => {
-                const isDarkTheme = document.body.classList.contains("dark-theme");
-                const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
-                const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
-                const envBadgeMarkup = getEnvBadgeMarkup(conn);
+        // Group connections by category
+        const groupMap = new Map<string, DataverseConnection[]>();
+        sortedConnections.forEach((conn: DataverseConnection) => {
+            const key = conn.category || "Default";
+            if (!groupMap.has(key)) groupMap.set(key, []);
+            groupMap.get(key)!.push(conn);
+        });
 
-                return `
+        // Sort groups: "Default" first, then alphabetical
+        const groupKeys = Array.from(groupMap.keys()).sort((a, b) => {
+            if (a === "Default") return -1;
+            if (b === "Default") return 1;
+            return a.localeCompare(b);
+        });
+
+        const renderConnectionItem = (conn: DataverseConnection): string => {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
+            const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+            const envBadgeMarkup = getEnvBadgeMarkup(conn);
+            return `
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
@@ -1582,8 +1643,32 @@ export async function loadSidebarConnections(): Promise<void> {
                     </div>
                 </div>
             `;
-            })
-            .join("");
+        };
+
+        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "Default");
+
+        if (useGroups) {
+            connectionsList.innerHTML = groupKeys
+                .map((groupKey) => {
+                    const groupConns = groupMap.get(groupKey)!;
+                    const escapedKey = groupKey.replace(/"/g, "&quot;").replace(/</g, "&lt;");
+                    const items = groupConns.map(renderConnectionItem).join("");
+                    return `
+                    <div class="connection-group" data-category="${escapedKey}">
+                        <div class="connection-group-header" data-category="${escapedKey}">
+                            <span class="connection-group-title">${escapedKey}</span>
+                            <span class="connection-group-count">${groupConns.length}</span>
+                            <span class="connection-group-toggle">▼</span>
+                        </div>
+                        <div class="connection-group-items" data-category="${escapedKey}">
+                            ${items}
+                        </div>
+                    </div>`;
+                })
+                .join("");
+        } else {
+            connectionsList.innerHTML = sortedConnections.map(renderConnectionItem).join("");
+        }
 
         // Add event listeners for more buttons and context menu
         connectionsList.querySelectorAll(".tool-more-btn").forEach((button) => {
@@ -1597,6 +1682,19 @@ export async function loadSidebarConnections(): Promise<void> {
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
+            });
+        });
+
+        // Setup group header collapse toggle
+        connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
+            const categoryName = header.getAttribute("data-category");
+            const items = connectionsList.querySelector(`.connection-group-items[data-category="${CSS.escape(categoryName || "")}"]`);
+            header.addEventListener("click", () => {
+                if (!items) return;
+                const isCollapsed = items.classList.contains("collapsed");
+                items.classList.toggle("collapsed", !isCollapsed);
+                const toggle = header.querySelector(".connection-group-toggle");
+                if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
             });
         });
 
@@ -1640,6 +1738,14 @@ export async function loadSidebarConnections(): Promise<void> {
         if (authFilter && !(authFilter as any)._pptbBound) {
             (authFilter as any)._pptbBound = true;
             authFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup category filter event listener
+        if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+            (categoryFilter as any)._pptbBound = true;
+            categoryFilter.addEventListener("change", () => {
                 loadSidebarConnections();
             });
         }

@@ -174,6 +174,11 @@ ${sortingUtilities}
                                    (idPrefix === 'secondary' && conn.id === authenticatedSecondaryConnectionId);
             const browserBadge = getBrowserBadgeMarkup(conn);
             const safeId = escapeHtml(conn.id);
+            const envColor = conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor) ? conn.environmentColor : null;
+            const envBadgeStyle = envColor ? \` style="background-color:\${envColor}1a;color:\${envColor};border:1px solid \${envColor}4d"\` : '';
+            const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
+            const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
+            const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
             
             return \`
             <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
@@ -191,8 +196,9 @@ ${sortingUtilities}
                 <div class="connection-url">\${escapeHtml(conn.url)}</div>
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
-                        <span class="connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}">\${escapeHtml(conn.environment)}</span>
+                        <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${catBadgeMarkup}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>

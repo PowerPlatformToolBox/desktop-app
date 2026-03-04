@@ -176,6 +176,13 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             }
             return "";
         })(),
+        categoryColor: (() => {
+            const colorInput = document.getElementById("connection-category-color");
+            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
+                return colorInput.value;
+            }
+            return "";
+        })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
             return {
@@ -221,6 +228,21 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 colorInput.value = "#000000";
                 colorInput.dataset.customSet = "false";
                 if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+            }
+        }
+
+        // Populate category color
+        const catColorInput = document.getElementById("connection-category-color");
+        const catColorLabel = document.getElementById("connection-category-color-label");
+        if (catColorInput instanceof HTMLInputElement) {
+            if (connection.categoryColor) {
+                catColorInput.value = connection.categoryColor;
+                catColorInput.dataset.customSet = "true";
+                if (catColorLabel) catColorLabel.textContent = connection.categoryColor;
+            } else {
+                catColorInput.value = "#000000";
+                catColorInput.dataset.customSet = "false";
+                if (catColorLabel) catColorLabel.textContent = "Pick a color for the category";
             }
         }
         
@@ -284,6 +306,25 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             colorInput.dataset.customSet = "false";
             colorInput.value = "#000000";
             if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+        }
+    });
+
+    // Category color picker setup
+    const categoryColorInput = document.getElementById("connection-category-color");
+    const categoryColorLabel = document.getElementById("connection-category-color-label");
+    const clearCategoryColorBtn = document.getElementById("clear-category-color");
+    if (categoryColorInput instanceof HTMLInputElement) {
+        categoryColorInput.dataset.customSet = "false";
+        categoryColorInput.addEventListener("input", () => {
+            categoryColorInput.dataset.customSet = "true";
+            if (categoryColorLabel) categoryColorLabel.textContent = categoryColorInput.value;
+        });
+    }
+    clearCategoryColorBtn?.addEventListener("click", () => {
+        if (categoryColorInput instanceof HTMLInputElement) {
+            categoryColorInput.dataset.customSet = "false";
+            categoryColorInput.value = "#000000";
+            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
         }
     });
 

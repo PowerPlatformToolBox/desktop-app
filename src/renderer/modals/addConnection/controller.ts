@@ -158,6 +158,13 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             }
             return "";
         })(),
+        categoryColor: (() => {
+            const colorInput = document.getElementById("connection-category-color");
+            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
+                return colorInput.value;
+            }
+            return "";
+        })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
             return {
@@ -211,6 +218,25 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             colorInput.dataset.customSet = "false";
             colorInput.value = "#000000";
             if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+        }
+    });
+
+    // Category color picker setup
+    const categoryColorInput = document.getElementById("connection-category-color");
+    const categoryColorLabel = document.getElementById("connection-category-color-label");
+    const clearCategoryColorBtn = document.getElementById("clear-category-color");
+    if (categoryColorInput instanceof HTMLInputElement) {
+        categoryColorInput.dataset.customSet = "false";
+        categoryColorInput.addEventListener("input", () => {
+            categoryColorInput.dataset.customSet = "true";
+            if (categoryColorLabel) categoryColorLabel.textContent = categoryColorInput.value;
+        });
+    }
+    clearCategoryColorBtn?.addEventListener("click", () => {
+        if (categoryColorInput instanceof HTMLInputElement) {
+            categoryColorInput.dataset.customSet = "false";
+            categoryColorInput.value = "#000000";
+            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
         }
     });
 

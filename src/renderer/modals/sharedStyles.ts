@@ -607,5 +607,22 @@ export function getModalStyles(isDarkTheme: boolean): string {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+
+    .category-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        background: rgba(0, 0, 0, 0.08);
+        color: inherit;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    .auth-fields-column {
+        display: flex;
+        flex-direction: column;
+    }
 </style>`;
 }
