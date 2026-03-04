@@ -4,11 +4,11 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
 
 - [@pptb/types](#pptbtypes)
     - [Installation](#installation)
-    - [Overview](#overview)
     - [Tool Validation](#tool-validation)
         - [Quick start](#quick-start)
         - [CLI options](#cli-options)
         - [What is validated](#what-is-validated)
+    - [Overview](#overview)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
         - [Include specific API types](#include-specific-api-types)
@@ -55,7 +55,7 @@ Add a script to your tool's `package.json`:
 ```json
 {
     "scripts": {
-        "pptb-validate": "pptb-validate"
+        "validate": "pptb-validate"
     }
 }
 ```
@@ -63,7 +63,7 @@ Add a script to your tool's `package.json`:
 Then run:
 
 ```bash
-npm run pptb-validate
+npm run validate
 ```
 
 You can also run it directly (no script entry needed once `@pptb/types` is installed):
@@ -80,32 +80,32 @@ npx pptb-validate path/to/package.json
 
 ### CLI options
 
-| Option | Description |
-|---|---|
-| `--skip-url-checks` | Skip URL reachability checks (faster, works offline) |
-| `--json` | Print results as a JSON object (suitable for CI pipelines) |
-| `--help`, `-h` | Show help information |
+| Option              | Description                                                |
+| ------------------- | ---------------------------------------------------------- |
+| `--skip-url-checks` | Skip URL reachability checks (faster, works offline)       |
+| `--json`            | Print results as a JSON object (suitable for CI pipelines) |
+| `--help`, `-h`      | Show help information                                      |
 
 ### What is validated
 
 The validator checks every field that the official review pipeline inspects:
 
-| Field | Required | Rules |
-|---|---|---|
-| `name` | ✅ | Must be a string |
-| `version` | ✅ | Must be a string |
-| `displayName` | ✅ | Must be a string |
-| `description` | ✅ | Must be a string |
-| `license` | ✅ | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
-| `contributors` | ✅ | Non-empty array; each entry needs a `name` |
-| `configurations.repository` | ✅ | Valid, reachable URL |
-| `configurations.readmeUrl` | ✅ | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`) |
-| `configurations.website` | ❌ | Valid, reachable URL when provided |
-| `configurations.funding` | ❌ | Valid, reachable URL when provided |
-| `icon` | ❌ | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path |
-| `cspExceptions` | ❌ | When present: must not be empty; only recognised directives; each directive must be a non-empty array |
-| `features.multiConnection` | ❌* | Required when `features` is present; must be `"required"`, `"optional"`, or `"none"` |
-| `features.minAPI` | ❌ | Valid semver string when provided |
+| Field                       | Required | Rules                                                                                                                                  |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                      | ✅       | Must be a string                                                                                                                       |
+| `version`                   | ✅       | Must be a string                                                                                                                       |
+| `displayName`               | ✅       | Must be a string                                                                                                                       |
+| `description`               | ✅       | Must be a string                                                                                                                       |
+| `license`                   | ✅       | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
+| `contributors`              | ✅       | Non-empty array; each entry needs a `name`                                                                                             |
+| `configurations.repository` | ✅       | Valid, reachable URL                                                                                                                   |
+| `configurations.readmeUrl`  | ✅       | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`)                                                    |
+| `configurations.website`    | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `configurations.funding`    | ❌       | Valid, reachable URL when provided                                                                                                     |
+| `icon`                      | ❌       | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path                                      |
+| `cspExceptions`             | ❌       | When present: must not be empty; only recognised directives; each directive must be a non-empty array                                  |
+| `features.multiConnection`  | ❌\*     | Required when `features` is present; must be `"required"`, `"optional"`, or `"none"`                                                   |
+| `features.minAPI`           | ❌       | Valid semver string when provided                                                                                                      |
 
 > \* Required only when the `features` object is present.
 

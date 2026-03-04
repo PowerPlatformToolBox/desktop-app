@@ -31,7 +31,7 @@ const c = {
 
 function printHelp() {
     console.log(`
-${c.bold("pptb-validate")} – Power Platform ToolBox tool package validator
+${c.bold("pptb-validate")} – Power Platform ToolBox tool validator
 
 ${c.bold("USAGE")}
   pptb-validate [options] [path/to/package.json]
@@ -44,18 +44,18 @@ ${c.bold("OPTIONS")}
   ${c.cyan("--json")}              Print results as a JSON object instead of human-readable text
   ${c.cyan("--help")}, ${c.cyan("-h")}          Show this help message
 
-${c.bold("EXAMPLES")}
-  pptb-validate
-  pptb-validate ./my-tool/package.json
-  pptb-validate --skip-url-checks
-  pptb-validate --json
-
 ${c.bold("ADD TO YOUR TOOL'S package.json")}
   ${c.dim(`"scripts": {
-    "pptb-validate": "pptb-validate"
+    "validate": "pptb-validate"
   }`)}
 
-  Then run: ${c.cyan("npm run pptb-validate")}
+  Then run: ${c.cyan("npm run validate")}
+
+${c.bold("EXAMPLES")}
+  npm run validate
+  npm run validate ./my-tool/package.json
+  npm run validate --skip-url-checks
+  npm run validate --json
 `);
 }
 
