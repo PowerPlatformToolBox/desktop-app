@@ -1,10 +1,14 @@
 # @pptb/types
 
-TypeScript type definitions for Power Platform ToolBox APIs.
+TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI validator that checks your tool's `package.json` against the official review criteria before you publish to npm.
 
 - [@pptb/types](#pptbtypes)
     - [Installation](#installation)
     - [Overview](#overview)
+    - [Tool Validation](#tool-validation)
+        - [Quick start](#quick-start)
+        - [CLI options](#cli-options)
+        - [What is validated](#what-is-validated)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
         - [Include specific API types](#include-specific-api-types)
@@ -39,6 +43,71 @@ TypeScript type definitions for Power Platform ToolBox APIs.
 ```bash
 npm install --save-dev @pptb/types
 ```
+
+## Tool Validation
+
+The `@pptb/types` package ships with a `pptb-validate` binary that validates your tool's `package.json` against the **same rules** used by the official Power Platform ToolBox review process. Running it before publishing helps you catch configuration problems early, reduces failed reviews, and avoids publishing unnecessary npm versions.
+
+### Quick start
+
+Add a script to your tool's `package.json`:
+
+```json
+{
+    "scripts": {
+        "pptb-validate": "pptb-validate"
+    }
+}
+```
+
+Then run:
+
+```bash
+npm run pptb-validate
+```
+
+You can also run it directly (no script entry needed once `@pptb/types` is installed):
+
+```bash
+npx pptb-validate
+```
+
+Or point it at a specific file:
+
+```bash
+npx pptb-validate path/to/package.json
+```
+
+### CLI options
+
+| Option | Description |
+|---|---|
+| `--skip-url-checks` | Skip URL reachability checks (faster, works offline) |
+| `--json` | Print results as a JSON object (suitable for CI pipelines) |
+| `--help`, `-h` | Show help information |
+
+### What is validated
+
+The validator checks every field that the official review pipeline inspects:
+
+| Field | Required | Rules |
+|---|---|---|
+| `name` | ✅ | Must be a string |
+| `version` | ✅ | Must be a string |
+| `displayName` | ✅ | Must be a string |
+| `description` | ✅ | Must be a string |
+| `license` | ✅ | Must be one of the approved OSS licenses (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, GPL-2.0, GPL-3.0, LGPL-3.0, ISC, AGPL-3.0-only) |
+| `contributors` | ✅ | Non-empty array; each entry needs a `name` |
+| `configurations.repository` | ✅ | Valid, reachable URL |
+| `configurations.readmeUrl` | ✅ | Valid URL; must **not** be hosted on `github.com` (use `raw.githubusercontent.com`) |
+| `configurations.website` | ❌ | Valid, reachable URL when provided |
+| `configurations.funding` | ❌ | Valid, reachable URL when provided |
+| `icon` | ❌ | Relative path to a `.svg` file bundled under `dist/`; must not be an HTTP URL or an absolute path |
+| `cspExceptions` | ❌ | When present: must not be empty; only recognised directives; each directive must be a non-empty array |
+| `features.multiConnection` | ❌* | Required when `features` is present; must be `"required"`, `"optional"`, or `"none"` |
+| `features.minAPI` | ❌ | Valid semver string when provided |
+
+> \* Required only when the `features` object is present.
 
 ## Overview
 

@@ -19,6 +19,17 @@
     "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
     "directory": "packages"
   },
+  "bin": {
+    "pptb-validate": "./bin/pptb-validate.js"
+  },
+  "files": [
+    "index.d.ts",
+    "toolboxAPI.d.ts",
+    "dataverseAPI.d.ts",
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
   "scripts": {
     "version:beta": "pnpm version prerelease --preid beta --no-git-tag-version",
     "version:stable": "pnpm version patch --no-git-tag-version",
