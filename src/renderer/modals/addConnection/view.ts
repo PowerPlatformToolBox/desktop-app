@@ -53,7 +53,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             <div class="form-group">
                 <label for="connection-environment-color">Environment Color (Optional)</label>
                 <div class="color-picker-row">
-                    <input type="color" id="connection-environment-color" class="modal-color-input" value="#000000" />
+                    <input type="color" id="connection-environment-color" class="modal-color-input" value="#0288d1" />
                     <span class="color-picker-label" id="connection-environment-color-label">Pick a custom color for the environment badge</span>
                     <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
                 </div>
@@ -67,7 +67,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             <div class="form-group">
                 <label for="connection-category-color">Category Color (Optional)</label>
                 <div class="color-picker-row">
-                    <input type="color" id="connection-category-color" class="modal-color-input" value="#000000" />
+                    <input type="color" id="connection-category-color" class="modal-color-input" value="#2e7d32" />
                     <span class="color-picker-label" id="connection-category-color-label">Pick a color for the category</span>
                     <button type="button" id="clear-category-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
                 </div>

@@ -96,6 +96,7 @@ export function getModalStyles(isDarkTheme: boolean): string {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 16px;
+        margin-bottom: 16px;
     }
 
     .form-row-two-col .form-group {

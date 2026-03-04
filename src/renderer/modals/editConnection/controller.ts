@@ -225,7 +225,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 colorInput.dataset.customSet = "true";
                 if (colorLabel) colorLabel.textContent = connection.environmentColor;
             } else {
-                colorInput.value = "#000000";
+                colorInput.value = "#0288d1";
                 colorInput.dataset.customSet = "false";
                 if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
             }
@@ -240,7 +240,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 catColorInput.dataset.customSet = "true";
                 if (catColorLabel) catColorLabel.textContent = connection.categoryColor;
             } else {
-                catColorInput.value = "#000000";
+                catColorInput.value = "#2e7d32";
                 catColorInput.dataset.customSet = "false";
                 if (catColorLabel) catColorLabel.textContent = "Pick a color for the category";
             }
@@ -304,7 +304,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     clearColorBtn?.addEventListener("click", () => {
         if (colorInput instanceof HTMLInputElement) {
             colorInput.dataset.customSet = "false";
-            colorInput.value = "#000000";
+            colorInput.value = "#0288d1";
             if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
         }
     });
@@ -323,7 +323,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     clearCategoryColorBtn?.addEventListener("click", () => {
         if (categoryColorInput instanceof HTMLInputElement) {
             categoryColorInput.dataset.customSet = "false";
-            categoryColorInput.value = "#000000";
+            categoryColorInput.value = "#2e7d32";
             if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
         }
     });

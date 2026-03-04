@@ -216,7 +216,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     clearColorBtn?.addEventListener("click", () => {
         if (colorInput instanceof HTMLInputElement) {
             colorInput.dataset.customSet = "false";
-            colorInput.value = "#000000";
+            colorInput.value = "#0288d1";
             if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
         }
     });
@@ -235,7 +235,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     clearCategoryColorBtn?.addEventListener("click", () => {
         if (categoryColorInput instanceof HTMLInputElement) {
             categoryColorInput.dataset.customSet = "false";
-            categoryColorInput.value = "#000000";
+            categoryColorInput.value = "#2e7d32";
             if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
         }
     });
