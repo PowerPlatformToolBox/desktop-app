@@ -43,6 +43,10 @@ export interface DataverseConnection {
     browserType?: BrowserType;
     browserProfile?: string;
     browserProfileName?: string;
+    // Grouping and visual customization
+    category?: string;
+    environmentColor?: string;
+    categoryColor?: string;
 }
 
 /**
@@ -76,6 +80,9 @@ export interface UIConnectionData {
     browserType?: BrowserType;
     browserProfile?: string;
     browserProfileName?: string;
+    category?: string;
+    environmentColor?: string;
+    categoryColor?: string;
 }
 
 /**

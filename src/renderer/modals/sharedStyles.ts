@@ -92,6 +92,46 @@ export function getModalStyles(isDarkTheme: boolean): string {
         margin-bottom: 16px;
     }
 
+    .form-row-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .form-row-two-col .form-group {
+        margin-bottom: 0;
+    }
+
+    .color-picker-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .modal-color-input {
+        width: 38px;
+        height: 34px;
+        padding: 2px;
+        border-radius: 6px;
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .color-picker-label {
+        flex: 1;
+        font-size: 13px;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
+    }
+
+    .color-clear-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+
     label {
         font-size: 13px;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.8)"};
@@ -567,6 +607,23 @@ export function getModalStyles(isDarkTheme: boolean): string {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .category-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        background: rgba(0, 0, 0, 0.08);
+        color: inherit;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    .auth-fields-column {
+        display: flex;
+        flex-direction: column;
     }
 </style>`;
 }

@@ -5048,3 +5048,59 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .global-search-highlight {
     animation: global-search-pulse 1.5s ease-out;
 }
+
+.connection-group {
+    margin-bottom: 4px;
+}
+
+.connection-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    user-select: none;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary, rgba(0, 0, 0, 0.6));
+
+    &:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .dark-theme & {
+        color: rgba(255, 255, 255, 0.6);
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+    }
+}
+
+.connection-group-title {
+    flex: 1;
+}
+
+.connection-group-count {
+    font-size: 11px;
+    opacity: 0.7;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 1px 6px;
+
+    .dark-theme & {
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.connection-group-toggle {
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.connection-group-items.collapsed {
+    display: none;
+}

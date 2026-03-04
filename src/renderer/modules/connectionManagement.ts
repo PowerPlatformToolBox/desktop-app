@@ -47,6 +47,9 @@ interface ConnectionFormPayload {
     browserType?: string;
     browserProfile?: string;
     browserProfileName?: string;
+    category?: string;
+    environmentColor?: string;
+    categoryColor?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -78,7 +81,7 @@ const ADD_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const ADD_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
@@ -92,7 +95,7 @@ const EDIT_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const EDIT_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
@@ -393,6 +396,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                         browserType: conn.browserType,
                         browserProfile: conn.browserProfile,
                         browserProfileName: conn.browserProfileName,
+                        category: conn.category,
+                        environmentColor: conn.environmentColor,
+                        categoryColor: conn.categoryColor,
                     }),
                 ),
             },
@@ -583,6 +589,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     browserType: conn.browserType,
                     browserProfile: conn.browserProfile,
                     browserProfileName: conn.browserProfileName,
+                    category: conn.category,
+                    environmentColor: conn.environmentColor,
+                    categoryColor: conn.categoryColor,
                 })),
             },
         });
@@ -632,7 +641,7 @@ export async function loadConnections(): Promise<void> {
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
-                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                        ${getEnvBadgeMarkup(conn as DataverseConnection)}
                     </div>
                     <div class="connection-actions">
                         ${
@@ -1181,6 +1190,16 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         connection.browserProfile = browserProfile || undefined;
         connection.browserProfileName = browserProfileName || undefined;
 
+        // Category and custom environment color
+        const category = sanitizeInput(formPayload.category);
+        const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+        const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+        const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+        const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
+        connection.category = category || undefined;
+        connection.environmentColor = environmentColor;
+        connection.categoryColor = categoryColor;
+
         return connection;
     }
 
@@ -1202,6 +1221,16 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
     connection.browserProfile = browserProfile || undefined;
     connection.browserProfileName = browserProfileName || undefined;
+
+    // Category and custom environment color
+    const category = sanitizeInput(formPayload.category);
+    const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+    const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+    const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+    const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
+    connection.category = category || undefined;
+    connection.environmentColor = environmentColor;
+    connection.categoryColor = categoryColor;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1284,6 +1313,16 @@ function getBrowserBadgeMarkup(conn: DataverseConnection): string {
             <span class="browser-profile-label">${safeProfileName}</span>
         </span>
     `;
+}
+
+function getEnvBadgeMarkup(conn: DataverseConnection): string {
+    const env = conn.environment || "Dev";
+    const safeEnv = escapeHtml(env);
+    if (conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor)) {
+        const safeColor = escapeHtml(conn.environmentColor);
+        return `<span class="connection-env-badge" style="background-color:${safeColor}1a;color:${safeColor};border:1px solid ${safeColor}4d">${safeEnv}</span>`;
+    }
+    return `<span class="connection-env-badge env-${escapeHtml(env.toLowerCase())}">${safeEnv}</span>`;
 }
 
 function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
@@ -1478,6 +1517,33 @@ export async function loadSidebarConnections(): Promise<void> {
         }
         const sortOption = sortSelect ? coerceConnectionsSortOption(sortSelect.value) : savedSort;
 
+        // Build unique categories for the category filter dropdown
+        const categoryFilter = document.getElementById("connections-category-filter") as HTMLSelectElement | null;
+        if (categoryFilter) {
+            const allCategories = new Set<string>();
+            connections.forEach((conn: DataverseConnection) => {
+                if (conn.category) allCategories.add(conn.category);
+            });
+            const currentCategoryValue = categoryFilter.value;
+            // Rebuild options (keep "All Categories" + "__default__" if there are any uncategorized)
+            const hasDefault = connections.some((conn: DataverseConnection) => !conn.category);
+            let optionsHtml = '<option value="">All Categories</option>';
+            if (hasDefault) {
+                optionsHtml += '<option value="__default__">Default (No Category)</option>';
+            }
+            allCategories.forEach((cat) => {
+                optionsHtml += `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`;
+            });
+            categoryFilter.innerHTML = optionsHtml;
+            // Restore previous selection if still valid
+            if (currentCategoryValue) {
+                categoryFilter.value = currentCategoryValue;
+            }
+        }
+
+        // Category filter
+        const selectedCategory = categoryFilter?.value || "";
+
         // Apply filters
         const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
@@ -1496,6 +1562,14 @@ export async function loadSidebarConnections(): Promise<void> {
             // Authentication type filter
             if (selectedAuthType && conn.authenticationType !== selectedAuthType) {
                 return false;
+            }
+
+            // Category filter
+            if (selectedCategory) {
+                if (selectedCategory === "__default__") {
+                    return !conn.category;
+                }
+                return conn.category === selectedCategory;
             }
 
             return true;
@@ -1523,18 +1597,34 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        connectionsList.innerHTML = sortedConnections
-            .map((conn: DataverseConnection) => {
-                const isDarkTheme = document.body.classList.contains("dark-theme");
-                const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
-                const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+        // Group connections by category (empty string = uncategorized / "Default")
+        const groupMap = new Map<string, DataverseConnection[]>();
+        sortedConnections.forEach((conn: DataverseConnection) => {
+            const key = conn.category || "";
+            if (!groupMap.has(key)) groupMap.set(key, []);
+            groupMap.get(key)!.push(conn);
+        });
 
-                return `
+        // Sort groups: uncategorized ("") first, then alphabetical
+        const groupKeys = Array.from(groupMap.keys()).sort((a, b) => {
+            if (a === "") return -1;
+            if (b === "") return 1;
+            return a.localeCompare(b);
+        });
+
+        const renderConnectionItem = (conn: DataverseConnection): string => {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
+            const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+            const envBadgeMarkup = getEnvBadgeMarkup(conn);
+            const safeName = escapeHtml(conn.name || "");
+            const safeUrl = escapeHtml(conn.url || "");
+            return `
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
-                                <div class="connection-item-name-pptb">${conn.name}</div>
+                                <div class="connection-item-name-pptb">${safeName}</div>
                             </div>
                         </div>
                         <div class="connection-item-header-right-pptb">
@@ -1543,10 +1633,10 @@ export async function loadSidebarConnections(): Promise<void> {
                             </button>
                         </div>
                     </div>
-                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-url-pptb">${safeUrl}</div>
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
-                            <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                            ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
                         </div>
                         <div class="connection-item-meta-left">
@@ -1555,8 +1645,33 @@ export async function loadSidebarConnections(): Promise<void> {
                     </div>
                 </div>
             `;
-            })
-            .join("");
+        };
+
+        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
+
+        if (useGroups) {
+            connectionsList.innerHTML = groupKeys
+                .map((groupKey) => {
+                    const groupConns = groupMap.get(groupKey)!;
+                    const displayKey = groupKey === "" ? "Default" : groupKey;
+                    const escapedKey = escapeHtml(displayKey);
+                    const items = groupConns.map(renderConnectionItem).join("");
+                    return `
+                    <div class="connection-group" data-category="${escapedKey}">
+                        <div class="connection-group-header" data-category="${escapedKey}" role="button" tabindex="0" aria-expanded="true">
+                            <span class="connection-group-title">${escapedKey}</span>
+                            <span class="connection-group-count">${groupConns.length}</span>
+                            <span class="connection-group-toggle">▼</span>
+                        </div>
+                        <div class="connection-group-items" data-category="${escapedKey}">
+                            ${items}
+                        </div>
+                    </div>`;
+                })
+                .join("");
+        } else {
+            connectionsList.innerHTML = sortedConnections.map(renderConnectionItem).join("");
+        }
 
         // Add event listeners for more buttons and context menu
         connectionsList.querySelectorAll(".tool-more-btn").forEach((button) => {
@@ -1570,6 +1685,29 @@ export async function loadSidebarConnections(): Promise<void> {
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
+            });
+        });
+
+        // Setup group header collapse toggle
+        connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
+            const headerEl = header as HTMLElement;
+            const toggleGroup = () => {
+                const group = headerEl.closest(".connection-group");
+                const items = group?.querySelector(".connection-group-items");
+                if (!items) return;
+                const isCollapsed = items.classList.contains("collapsed");
+                items.classList.toggle("collapsed", !isCollapsed);
+                const toggle = headerEl.querySelector(".connection-group-toggle");
+                if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
+                headerEl.setAttribute("aria-expanded", (!isCollapsed).toString());
+            };
+            headerEl.addEventListener("click", toggleGroup);
+            headerEl.addEventListener("keydown", (event: Event) => {
+                const ke = event as KeyboardEvent;
+                if (ke.key === "Enter" || ke.key === " ") {
+                    ke.preventDefault();
+                    toggleGroup();
+                }
             });
         });
 
@@ -1613,6 +1751,14 @@ export async function loadSidebarConnections(): Promise<void> {
         if (authFilter && !(authFilter as any)._pptbBound) {
             (authFilter as any)._pptbBound = true;
             authFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
+        // Setup category filter event listener
+        if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+            (categoryFilter as any)._pptbBound = true;
+            categoryFilter.addEventListener("change", () => {
                 loadSidebarConnections();
             });
         }
