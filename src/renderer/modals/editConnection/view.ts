@@ -21,31 +21,47 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
         <button id="close-connection-modal" class="icon-button" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-        <div class="form-group">
-            <label for="connection-name">Connection Name</label>
-            <input type="text" id="connection-name" class="modal-input" placeholder="Production" />
+        <div class="form-row-two-col">
+            <div class="form-group">
+                <label for="connection-name">Connection Name</label>
+                <input type="text" id="connection-name" class="modal-input" placeholder="Production" />
+            </div>
+            <div class="form-group">
+                <label for="connection-category">Category (Optional)</label>
+                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" />
+            </div>
         </div>
         <div class="form-group">
             <label for="connection-url">Environment URL</label>
             <input type="text" id="connection-url" class="modal-input" placeholder="https://org.crm.dynamics.com" />
         </div>
-        <div class="form-group">
-            <label for="connection-authentication-type">Authentication Type</label>
-            <select id="connection-authentication-type" class="modal-input">
-                <option value="interactive">Microsoft Login (OAuth)</option>
-                <option value="clientSecret">Client ID/Secret</option>
-                <option value="usernamePassword">Username/Password</option>
-                <option value="connectionString">Connection String</option>
-            </select>
+        <div class="form-row-two-col">
+            <div class="form-group">
+                <label for="connection-authentication-type">Authentication Type</label>
+                <select id="connection-authentication-type" class="modal-input">
+                    <option value="interactive">Microsoft Login (OAuth)</option>
+                    <option value="clientSecret">Client ID/Secret</option>
+                    <option value="usernamePassword">Username/Password</option>
+                    <option value="connectionString">Connection String</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="connection-environment">Environment</label>
+                <select id="connection-environment" class="modal-input">
+                    <option value="Dev">Dev</option>
+                    <option value="Test">Test</option>
+                    <option value="UAT">UAT</option>
+                    <option value="Production">Production</option>
+                </select>
+            </div>
         </div>
         <div class="form-group">
-            <label for="connection-environment">Environment</label>
-            <select id="connection-environment" class="modal-input">
-                <option value="Dev">Dev</option>
-                <option value="Test">Test</option>
-                <option value="UAT">UAT</option>
-                <option value="Production">Production</option>
-            </select>
+            <label for="connection-environment-color">Environment Color (Optional)</label>
+            <div class="color-picker-row">
+                <input type="color" id="connection-environment-color" class="modal-color-input" value="#000000" />
+                <span class="color-picker-label" id="connection-environment-color-label">Pick a custom color for the environment badge</span>
+                <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+            </div>
         </div>
         <div class="field-group">
             <span class="section-label">Browser Settings (Optional)</span>
@@ -90,7 +106,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
             <input type="text" id="connection-tenant-id-cs" class="modal-input" placeholder="tenant-id" />
         </div>
         <div id="username-password-fields" class="field-group" style="display: none">
-            <span class="section-label">Username & Password</span>
+            <span class="section-label">Username &amp; Password</span>
             <label for="connection-username-up">Username</label>
             <input type="text" id="connection-username-up" class="modal-input" placeholder="user@domain.com" />
             <label for="connection-password">Password</label>

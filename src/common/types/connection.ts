@@ -43,6 +43,9 @@ export interface DataverseConnection {
     browserType?: BrowserType;
     browserProfile?: string;
     browserProfileName?: string;
+    // Grouping and visual customization
+    category?: string;
+    environmentColor?: string;
 }
 
 /**

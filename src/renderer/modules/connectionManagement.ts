@@ -47,6 +47,8 @@ interface ConnectionFormPayload {
     browserType?: string;
     browserProfile?: string;
     browserProfileName?: string;
+    category?: string;
+    environmentColor?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -632,7 +634,7 @@ export async function loadConnections(): Promise<void> {
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
-                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                        ${getEnvBadgeMarkup(conn as DataverseConnection)}
                     </div>
                     <div class="connection-actions">
                         ${
@@ -1181,6 +1183,13 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         connection.browserProfile = browserProfile || undefined;
         connection.browserProfileName = browserProfileName || undefined;
 
+        // Category and custom environment color
+        const category = sanitizeInput(formPayload.category);
+        const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+        const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+        connection.category = category || undefined;
+        connection.environmentColor = environmentColor;
+
         return connection;
     }
 
@@ -1202,6 +1211,13 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
     connection.browserProfile = browserProfile || undefined;
     connection.browserProfileName = browserProfileName || undefined;
+
+    // Category and custom environment color
+    const category = sanitizeInput(formPayload.category);
+    const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+    const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+    connection.category = category || undefined;
+    connection.environmentColor = environmentColor;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1284,6 +1300,16 @@ function getBrowserBadgeMarkup(conn: DataverseConnection): string {
             <span class="browser-profile-label">${safeProfileName}</span>
         </span>
     `;
+}
+
+function getEnvBadgeMarkup(conn: DataverseConnection): string {
+    const env = conn.environment || "Dev";
+    const safeEnv = escapeHtml(env);
+    if (conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor)) {
+        const safeColor = escapeHtml(conn.environmentColor);
+        return `<span class="connection-env-badge" style="background-color:${safeColor}1a;color:${safeColor};border:1px solid ${safeColor}4d">${safeEnv}</span>`;
+    }
+    return `<span class="connection-env-badge env-${env.toLowerCase()}">${safeEnv}</span>`;
 }
 
 function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
@@ -1528,6 +1554,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
                 const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+                const envBadgeMarkup = getEnvBadgeMarkup(conn);
 
                 return `
                 <div class="connection-item-pptb">
@@ -1546,7 +1573,7 @@ export async function loadSidebarConnections(): Promise<void> {
                     <div class="connection-item-url-pptb">${conn.url}</div>
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
-                            <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                            ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
                         </div>
                         <div class="connection-item-meta-left">

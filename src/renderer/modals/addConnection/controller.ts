@@ -150,6 +150,14 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
+        category: getInputValue("connection-category"),
+        environmentColor: (() => {
+            const colorInput = document.getElementById("connection-environment-color");
+            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
+                return colorInput.value;
+            }
+            return "";
+        })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
             return {
@@ -185,6 +193,26 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    // Color picker setup
+    const colorInput = document.getElementById("connection-environment-color");
+    const colorLabel = document.getElementById("connection-environment-color-label");
+    const clearColorBtn = document.getElementById("clear-environment-color");
+    if (colorInput instanceof HTMLInputElement) {
+        // Initialize with no custom color
+        colorInput.dataset.customSet = "false";
+        colorInput.addEventListener("input", () => {
+            colorInput.dataset.customSet = "true";
+            if (colorLabel) colorLabel.textContent = colorInput.value;
+        });
+    }
+    clearColorBtn?.addEventListener("click", () => {
+        if (colorInput instanceof HTMLInputElement) {
+            colorInput.dataset.customSet = "false";
+            colorInput.value = "#000000";
+            if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+        }
+    });
 
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {

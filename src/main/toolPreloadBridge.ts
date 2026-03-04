@@ -103,6 +103,8 @@ type ToolSafeConnection = {
     createdAt?: string;
     lastUsedAt?: string;
     isActive?: boolean;
+    category?: string;
+    environmentColor?: string;
 };
 
 function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
@@ -129,6 +131,8 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
         createdAt: typeof source.createdAt === "string" ? source.createdAt : undefined,
         lastUsedAt: typeof source.lastUsedAt === "string" ? source.lastUsedAt : undefined,
         isActive: typeof source.isActive === "boolean" ? source.isActive : undefined,
+        category: typeof source.category === "string" ? source.category : undefined,
+        environmentColor: typeof source.environmentColor === "string" ? source.environmentColor : undefined,
     };
 }
 

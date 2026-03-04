@@ -168,6 +168,14 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
+        category: getInputValue("connection-category"),
+        environmentColor: (() => {
+            const colorInput = document.getElementById("connection-environment-color");
+            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
+                return colorInput.value;
+            }
+            return "";
+        })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
             return {
@@ -197,6 +205,24 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 browserProfileSelect.value = connection.browserProfile;
             }
         });
+
+        // Populate category
+        setInputValue("connection-category", connection.category || "");
+
+        // Populate environment color
+        const colorInput = document.getElementById("connection-environment-color");
+        const colorLabel = document.getElementById("connection-environment-color-label");
+        if (colorInput instanceof HTMLInputElement) {
+            if (connection.environmentColor) {
+                colorInput.value = connection.environmentColor;
+                colorInput.dataset.customSet = "true";
+                if (colorLabel) colorLabel.textContent = connection.environmentColor;
+            } else {
+                colorInput.value = "#000000";
+                colorInput.dataset.customSet = "false";
+                if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+            }
+        }
         
         // Populate auth type specific fields
         if (connection.authenticationType === "clientSecret") {
@@ -241,6 +267,25 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    // Color picker setup
+    const colorInput = document.getElementById("connection-environment-color");
+    const colorLabel = document.getElementById("connection-environment-color-label");
+    const clearColorBtn = document.getElementById("clear-environment-color");
+    if (colorInput instanceof HTMLInputElement) {
+        colorInput.dataset.customSet = "false";
+        colorInput.addEventListener("input", () => {
+            colorInput.dataset.customSet = "true";
+            if (colorLabel) colorLabel.textContent = colorInput.value;
+        });
+    }
+    clearColorBtn?.addEventListener("click", () => {
+        if (colorInput instanceof HTMLInputElement) {
+            colorInput.dataset.customSet = "false";
+            colorInput.value = "#000000";
+            if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
+        }
+    });
 
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {
