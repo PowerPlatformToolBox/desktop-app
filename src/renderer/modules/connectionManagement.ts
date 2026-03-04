@@ -1688,7 +1688,6 @@ export async function loadSidebarConnections(): Promise<void> {
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             header.addEventListener("click", () => {
-                const categoryName = header.getAttribute("data-category");
                 // Find the sibling items element within the same parent group
                 const group = header.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
@@ -1697,7 +1696,6 @@ export async function loadSidebarConnections(): Promise<void> {
                 items.classList.toggle("collapsed", !isCollapsed);
                 const toggle = header.querySelector(".connection-group-toggle");
                 if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
-                void categoryName; // used for data attribute only
             });
         });
 
