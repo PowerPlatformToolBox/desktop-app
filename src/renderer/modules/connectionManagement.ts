@@ -1532,7 +1532,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 optionsHtml += '<option value="__default__">Default (No Category)</option>';
             }
             allCategories.forEach((cat) => {
-                optionsHtml += `<option value="${cat.replace(/"/g, "&quot;")}">${cat.replace(/</g, "&lt;")}</option>`;
+                optionsHtml += `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`;
             });
             categoryFilter.innerHTML = optionsHtml;
             // Restore previous selection if still valid
@@ -1651,7 +1651,7 @@ export async function loadSidebarConnections(): Promise<void> {
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
-                    const escapedKey = groupKey.replace(/"/g, "&quot;").replace(/</g, "&lt;");
+                    const escapedKey = escapeHtml(groupKey);
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
@@ -1687,14 +1687,17 @@ export async function loadSidebarConnections(): Promise<void> {
 
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
-            const categoryName = header.getAttribute("data-category");
-            const items = connectionsList.querySelector(`.connection-group-items[data-category="${CSS.escape(categoryName || "")}"]`);
             header.addEventListener("click", () => {
+                const categoryName = header.getAttribute("data-category");
+                // Find the sibling items element within the same parent group
+                const group = header.closest(".connection-group");
+                const items = group?.querySelector(".connection-group-items");
                 if (!items) return;
                 const isCollapsed = items.classList.contains("collapsed");
                 items.classList.toggle("collapsed", !isCollapsed);
                 const toggle = header.querySelector(".connection-group-toggle");
                 if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
+                void categoryName; // used for data attribute only
             });
         });
 
