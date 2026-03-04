@@ -917,12 +917,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     if (secondaryStatusElement) {
         secondaryStatusElement.classList.remove("visible", "connected", "expired");
         secondaryStatusElement.textContent = "";
+        secondaryStatusElement.style.color = "";
+        secondaryStatusElement.style.backgroundColor = "";
     }
 
     if (!activeToolId) {
         // No active tool, show "Not Connected"
         statusElement.textContent = "Not Connected";
         statusElement.className = "connection-status";
+        statusElement.style.color = "";
+        statusElement.style.backgroundColor = "";
         // Clear tool panel border
         updateToolPanelBorder(null);
         return;
@@ -953,7 +957,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
             const primaryStatusClass = isPrimaryExpired ? "expired" : "connected";
-            statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
+            const primaryHasCustomColor = !isPrimaryExpired && primaryConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(primaryConnection.environmentColor);
+            if (primaryHasCustomColor) {
+                statusElement.className = `connection-status ${primaryStatusClass}`;
+                statusElement.style.color = primaryConnection.environmentColor as string;
+                statusElement.style.backgroundColor = `${primaryConnection.environmentColor}1a`;
+            } else {
+                statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
+                statusElement.style.color = "";
+                statusElement.style.backgroundColor = "";
+            }
 
             // Handle secondary connection display
             if (secondaryStatusElement) {
@@ -970,7 +983,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         secondaryStatusElement.textContent = secondaryText;
                         const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
                         const secondaryStatusClass = isSecondaryExpired ? "expired" : "connected";
-                        secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
+                        const secondaryHasCustomColor = !isSecondaryExpired && secondaryConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryConnection.environmentColor);
+                        if (secondaryHasCustomColor) {
+                            secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible`;
+                            secondaryStatusElement.style.color = secondaryConnection.environmentColor as string;
+                            secondaryStatusElement.style.backgroundColor = `${secondaryConnection.environmentColor}1a`;
+                        } else {
+                            secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
+                            secondaryStatusElement.style.color = "";
+                            secondaryStatusElement.style.backgroundColor = "";
+                        }
 
                         // Update tool panel border based on both primary and secondary environment
                         updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment, primaryConnection.environmentColor, secondaryConnection.environmentColor, primaryConnection.categoryColor);
@@ -1005,9 +1027,20 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             if (isExpired) {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
                 statusElement.className = `connection-status expired ${envClass}`;
+                statusElement.style.color = "";
+                statusElement.style.backgroundColor = "";
             } else {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
-                statusElement.className = `connection-status connected ${envClass}`;
+                const singleHasCustomColor = toolConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(toolConnection.environmentColor);
+                if (singleHasCustomColor) {
+                    statusElement.className = `connection-status connected`;
+                    statusElement.style.color = toolConnection.environmentColor as string;
+                    statusElement.style.backgroundColor = `${toolConnection.environmentColor}1a`;
+                } else {
+                    statusElement.className = `connection-status connected ${envClass}`;
+                    statusElement.style.color = "";
+                    statusElement.style.backgroundColor = "";
+                }
             }
             // Update tool panel border based on environment
             updateToolPanelBorder(toolConnection.environment, null, toolConnection.environmentColor, null, toolConnection.categoryColor);
@@ -1017,8 +1050,26 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
+    statusElement.style.color = "";
+    statusElement.style.backgroundColor = "";
     // Clear tool panel border
     updateToolPanelBorder(null);
+}
+
+/**
+ * Resolve the CSS-variable-based border color for a given environment type.
+ * Used as a fallback when no custom environmentColor is set on a connection.
+ */
+function getEnvBorderColor(environment: string): string {
+    const styles = getComputedStyle(document.documentElement);
+    const varMap: Record<string, string> = {
+        dev: "--env-border-dev",
+        test: "--env-border-test",
+        uat: "--env-border-uat",
+        production: "--env-border-prod",
+    };
+    const cssVar = varMap[environment.toLowerCase()] || "--env-border-dev";
+    return styles.getPropertyValue(cssVar).trim() || "#8a8886";
 }
 
 /**
@@ -1037,10 +1088,14 @@ function updateToolPanelBorder(environment: string | null, secondaryEnvironment?
 
         // Add the appropriate class or inline style based on environment(s)
         if (environment && secondaryEnvironment) {
-            if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
-                const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : environmentColor;
+            const primaryColor = environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor) ? environmentColor : null;
+            const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : null;
+            if (primaryColor || secColor) {
+                // At least one connection has a custom color — use inline gradient border
+                const leftColor = primaryColor || getEnvBorderColor(environment);
+                const rightColor = secColor || getEnvBorderColor(secondaryEnvironment);
                 toolPanelWrapper.style.border = "5px solid transparent";
-                toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${environmentColor} 50%, ${secColor} 50%) 1`;
+                toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${leftColor} 50%, ${rightColor} 50%) 1`;
             } else {
                 const primaryEnvClass = environment.toLowerCase();
                 const secondaryEnvClass = secondaryEnvironment.toLowerCase();
