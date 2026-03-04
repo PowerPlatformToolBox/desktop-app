@@ -17,6 +17,7 @@ export class SettingsManager {
                 language: "en",
                 autoUpdate: true,
                 terminalFont: "'Consolas', 'Monaco', 'Courier New', monospace",
+                notificationDuration: 5000,
                 showDebugMenu: false,
                 deprecatedToolsVisibility: "hide-all",
                 lastUsedTools: [],

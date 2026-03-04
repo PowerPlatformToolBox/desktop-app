@@ -4,6 +4,7 @@
  */
 
 import type { NotificationOptions } from "../types/index";
+import { DEFAULT_NOTIFICATION_DURATION } from "../constants";
 
 // Store callbacks for notification actions with their expiry timestamps
 interface CallbackEntry {
@@ -24,6 +25,16 @@ let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
 // Flag to track if the notification action listener is already set up
 let isNotificationActionListenerSetUp = false;
+
+// Default notification display duration (can be overridden by user settings)
+let defaultNotificationDuration: number = DEFAULT_NOTIFICATION_DURATION;
+
+/**
+ * Update the default notification duration used when no explicit duration is provided
+ */
+export function setDefaultNotificationDuration(duration: number): void {
+    defaultNotificationDuration = duration;
+}
 
 /**
  * Clean up expired callbacks to prevent memory leaks
@@ -97,9 +108,11 @@ export function showPPTBNotification(options: NotificationOptions): void {
 
     // Store callbacks for later invocation with TTL for automatic cleanup
     if (options.actions && actions) {
-        const duration = options.duration || 5000;
-        // Callback expires after notification duration plus a buffer to handle edge cases
-        const expiresAt = Date.now() + duration + CALLBACK_TTL_BUFFER_MS;
+        const duration = options.duration !== undefined ? options.duration : defaultNotificationDuration;
+        // For persistent notifications (duration === 0), use a very large TTL so callbacks
+        // remain available until the user explicitly dismisses the notification.
+        const effectiveDuration = duration === 0 ? Number.MAX_SAFE_INTEGER - Date.now() : duration;
+        const expiresAt = Date.now() + effectiveDuration + CALLBACK_TTL_BUFFER_MS;
         
         actions.forEach((action: { label: string; callback: string }, index: number) => {
             const originalCallback = options.actions![index].callback;
@@ -118,7 +131,7 @@ export function showPPTBNotification(options: NotificationOptions): void {
         title: options.title,
         body: options.body,
         type: options.type || "info",
-        duration: options.duration || 5000,
+        duration: options.duration !== undefined ? options.duration : defaultNotificationDuration,
         actions,
     });
 }

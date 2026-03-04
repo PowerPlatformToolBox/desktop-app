@@ -56,6 +56,7 @@ export interface SettingsState {
     deprecatedToolsVisibility?: string;
     toolDisplayMode?: string;
     terminalFont?: string;
+    notificationDuration?: number;
 }
 
 /**
