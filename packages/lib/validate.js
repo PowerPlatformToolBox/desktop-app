@@ -205,14 +205,14 @@ async function validatePackageJson(packageJson, options = {}) {
         }
 
         // Funding validation (optional but recommended)
-        if (!configs.funding) {
-            warnings.push("configurations.funding is not set; consider adding a sponsorship or funding URL to support contributors");
-        } else if (!isValidUrl(configs.funding)) {
-            warnings.push("configurations.funding has an invalid URL format");
-        } else if (!skipUrlChecks) {
-            const accessible = await isUrlAccessible(configs.funding);
-            if (!accessible) {
-                warnings.push("configurations.funding URL is not accessible");
+        if (configs.funding) {
+            if (!isValidUrl(configs.funding)) {
+                warnings.push("configurations.funding has an invalid URL format");
+            } else if (!skipUrlChecks) {
+                const accessible = await isUrlAccessible(configs.funding);
+                if (!accessible) {
+                    warnings.push("configurations.funding URL is not accessible");
+                }
             }
         }
 
