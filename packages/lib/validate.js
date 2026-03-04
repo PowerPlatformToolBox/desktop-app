@@ -145,12 +145,12 @@ async function validatePackageJson(packageJson, options = {}) {
     }
 
     // Icon validation (optional, but must be a relative SVG path if provided)
-    if (packageJson.icon !== undefined && packageJson.icon !== null) {
-        if (typeof packageJson.icon !== "string") {
-            errors.push("icon must be a string (relative path to bundled SVG under dist)");
-        } else {
-            validateIconPath("icon", packageJson.icon, errors);
-        }
+    if (packageJson.icon === undefined || packageJson.icon === null) {
+        warnings.push("icon is not set; consider adding a bundled SVG icon so your tool displays properly in the marketplace");
+    } else if (typeof packageJson.icon !== "string") {
+        errors.push("icon must be a string (relative path to bundled SVG under dist)");
+    } else {
+        validateIconPath("icon", packageJson.icon, errors);
     }
 
     // Contributors validation
@@ -192,27 +192,27 @@ async function validatePackageJson(packageJson, options = {}) {
             }
         }
 
-        // Website validation (optional)
-        if (configs.website) {
-            if (!isValidUrl(configs.website)) {
-                warnings.push("configurations.website has an invalid URL format");
-            } else if (!skipUrlChecks) {
-                const accessible = await isUrlAccessible(configs.website);
-                if (!accessible) {
-                    warnings.push("configurations.website URL is not accessible");
-                }
+        // Website validation (optional but recommended)
+        if (!configs.website) {
+            warnings.push("configurations.website is not set; consider adding a URL where users can learn more about your tool");
+        } else if (!isValidUrl(configs.website)) {
+            warnings.push("configurations.website has an invalid URL format");
+        } else if (!skipUrlChecks) {
+            const accessible = await isUrlAccessible(configs.website);
+            if (!accessible) {
+                warnings.push("configurations.website URL is not accessible");
             }
         }
 
-        // Funding validation (optional)
-        if (configs.funding) {
-            if (!isValidUrl(configs.funding)) {
-                warnings.push("configurations.funding has an invalid URL format");
-            } else if (!skipUrlChecks) {
-                const accessible = await isUrlAccessible(configs.funding);
-                if (!accessible) {
-                    warnings.push("configurations.funding URL is not accessible");
-                }
+        // Funding validation (optional but recommended)
+        if (!configs.funding) {
+            warnings.push("configurations.funding is not set; consider adding a sponsorship or funding URL to support contributors");
+        } else if (!isValidUrl(configs.funding)) {
+            warnings.push("configurations.funding has an invalid URL format");
+        } else if (!skipUrlChecks) {
+            const accessible = await isUrlAccessible(configs.funding);
+            if (!accessible) {
+                warnings.push("configurations.funding URL is not accessible");
             }
         }
 
