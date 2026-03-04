@@ -80,7 +80,7 @@ const ADD_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const ADD_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
@@ -94,7 +94,7 @@ const EDIT_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const EDIT_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
