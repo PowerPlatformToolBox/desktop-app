@@ -85,6 +85,16 @@ function validateIconPath(fieldName, iconPath, errors) {
         errors.push(`${fieldName} must be a relative path (e.g., 'icon.svg' or 'icons/icon.svg')`);
         return;
     }
+    // Reject Windows absolute paths like "C:\..." or "C:/"
+    if (/^[a-zA-Z]:/.test(iconPath)) {
+        errors.push(`${fieldName} must be a relative path (e.g., 'icon.svg' or 'icons/icon.svg')`);
+        return;
+    }
+    // Reject backslashes — icon paths must use forward slashes
+    if (iconPath.includes("\\")) {
+        errors.push(`${fieldName} must use forward slashes, not backslashes (e.g., 'icons/icon.svg')`);
+        return;
+    }
     if (iconPath.includes("..")) {
         errors.push(`${fieldName} cannot contain '..' (path traversal not allowed)`);
         return;
