@@ -5,7 +5,14 @@
 
 import { getUpdateNotificationModalControllerScript } from "../modals/updateNotification/controller";
 import { getUpdateNotificationModalView } from "../modals/updateNotification/view";
-import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import {
+    offBrowserWindowModalClosed,
+    offBrowserWindowModalMessage,
+    onBrowserWindowModalClosed,
+    onBrowserWindowModalMessage,
+    sendBrowserWindowModalMessage,
+    showBrowserWindowModal,
+} from "./browserWindowModals";
 
 const UPDATE_NOTIFICATION_MODAL_ID = "update-notification";
 const UPDATE_NOTIFICATION_MODAL_CHANNELS = {
@@ -50,7 +57,10 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
         if (!payload) return;
         if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.download) {
             window.toolboxAPI.downloadUpdate().catch((error: unknown) => {
-                void sendBrowserWindowModalMessage({ channel: "update:error", data: { message: (error as Error)?.message ?? "Failed to download the update. Please check your connection and try again." } }).catch(() => undefined);
+                void sendBrowserWindowModalMessage({
+                    channel: "update:error",
+                    data: { message: (error as Error)?.message ?? "Failed to download the update. Please check your connection and try again." },
+                }).catch(() => undefined);
             });
         } else if (payload.channel === UPDATE_NOTIFICATION_MODAL_CHANNELS.install) {
             window.toolboxAPI.quitAndInstall().catch((error: unknown) => {
@@ -84,6 +94,7 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
             html,
             width: UPDATE_NOTIFICATION_MODAL_WIDTH,
             height: UPDATE_NOTIFICATION_MODAL_HEIGHT,
+            alwaysOnTop: true,
         });
     } catch (_error) {
         onClosed();

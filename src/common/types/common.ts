@@ -83,6 +83,7 @@ export interface ModalWindowOptions {
     width: number;
     height: number;
     resizable?: boolean;
+    alwaysOnTop?: boolean;
 }
 
 /**

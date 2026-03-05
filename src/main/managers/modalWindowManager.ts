@@ -45,6 +45,10 @@ export class ModalWindowManager {
             .then(() => {
                 if (!modalWindow.isDestroyed()) {
                     modalWindow.show();
+                    if (this.currentOptions?.alwaysOnTop) {
+                        modalWindow.setAlwaysOnTop(true, "modal-panel");
+                        modalWindow.moveTop();
+                    }
                     modalWindow.focus();
                     this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
                 }
@@ -115,6 +119,11 @@ export class ModalWindowManager {
         this.mainWindow.on("restore", () => {
             if (this.currentOptions && this.modalWindow && !this.modalWindow.isDestroyed()) {
                 this.modalWindow.show();
+                if (this.currentOptions.alwaysOnTop) {
+                    this.modalWindow.setAlwaysOnTop(true, "modal-panel");
+                    this.modalWindow.moveTop();
+                }
+                this.modalWindow.focus();
             }
         });
         this.mainWindow.on("closed", () => this.destroy());
