@@ -3,17 +3,45 @@
  */
 
 /**
+ * Extended CSP exception entry that allows tool developers to explain why they need the exception
+ */
+export interface CspExceptionEntry {
+    /** The domain or source expression being allowed (e.g. "api.example.com") */
+    domain: string;
+    /** Markdown-formatted explanation of why this domain is needed */
+    exceptionReason?: string;
+    /** Whether this exception is optional (tool still functions without it) */
+    optional?: boolean;
+}
+
+/**
+ * A CSP exception source can be a plain domain string (legacy) or a detailed entry object
+ */
+export type CspExceptionSource = string | CspExceptionEntry;
+
+/**
+ * Normalize a CspExceptionSource to a CspExceptionEntry object
+ */
+export function normalizeCspExceptionSource(source: CspExceptionSource): CspExceptionEntry {
+    if (typeof source === "string") {
+        return { domain: source };
+    }
+    return source;
+}
+
+/**
  * CSP (Content Security Policy) exceptions for a tool
- * Allows tools to specify which external resources they need to access
+ * Allows tools to specify which external resources they need to access.
+ * Each source can be a plain string (legacy) or a CspExceptionEntry object with an optional reason.
  */
 export interface CspExceptions {
-    "connect-src"?: string[];
-    "script-src"?: string[];
-    "style-src"?: string[];
-    "img-src"?: string[];
-    "font-src"?: string[];
-    "frame-src"?: string[];
-    "media-src"?: string[];
+    "connect-src"?: CspExceptionSource[];
+    "script-src"?: CspExceptionSource[];
+    "style-src"?: CspExceptionSource[];
+    "img-src"?: CspExceptionSource[];
+    "font-src"?: CspExceptionSource[];
+    "frame-src"?: CspExceptionSource[];
+    "media-src"?: CspExceptionSource[];
 }
 
 /**

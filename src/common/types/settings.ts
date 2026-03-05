@@ -52,6 +52,17 @@ export interface LastUsedToolUpdate {
 }
 
 /**
+ * Per-tool CSP consent record.
+ * Stores whether consent was granted, and which required/optional domains were
+ * present at the time of consent (used for future re-consent detection).
+ */
+export interface CspConsentRecord {
+    allowed: boolean;
+    required: string[];
+    optional: string[];
+}
+
+/**
  * User settings for the ToolBox application
  */
 export interface UserSettings {
@@ -67,7 +78,7 @@ export interface UserSettings {
     connections: DataverseConnection[];
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
-    cspConsents: { [toolId: string]: boolean }; // Track CSP consent for each tool
+    cspConsents: { [toolId: string]: CspConsentRecord }; // CSP consent records per tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics

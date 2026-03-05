@@ -1,5 +1,5 @@
 import Store from "electron-store";
-import { LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
+import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
 
 /**
  * Manages user settings using electron-store
@@ -168,15 +168,18 @@ export class SettingsManager {
      */
     hasCspConsent(toolId: string): boolean {
         const cspConsents = this.store.get("cspConsents") || {};
-        return cspConsents[toolId] === true;
+        return cspConsents[toolId]?.allowed === true;
     }
 
     /**
      * Grant CSP consent for a tool
+     * @param toolId - The tool ID
+     * @param requiredDomains - The required (non-optional) domains at the time of consent
+     * @param approvedOptionalDomains - Optional domains approved by the user (empty means none approved)
      */
-    grantCspConsent(toolId: string): void {
+    grantCspConsent(toolId: string, requiredDomains: string[] = [], approvedOptionalDomains: string[] = []): void {
         const cspConsents = this.store.get("cspConsents") || {};
-        cspConsents[toolId] = true;
+        cspConsents[toolId] = { allowed: true, required: requiredDomains, optional: approvedOptionalDomains };
         this.store.set("cspConsents", cspConsents);
     }
 
@@ -190,10 +193,26 @@ export class SettingsManager {
     }
 
     /**
-     * Get all tools with CSP consent
+     * Get all tools with CSP consent (keyed by tool ID)
      */
-    getCspConsents(): { [toolId: string]: boolean } {
+    getCspConsents(): { [toolId: string]: CspConsentRecord } {
         return this.store.get("cspConsents") || {};
+    }
+
+    /**
+     * Get the list of required domains that were consented to for a tool
+     */
+    getApprovedRequiredDomains(toolId: string): string[] {
+        const cspConsents = this.store.get("cspConsents") || {};
+        return cspConsents[toolId]?.required ?? [];
+    }
+
+    /**
+     * Get the list of approved optional domains for a tool
+     */
+    getApprovedOptionalDomains(toolId: string): string[] {
+        const cspConsents = this.store.get("cspConsents") || {};
+        return cspConsents[toolId]?.optional ?? [];
     }
 
     /**

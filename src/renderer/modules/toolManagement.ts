@@ -5,6 +5,7 @@
 
 import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
+import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
@@ -211,15 +212,15 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (!hasConsent) {
                 // Show consent dialog using BrowserWindow modal framework
-                let consentGranted = false;
+                let approvedOptionalDomains: string[] | null = null;
                 try {
-                    consentGranted = await openCspExceptionModal(tool);
+                    approvedOptionalDomains = await openCspExceptionModal(tool);
                 } catch (error) {
                     logInfo("CSP consent modal closed without selection:", { error });
-                    consentGranted = false;
+                    approvedOptionalDomains = null;
                 }
 
-                if (!consentGranted) {
+                if (approvedOptionalDomains === null) {
                     // User declined or closed, don't load the tool
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
@@ -229,8 +230,20 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent
-                await window.toolboxAPI.grantCspConsent(tool.id);
+                // Grant consent — store required domains (for future re-consent detection) and selected optional domains
+                const requiredDomainsSet = new Set<string>();
+                for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
+                    if (Array.isArray(sources)) {
+                        for (const s of sources) {
+                            const entry = normalizeCspExceptionSource(s);
+                            if (!entry.optional) {
+                                requiredDomainsSet.add(entry.domain);
+                            }
+                        }
+                    }
+                }
+                const requiredDomains = Array.from(requiredDomainsSet).sort();
+                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
             }
         }
 
