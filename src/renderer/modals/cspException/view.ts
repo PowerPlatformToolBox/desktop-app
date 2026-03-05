@@ -77,7 +77,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
 
     const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false): string => {
-        const domainHtml = `<code>${escapeHtml(entry.domain)}</code>`;
+        const domainHtml = `<code class="csp-exception-domain-code">${escapeHtml(entry.domain)}</code>`;
         const reasonHtml = entry.exceptionReason ? `<div class="csp-exception-reason">${renderMarkdownInline(entry.exceptionReason)}</div>` : "";
         if (isCheckbox) {
             const disabledAttr = isDisabled ? " disabled" : "";
@@ -273,6 +273,10 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     .csp-learn-more {
         color: #4cc2ff;
+    }
+
+    .csp-exception-domain-code {
+        width: fit-content;
     }
 
     .csp-exception-reason {
