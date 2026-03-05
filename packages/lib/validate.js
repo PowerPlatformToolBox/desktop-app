@@ -238,7 +238,7 @@ async function validatePackageJson(packageJson, options = {}) {
         if (typeof cspExceptions !== "object" || cspExceptions === null || Array.isArray(cspExceptions)) {
             errors.push("cspExceptions must be an object mapping CSP directives to arrays of strings");
         } else {
-            const validCspDirectives = ["connect-src", "script-src", "style-src", "img-src", "font-src", "frame-src"];
+            const validCspDirectives = ["connect-src", "script-src", "style-src", "img-src", "font-src", "frame-src", "media-src"];
 
             const hasAnyDirectives = Object.keys(cspExceptions).length > 0;
             if (!hasAnyDirectives) {
