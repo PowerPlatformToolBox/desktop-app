@@ -1,7 +1,7 @@
 {
   "name": "@pptb/types",
-  "version": "1.0.20",
-  "description": "TypeScript type definitions for Power Platform ToolBox API",
+  "version": "1.1.3-beta.2",
+  "description": "Type definitions for Power Platform ToolBox APIs and validity checks for tool packages",
   "main": "index.d.ts",
   "types": "index.d.ts",
   "keywords": [
@@ -19,6 +19,17 @@
     "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
     "directory": "packages"
   },
+  "bin": {
+    "pptb-validate": "./bin/pptb-validate.js"
+  },
+  "files": [
+    "index.d.ts",
+    "toolboxAPI.d.ts",
+    "dataverseAPI.d.ts",
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
   "scripts": {
     "version:beta": "pnpm version prerelease --preid beta --no-git-tag-version",
     "version:stable": "pnpm version patch --no-git-tag-version",
