@@ -260,24 +260,30 @@ async function validatePackageJson(packageJson, options = {}) {
     }
 
     // Features validation (optional, but validated if present)
-    if (packageJson.features) {
-        const VALID_FEATURE_KEYS = ["multiConnection", "minAPI"];
-        const featureKeys = Object.keys(packageJson.features);
-        const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
+    if (packageJson.features !== undefined) {
+        const features = packageJson.features;
 
-        if (invalidKeys.length > 0) {
-            errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
-        }
+        if (features === null || typeof features !== "object" || Array.isArray(features)) {
+            errors.push("features must be a non-array object with optional 'multiConnection' and 'minAPI' properties");
+        } else {
+            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI"];
+            const featureKeys = Object.keys(features);
+            const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
-        if (packageJson.features.multiConnection === undefined) {
-            errors.push("features.multiConnection is required when features object is provided");
-        } else if (!VALID_MULTI_CONNECTION_VALUES.includes(packageJson.features.multiConnection)) {
-            errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
-        }
+            if (invalidKeys.length > 0) {
+                errors.push(`features can only contain ${VALID_FEATURE_KEYS.map((k) => `'${k}'`).join(", ")} properties. Invalid properties: ${invalidKeys.join(", ")}`);
+            }
 
-        if (packageJson.features.minAPI !== undefined) {
-            if (typeof packageJson.features.minAPI !== "string" || !SEMVER_REGEX.test(packageJson.features.minAPI)) {
-                errors.push("features.minAPI must be a valid semantic version string (e.g., '1.0.0')");
+            if (features.multiConnection === undefined) {
+                errors.push("features.multiConnection is required when features object is provided");
+            } else if (!VALID_MULTI_CONNECTION_VALUES.includes(features.multiConnection)) {
+                errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
+            }
+
+            if (features.minAPI !== undefined) {
+                if (typeof features.minAPI !== "string" || !SEMVER_REGEX.test(features.minAPI)) {
+                    errors.push("features.minAPI must be a valid semantic version string (e.g., '1.0.0')");
+                }
             }
         }
     }
