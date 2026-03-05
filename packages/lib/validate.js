@@ -7,7 +7,7 @@
  */
 
 /** @typedef {{ name: string; url?: string }} Contributor */
-/** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[] }} CspExceptions */
+/** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
 /** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string }} Features */
 /**
