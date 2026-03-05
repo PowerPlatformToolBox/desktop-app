@@ -47,8 +47,8 @@ export class ModalWindowManager {
                     modalWindow.show();
                     if (this.currentOptions?.alwaysOnTop) {
                         modalWindow.setAlwaysOnTop(true, "modal-panel");
-                        modalWindow.moveTop();
                     }
+                    modalWindow.moveTop();
                     modalWindow.focus();
                     this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
                 }
