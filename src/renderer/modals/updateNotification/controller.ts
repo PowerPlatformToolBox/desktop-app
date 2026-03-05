@@ -54,7 +54,7 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
         if (progressWrap) progressWrap.style.display = "none";
         if (actionBtn instanceof HTMLButtonElement) {
             actionBtn.disabled = false;
-            actionBtn.textContent = effectiveType === "downloaded" ? "Restart & Install Now" : "Download & Install";
+            actionBtn.textContent = effectiveType === "downloaded" ? "Close & Install Now" : "Download Now";
         }
         if (laterBtn instanceof HTMLButtonElement) {
             laterBtn.disabled = false;
@@ -113,7 +113,7 @@ export function getUpdateNotificationModalControllerScript(config: UpdateNotific
             if (progressWrap) progressWrap.style.display = "none";
             if (actionBtn instanceof HTMLButtonElement) {
                 actionBtn.disabled = false;
-                actionBtn.textContent = "Restart & Install Now";
+                actionBtn.textContent = "Close & Install Now";
             }
             if (laterBtn instanceof HTMLButtonElement) {
                 laterBtn.disabled = false;

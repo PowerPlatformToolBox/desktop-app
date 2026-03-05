@@ -278,13 +278,13 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
 
     const processSteps = isAvailable
         ? [
-              { n: "1", text: "The update will download in the background." },
+              { n: "1", text: "The update will download." },
               { n: "2", text: "Once downloaded, you will be prompted to install." },
-              { n: "3", text: "The app will restart automatically to apply the update." },
+              { n: "3", text: "The app will restart to apply the update." },
           ]
         : [
-              { n: "1", text: "Click <strong>Restart &amp; Install</strong> to apply the update now." },
-              { n: "2", text: "The app will close and restart automatically." },
+              { n: "1", text: "Click <strong>Close &amp; Install</strong> to apply the update now." },
+              { n: "2", text: "The app will close and start the installation process." },
               { n: "3", text: "Any in-progress work in open tools will be lost. Your app settings and connections will be preserved." },
           ];
 
@@ -296,15 +296,19 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
     </svg>`;
 
-    const stepsHtml = processSteps.map((s) => `<div class="update-process-step"><span class="update-process-step-number">${s.n}</span><span class="update-process-step-text">${s.text}</span></div>`).join("\n");
+    const stepsHtml = processSteps
+        .map((s) => `<div class="update-process-step"><span class="update-process-step-number">${s.n}</span><span class="update-process-step-text">${s.text}</span></div>`)
+        .join("\n");
 
-    const bannerText = isAvailable ? "This update requires an app restart to take effect. You can choose to download now or be reminded later." : "This update has been downloaded and is ready to install. The app will restart to apply the changes.";
+    const bannerText = isAvailable
+        ? "This update requires an app restart to take effect. You can choose to download now or be reminded later."
+        : "This update has been downloaded and is ready to install. The app will restart to apply the changes.";
 
     const footerButtons = isAvailable
         ? `<button id="update-later-btn" class="fluent-button fluent-button-secondary">Later</button>
-        <button id="update-action-btn" class="fluent-button fluent-button-primary">Download &amp; Install</button>`
+        <button id="update-action-btn" class="fluent-button fluent-button-primary">Download Now</button>`
         : `<button id="update-later-btn" class="fluent-button fluent-button-secondary">Install on Exit</button>
-        <button id="update-action-btn" class="fluent-button fluent-button-primary">Restart &amp; Install Now</button>`;
+        <button id="update-action-btn" class="fluent-button fluent-button-primary">Close &amp; Install Now</button>`;
 
     const body = `
 <div class="update-modal-panel">
