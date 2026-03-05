@@ -233,24 +233,30 @@ async function validatePackageJson(packageJson, options = {}) {
 
     // CSP Exceptions validation (optional, but validated if present)
     if (packageJson.cspExceptions) {
-        const validCspDirectives = ["connect-src", "script-src", "style-src", "img-src", "font-src", "frame-src"];
+        const cspExceptions = packageJson.cspExceptions;
 
-        const hasAnyDirectives = Object.keys(packageJson.cspExceptions).length > 0;
-        if (!hasAnyDirectives) {
-            errors.push("cspExceptions cannot be empty. If CSP exceptions are not needed, remove the cspExceptions field");
+        if (typeof cspExceptions !== "object" || cspExceptions === null || Array.isArray(cspExceptions)) {
+            errors.push("cspExceptions must be an object mapping CSP directives to arrays of strings");
+        } else {
+            const validCspDirectives = ["connect-src", "script-src", "style-src", "img-src", "font-src", "frame-src"];
+
+            const hasAnyDirectives = Object.keys(cspExceptions).length > 0;
+            if (!hasAnyDirectives) {
+                errors.push("cspExceptions cannot be empty. If CSP exceptions are not needed, remove the cspExceptions field");
+            }
+
+            Object.keys(cspExceptions).forEach((directive) => {
+                if (!validCspDirectives.includes(directive)) {
+                    warnings.push(`Unknown CSP directive: ${directive}`);
+                }
+                const values = cspExceptions[/** @type {keyof CspExceptions} */ (directive)];
+                if (values && !Array.isArray(values)) {
+                    errors.push(`CSP directive "${directive}" must be an array of strings`);
+                } else if (values && values.length === 0) {
+                    errors.push(`CSP directive "${directive}" cannot be an empty array`);
+                }
+            });
         }
-
-        Object.keys(packageJson.cspExceptions).forEach((directive) => {
-            if (!validCspDirectives.includes(directive)) {
-                warnings.push(`Unknown CSP directive: ${directive}`);
-            }
-            const values = packageJson.cspExceptions?.[/** @type {keyof CspExceptions} */ (directive)];
-            if (values && !Array.isArray(values)) {
-                errors.push(`CSP directive "${directive}" must be an array of strings`);
-            } else if (values && values.length === 0) {
-                errors.push(`CSP directive "${directive}" cannot be an empty array`);
-            }
-        });
     }
 
     // Features validation (optional, but validated if present)
