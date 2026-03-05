@@ -625,5 +625,49 @@ export function getModalStyles(isDarkTheme: boolean): string {
         display: flex;
         flex-direction: column;
     }
+
+    .connection-group {
+        margin-bottom: 4px;
+    }
+
+    .connection-group-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        cursor: pointer;
+        border-radius: 6px;
+        user-select: none;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
+    }
+
+    .connection-group-header:hover {
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+    }
+
+    .connection-group-title {
+        flex: 1;
+    }
+
+    .connection-group-count {
+        font-size: 11px;
+        opacity: 0.7;
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"};
+        border-radius: 10px;
+        padding: 1px 6px;
+    }
+
+    .connection-group-toggle {
+        font-size: 10px;
+        opacity: 0.7;
+    }
+
+    .connection-group-items.collapsed {
+        display: none;
+    }
 </style>`;
 }
