@@ -71,6 +71,10 @@ $notification-error-dark: #e74856;
 $favorite-star-color: #ffa500; // Orange for light theme
 $favorite-star-color-dark: #ffc107; // Lighter orange for dark theme
 
+// Connection warning (incomplete credentials) Colors
+$connection-warning-color: #f7a800; // Amber for light theme
+$connection-warning-color-dark: #f7c948; // Lighter amber for dark theme
+
 // Environment Border Colors - Light Theme
 $env-border-dev-light: #2e7d32;
 $env-border-test-light: #f57c00;
