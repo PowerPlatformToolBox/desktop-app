@@ -3,68 +3,7 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-// Initialize Sentry as early as possible in the renderer process
-import * as Sentry from "@sentry/electron/renderer";
-import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryInstallId, wrapAsyncOperation } from "../../common/sentryHelper";
-
-const sentryConfig = getSentryConfig();
-if (sentryConfig) {
-    Sentry.init({
-        dsn: sentryConfig.dsn,
-        environment: sentryConfig.environment,
-        release: sentryConfig.release,
-        tracesSampleRate: sentryConfig.tracesSampleRate,
-        replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
-        replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
-        // In production, we rely on captureException/captureMessage for explicit error reporting
-        enableLogs: sentryConfig.environment === "development",
-        // Capture unhandled promise rejections and console errors
-        integrations: [
-            Sentry.captureConsoleIntegration({
-                levels: ["error", "warn"],
-            }),
-            Sentry.browserTracingIntegration({
-                // Track navigation and page loads
-                enableLongTask: true,
-                enableInp: true,
-            }),
-            Sentry.replayIntegration(),
-            // Context lines integration for better error context
-            Sentry.contextLinesIntegration(),
-        ],
-        // Before sending events, add install ID and additional context
-        beforeSend(event) {
-            // Ensure install ID is in tags
-            if (!event.tags) {
-                event.tags = {};
-            }
-            event.tags.process = "renderer";
-
-            // Add user agent for browser context
-            if (!event.request) {
-                event.request = {};
-            }
-            event.request.headers = {
-                "User-Agent": navigator.userAgent,
-            };
-
-            return event;
-        },
-    });
-
-    // Initialize the helper with the Sentry module
-    initializeSentryHelper(Sentry);
-
-    logInfo("[Sentry] Initialized in renderer process with tracing and logging");
-    addBreadcrumb("Renderer process Sentry initialized", "init", "info");
-
-    // Install ID will be set via IPC from main process after settings are loaded
-} else {
-    logInfo("[Sentry] Telemetry disabled - no DSN configured");
-}
-
+import { addBreadcrumb, captureException, logCheckpoint, logInfo, logWarn, wrapAsyncOperation } from "../../common/sentryHelper";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -89,21 +28,6 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
-        // Get install ID from main process and set it in Sentry
-        if (sentryConfig) {
-            try {
-                const settings = await window.toolboxAPI.getUserSettings();
-                const installId = settings.installId || settings.machineId;
-                if (installId) {
-                    setSentryInstallId(installId);
-                    logCheckpoint("Install ID set in renderer Sentry", { installId });
-                }
-            } catch (error) {
-                // Use logWarn instead of console.warn for proper telemetry tracking
-                logWarn("Failed to get install ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
-            }
-        }
-
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
         addBreadcrumb("Modal bridges initialized", "init", "info");
@@ -273,14 +197,10 @@ export async function initializeApplication(): Promise<void> {
         addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
-        // If Sentry is available, capture the error
-        if (sentryConfig) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "renderer_initialization" },
-                level: "fatal",
-            });
-        }
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: { phase: "renderer_initialization" },
+            level: "fatal",
+        });
         // Show error to user using a proper error modal
         const errorMessage = (error as Error).message || "Unknown error occurred";
         const errorElement = document.createElement("div");

@@ -34,7 +34,6 @@
   "license": "GPL-3.0",
   "devDependencies": {
     "@electron/notarize": "^3.1.0",
-    "@sentry/vite-plugin": "^4.6.1",
     "@types/node": "^20.19.21",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
@@ -54,7 +53,6 @@
     "@azure/msal-node": "^3.8.0",
     "@fluentui/svg-icons": "^1.1.312",
     "@fluentui/tokens": "^1.0.0-alpha.22",
-    "@sentry/electron": "^7.5.0",
     "@supabase/supabase-js": "^2.84.0",
     "@types/uuid": "^10.0.0",
     "ansi-to-html": "^0.7.2",

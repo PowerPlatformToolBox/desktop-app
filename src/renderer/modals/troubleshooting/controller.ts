@@ -68,7 +68,6 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
         setCheckStatus("check-user-settings", "pending", "Ready to check");
         setCheckStatus("check-tool-settings", "pending", "Ready to check");
         setCheckStatus("check-connections", "pending", "Ready to check");
-        setCheckStatus("check-sentry", "pending", "Ready to check");
         setCheckStatus("check-internet", "pending", "Ready to check");
         setCheckStatus("check-supabase", "pending", "Ready to check");
         setCheckStatus("check-registry", "pending", "Ready to check");
@@ -94,9 +93,6 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
                 break;
             case "connections":
                 checkId = "check-connections";
-                break;
-            case "sentry":
-                checkId = "check-sentry";
                 break;
             case "supabase":
                 checkId = "check-supabase";
@@ -150,10 +146,6 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
 
             setCheckStatus("check-connections", "loading", "Checking connections storage...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "connections" });
-            await new Promise(resolve => setTimeout(resolve, 400));
-
-            setCheckStatus("check-sentry", "loading", "Checking Sentry logging...");
-            modalBridge.send(CONFIG.channels.runCheck, { checkType: "sentry" });
             await new Promise(resolve => setTimeout(resolve, 400));
 
             // Connectivity checks

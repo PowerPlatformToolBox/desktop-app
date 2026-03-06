@@ -73,9 +73,6 @@ async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayl
                 case "connections":
                     result = await window.toolboxAPI.troubleshooting.checkConnections();
                     break;
-                case "sentry":
-                    result = await window.toolboxAPI.troubleshooting.checkSentryLogging();
-                    break;
                 case "supabase":
                     result = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();
                     break;

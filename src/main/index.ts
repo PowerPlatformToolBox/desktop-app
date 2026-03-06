@@ -1,61 +1,4 @@
-// Initialize Sentry as early as possible in the main process
-import * as Sentry from "@sentry/electron/main";
-import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryInstallId } from "../common/sentryHelper";
-
-const sentryConfig = getSentryConfig();
-if (sentryConfig) {
-    Sentry.init({
-        dsn: sentryConfig.dsn,
-        environment: sentryConfig.environment,
-        release: sentryConfig.release,
-        tracesSampleRate: sentryConfig.tracesSampleRate,
-        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
-        // In production, we rely on captureException/captureMessage for explicit error reporting
-        enableLogs: sentryConfig.environment === "development",
-        // Capture unhandled promise rejections and console errors
-        integrations: [
-            Sentry.captureConsoleIntegration({
-                levels: ["error", "warn"],
-            }),
-            // Add HTTP integration for network request tracing
-            Sentry.httpIntegration(),
-            // Add Node integrations for better context
-            Sentry.nodeContextIntegration(),
-            Sentry.contextLinesIntegration(),
-            Sentry.localVariablesIntegration(),
-            Sentry.modulesIntegration(),
-        ],
-        // Before sending events, add install ID and additional context
-        beforeSend(event) {
-            // Ensure install ID is in tags
-            if (!event.tags) {
-                event.tags = {};
-            }
-            event.tags.process = "main";
-
-            // Add platform information
-            if (!event.contexts) {
-                event.contexts = {};
-            }
-            event.contexts.os = {
-                name: process.platform,
-                version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
-            };
-
-            return event;
-        },
-    });
-
-    // Initialize the helper with the Sentry module
-    initializeSentryHelper(Sentry);
-
-    logInfo("[Sentry] Initialized in main process with tracing and logging");
-    addBreadcrumb("Main process Sentry initialized", "init", "info");
-} else {
-    logInfo("[Sentry] Telemetry disabled - no DSN configured");
-}
-
+import { addBreadcrumb, captureException, captureMessage, logCheckpoint, logInfo } from "../common/sentryHelper";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -135,13 +78,6 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
-
-            // Initialize Sentry with install ID as early as possible
-            if (sentryConfig) {
-                const installId = this.installIdManager.getInstallId();
-                setSentryInstallId(installId);
-                logCheckpoint("Sentry install ID configured", { installId });
-            }
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -1060,10 +996,6 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_CONNECTIONS, async () => {
             return await this.checkConnections();
-        });
-
-        ipcMain.handle(UTIL_CHANNELS.CHECK_SENTRY_LOGGING, async () => {
-            return await this.checkSentryLogging();
         });
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD, async () => {
@@ -2367,7 +2299,7 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
-     * Includes install ID and other important information for Sentry tracing
+     * Includes install ID and other important information for diagnostics
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
@@ -2811,58 +2743,6 @@ class ToolBoxApp {
     }
 
     /**
-     * Check Sentry logging functionality
-     * Tests if Sentry is configured and can send events
-     */
-    private async checkSentryLogging(): Promise<{ success: boolean; message?: string }> {
-        try {
-            const sentryConfig = getSentryConfig();
-
-            if (!sentryConfig || !sentryConfig.dsn) {
-                logInfo("[Troubleshooting] Sentry is not configured (DSN missing)");
-                return {
-                    success: true,
-                    message: "Sentry telemetry disabled (no DSN configured)",
-                };
-            }
-
-            // Test Sentry by sending a test message
-            const testMessage = `[Troubleshooting] Sentry connectivity test at ${new Date().toISOString()}`;
-            captureMessage(testMessage, "warning", {
-                tags: {
-                    check: "sentry-logging",
-                    testEvent: "true",
-                },
-                extra: {
-                    installId: this.installIdManager.getInstallId(),
-                    appVersion: app.getVersion(),
-                    platform: process.platform,
-                    arch: process.arch,
-                },
-            });
-
-            logInfo("[Troubleshooting] Sentry test message sent successfully");
-            return {
-                success: true,
-                message: `Sentry configured and test event sent (DSN: ${sentryConfig.dsn.substring(0, 20)}...)`,
-            };
-        } catch (error) {
-            // Even if this fails, we want to capture it to Sentry
-            captureException(error as Error, {
-                tags: { check: "sentry-logging" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
-            return {
-                success: false,
-                message: error instanceof Error ? error.message : "Failed to test Sentry logging",
-            };
-        }
-    }
-
-    /**
      * Initialize the application
      */
     async initialize(): Promise<void> {
@@ -3011,8 +2891,4 @@ toolboxApp.initialize().catch((error) => {
         tags: { phase: "main_initialization" },
         level: "fatal",
     });
-    // If Sentry is available, capture the error
-    if (sentryConfig) {
-        Sentry.captureException(error);
-    }
 });

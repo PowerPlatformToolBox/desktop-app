@@ -114,7 +114,6 @@ export const UTIL_CHANNELS = {
     CHECK_USER_SETTINGS: "check-user-settings",
     CHECK_TOOL_SETTINGS: "check-tool-settings",
     CHECK_CONNECTIONS: "check-connections",
-    CHECK_SENTRY_LOGGING: "check-sentry-logging",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
 } as const;

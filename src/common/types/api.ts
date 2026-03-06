@@ -86,7 +86,6 @@ export interface TroubleshootingAPI {
     checkUserSettings: () => Promise<{ success: boolean; message?: string }>;
     checkToolSettings: () => Promise<{ success: boolean; message?: string }>;
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
-    checkSentryLogging: () => Promise<{ success: boolean; message?: string }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
 }
