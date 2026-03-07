@@ -2722,8 +2722,6 @@ class ToolBoxApp {
                 await this.toolManager.loadAllInstalledTools();
                 logCheckpoint("Tools loaded from registry");
             } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                logError(err);
                 logError(error instanceof Error ? error : new Error(String(error)));
             }
 

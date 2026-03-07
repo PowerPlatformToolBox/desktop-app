@@ -225,7 +225,7 @@ export class DataverseManager {
             } catch (error) {
                 // Silent acquisition failed - re-auth required
                 const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
-                logError("MSAL silent token acquisition failed");
+                logError("MSAL silent token acquisition failed", error);
                 throw new Error(errorMessage);
             }
         }
@@ -249,7 +249,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
-                    logError("Client secret authentication failed");
+                    logError("Client secret authentication failed", error);
                     throw new Error(errorMessage);
                 }
             }
@@ -278,7 +278,7 @@ export class DataverseManager {
                 } catch (error) {
                     // Silent token acquisition failed - user needs to re-authenticate
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    logError("Username/password silent token acquisition failed");
+                    logError("Username/password silent token acquisition failed", error);
                     throw new Error(errorMessage);
                 }
             }
@@ -301,7 +301,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    logError("Username/password token refresh failed");
+                    logError("Username/password token refresh failed", error);
                     throw new Error(errorMessage);
                 }
             }

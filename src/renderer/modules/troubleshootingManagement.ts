@@ -36,7 +36,7 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
             height: TROUBLESHOOTING_MODAL_DIMENSIONS.height,
         });
     } catch (error) {
-        logError("Failed to open troubleshooting modal");
+        logError("Failed to open troubleshooting modal", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Troubleshooting",
             body: `Unable to open troubleshooting modal: ${formatError(error)}`,

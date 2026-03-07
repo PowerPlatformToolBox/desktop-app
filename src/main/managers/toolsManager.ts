@@ -114,8 +114,8 @@ export class ToolManager extends EventEmitter {
             const tool = this.loadToolFromManifest(manifest);
 
             // Refresh analytics for this tool only (non-blocking)
-            this.refreshAnalyticsForTools([toolId]).catch((_error) => {
-                logError(`[ToolManager] Failed to refresh analytics for ${toolId}:`);
+            this.refreshAnalyticsForTools([toolId]).catch((error) => {
+                logError(`[ToolManager] Failed to refresh analytics for ${toolId}`, error);
             });
 
             return tool;

@@ -69,60 +69,40 @@ export async function initializeApplication(): Promise<void> {
 
 
         // Load and apply theme settings on startup
-        await (async () => {
-                await loadInitialSettings();
-            })();
+        await loadInitialSettings();
         logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
-        await (async () => {
-                await loadToolsLibrary();
-            })().catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
+        await loadToolsLibrary().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
-        await (async () => {
-                await loadSidebarTools();
-            })();
+        await loadSidebarTools();
 
-        await (async () => {
-                await loadMarketplace();
-            })();
+        await loadMarketplace();
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        await (async () => {
-                await loadSidebarConnections();
-            })().catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
+        await loadSidebarConnections().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Connections loaded");
 
         // Update footer connection info
         // Update footer connection status
         // Note: Footer shows active tool's connection, not a global connection
-        await (async () => {
-                await updateFooterConnection();
-            })();
+        await updateFooterConnection();
 
         // Load homepage data
-        await (async () => {
-                await loadHomepageData();
-            })().catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
+        await loadHomepageData().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Homepage data loaded");
 
         // Restore previous session
-        await (async () => {
-                await restoreSession();
-            })().catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
+        await restoreSession().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Session restored");
 

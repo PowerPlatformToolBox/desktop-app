@@ -1,5 +1,5 @@
 import { safeStorage } from "electron";
-import { logError } from "../../common/logger";
+import { logError, logWarn } from "../../common/logger";
 
 /**
  * Manages encryption and decryption of sensitive data using Electron's safeStorage API
@@ -23,7 +23,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            logError("Encryption not available");
+            logWarn("Encryption not available, returning data as-is");
             return plaintext;
         }
 
@@ -40,7 +40,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            logError("Encryption not available");
+            logWarn("Encryption not available, returning data as-is");
             return encrypted;
         }
 

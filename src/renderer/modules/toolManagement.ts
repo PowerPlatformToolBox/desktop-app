@@ -1261,7 +1261,7 @@ export async function openToolConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        logError("Connection selection cancelled or failed");
+        logError("Connection selection cancelled or failed", error);
     }
 }
 
@@ -1341,7 +1341,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        logError("Secondary connection selection cancelled or failed");
+        logError("Secondary connection selection cancelled or failed", error);
     }
 }
 

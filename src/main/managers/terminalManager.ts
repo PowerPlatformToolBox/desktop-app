@@ -2,7 +2,7 @@ import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
-import { logInfo, logError } from "../../common/logger";
+import { logInfo, logWarn } from "../../common/logger";
 
 /**
  * Manages terminal instances for tools
@@ -48,7 +48,7 @@ export class TerminalManager extends EventEmitter {
 
         // Verify shell exists, fallback to default if not
         if (options.shell && !(await this.shellExists(options.shell))) {
-            logError(`Shell ${options.shell} not found`);
+            logWarn(`Shell ${options.shell} not found, using default shell ${this.defaultShell}`);
             shell = this.defaultShell;
         }
 

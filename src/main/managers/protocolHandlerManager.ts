@@ -92,7 +92,7 @@ export class ProtocolHandlerManager {
         app.on("open-url", (event, url) => {
             event.preventDefault();
             logInfo(`[ProtocolHandler] Received open-url event: ${url}`);
-            this.bufferOrHandle(url, "open-url");
+            this.bufferOrHandle(url);
         });
 
         // Windows/Linux: a second instance forwards its command line here.
@@ -101,7 +101,7 @@ export class ProtocolHandlerManager {
             const url = commandLine.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
             if (url) {
                 logInfo(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
-                this.bufferOrHandle(url, "second-instance");
+                this.bufferOrHandle(url);
             }
         });
 
@@ -141,7 +141,7 @@ export class ProtocolHandlerManager {
      * Buffer the URL for later processing, or handle it immediately if the
      * callback has already been registered.
      */
-    private bufferOrHandle(url: string, _trigger: string): void {
+    private bufferOrHandle(url: string): void {
         if (this.protocolCallback) {
             this.handleProtocolUrl(url).catch((error) => {
                 logError(error instanceof Error ? error : new Error(String(error)));

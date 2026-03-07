@@ -26,7 +26,7 @@ function normalizeHomepageError(error: unknown, fallbackMessage: string): Error 
     }
 }
 
-function reportHomepageError(operation: string, error: unknown, _extra?: Record<string, unknown>): void {
+function reportHomepageError(operation: string, error: unknown): void {
     const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
     logError(normalized);
 }
@@ -484,7 +484,7 @@ async function openTool(toolId: string, options?: LaunchToolOptions): Promise<vo
     try {
         await launchTool(toolId, options);
     } catch (error) {
-        reportHomepageError("openTool", error, { toolId });
+        reportHomepageError("openTool", error);
     }
 }
 
