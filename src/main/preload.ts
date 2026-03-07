@@ -133,7 +133,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkUserSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_USER_SETTINGS),
         checkToolSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_SETTINGS),
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
-        checkSentryLogging: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SENTRY_LOGGING),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
         checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
     },

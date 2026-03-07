@@ -3,7 +3,6 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -11,6 +10,7 @@ import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
+import { logInfo, logError } from "../../common/logger";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
 
@@ -379,7 +379,7 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
     } catch (error) {
-        captureMessage("Failed to load sidebar tools:", "error", { extra: { error } });
+        logError("Failed to load sidebar tools", error);
         toolsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading tools</p>

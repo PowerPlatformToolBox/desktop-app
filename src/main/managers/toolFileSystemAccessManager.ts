@@ -1,5 +1,5 @@
 import * as path from "path";
-import { logInfo, logWarn } from "../../common/sentryHelper";
+import { logInfo, logWarn } from "../../common/logger";
 
 /**
  * Manages filesystem access permissions for tools

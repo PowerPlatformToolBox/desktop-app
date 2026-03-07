@@ -1,4 +1,3 @@
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -8,9 +7,8 @@ import packageJson from "./package.json";
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === "production";
-    // Enable source maps for Sentry in production (hidden source maps)
-    // Hidden source maps are not included in the bundle but available for upload to Sentry
-    const enableSourceMap = isProd ? "hidden" : true;
+    // Enable source maps in development mode only
+    const enableSourceMap = !isProd;
 
     // Load environment variables from .env file
     const env = loadEnv(mode, process.cwd(), "");
@@ -19,11 +17,6 @@ export default defineConfig(({ mode }) => {
     const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
     const azureBlobBaseUrl = env.AZURE_BLOB_BASE_URL || process.env.AZURE_BLOB_BASE_URL || "";
-    const sentryDsn = env.SENTRY_DSN || process.env.SENTRY_DSN || "";
-    const sentryAuthToken = env.SENTRY_AUTH_TOKEN || process.env.SENTRY_AUTH_TOKEN || "";
-    const sentryOrg = env.SENTRY_ORG || process.env.SENTRY_ORG || "";
-    const sentryProject = env.SENTRY_PROJECT || process.env.SENTRY_PROJECT || "";
-    const shouldUploadSentrySourceMaps = isProd && Boolean(sentryAuthToken && sentryOrg && sentryProject);
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -38,24 +31,12 @@ export default defineConfig(({ mode }) => {
         console.warn("[Vite] WARNING: AZURE_BLOB_BASE_URL not set - Azure Blob registry fallback will be disabled");
     }
 
-    if (sentryDsn) {
-        console.log("[Vite] Sentry DSN loaded successfully");
-        if (shouldUploadSentrySourceMaps) {
-            console.log("[Vite] Sentry source map upload enabled");
-        } else if (isProd) {
-            console.warn("[Vite] WARNING: Sentry source map upload disabled - missing SENTRY_AUTH_TOKEN, SENTRY_ORG, or SENTRY_PROJECT");
-        }
-    } else {
-        console.log("[Vite] Sentry DSN not found - telemetry will be disabled");
-    }
-
     // Define environment variables for the build
     // These will be replaced at build time, not exposed in the bundle
     const envDefines = {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
         "process.env.AZURE_BLOB_BASE_URL": JSON.stringify(azureBlobBaseUrl),
-        "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
     };
 
     return {
@@ -215,24 +196,6 @@ export default defineConfig(({ mode }) => {
                     }
                 },
             },
-            // Sentry source map upload plugin (only in production with auth token)
-            ...(shouldUploadSentrySourceMaps
-                ? [
-                      sentryVitePlugin({
-                          org: sentryOrg,
-                          project: sentryProject,
-                          authToken: sentryAuthToken,
-                          sourcemaps: {
-                              assets: ["./dist/**/*.js", "./dist/**/*.js.map"],
-                              filesToDeleteAfterUpload: ["./dist/**/*.js.map"],
-                          },
-                          release: {
-                              name: `powerplatform-toolbox@${packageJson.version}`,
-                          },
-                          telemetry: false,
-                      }),
-                  ]
-                : []),
         ],
         // Define environment variables for renderer process as well
         define: envDefines,

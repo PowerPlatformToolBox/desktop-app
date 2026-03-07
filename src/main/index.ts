@@ -1,61 +1,3 @@
-// Initialize Sentry as early as possible in the main process
-import * as Sentry from "@sentry/electron/main";
-import { getSentryConfig } from "../common/sentry";
-import { addBreadcrumb, captureException, captureMessage, initializeSentryHelper, logCheckpoint, logInfo, setSentryInstallId } from "../common/sentryHelper";
-
-const sentryConfig = getSentryConfig();
-if (sentryConfig) {
-    Sentry.init({
-        dsn: sentryConfig.dsn,
-        environment: sentryConfig.environment,
-        release: sentryConfig.release,
-        tracesSampleRate: sentryConfig.tracesSampleRate,
-        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
-        // In production, we rely on captureException/captureMessage for explicit error reporting
-        enableLogs: sentryConfig.environment === "development",
-        // Capture unhandled promise rejections and console errors
-        integrations: [
-            Sentry.captureConsoleIntegration({
-                levels: ["error", "warn"],
-            }),
-            // Add HTTP integration for network request tracing
-            Sentry.httpIntegration(),
-            // Add Node integrations for better context
-            Sentry.nodeContextIntegration(),
-            Sentry.contextLinesIntegration(),
-            Sentry.localVariablesIntegration(),
-            Sentry.modulesIntegration(),
-        ],
-        // Before sending events, add install ID and additional context
-        beforeSend(event) {
-            // Ensure install ID is in tags
-            if (!event.tags) {
-                event.tags = {};
-            }
-            event.tags.process = "main";
-
-            // Add platform information
-            if (!event.contexts) {
-                event.contexts = {};
-            }
-            event.contexts.os = {
-                name: process.platform,
-                version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
-            };
-
-            return event;
-        },
-    });
-
-    // Initialize the helper with the Sentry module
-    initializeSentryHelper(Sentry);
-
-    logInfo("[Sentry] Initialized in main process with tracing and logging");
-    addBreadcrumb("Main process Sentry initialized", "init", "info");
-} else {
-    logInfo("[Sentry] Telemetry disabled - no DSN configured");
-}
-
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -84,6 +26,7 @@ import {
     ModalWindowOptions,
     ToolBoxEvent,
 } from "../common/types";
+import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -136,13 +79,6 @@ class ToolBoxApp {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
 
-            // Initialize Sentry with install ID as early as possible
-            if (sentryConfig) {
-                const installId = this.installIdManager.getInstallId();
-                setSentryInstallId(installId);
-                logCheckpoint("Sentry install ID configured", { installId });
-            }
-
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
@@ -168,10 +104,7 @@ class ToolBoxApp {
             logCheckpoint("ToolBoxApp constructor completed");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "construction" },
-                level: "fatal",
-            });
+            logError(err);
             throw error;
         }
     }
@@ -748,10 +681,7 @@ class ToolBoxApp {
                 return { success: true };
             } catch (error) {
                 const errorMessage = `Failed to refresh token for connection '${connection.name}': ${(error as Error).message}`;
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "token_refresh", connectionId, connectionName: connection.name },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
                 throw new Error(errorMessage);
             }
         });
@@ -998,17 +928,7 @@ class ToolBoxApp {
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
                     // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    captureException(error instanceof Error ? error : new Error(String(error)), {
-                        extra: {
-                            source: "UTIL_CHANNELS.SHOW_LOADING",
-                            context: "Failed to compute active tool bounds for loading overlay; falling back to full-window overlay.",
-                            hasLoadingOverlayWindowManager: !!this.loadingOverlayWindowManager,
-                            hasMainWindow: !!this.mainWindow,
-                            hasToolWindowManager: !!this.toolWindowManager,
-                            activeToolId: this.toolWindowManager?.getActiveToolId() || null,
-                            message,
-                        },
-                    });
+                    logError(error instanceof Error ? error : new Error(String(error)));
                     // On error, show without bounds (full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...");
                 }
@@ -1060,10 +980,6 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_CONNECTIONS, async () => {
             return await this.checkConnections();
-        });
-
-        ipcMain.handle(UTIL_CHANNELS.CHECK_SENTRY_LOGGING, async () => {
-            return await this.checkSentryLogging();
         });
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD, async () => {
@@ -2367,7 +2283,7 @@ class ToolBoxApp {
 
     /**
      * Show About dialog with version and environment info
-     * Includes install ID and other important information for Sentry tracing
+     * Includes install ID and other important information for diagnostics
      */
     private showAboutDialog(): void {
         if (this.mainWindow) {
@@ -2418,18 +2334,10 @@ class ToolBoxApp {
                 logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
-            captureMessage("[Troubleshooting] Supabase returned invalid data", "warning", {
-                extra: { toolsType: typeof tools, toolsValue: tools },
-            });
+            logWarn("[Troubleshooting] Supabase returned invalid data");
             return { success: false, message: "Unable to fetch tools from registry" };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "supabase-connectivity" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
@@ -2445,9 +2353,7 @@ class ToolBoxApp {
             const toolsDirectory = path.join(app.getPath("userData"), "tools");
 
             if (!fs.existsSync(toolsDirectory)) {
-                captureMessage("[Troubleshooting] Tools directory missing for local registry check", "warning", {
-                    extra: { toolsDirectory },
-                });
+                logWarn("[Troubleshooting] Tools directory missing for local registry check");
                 return {
                     success: false,
                     message: "Tools directory not found. Launch a tool at least once to initialize it.",
@@ -2456,9 +2362,7 @@ class ToolBoxApp {
 
             const manifestPath = path.join(toolsDirectory, "manifest.json");
             if (!fs.existsSync(manifestPath)) {
-                captureMessage("[Troubleshooting] Local manifest file not found", "warning", {
-                    extra: { manifestPath },
-                });
+                logWarn("[Troubleshooting] Local manifest file not found");
                 return {
                     success: false,
                     message: "Local manifest file not found under tools directory",
@@ -2476,13 +2380,7 @@ class ToolBoxApp {
                 toolCount: tools.length,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "registry-file" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to read local manifest",
@@ -2509,26 +2407,13 @@ class ToolBoxApp {
                     message: "Internet connectivity verified via GitHub",
                 };
             }
-            captureMessage("[Troubleshooting] Internet connectivity check returned non-OK status", "warning", {
-                extra: {
-                    url: INTERNET_CHECK_URL,
-                    status: response.status,
-                    statusText: response.statusText,
-                },
-            });
+            logWarn("[Troubleshooting] Internet connectivity check returned non-OK status");
             return {
                 success: false,
                 message: `Internet connectivity check failed: HTTP ${response.status}`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "internet-connectivity" },
-                extra: {
-                    url: INTERNET_CHECK_URL,
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Network error during internet connectivity check",
@@ -2621,19 +2506,10 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                captureMessage("[Troubleshooting] Failed to clean up download test artifacts", "warning", {
-                    extra: { cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) },
-                });
+                logWarn("[Troubleshooting] Failed to clean up download test artifacts");
             }
 
-            captureException(error as Error, {
-                tags: { check: "tool-download" },
-                extra: {
-                    downloadUrl: TEST_TOOL_DOWNLOAD_URL,
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error during download test",
@@ -2649,9 +2525,7 @@ class ToolBoxApp {
         try {
             const settings = this.settingsManager.getUserSettings();
             if (!settings) {
-                captureMessage("[Troubleshooting] User settings returned null or undefined", "error", {
-                    extra: { settingsValue: settings },
-                });
+                logError("[Troubleshooting] User settings returned null or undefined");
                 return {
                     success: false,
                     message: "User settings file could not be loaded",
@@ -2667,12 +2541,7 @@ class ToolBoxApp {
                 if (!hasTheme) missingFields.push("theme");
                 if (!hasAutoUpdate) missingFields.push("autoUpdate");
 
-                captureMessage("[Troubleshooting] User settings missing required fields", "warning", {
-                    extra: {
-                        missingFields,
-                        settingsKeys: Object.keys(settings),
-                    },
-                });
+                logWarn("[Troubleshooting] User settings missing required fields");
 
                 return {
                     success: false,
@@ -2686,13 +2555,7 @@ class ToolBoxApp {
                 message: `User settings loaded successfully (${Object.keys(settings).length} properties)`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "user-settings" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load user settings",
@@ -2728,13 +2591,7 @@ class ToolBoxApp {
                 message: `Tool settings accessible (${toolSettingsCount} configured out of ${installedTools.length} loaded tools)`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "tool-settings" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to access tool settings",
@@ -2751,12 +2608,7 @@ class ToolBoxApp {
             const connections = this.connectionsManager.getConnections();
 
             if (!Array.isArray(connections)) {
-                captureMessage("[Troubleshooting] Connections is not an array", "error", {
-                    extra: {
-                        connectionsType: typeof connections,
-                        connectionsValue: connections,
-                    },
-                });
+                logError("[Troubleshooting] Connections is not an array");
                 return {
                     success: false,
                     message: "Connections data is corrupted (not an array)",
@@ -2780,13 +2632,7 @@ class ToolBoxApp {
             }
 
             if (invalidConnections.length > 0) {
-                captureMessage("[Troubleshooting] Some connections have invalid structure", "warning", {
-                    extra: {
-                        totalConnections: connections.length,
-                        validConnections,
-                        invalidConnections,
-                    },
-                });
+                logWarn("[Troubleshooting] Some connections have invalid structure");
             }
 
             logInfo(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
@@ -2796,68 +2642,10 @@ class ToolBoxApp {
                 connectionCount: validConnections,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "connections" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load connections",
-            };
-        }
-    }
-
-    /**
-     * Check Sentry logging functionality
-     * Tests if Sentry is configured and can send events
-     */
-    private async checkSentryLogging(): Promise<{ success: boolean; message?: string }> {
-        try {
-            const sentryConfig = getSentryConfig();
-
-            if (!sentryConfig || !sentryConfig.dsn) {
-                logInfo("[Troubleshooting] Sentry is not configured (DSN missing)");
-                return {
-                    success: true,
-                    message: "Sentry telemetry disabled (no DSN configured)",
-                };
-            }
-
-            // Test Sentry by sending a test message
-            const testMessage = `[Troubleshooting] Sentry connectivity test at ${new Date().toISOString()}`;
-            captureMessage(testMessage, "warning", {
-                tags: {
-                    check: "sentry-logging",
-                    testEvent: "true",
-                },
-                extra: {
-                    installId: this.installIdManager.getInstallId(),
-                    appVersion: app.getVersion(),
-                    platform: process.platform,
-                    arch: process.arch,
-                },
-            });
-
-            logInfo("[Troubleshooting] Sentry test message sent successfully");
-            return {
-                success: true,
-                message: `Sentry configured and test event sent (DSN: ${sentryConfig.dsn.substring(0, 20)}...)`,
-            };
-        } catch (error) {
-            // Even if this fails, we want to capture it to Sentry
-            captureException(error as Error, {
-                tags: { check: "sentry-logging" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
-            return {
-                success: false,
-                message: error instanceof Error ? error.message : "Failed to test Sentry logging",
             };
         }
     }
@@ -2872,28 +2660,23 @@ class ToolBoxApp {
             // Set app user model ID for Windows notifications
             if (process.platform === "win32") {
                 app.setAppUserModelId("com.powerplatform.toolbox");
-                addBreadcrumb("Set Windows app user model ID", "init", "info");
             }
 
             // Register custom protocol scheme before app is ready
             this.browserviewProtocolManager.registerScheme();
-            addBreadcrumb("Registered custom protocol scheme", "init", "info");
 
             // Register deep link protocol handler (pptb://)
             this.protocolHandlerManager.registerScheme();
-            addBreadcrumb("Registered pptb:// protocol scheme", "init", "info");
 
             // Initialize early protocol listeners (single-instance lock, open-url, second-instance)
             // MUST be called before app.whenReady() so no deep link is missed.
             this.protocolHandlerManager.initialize();
-            addBreadcrumb("Protocol handler early listeners registered", "init", "info");
 
             await app.whenReady();
             logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
-            addBreadcrumb("Registered protocol handler", "init", "info");
 
             this.createWindow();
             logCheckpoint("Main window created");
@@ -2933,22 +2716,13 @@ class ToolBoxApp {
                     }
                 }
             });
-            addBreadcrumb("Protocol handler callback registered", "init", "info");
 
             // Load all installed tools from registry
             try {
                 await this.toolManager.loadAllInstalledTools();
                 logCheckpoint("Tools loaded from registry");
             } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                captureException(err, {
-                    tags: { phase: "tool_loading" },
-                    level: "error",
-                });
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "tools_loading" },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
             }
 
             // Check if auto-update is enabled
@@ -2956,24 +2730,20 @@ class ToolBoxApp {
             if (autoUpdate) {
                 // Enable automatic update checks every 6 hours
                 this.autoUpdateManager.enableAutoUpdateChecks(6);
-                addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
             }
 
             // Clear any msal caches on startup
             await this.authManager.cleanup();
             this.connectionsManager.clearAllConnectionTokens();
-            addBreadcrumb("Cleared MSAL caches and connection tokens", "auth", "info");
 
             app.on("activate", () => {
                 if (BrowserWindow.getAllWindows().length === 0) {
                     this.createWindow();
-                    addBreadcrumb("Window recreated on activate", "window", "info");
                 }
             });
 
             app.on("window-all-closed", () => {
                 if (process.platform !== "darwin") {
-                    addBreadcrumb("All windows closed, quitting app", "window", "info");
                     app.quit();
                 }
             });
@@ -2988,16 +2758,12 @@ class ToolBoxApp {
                 this.authManager.cleanup();
                 // Clean up connection tokens
                 this.connectionsManager.clearAllConnectionTokens();
-                addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 
             logCheckpoint("Application initialization completed successfully");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "initialization" },
-                level: "fatal",
-            });
+            logError(err);
             logCheckpoint("Application initialization failed", { error: err.message });
             throw error;
         }
@@ -3007,12 +2773,5 @@ class ToolBoxApp {
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
 toolboxApp.initialize().catch((error) => {
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-        tags: { phase: "main_initialization" },
-        level: "fatal",
-    });
-    // If Sentry is available, capture the error
-    if (sentryConfig) {
-        Sentry.captureException(error);
-    }
+    logError(error instanceof Error ? error : new Error(String(error)));
 });

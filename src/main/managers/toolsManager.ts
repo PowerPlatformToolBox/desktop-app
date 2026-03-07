@@ -3,11 +3,11 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
+import { logInfo, logError } from "../../common/logger";
 
 /**
  * Package.json structure for tool validation
@@ -115,7 +115,7 @@ export class ToolManager extends EventEmitter {
 
             // Refresh analytics for this tool only (non-blocking)
             this.refreshAnalyticsForTools([toolId]).catch((error) => {
-                captureMessage(`[ToolManager] Failed to refresh analytics for ${toolId}:`, "error", { extra: { error } });
+                logError(`[ToolManager] Failed to refresh analytics for ${toolId}`, error);
             });
 
             return tool;
@@ -177,7 +177,7 @@ export class ToolManager extends EventEmitter {
                 await this.loadTool(manifest.id);
                 toolIds.push(manifest.id);
             } catch (error) {
-                captureMessage(`Failed to load registry tool ${manifest.id}:`, "error", { extra: { error } });
+                logError(`Failed to load registry tool ${manifest.id}`, error);
             }
         }
 
@@ -401,7 +401,7 @@ export class ToolManager extends EventEmitter {
             return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
         }
 
-        captureMessage(`[ToolManager] Neither pnpm nor npm found globally installed`, "error");
+        logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
         return null;
     }
 
@@ -441,7 +441,7 @@ export class ToolManager extends EventEmitter {
             install.stderr?.on("data", (data: Buffer) => {
                 const output = data.toString();
                 stderr += output;
-                captureMessage(`[ToolManager] ${pkgManager.name} stderr: ${output}`, "error");
+                logError(`[ToolManager] ${pkgManager.name} stderr: ${output}`);
             });
 
             install.on("close", (code: number) => {
@@ -454,7 +454,7 @@ export class ToolManager extends EventEmitter {
             });
 
             install.on("error", (err: Error) => {
-                captureMessage(`[ToolManager] ${pkgManager.name} process error: ${err.message}`, "error");
+                logError(`[ToolManager] ${pkgManager.name} process error: ${err.message}`);
                 if (err.message.includes("ENOENT")) {
                     const instructions = this.getInstallInstructions();
                     reject(new Error(`${pkgManager.name} command not found. Please install it globally:\n\n${instructions}`));
@@ -757,7 +757,7 @@ export class ToolManager extends EventEmitter {
     getLocalToolWebviewHtml(localPath: string): string | undefined {
         // Validate path safety before loading
         if (!this.isPathSafe(localPath)) {
-            captureMessage(`[ToolManager] Unsafe local path rejected: ${localPath}`, "error", { extra: { localPath } });
+            logError(`[ToolManager] Unsafe local path rejected: ${localPath}`);
             return undefined;
         }
 

@@ -3,7 +3,6 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 import { marked } from "marked";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
@@ -11,6 +10,7 @@ import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/to
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 import { openToolDetailTab } from "./toolManagement";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Disable raw HTML pass-through in markdown rendering to prevent XSS via inline event handlers.
 // marked's html() renderer is invoked for both block HTML (Tokens.HTML) and inline HTML (Tokens.Tag),
@@ -78,7 +78,7 @@ export async function loadToolsLibrary(): Promise<void> {
 
         logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
-        captureMessage("Failed to load tools from registry:", "error", { extra: { error } });
+        logError("Failed to load tools from registry", error);
         toolLibrary = [];
         // Error will be shown in the marketplace UI
     }
@@ -539,7 +539,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
             const url = link.getAttribute("data-url") || link.getAttribute("href");
             if (url && url.startsWith("https://")) {
                 window.toolboxAPI.openExternal(url).catch((error) => {
-                    captureMessage("Failed to open external link", "error", { extra: { error } });
+                    logError("Failed to open external link", error);
                 });
             }
         });
@@ -607,16 +607,13 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
                 const href = a.getAttribute("href");
                 if (href && (href.startsWith("https://") || href.startsWith("http://"))) {
                     window.toolboxAPI.openExternal(href).catch((error) => {
-                        captureMessage("Failed to open README link", "error", { extra: { error } });
+                        logError("Failed to open README link", error);
                     });
                 }
             });
         });
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "readme_load" },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
         // Only write the error message if this tab is still active
         const detailPanel = document.getElementById("tool-detail-content-panel");
         if (detailPanel && detailPanel.getAttribute("data-tab-id") === tabId) {
@@ -699,9 +696,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         const tool = toolLibrary.find((t) => t.id === params.toolId);
 
         if (!tool) {
-            captureMessage(`[Protocol] Tool not found in registry: ${params.toolId}`, "warning", {
-                extra: { toolId: params.toolId, toolName: params.toolName },
-            });
+            logWarn(`[Protocol] Tool not found in registry: ${params.toolId}`);
 
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Not Found",
@@ -746,10 +741,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         });
     } catch (error) {
         const errorMessage = formatError(error);
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "protocol_install" },
-            extra: { toolId: params.toolId, toolName: params.toolName },
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
 
         window.toolboxAPI.utils.showNotification({
             title: "Installation Failed",

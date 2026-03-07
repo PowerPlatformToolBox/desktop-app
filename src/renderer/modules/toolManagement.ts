@@ -3,7 +3,6 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { OpenTool, SessionData } from "../types/index";
@@ -11,6 +10,7 @@ import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/t
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -306,10 +306,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_launch", toolId },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
         window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,
@@ -567,10 +564,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
     if (openTool?.isDetailTab) {
         // Hide any active BrowserView
         window.toolboxAPI.hideToolWindows().catch((error: any) => {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { phase: "hide_tool_windows" },
-                level: "error",
-            });
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
 
         // Hide the BrowserView placeholder so detail panel gets full space
@@ -611,10 +605,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
     window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_switch", instanceId },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
     });
 
     // Update connection status display based on this tool's connection
@@ -663,10 +654,7 @@ export function closeTool(instanceId: string): void {
         // Real tool: close the tool window via IPC
         // The ToolWindowManager will destroy the BrowserView
         window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { phase: "tool_close", instanceId },
-                level: "error",
-            });
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
     }
 
@@ -835,10 +823,7 @@ export async function restoreSession(): Promise<void> {
             // Note: activeToolId won't match since we have new instanceIds
         }
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "session_restore" },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
     }
 }
 
@@ -1276,9 +1261,7 @@ export async function openToolConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        logError("Connection selection cancelled or failed", error);
     }
 }
 
@@ -1358,9 +1341,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Secondary connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        logError("Secondary connection selection cancelled or failed", error);
     }
 }
 

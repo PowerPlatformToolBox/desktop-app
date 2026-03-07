@@ -3,7 +3,6 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { captureMessage, logDebug, logInfo } from "../../common/sentryHelper";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
@@ -23,6 +22,7 @@ import {
     sendBrowserWindowModalMessage,
     showBrowserWindowModal,
 } from "./browserWindowModals";
+import { logInfo, logWarn, logError, logDebug } from "../../common/logger";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
@@ -166,7 +166,7 @@ async function getConnectionsSortPreference(): Promise<ConnectionsSortOption> {
         const storedPreference = await window.toolboxAPI.getSetting(CONNECTIONS_SORT_SETTING_KEY);
         return coerceConnectionsSortOption(storedPreference);
     } catch (error) {
-        captureMessage("Failed to read connections sort preference", "warning", { extra: { error } });
+        logWarn("Failed to read connections sort preference");
         return DEFAULT_CONNECTIONS_SORT;
     }
 }
@@ -190,7 +190,7 @@ export async function updateFooterConnection(): Promise<void> {
             footerChangeBtn.style.display = "none";
         }
     } catch (error) {
-        captureMessage("Error updating footer connection:", "error", { extra: { error } });
+        logError("Error updating footer connection", error);
     }
 }
 
@@ -347,7 +347,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
             resolveHandler(connectionId);
         }
     } catch (error) {
-        captureMessage("Error connecting to selected connection:", "error", { extra: { error } });
+        logError("Error connecting to selected connection", error);
 
         // Clean up the error message - remove IPC wrapper text
         let errorMessage = (error as Error).message;
@@ -404,7 +404,7 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
             },
         });
     } catch (error) {
-        captureMessage("Failed to populate connections:", "error", { extra: { error } });
+        logError("Failed to populate connections", error);
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -502,7 +502,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 },
             });
         } catch (error) {
-            captureMessage("Error authenticating connection:", "error", { extra: { error } });
+            logError("Error authenticating connection", error);
             // Send failure message back to modal
             await sendBrowserWindowModalMessage({
                 channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
@@ -533,7 +533,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
             }
         } catch (error) {
-            captureMessage("Error confirming multi-connections:", "error", { extra: { error } });
+            logError("Error confirming multi-connections", error);
         }
         return;
     }
@@ -561,7 +561,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             resolveHandler({ primaryConnectionId, secondaryConnectionId });
         }
     } catch (error) {
-        captureMessage("Error selecting multi-connections:", "error", { extra: { error } });
+        logError("Error selecting multi-connections", error);
         await signalSelectMultiConnectionReady();
     }
 }
@@ -596,7 +596,7 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
             },
         });
     } catch (error) {
-        captureMessage("Failed to populate multi-connections:", "error", { extra: { error } });
+        logError("Failed to populate multi-connections", error);
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -615,7 +615,7 @@ export async function loadConnections(): Promise<void> {
     logInfo("loadConnections() called");
     const connectionsList = document.getElementById("connections-list");
     if (!connectionsList) {
-        captureMessage("connections-list element not found", "error");
+        logError("connections-list element not found");
         return;
     }
 
@@ -685,7 +685,7 @@ export async function loadConnections(): Promise<void> {
         const activeConn = connections.find((c: any) => c.isActive);
         updateFooterConnectionStatus(activeConn || null);
     } catch (error) {
-        captureMessage("Error loading connections:", "error", { extra: { error } });
+        logError("Error loading connections", error);
         connectionsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading connections</p>
@@ -792,9 +792,7 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        captureMessage("Token refresh failed:", "error", {
-            extra: { error, connectionId, connectionName },
-        });
+        logError("Token refresh failed", error);
 
         // Extract meaningful error message (strip generic parts)
         const errorMessage = (error as Error).message || "Token refresh failed";
@@ -837,7 +835,7 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
         await closeBrowserWindowModal();
         await loadConnections();
     } catch (error) {
-        captureMessage("Error adding connection:", "error", { extra: { error } });
+        logError("Error adding connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Add Connection",
             body: (error as Error).message,
@@ -977,7 +975,7 @@ function buildEditConnectionModalHtml(): string {
 
 async function handlePopulateEditConnectionRequest(): Promise<void> {
     if (!editingConnectionId) {
-        captureMessage("No connection ID to edit", "error");
+        logError("No connection ID to edit");
         return;
     }
 
@@ -992,7 +990,7 @@ async function handlePopulateEditConnectionRequest(): Promise<void> {
             data: connection,
         });
     } catch (error) {
-        captureMessage("Failed to populate connection for editing:", "error", { extra: { error } });
+        logError("Failed to populate connection for editing", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Load Connection",
             body: (error as Error).message,
@@ -1038,7 +1036,7 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         await loadConnections();
         await loadSidebarConnections();
     } catch (error) {
-        captureMessage("Error updating connection:", "error", { extra: { error } });
+        logError("Error updating connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Update Connection",
             body: (error as Error).message,
@@ -1081,7 +1079,7 @@ export async function deleteConnection(id: string): Promise<void> {
 
         await loadConnections();
     } catch (error) {
-        captureMessage("Error deleting connection:", "error", { extra: { error } });
+        logError("Error deleting connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Delete Connection",
             body: (error as Error).message,
@@ -1775,6 +1773,6 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         }
     } catch (error) {
-        captureMessage("Failed to load connections:", "error", { extra: { error } });
+        logError("Failed to load connections", error);
     }
 }
