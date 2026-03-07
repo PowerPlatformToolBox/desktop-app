@@ -15,32 +15,52 @@
  * Log an informational message.
  */
 export function logInfo(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.info(message, ...(data !== undefined ? [data] : []));
+    if (data !== undefined) {
+        // eslint-disable-next-line no-console
+        console.info(message, data);
+    } else {
+        // eslint-disable-next-line no-console
+        console.info(message);
+    }
 }
 
 /**
  * Log a warning message.
  */
 export function logWarn(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.warn(message, ...(data !== undefined ? [data] : []));
+    if (data !== undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(message, data);
+    } else {
+        // eslint-disable-next-line no-console
+        console.warn(message);
+    }
 }
 
 /**
  * Log an error message or Error object.
  */
 export function logError(messageOrError: string | Error, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.error(messageOrError, ...(data !== undefined ? [data] : []));
+    if (data !== undefined) {
+        // eslint-disable-next-line no-console
+        console.error(messageOrError, data);
+    } else {
+        // eslint-disable-next-line no-console
+        console.error(messageOrError);
+    }
 }
 
 /**
  * Log a debug message.
  */
 export function logDebug(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.debug(message, ...(data !== undefined ? [data] : []));
+    if (data !== undefined) {
+        // eslint-disable-next-line no-console
+        console.debug(message, data);
+    } else {
+        // eslint-disable-next-line no-console
+        console.debug(message);
+    }
 }
 
 /**
@@ -49,6 +69,11 @@ export function logDebug(message: string, data?: unknown): void {
  * the browser/Node console log-level filter.
  */
 export function logCheckpoint(message: string, data?: unknown): void {
-    // eslint-disable-next-line no-console
-    console.log(message, ...(data !== undefined ? [data] : []));
+    if (data !== undefined) {
+        // eslint-disable-next-line no-console
+        console.log(message, data);
+    } else {
+        // eslint-disable-next-line no-console
+        console.log(message);
+    }
 }
