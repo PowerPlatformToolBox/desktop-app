@@ -163,7 +163,7 @@ function createTerminalTab(terminal: any): void {
                 outputContent.style.fontFamily = fontFamily;
             }
         })
-        .catch((error: Error) => {
+        .catch((_error: Error) => {
             console.error("Failed to apply terminal font:");
         });
 

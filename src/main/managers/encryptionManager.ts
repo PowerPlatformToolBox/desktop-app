@@ -22,7 +22,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            console.error("Encryption not available);
+            console.error("Encryption not available");
             return plaintext;
         }
 
@@ -39,7 +39,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            console.error("Encryption not available);
+            console.error("Encryption not available");
             return encrypted;
         }
 

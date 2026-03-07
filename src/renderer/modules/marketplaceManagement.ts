@@ -537,7 +537,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
             e.preventDefault();
             const url = link.getAttribute("data-url") || link.getAttribute("href");
             if (url && url.startsWith("https://")) {
-                window.toolboxAPI.openExternal(url).catch((error) => {
+                window.toolboxAPI.openExternal(url).catch((_error) => {
                     console.error("Failed to open external link");
                 });
             }
@@ -605,7 +605,7 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
                 e.preventDefault();
                 const href = a.getAttribute("href");
                 if (href && (href.startsWith("https://") || href.startsWith("http://"))) {
-                    window.toolboxAPI.openExternal(href).catch((error) => {
+                    window.toolboxAPI.openExternal(href).catch((_error) => {
                         console.error("Failed to open README link");
                     });
                 }

@@ -25,7 +25,7 @@ function normalizeHomepageError(error: unknown, fallbackMessage: string): Error 
     }
 }
 
-function reportHomepageError(operation: string, error: unknown, extra?: Record<string, unknown>): void {
+function reportHomepageError(operation: string, error: unknown, _extra?: Record<string, unknown>): void {
     const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
     console.error(normalized);
 }

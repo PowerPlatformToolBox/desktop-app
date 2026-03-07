@@ -140,7 +140,7 @@ export class ProtocolHandlerManager {
      * Buffer the URL for later processing, or handle it immediately if the
      * callback has already been registered.
      */
-    private bufferOrHandle(url: string, trigger: string): void {
+    private bufferOrHandle(url: string, _trigger: string): void {
         if (this.protocolCallback) {
             this.handleProtocolUrl(url).catch((error) => {
                 console.error(error instanceof Error ? error : new Error(String(error)));

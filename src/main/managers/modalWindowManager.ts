@@ -52,7 +52,7 @@ export class ModalWindowManager {
                     this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
                 }
             })
-            .catch((error) => {
+            .catch((_error) => {
                 console.error("Failed to load modal content");
             });
     }

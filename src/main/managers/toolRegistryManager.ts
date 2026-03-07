@@ -325,7 +325,7 @@ export class ToolRegistryManager extends EventEmitter {
                     return tools;
                 }
             } catch (error) {
-                console.error(`[ToolRegistry] Azure Blob registry fetch failed);
+                console.error(`[ToolRegistry] Azure Blob registry fetch failed`);
             }
         }
         return this.fetchLocalRegistry();

@@ -47,7 +47,7 @@ export class TerminalManager extends EventEmitter {
 
         // Verify shell exists, fallback to default if not
         if (options.shell && !(await this.shellExists(options.shell))) {
-            console.error(`Shell ${options.shell} not found);
+            console.error(`Shell ${options.shell} not found`);
             shell = this.defaultShell;
         }
 
