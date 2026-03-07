@@ -1,4 +1,5 @@
 // Import variables and mixins using modern @use syntax
+@use "sass:color";
 @use "./styles/variables" as *;
 @use "./styles/mixins" as *;
 @use "./styles/homepage" as *;
@@ -2786,7 +2787,7 @@ body.light-theme .install-button:focus-visible img {
     padding: 2px 8px;
     border-radius: 4px;
     background: rgba(247, 168, 0, 0.15);
-    color: darken($connection-warning-color, 20%);
+    color: color.adjust($connection-warning-color, $lightness: -20%);
     font-size: 11px;
     font-weight: 600;
     border: 1px solid rgba(247, 168, 0, 0.4);
