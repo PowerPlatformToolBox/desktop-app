@@ -84,7 +84,7 @@ export class BrowserManager {
                 return this.getChromiumProfiles(browserType, platform);
             }
         } catch (error) {
-            logWarn(`Failed to get profiles for ${browserType}: ${(error as Error).message}`);
+            logWarn(`Failed to get profiles for ${browserType}`, error);
             return [];
         }
 
@@ -155,7 +155,7 @@ export class BrowserManager {
                 }
             }
         } catch (error) {
-            logWarn(`Failed to read Local State file, falling back to directory scan: ${(error as Error).message}`);
+            logWarn("Failed to read Local State file, falling back to directory scan", error);
         }
 
         // Fallback: Scan directories and try to read individual Preferences files
@@ -198,7 +198,7 @@ export class BrowserManager {
                 }
             }
         } catch (error) {
-            logWarn(`Failed to scan browser profile directories: ${(error as Error).message}`);
+            logWarn("Failed to scan browser profile directories", error);
         }
 
         return profiles;
@@ -315,7 +315,7 @@ export class BrowserManager {
             }).unref();
         } catch (error) {
             // If browser launch fails, fallback to default browser
-            logWarn(`Failed to launch ${browserType} with profile, falling back to default: ${(error as Error).message}`);
+            logWarn(`Failed to launch ${browserType} with profile, falling back to default`, error);
             return shell.openExternal(url);
         }
     }

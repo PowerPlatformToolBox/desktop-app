@@ -379,7 +379,7 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
     } catch (error) {
-        logError("Failed to load sidebar tools:");
+        logError("Failed to load sidebar tools", error);
         toolsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading tools</p>

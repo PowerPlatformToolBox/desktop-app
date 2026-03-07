@@ -308,7 +308,7 @@ export class ToolWindowManager {
 
             // Track tool usage for analytics (async, don't wait for completion)
             this.toolManager.trackToolUsage(toolId).catch((error) => {
-                logError(`[ToolWindowManager] Failed to track tool usage asynchronously: ${(error as Error).message}`);
+                logError("[ToolWindowManager] Failed to track tool usage asynchronously", error);
             });
 
             // Add to recently used tools list
@@ -321,7 +321,7 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
-            logError(`[ToolWindowManager] Error launching tool instance ${instanceId}: ${(error as Error).message}`);
+            logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
 
             return false;
         }
@@ -353,7 +353,7 @@ export class ToolWindowManager {
             try {
                 (toolView as any).setAutoResize?.({ width: true, height: true });
             } catch (err) {
-                logWarn(`[ToolWindowManager] Error enabling auto-resize for tool view ${instanceId}: ${err}`);
+                logWarn(`[ToolWindowManager] Error enabling auto-resize for tool view ${instanceId}`, err);
             }
             this.activeToolId = instanceId;
             this.invokeActiveToolChangedCallback();
@@ -365,7 +365,7 @@ export class ToolWindowManager {
 
             return true;
         } catch (error) {
-            logError(`[ToolWindowManager] Error switching to tool instance ${instanceId}: ${(error as Error).message}`);
+            logError(`[ToolWindowManager] Error switching to tool instance ${instanceId}`, error);
             return false;
         }
     }
@@ -407,7 +407,7 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
         } catch (error) {
-            logError(`[ToolWindowManager] Error closing tool instance ${instanceId}: ${(error as Error).message}`);
+            logError(`[ToolWindowManager] Error closing tool instance ${instanceId}`, error);
 
             return false;
         }
@@ -515,7 +515,7 @@ export class ToolWindowManager {
                     // Encourage tool content to reflow
                     toolView.webContents.executeJavaScript("try{window.dispatchEvent(new Event('resize'));}catch(e){}", true).catch(() => {});
                 } catch (err) {
-                    logError("[ToolWindowManager] Error in fallback bounds update:");
+                    logError("[ToolWindowManager] Error in fallback bounds update", err);
                 } finally {
                     this.boundsUpdatePending = false;
                 }
@@ -551,7 +551,7 @@ export class ToolWindowManager {
             toolView.setBounds(clamped);
             this.boundsUpdatePending = false;
         } catch (error) {
-            logError("[ToolWindowManager] Error applying tool view bounds:");
+            logError("[ToolWindowManager] Error applying tool view bounds", error);
         }
     }
 
@@ -574,7 +574,7 @@ export class ToolWindowManager {
             // Send to tool via IPC
             toolView.webContents.send("toolbox:context", toolContext);
         } catch (error) {
-            logError(`[ToolWindowManager] Error sending context to tool ${toolId}: ${(error as Error).message}`);
+            logError(`[ToolWindowManager] Error sending context to tool ${toolId}`, error);
         }
     }
 
@@ -682,7 +682,7 @@ export class ToolWindowManager {
                     toolView.webContents.destroy();
                 }
             } catch (error) {
-                logError(`[ToolWindowManager] Error destroying tool view ${toolId}: ${(error as Error).message}`);
+                logError(`[ToolWindowManager] Error destroying tool view ${toolId}`, error);
             }
         }
         this.toolViews.clear();
@@ -700,7 +700,7 @@ export class ToolWindowManager {
                     toolView.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, eventPayload);
                 }
             } catch (error) {
-                logError(`[ToolWindowManager] Error forwarding event to tool ${toolId}: ${(error as Error).message}`);
+                logError(`[ToolWindowManager] Error forwarding event to tool ${toolId}`, error);
             }
         }
     }
@@ -733,7 +733,7 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
             return true;
         } catch (error) {
-            logError(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}: ${error}`);
+            logError(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}`, error);
             return false;
         }
     }

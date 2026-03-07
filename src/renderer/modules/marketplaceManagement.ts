@@ -78,7 +78,7 @@ export async function loadToolsLibrary(): Promise<void> {
 
         logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
-        logError("Failed to load tools from registry:");
+        logError("Failed to load tools from registry", error);
         toolLibrary = [];
         // Error will be shown in the marketplace UI
     }

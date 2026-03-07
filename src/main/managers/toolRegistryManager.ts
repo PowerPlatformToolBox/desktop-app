@@ -309,7 +309,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
         } catch (error) {
-            logError(`[ToolRegistry] Failed to fetch registry from Supabase: ${(error as Error).message}`);
+            logError("[ToolRegistry] Failed to fetch registry from Supabase", error);
             throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -471,7 +471,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
         } catch (error) {
-            logError(`[ToolRegistry] Failed to fetch local registry: ${(error as Error).message}`);
+            logError("[ToolRegistry] Failed to fetch local registry", error);
             throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -668,7 +668,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Track the download (async, don't wait for completion)
         this.trackToolDownload(toolId).catch((error) => {
-            logError(`[ToolRegistry] Failed to track download asynchronously: ${(error as Error).message}`);
+            logError("[ToolRegistry] Failed to track download asynchronously", error);
         });
 
         return manifest;
@@ -722,7 +722,7 @@ export class ToolRegistryManager extends EventEmitter {
             const tools: Record<string, unknown>[] = manifest.tools || [];
             return tools.map((entry) => this.normalizeManifestEntry(entry));
         } catch (error) {
-            logError(`[ToolRegistry] Failed to read manifest: ${(error as Error).message}`);
+            logError("[ToolRegistry] Failed to read manifest", error);
             return [];
         }
     }
@@ -795,7 +795,7 @@ export class ToolRegistryManager extends EventEmitter {
                 }
             });
         } catch (error) {
-            logError(`[ToolRegistry] Error fetching analytics: ${(error as Error).message}`);
+            logError("[ToolRegistry] Error fetching analytics", error);
         }
 
         return map;
@@ -924,7 +924,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
-            logError(`[ToolRegistry] Failed to track download for ${toolId}: ${(error as Error).message}`);
+            logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
         }
     }
 
@@ -1000,7 +1000,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
-            logError(`[ToolRegistry] Failed to track usage for ${toolId}: ${(error as Error).message}`);
+            logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
         }
     }
 }

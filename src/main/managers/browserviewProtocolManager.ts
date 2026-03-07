@@ -145,7 +145,7 @@ export class BrowserviewProtocolManager {
                     });
                     return;
                 } catch (error) {
-                    logError(`[pptb-webview] Error injecting CSP/bridge: ${(error as Error).message}`);
+                    logError("[pptb-webview] Error injecting CSP/bridge", error);
                     callback({ error: -2 }); // FAILED
                     return;
                 }
@@ -159,7 +159,7 @@ export class BrowserviewProtocolManager {
                 data: content,
             });
         } catch (error) {
-            logError(`[pptb-webview] Error handling protocol request: ${(error as Error).message}`);
+            logError("[pptb-webview] Error handling protocol request", error);
             callback({ error: -2 }); // FAILED
         }
     }

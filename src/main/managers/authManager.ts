@@ -146,7 +146,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            logError("Interactive authentication failed:");
+            logError("Interactive authentication failed", error);
             // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
             // No need to show modal dialog as it causes UI conflicts
             throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -438,7 +438,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            logError("Client secret authentication failed:");
+            logError("Client secret authentication failed", error);
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -491,7 +491,7 @@ export class AuthManager {
                 msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
             };
         } catch (error) {
-            logError("Username/password authentication failed:");
+            logError("Username/password authentication failed", error);
 
             // Extract error message from MSAL error or generic error
             let errorMessage = "";
@@ -577,7 +577,7 @@ export class AuthManager {
 
             throw new Error("Connection test failed: Unable to verify identity");
         } catch (error) {
-            logError("Test connection failed:");
+            logError("Test connection failed", error);
             throw error;
         }
     }
@@ -792,7 +792,7 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            logError("Token refresh failed:");
+            logError("Token refresh failed", error);
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }

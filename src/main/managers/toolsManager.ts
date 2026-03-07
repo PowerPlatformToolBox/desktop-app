@@ -177,7 +177,7 @@ export class ToolManager extends EventEmitter {
                 await this.loadTool(manifest.id);
                 toolIds.push(manifest.id);
             } catch (error) {
-                logError(`Failed to load registry tool ${manifest.id}:`);
+                logError(`Failed to load registry tool ${manifest.id}`, error);
             }
         }
 
