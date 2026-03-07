@@ -586,11 +586,21 @@ export class DataverseManager {
         let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/`);
 
         // Build URL based on operation type
-        if (request.entityName && request.entityId) {
-            // Bound operation - use entity set name
+        if (request.entityName) {
+            
             const entitySetName = this.getEntitySetName(request.entityName);
-            url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
-        } else {
+            if(request.entityId)
+            {
+                // Bound operation - Entity
+                url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
+            }else{
+
+                // Bound operation - Entity Collection
+                url += `${entitySetName}/Microsoft.Dynamics.CRM.${request.operationName}`;
+            }
+            
+        } 
+        else {
             // Unbound operation
             url += request.operationName;
         }
