@@ -47,6 +47,8 @@ export interface DataverseConnection {
     category?: string;
     environmentColor?: string;
     categoryColor?: string;
+    // Import state: true when the connection was imported but is missing required secrets/credentials
+    hasIncompleteCredentials?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export interface UIConnectionData {
     category?: string;
     environmentColor?: string;
     categoryColor?: string;
+    hasIncompleteCredentials?: boolean;
 }
 
 /**

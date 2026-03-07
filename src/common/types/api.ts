@@ -23,6 +23,8 @@ export interface ConnectionsAPI {
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
     authenticate: (connectionId: string) => Promise<void>;
+    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] }>;
+    importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
 }
 
 /**

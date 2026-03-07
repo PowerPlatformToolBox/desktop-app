@@ -306,6 +306,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
         ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.EXPORT_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.IMPORT_CONNECTIONS);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -763,6 +765,16 @@ class ToolBoxApp {
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, (_, browserType: string) => {
             return this.browserManager.getBrowserProfiles(browserType);
+        });
+
+        // Export connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, (_, ids?: string[]) => {
+            return this.connectionsManager.exportConnections(ids);
+        });
+
+        // Import connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, (_, data: unknown) => {
+            return this.connectionsManager.importConnections(data);
         });
 
         // Tool handlers
