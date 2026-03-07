@@ -11,7 +11,6 @@ import {
     LocalizedLabel,
     MetadataOperationOptions,
 } from "../../common/types";
-import { captureMessage } from "../../common/sentryHelper";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -191,9 +190,7 @@ export class DataverseManager {
         if (!hasAccount) {
             // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
             this.connectionsManager.clearConnectionTokens(connectionId);
-            captureMessage("MSAL account not found in cache - tokens cleared", "warning", {
-                extra: { connectionId, connectionName: connection.name },
-            });
+            console.warn("MSAL account not found in cache - tokens cleared");
             throw new Error(errorMessage);
         }
     }
@@ -227,9 +224,7 @@ export class DataverseManager {
             } catch (error) {
                 // Silent acquisition failed - re-auth required
                 const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
-                captureMessage("MSAL silent token acquisition failed", "error", {
-                    extra: { connectionId, connectionName: connection.name, error },
-                });
+                console.error("MSAL silent token acquisition failed");
                 throw new Error(errorMessage);
             }
         }
@@ -253,9 +248,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
-                    captureMessage("Client secret authentication failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    console.error("Client secret authentication failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -284,9 +277,7 @@ export class DataverseManager {
                 } catch (error) {
                     // Silent token acquisition failed - user needs to re-authenticate
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    captureMessage("Username/password silent token acquisition failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    console.error("Username/password silent token acquisition failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -309,9 +300,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    captureMessage("Username/password token refresh failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    console.error("Username/password token refresh failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -336,9 +325,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please sign in again.`;
-                    captureMessage("Legacy interactive token refresh failed", "warning", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    console.warn("Legacy interactive token refresh failed");
                     throw new Error(errorMessage);
                 }
             }

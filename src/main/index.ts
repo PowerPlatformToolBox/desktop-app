@@ -1,4 +1,3 @@
-import { addBreadcrumb, captureException, captureMessage, logCheckpoint, logInfo } from "../common/sentryHelper";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -73,7 +72,7 @@ class ToolBoxApp {
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
     constructor() {
-        logCheckpoint("ToolBoxApp constructor started");
+        console.log("ToolBoxApp constructor started");
 
         try {
             this.settingsManager = new SettingsManager();
@@ -101,13 +100,10 @@ class ToolBoxApp {
             this.setupEventListeners();
             this.setupIpcHandlers();
 
-            logCheckpoint("ToolBoxApp constructor completed");
+            console.log("ToolBoxApp constructor completed");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "construction" },
-                level: "fatal",
-            });
+            console.error(err);
             throw error;
         }
     }
@@ -464,7 +460,7 @@ class ToolBoxApp {
 
                 // Validate date parsing
                 if (isNaN(expiryDate.getTime())) {
-                    logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
+                    console.info(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
                     tokenState = "needs-auth";
                 } else {
                     const now = new Date();
@@ -491,7 +487,7 @@ class ToolBoxApp {
                     lastUsedAt: new Date().toISOString(),
                 });
 
-                logInfo(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
+                console.info(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
 
                 // Emit event to notify that connection is active
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
@@ -500,7 +496,7 @@ class ToolBoxApp {
 
             // Handle token refresh - attempt to refresh expired/expiring token
             if (tokenState === "needs-refresh") {
-                logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
+                console.info(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
                     let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
 
@@ -530,18 +526,18 @@ class ToolBoxApp {
                     // Clear notification tracking since token is refreshed
                     this.notifiedExpiredTokens.clear();
 
-                    logInfo(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
+                    console.info(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
 
                     this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
                     return;
                 } catch (error) {
                     // Token refresh failed, fall through to full authentication
-                    logInfo(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
+                    console.info(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
                 }
             }
 
             // No valid token exists or refresh failed, proceed with full authentication
-            logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
+            console.info(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
 
             // Authenticate based on the authentication type
             try {
@@ -684,10 +680,7 @@ class ToolBoxApp {
                 return { success: true };
             } catch (error) {
                 const errorMessage = `Failed to refresh token for connection '${connection.name}': ${(error as Error).message}`;
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "token_refresh", connectionId, connectionName: connection.name },
-                    level: "error",
-                });
+                console.error(error instanceof Error ? error : new Error(String(error)));
                 throw new Error(errorMessage);
             }
         });
@@ -934,17 +927,7 @@ class ToolBoxApp {
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
                     // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    captureException(error instanceof Error ? error : new Error(String(error)), {
-                        extra: {
-                            source: "UTIL_CHANNELS.SHOW_LOADING",
-                            context: "Failed to compute active tool bounds for loading overlay; falling back to full-window overlay.",
-                            hasLoadingOverlayWindowManager: !!this.loadingOverlayWindowManager,
-                            hasMainWindow: !!this.mainWindow,
-                            hasToolWindowManager: !!this.toolWindowManager,
-                            activeToolId: this.toolWindowManager?.getActiveToolId() || null,
-                            message,
-                        },
-                    });
+                    console.error(error instanceof Error ? error : new Error(String(error)));
                     // On error, show without bounds (full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...");
                 }
@@ -2347,21 +2330,13 @@ class ToolBoxApp {
             // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
-                logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
+                console.info(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
-            captureMessage("[Troubleshooting] Supabase returned invalid data", "warning", {
-                extra: { toolsType: typeof tools, toolsValue: tools },
-            });
+            console.warn("[Troubleshooting] Supabase returned invalid data");
             return { success: false, message: "Unable to fetch tools from registry" };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "supabase-connectivity" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
@@ -2377,9 +2352,7 @@ class ToolBoxApp {
             const toolsDirectory = path.join(app.getPath("userData"), "tools");
 
             if (!fs.existsSync(toolsDirectory)) {
-                captureMessage("[Troubleshooting] Tools directory missing for local registry check", "warning", {
-                    extra: { toolsDirectory },
-                });
+                console.warn("[Troubleshooting] Tools directory missing for local registry check");
                 return {
                     success: false,
                     message: "Tools directory not found. Launch a tool at least once to initialize it.",
@@ -2388,9 +2361,7 @@ class ToolBoxApp {
 
             const manifestPath = path.join(toolsDirectory, "manifest.json");
             if (!fs.existsSync(manifestPath)) {
-                captureMessage("[Troubleshooting] Local manifest file not found", "warning", {
-                    extra: { manifestPath },
-                });
+                console.warn("[Troubleshooting] Local manifest file not found");
                 return {
                     success: false,
                     message: "Local manifest file not found under tools directory",
@@ -2401,20 +2372,14 @@ class ToolBoxApp {
             const manifestJson = JSON.parse(manifestRaw);
             const tools = Array.isArray(manifestJson?.tools) ? manifestJson.tools : [];
 
-            logInfo(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
+            console.info(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
             return {
                 success: true,
                 message: `Local manifest found (${tools.length} recorded tools)`,
                 toolCount: tools.length,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "registry-file" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to read local manifest",
@@ -2435,32 +2400,19 @@ class ToolBoxApp {
             });
 
             if (response.ok) {
-                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
+                console.info(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
                 return {
                     success: true,
                     message: "Internet connectivity verified via GitHub",
                 };
             }
-            captureMessage("[Troubleshooting] Internet connectivity check returned non-OK status", "warning", {
-                extra: {
-                    url: INTERNET_CHECK_URL,
-                    status: response.status,
-                    statusText: response.statusText,
-                },
-            });
+            console.warn("[Troubleshooting] Internet connectivity check returned non-OK status");
             return {
                 success: false,
                 message: `Internet connectivity check failed: HTTP ${response.status}`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "internet-connectivity" },
-                extra: {
-                    url: INTERNET_CHECK_URL,
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Network error during internet connectivity check",
@@ -2487,7 +2439,7 @@ class ToolBoxApp {
             }
 
             const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
-            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
+            console.info(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -2498,7 +2450,7 @@ class ToolBoxApp {
                                 reject(new Error("Too many redirects while downloading test tool"));
                                 return;
                             }
-                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                            console.info(`[Troubleshooting] Following redirect to ${res.headers.location}`);
                             download(res.headers.location, redirectDepth + 1);
                             return;
                         }
@@ -2553,19 +2505,10 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                captureMessage("[Troubleshooting] Failed to clean up download test artifacts", "warning", {
-                    extra: { cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) },
-                });
+                console.warn("[Troubleshooting] Failed to clean up download test artifacts");
             }
 
-            captureException(error as Error, {
-                tags: { check: "tool-download" },
-                extra: {
-                    downloadUrl: TEST_TOOL_DOWNLOAD_URL,
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error during download test",
@@ -2581,9 +2524,7 @@ class ToolBoxApp {
         try {
             const settings = this.settingsManager.getUserSettings();
             if (!settings) {
-                captureMessage("[Troubleshooting] User settings returned null or undefined", "error", {
-                    extra: { settingsValue: settings },
-                });
+                console.error("[Troubleshooting] User settings returned null or undefined");
                 return {
                     success: false,
                     message: "User settings file could not be loaded",
@@ -2599,12 +2540,7 @@ class ToolBoxApp {
                 if (!hasTheme) missingFields.push("theme");
                 if (!hasAutoUpdate) missingFields.push("autoUpdate");
 
-                captureMessage("[Troubleshooting] User settings missing required fields", "warning", {
-                    extra: {
-                        missingFields,
-                        settingsKeys: Object.keys(settings),
-                    },
-                });
+                console.warn("[Troubleshooting] User settings missing required fields");
 
                 return {
                     success: false,
@@ -2612,19 +2548,13 @@ class ToolBoxApp {
                 };
             }
 
-            logInfo(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
+            console.info(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
             return {
                 success: true,
                 message: `User settings loaded successfully (${Object.keys(settings).length} properties)`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "user-settings" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load user settings",
@@ -2650,23 +2580,17 @@ class ToolBoxApp {
                     }
                 } catch (toolError) {
                     // Log individual tool setting errors but don't fail the check
-                    logInfo(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
+                    console.info(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
                 }
             }
 
-            logInfo(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
+            console.info(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
             return {
                 success: true,
                 message: `Tool settings accessible (${toolSettingsCount} configured out of ${installedTools.length} loaded tools)`,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "tool-settings" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to access tool settings",
@@ -2683,12 +2607,7 @@ class ToolBoxApp {
             const connections = this.connectionsManager.getConnections();
 
             if (!Array.isArray(connections)) {
-                captureMessage("[Troubleshooting] Connections is not an array", "error", {
-                    extra: {
-                        connectionsType: typeof connections,
-                        connectionsValue: connections,
-                    },
-                });
+                console.error("[Troubleshooting] Connections is not an array");
                 return {
                     success: false,
                     message: "Connections data is corrupted (not an array)",
@@ -2712,29 +2631,17 @@ class ToolBoxApp {
             }
 
             if (invalidConnections.length > 0) {
-                captureMessage("[Troubleshooting] Some connections have invalid structure", "warning", {
-                    extra: {
-                        totalConnections: connections.length,
-                        validConnections,
-                        invalidConnections,
-                    },
-                });
+                console.warn("[Troubleshooting] Some connections have invalid structure");
             }
 
-            logInfo(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
+            console.info(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
             return {
                 success: true,
                 message: `Connections loaded successfully (${validConnections} valid out of ${connections.length} total)`,
                 connectionCount: validConnections,
             };
         } catch (error) {
-            captureException(error as Error, {
-                tags: { check: "connections" },
-                extra: {
-                    errorMessage: error instanceof Error ? error.message : String(error),
-                    errorStack: error instanceof Error ? error.stack : undefined,
-                },
-            });
+            console.error(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load connections",
@@ -2746,44 +2653,39 @@ class ToolBoxApp {
      * Initialize the application
      */
     async initialize(): Promise<void> {
-        logCheckpoint("Application initialization started");
+        console.log("Application initialization started");
 
         try {
             // Set app user model ID for Windows notifications
             if (process.platform === "win32") {
                 app.setAppUserModelId("com.powerplatform.toolbox");
-                addBreadcrumb("Set Windows app user model ID", "init", "info");
             }
 
             // Register custom protocol scheme before app is ready
             this.browserviewProtocolManager.registerScheme();
-            addBreadcrumb("Registered custom protocol scheme", "init", "info");
 
             // Register deep link protocol handler (pptb://)
             this.protocolHandlerManager.registerScheme();
-            addBreadcrumb("Registered pptb:// protocol scheme", "init", "info");
 
             // Initialize early protocol listeners (single-instance lock, open-url, second-instance)
             // MUST be called before app.whenReady() so no deep link is missed.
             this.protocolHandlerManager.initialize();
-            addBreadcrumb("Protocol handler early listeners registered", "init", "info");
 
             await app.whenReady();
-            logCheckpoint("Electron app ready");
+            console.log("Electron app ready");
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
-            addBreadcrumb("Registered protocol handler", "init", "info");
 
             this.createWindow();
-            logCheckpoint("Main window created");
+            console.log("Main window created");
 
             // Set up deep link protocol handler callback after the main window exists.
             // The callback defers IPC delivery until the renderer has finished loading so
             // that protocol URLs captured during startup (buffered in pendingUrls) are
             // reliably delivered even on a cold launch via pptb://.
             this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
-                logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
+                console.info(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
                 // Bring app window to focus
                 if (this.mainWindow) {
@@ -2813,22 +2715,15 @@ class ToolBoxApp {
                     }
                 }
             });
-            addBreadcrumb("Protocol handler callback registered", "init", "info");
 
             // Load all installed tools from registry
             try {
                 await this.toolManager.loadAllInstalledTools();
-                logCheckpoint("Tools loaded from registry");
+                console.log("Tools loaded from registry");
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                captureException(err, {
-                    tags: { phase: "tool_loading" },
-                    level: "error",
-                });
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "tools_loading" },
-                    level: "error",
-                });
+                console.error(err);
+                console.error(error instanceof Error ? error : new Error(String(error)));
             }
 
             // Check if auto-update is enabled
@@ -2836,30 +2731,26 @@ class ToolBoxApp {
             if (autoUpdate) {
                 // Enable automatic update checks every 6 hours
                 this.autoUpdateManager.enableAutoUpdateChecks(6);
-                addBreadcrumb("Auto-update enabled", "settings", "info", { intervalHours: 6 });
             }
 
             // Clear any msal caches on startup
             await this.authManager.cleanup();
             this.connectionsManager.clearAllConnectionTokens();
-            addBreadcrumb("Cleared MSAL caches and connection tokens", "auth", "info");
 
             app.on("activate", () => {
                 if (BrowserWindow.getAllWindows().length === 0) {
                     this.createWindow();
-                    addBreadcrumb("Window recreated on activate", "window", "info");
                 }
             });
 
             app.on("window-all-closed", () => {
                 if (process.platform !== "darwin") {
-                    addBreadcrumb("All windows closed, quitting app", "window", "info");
                     app.quit();
                 }
             });
 
             app.on("before-quit", () => {
-                logCheckpoint("Application shutting down");
+                console.log("Application shutting down");
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
@@ -2868,17 +2759,13 @@ class ToolBoxApp {
                 this.authManager.cleanup();
                 // Clean up connection tokens
                 this.connectionsManager.clearAllConnectionTokens();
-                addBreadcrumb("Cleanup completed", "shutdown", "info");
             });
 
-            logCheckpoint("Application initialization completed successfully");
+            console.log("Application initialization completed successfully");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "initialization" },
-                level: "fatal",
-            });
-            logCheckpoint("Application initialization failed", { error: err.message });
+            console.error(err);
+            console.log("Application initialization failed", { error: err.message });
             throw error;
         }
     }
@@ -2887,8 +2774,5 @@ class ToolBoxApp {
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
 toolboxApp.initialize().catch((error) => {
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-        tags: { phase: "main_initialization" },
-        level: "fatal",
-    });
+    console.error(error instanceof Error ? error : new Error(String(error)));
 });

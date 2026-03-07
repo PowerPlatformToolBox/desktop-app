@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { logInfo } from "../../common/sentryHelper";
 import { SettingsManager } from "./settingsManager";
 
 /**
@@ -28,7 +27,7 @@ export class InstallIdManager {
 
         if (storedInstallId) {
             this.installId = storedInstallId;
-            logInfo("[InstallId] Retrieved existing install ID");
+            console.info("[InstallId] Retrieved existing install ID");
             return this.installId;
         }
 
@@ -37,14 +36,14 @@ export class InstallIdManager {
         if (legacyMachineId) {
             this.installId = legacyMachineId;
             this.settingsManager.setSetting("installId", legacyMachineId);
-            logInfo("[InstallId] Migrated legacy machine ID to install ID");
+            console.info("[InstallId] Migrated legacy machine ID to install ID");
             return this.installId;
         }
 
         // Generate new install ID using randomUUID from crypto module (Node 18+)
         this.installId = randomUUID();
         this.settingsManager.setSetting("installId", this.installId);
-        logInfo("[InstallId] Generated new install ID");
+        console.info("[InstallId] Generated new install ID");
 
         return this.installId;
     }

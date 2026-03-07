@@ -3,7 +3,6 @@
  * Handles sidebar switching and activity bar navigation
  */
 
-import { captureException } from "../../common/sentryHelper";
 import { loadSidebarSettings } from "./settingsManagement";
 
 // Track current sidebar
@@ -43,10 +42,7 @@ export function switchSidebar(sidebarId: string): void {
             // Load settings when re-expanding settings sidebar
             if (sidebarId === "settings") {
                 loadSidebarSettings().catch((err) => {
-                    captureException(err instanceof Error ? err : new Error(String(err)), {
-                        tags: { context: "sidebar_settings_load", action: "re-expand" },
-                        level: "warning",
-                    });
+                    console.error(err instanceof Error ? err : new Error(String(err)));
                 });
             }
         }
@@ -79,10 +75,7 @@ export function switchSidebar(sidebarId: string): void {
     // Load settings when switching to settings sidebar
     if (sidebarId === "settings") {
         loadSidebarSettings().catch((err) => {
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-                tags: { context: "sidebar_settings_load", action: "switch" },
-                level: "warning",
-            });
+            console.error(err instanceof Error ? err : new Error(String(err)));
         });
     }
 

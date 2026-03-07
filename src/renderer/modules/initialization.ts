@@ -3,7 +3,6 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-import { addBreadcrumb, captureException, logCheckpoint, logInfo, logWarn, wrapAsyncOperation } from "../../common/sentryHelper";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -25,12 +24,11 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
-    logCheckpoint("Renderer initialization started");
+    console.log("Renderer initialization started");
 
     try {
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
-        addBreadcrumb("Modal bridges initialized", "init", "info");
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -68,110 +66,64 @@ export async function initializeApplication(): Promise<void> {
         // Set up global search command palette
         initializeGlobalSearch();
 
-        addBreadcrumb("UI components initialized", "init", "info");
 
         // Load and apply theme settings on startup
-        await wrapAsyncOperation(
-            "loadInitialSettings",
-            async () => {
+        await (async () => {
                 await loadInitialSettings();
-            },
-            { tags: { phase: "initialization" } },
-        );
-        logCheckpoint("Initial settings loaded");
+            })();
+        console.log("Initial settings loaded");
 
         // Load tools library from registry
-        await wrapAsyncOperation(
-            "loadToolsLibrary",
-            async () => {
+        await (async () => {
                 await loadToolsLibrary();
-            },
-            { tags: { phase: "tools_library_loading" } },
-        ).catch((error) => {
+            })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "tools_library_loading" },
-                level: "warning",
-            });
+            console.error(err);
         });
-        logCheckpoint("Tools library loaded");
+        console.log("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
-        await wrapAsyncOperation(
-            "loadSidebarTools",
-            async () => {
+        await (async () => {
                 await loadSidebarTools();
-            },
-            { tags: { phase: "sidebar_loading" } },
-        );
+            })();
 
-        await wrapAsyncOperation(
-            "loadMarketplace",
-            async () => {
+        await (async () => {
                 await loadMarketplace();
-            },
-            { tags: { phase: "marketplace_loading" } },
-        );
-        addBreadcrumb("Sidebar content loaded", "init", "info");
+            })();
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        await wrapAsyncOperation(
-            "loadSidebarConnections",
-            async () => {
+        await (async () => {
                 await loadSidebarConnections();
-            },
-            { tags: { phase: "connections_loading" } },
-        ).catch((error) => {
+            })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "connections_loading" },
-                level: "warning",
-            });
+            console.error(err);
         });
-        logCheckpoint("Connections loaded");
+        console.log("Connections loaded");
 
         // Update footer connection info
         // Update footer connection status
         // Note: Footer shows active tool's connection, not a global connection
-        await wrapAsyncOperation(
-            "updateFooterConnection",
-            async () => {
+        await (async () => {
                 await updateFooterConnection();
-            },
-            { tags: { phase: "footer_update" } },
-        );
+            })();
 
         // Load homepage data
-        await wrapAsyncOperation(
-            "loadHomepageData",
-            async () => {
+        await (async () => {
                 await loadHomepageData();
-            },
-            { tags: { phase: "homepage_loading" } },
-        ).catch((error) => {
+            })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "homepage_loading" },
-                level: "warning",
-            });
+            console.error(err);
         });
-        logCheckpoint("Homepage data loaded");
+        console.log("Homepage data loaded");
 
         // Restore previous session
-        await wrapAsyncOperation(
-            "restoreSession",
-            async () => {
+        await (async () => {
                 await restoreSession();
-            },
-            { tags: { phase: "session_restore" } },
-        ).catch((error) => {
+            })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "session_restore" },
-                level: "warning",
-            });
+            console.error(err);
         });
-        logCheckpoint("Session restored");
+        console.log("Session restored");
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
@@ -194,13 +146,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
 
-        addBreadcrumb("All listeners set up", "init", "info");
-        logCheckpoint("Renderer initialization completed successfully");
+        console.log("Renderer initialization completed successfully");
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "renderer_initialization" },
-            level: "fatal",
-        });
+        console.error(error instanceof Error ? error : new Error(String(error)));
         // Show error to user using a proper error modal
         const errorMessage = (error as Error).message || "Unknown error occurred";
         const errorElement = document.createElement("div");
@@ -292,10 +240,7 @@ function setupSidebarButtons(): void {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openAddConnectionModal().catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "modal_opening" },
-                    level: "error",
-                });
+                console.error(error instanceof Error ? error : new Error(String(error)));
             });
         });
     }
@@ -341,10 +286,7 @@ function setupSidebarButtons(): void {
             try {
                 await handleCheckForUpdates();
             } catch (error) {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "check_for_updates" },
-                    level: "error",
-                });
+                console.error(error instanceof Error ? error : new Error(String(error)));
             }
         });
     }
@@ -585,32 +527,23 @@ function setupApplicationEventListeners(): void {
 
     // Tool update event listeners
     window.toolboxAPI.onToolUpdateStarted(() => {
-        logInfo("Tool update started, reloading tools...");
+        console.info("Tool update started, reloading tools...");
         loadSidebarTools().catch((err) => {
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-                tags: { phase: "tools_reload" },
-                level: "warning",
-            });
+            console.error(err instanceof Error ? err : new Error(String(err)));
         });
     });
 
     window.toolboxAPI.onToolUpdateCompleted(() => {
-        logInfo("Tool update completed, reloading tools...");
+        console.info("Tool update completed, reloading tools...");
         loadSidebarTools().catch((err) => {
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-                tags: { phase: "tools_reload" },
-                level: "warning",
-            });
+            console.error(err instanceof Error ? err : new Error(String(err)));
         });
     });
 
     // Protocol deep link handler
     window.toolboxAPI.onProtocolInstallToolRequest((params: { toolId: string; toolName: string }) => {
         handleProtocolInstallToolRequest(params).catch((error) => {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { phase: "protocol_install" },
-                extra: { toolId: params.toolId, toolName: params.toolName },
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
         });
     });
 }
@@ -652,7 +585,7 @@ function setupAuthenticationListeners(): void {
     });
 
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
-        logInfo("Token expired for connection:", data);
+        console.info("Token expired for connection:", data);
 
         showPPTBNotification({
             title: "Connection Token Expired",
@@ -706,7 +639,7 @@ function setupLoadingScreenListeners(): void {
 function setupToolboxEventListeners(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
-        logInfo("ToolBox Event:", { payload });
+        console.info("ToolBox Event:", { payload });
 
         if (payload.event === "menu:launch-tool") {
             const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
@@ -717,7 +650,7 @@ function setupToolboxEventListeners(): void {
                     secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
                 });
             } else {
-                logWarn("Menu launch event missing toolId", { payload });
+                console.warn("Menu launch event missing toolId", { payload });
             }
             return;
         }
@@ -735,32 +668,23 @@ function setupToolboxEventListeners(): void {
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
-            logInfo("Connection event detected, reloading connections...");
+            console.info("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "connection_reload" },
-                    level: "warning",
-                });
+                console.error(err instanceof Error ? err : new Error(String(err)));
             });
             // Update active tool connection status to reflect changes
             import("./toolManagement").then(({ updateActiveToolConnectionStatus }) => {
                 updateActiveToolConnectionStatus().catch((err) => {
-                    captureException(err instanceof Error ? err : new Error(String(err)), {
-                        tags: { phase: "footer_update" },
-                        level: "warning",
-                    });
+                    console.error(err instanceof Error ? err : new Error(String(err)));
                 });
             });
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
-            logInfo("Tool event detected, reloading tools...");
+            console.info("Tool event detected, reloading tools...");
             loadSidebarTools().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "tools_reload" },
-                    level: "warning",
-                });
+                console.error(err instanceof Error ? err : new Error(String(err)));
             });
         }
 
@@ -794,10 +718,10 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: Math.round(rect.height),
             };
-            logInfo("[Renderer] Sending tool panel bounds:", bounds);
+            console.info("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
-            logWarn("[Renderer] Tool panel content element not found");
+            console.warn("[Renderer] Tool panel content element not found");
         }
     });
 }
@@ -920,6 +844,6 @@ async function checkActiveToolTokenExpiry(): Promise<void> {
         await updateActiveToolConnectionStatus();
     } catch (error) {
         // Silently fail - this is a background check
-        logInfo("Token expiry check failed:", { error });
+        console.info("Token expiry check failed:", { error });
     }
 }

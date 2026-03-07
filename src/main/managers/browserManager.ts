@@ -3,7 +3,6 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { shell } from "electron";
-import { logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 
 /**
@@ -84,7 +83,7 @@ export class BrowserManager {
                 return this.getChromiumProfiles(browserType, platform);
             }
         } catch (error) {
-            logWarn(`Failed to get profiles for ${browserType}: ${(error as Error).message}`);
+            console.warn(`Failed to get profiles for ${browserType}: ${(error as Error).message}`);
             return [];
         }
 
@@ -155,7 +154,7 @@ export class BrowserManager {
                 }
             }
         } catch (error) {
-            logWarn(`Failed to read Local State file, falling back to directory scan: ${(error as Error).message}`);
+            console.warn(`Failed to read Local State file, falling back to directory scan: ${(error as Error).message}`);
         }
 
         // Fallback: Scan directories and try to read individual Preferences files
@@ -198,7 +197,7 @@ export class BrowserManager {
                 }
             }
         } catch (error) {
-            logWarn(`Failed to scan browser profile directories: ${(error as Error).message}`);
+            console.warn(`Failed to scan browser profile directories: ${(error as Error).message}`);
         }
 
         return profiles;
@@ -298,7 +297,7 @@ export class BrowserManager {
 
         if (!browserCommand) {
             // Browser not found, fallback to default browser
-            logInfo(`Browser ${browserType} not found, falling back to default browser`);
+            console.info(`Browser ${browserType} not found, falling back to default browser`);
             return shell.openExternal(url);
         }
 
@@ -307,7 +306,7 @@ export class BrowserManager {
             const { executable, args } = browserCommand;
             const browserArgs = [...args, url];
 
-            logInfo(`Launching ${browserType} with profile ${profileName}: ${executable} ${browserArgs.join(" ")}`);
+            console.info(`Launching ${browserType} with profile ${profileName}: ${executable} ${browserArgs.join(" ")}`);
 
             spawn(executable, browserArgs, {
                 detached: true,
@@ -315,7 +314,7 @@ export class BrowserManager {
             }).unref();
         } catch (error) {
             // If browser launch fails, fallback to default browser
-            logWarn(`Failed to launch ${browserType} with profile, falling back to default: ${(error as Error).message}`);
+            console.warn(`Failed to launch ${browserType} with profile, falling back to default: ${(error as Error).message}`);
             return shell.openExternal(url);
         }
     }

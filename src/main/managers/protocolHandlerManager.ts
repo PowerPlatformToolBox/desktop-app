@@ -1,5 +1,4 @@
 import { app } from "electron";
-import { captureException, captureMessage, logInfo } from "../../common/sentryHelper";
 
 /**
  * Protocol URL structure for tool installation
@@ -49,7 +48,7 @@ export class ProtocolHandlerManager {
     private pendingUrls: string[] = [];
 
     constructor() {
-        logInfo("[ProtocolHandler] Initializing protocol handler manager");
+        console.info("[ProtocolHandler] Initializing protocol handler manager");
     }
 
     /**
@@ -59,18 +58,15 @@ export class ProtocolHandlerManager {
     registerScheme(): void {
         try {
             if (app.isReady()) {
-                captureMessage("[ProtocolHandler] Warning: registerScheme called after app is ready. This may not work correctly.", "warning");
+                console.warn("[ProtocolHandler] Warning: registerScheme called after app is ready. This may not work correctly.");
             }
 
             // Register the scheme as standard to allow query parameters
             app.setAsDefaultProtocolClient(ProtocolHandlerManager.PROTOCOL_SCHEME);
 
-            logInfo(`[ProtocolHandler] Registered ${ProtocolHandlerManager.PROTOCOL_SCHEME}:// as default protocol client`);
+            console.info(`[ProtocolHandler] Registered ${ProtocolHandlerManager.PROTOCOL_SCHEME}:// as default protocol client`);
         } catch (error) {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { manager: "ProtocolHandler", phase: "register_scheme" },
-                level: "error",
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
         }
     }
 
@@ -85,7 +81,7 @@ export class ProtocolHandlerManager {
         // forwards its command line to the first instance and then quits.
         const gotTheLock = app.requestSingleInstanceLock();
         if (!gotTheLock) {
-            logInfo("[ProtocolHandler] Another instance is already running, quitting this instance");
+            console.info("[ProtocolHandler] Another instance is already running, quitting this instance");
             app.quit();
             return;
         }
@@ -94,16 +90,16 @@ export class ProtocolHandlerManager {
         // registered here so we never miss a launch-via-protocol event.
         app.on("open-url", (event, url) => {
             event.preventDefault();
-            logInfo(`[ProtocolHandler] Received open-url event: ${url}`);
+            console.info(`[ProtocolHandler] Received open-url event: ${url}`);
             this.bufferOrHandle(url, "open-url");
         });
 
         // Windows/Linux: a second instance forwards its command line here.
         app.on("second-instance", (_event, commandLine) => {
-            logInfo("[ProtocolHandler] Second instance detected, processing command line");
+            console.info("[ProtocolHandler] Second instance detected, processing command line");
             const url = commandLine.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
             if (url) {
-                logInfo(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
+                console.info(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
                 this.bufferOrHandle(url, "second-instance");
             }
         });
@@ -112,12 +108,12 @@ export class ProtocolHandlerManager {
         if (process.platform === "win32" || process.platform === "linux") {
             const protocolUrl = process.argv.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
             if (protocolUrl) {
-                logInfo(`[ProtocolHandler] Buffering protocol URL from startup args: ${protocolUrl}`);
+                console.info(`[ProtocolHandler] Buffering protocol URL from startup args: ${protocolUrl}`);
                 this.pendingUrls.push(protocolUrl);
             }
         }
 
-        logInfo("[ProtocolHandler] Early protocol listeners registered");
+        console.info("[ProtocolHandler] Early protocol listeners registered");
     }
 
     /**
@@ -131,15 +127,13 @@ export class ProtocolHandlerManager {
         // Process any URLs received before the callback was registered.
         const buffered = this.pendingUrls.splice(0);
         for (const url of buffered) {
-            logInfo(`[ProtocolHandler] Processing buffered protocol URL: ${url}`);
+            console.info(`[ProtocolHandler] Processing buffered protocol URL: ${url}`);
             this.handleProtocolUrl(url).catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { manager: "ProtocolHandler", trigger: "buffered" },
-                });
+                console.error(error instanceof Error ? error : new Error(String(error)));
             });
         }
 
-        logInfo("[ProtocolHandler] Protocol handler callback registered");
+        console.info("[ProtocolHandler] Protocol handler callback registered");
     }
 
     /**
@@ -149,9 +143,7 @@ export class ProtocolHandlerManager {
     private bufferOrHandle(url: string, trigger: string): void {
         if (this.protocolCallback) {
             this.handleProtocolUrl(url).catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { manager: "ProtocolHandler", trigger },
-                });
+                console.error(error instanceof Error ? error : new Error(String(error)));
             });
         } else {
             this.pendingUrls.push(url);
@@ -166,7 +158,7 @@ export class ProtocolHandlerManager {
         try {
             // Validate protocol scheme
             if (!urlString.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`)) {
-                captureMessage(`[ProtocolHandler] Invalid protocol scheme: ${urlString}`, "warning");
+                console.warn(`[ProtocolHandler] Invalid protocol scheme: ${urlString}`);
                 return null;
             }
 
@@ -175,9 +167,7 @@ export class ProtocolHandlerManager {
             // Validate action (host part of URL)
             const action = url.hostname.toLowerCase();
             if (!ProtocolHandlerManager.ALLOWED_ACTIONS.includes(action as ProtocolAction)) {
-                captureMessage(`[ProtocolHandler] Invalid action: ${action}`, "warning", {
-                    extra: { allowed: ProtocolHandlerManager.ALLOWED_ACTIONS },
-                });
+                console.warn(`[ProtocolHandler] Invalid action: ${action}`);
                 return null;
             }
 
@@ -187,14 +177,14 @@ export class ProtocolHandlerManager {
 
             // Validate required parameters
             if (!toolId) {
-                captureMessage("[ProtocolHandler] Missing required parameter: toolId", "warning");
+                console.warn("[ProtocolHandler] Missing required parameter: toolId");
                 return null;
             }
 
             // Sanitize and validate toolId
             const sanitizedToolId = this.sanitizeToolId(toolId);
             if (!sanitizedToolId) {
-                captureMessage(`[ProtocolHandler] Invalid toolId format: ${toolId}`, "warning");
+                console.warn(`[ProtocolHandler] Invalid toolId format: ${toolId}`);
                 return null;
             }
 
@@ -209,10 +199,7 @@ export class ProtocolHandlerManager {
                 },
             };
         } catch (error) {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { manager: "ProtocolHandler", phase: "parse_url" },
-                extra: { url: urlString },
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
             return null;
         }
     }
@@ -284,12 +271,7 @@ export class ProtocolHandlerManager {
 
         // Check if rate limit exceeded
         if (this.recentProtocolRequests.length >= ProtocolHandlerManager.MAX_REQUESTS_PER_WINDOW) {
-            captureMessage("[ProtocolHandler] Rate limit exceeded", "warning", {
-                extra: {
-                    requestCount: this.recentProtocolRequests.length,
-                    window: ProtocolHandlerManager.RATE_LIMIT_WINDOW_MS,
-                },
-            });
+            console.warn("[ProtocolHandler] Rate limit exceeded");
             return false;
         }
 
@@ -302,40 +284,32 @@ export class ProtocolHandlerManager {
      * Handle protocol URL and invoke callback
      */
     private async handleProtocolUrl(urlString: string): Promise<void> {
-        logInfo(`[ProtocolHandler] Handling protocol URL: ${urlString}`);
+        console.info(`[ProtocolHandler] Handling protocol URL: ${urlString}`);
 
         // Check rate limit
         if (!this.checkRateLimit()) {
-            captureMessage("[ProtocolHandler] Protocol request blocked due to rate limiting", "warning");
+            console.warn("[ProtocolHandler] Protocol request blocked due to rate limiting");
             return;
         }
 
         // Parse and validate URL
         const parsed = this.parseProtocolUrl(urlString);
         if (!parsed) {
-            captureMessage("[ProtocolHandler] Failed to parse or validate protocol URL", "warning", {
-                extra: { url: urlString },
-            });
+            console.warn("[ProtocolHandler] Failed to parse or validate protocol URL");
             return;
         }
 
         // Invoke callback if registered
         if (!this.protocolCallback) {
-            captureMessage("[ProtocolHandler] No protocol callback registered", "warning");
+            console.warn("[ProtocolHandler] No protocol callback registered");
             return;
         }
 
         try {
             await this.protocolCallback(parsed.action, parsed.params);
-            logInfo(`[ProtocolHandler] Protocol action completed: ${parsed.action} for tool ${parsed.params.toolId}`);
+            console.info(`[ProtocolHandler] Protocol action completed: ${parsed.action} for tool ${parsed.params.toolId}`);
         } catch (error) {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { manager: "ProtocolHandler", phase: "handle_callback" },
-                extra: {
-                    action: parsed.action,
-                    toolId: parsed.params.toolId,
-                },
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
         }
     }
 }

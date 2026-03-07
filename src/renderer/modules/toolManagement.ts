@@ -3,7 +3,6 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { OpenTool, SessionData } from "../types/index";
@@ -84,11 +83,11 @@ export function updateToolbarButtonVisibility(): void {
  */
 export async function launchTool(toolId: string, options?: LaunchToolOptions): Promise<void> {
     try {
-        logInfo("Launching tool:", { toolId });
+        console.info("Launching tool:", { toolId });
 
         // Generate a unique instance ID for this tool launch
         const instanceId = generateInstanceId(toolId);
-        logInfo("Generated instance ID:", { instanceId });
+        console.info("Generated instance ID:", { instanceId });
         // Load the tool first to check if it requires multi-connection
         const tool = await window.toolboxAPI.getTool(toolId);
         if (!tool) {
@@ -103,7 +102,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Check if tool is supported by current ToolBox version
         if (tool.isSupported === false) {
             const versionInfo = await window.toolboxAPI.getVersionCompatibilityInfo().catch((error) => {
-                logWarn("Failed to retrieve version compatibility info for unsupported tool message", {
+                console.warn("Failed to retrieve version compatibility info for unsupported tool message", {
                     error: error instanceof Error ? error.message : String(error),
                     toolId,
                 });
@@ -131,7 +130,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 const connection = await window.toolboxAPI.connections.getById(connectionId);
                 return connection ? connection.id : null;
             } catch (error) {
-                logWarn(`Failed to resolve connection ${connectionId}`, { error: error instanceof Error ? error.message : String(error) });
+                console.warn(`Failed to resolve connection ${connectionId}`, { error: error instanceof Error ? error.message : String(error) });
                 return null;
             }
         };
@@ -150,7 +149,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
             // Tool supports multi-connection - show multi-connection modal
             const isSecondaryRequired = multiConnectionMode === "required";
-            logInfo(
+            console.info(
                 `Tool supports multi-connection (secondary ${isSecondaryRequired ? "required" : "optional"}). ` +
                     `${primaryConnectionId ? "Reusing stored connections when available." : "Showing selection modal."}`,
             );
@@ -163,13 +162,13 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     const result = await openSelectMultiConnectionModal(isSecondaryRequired);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
-                    logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
+                    console.info("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
 
                     if (isSecondaryRequired && !secondaryConnectionId) {
                         throw new Error("Secondary connection is required but was not provided");
                     }
                 } catch (error) {
-                    logInfo("Multi-connection selection cancelled:", { error });
+                    console.info("Multi-connection selection cancelled:", { error });
                     const errorMessage = isSecondaryRequired
                         ? "This tool requires two connections. Please select both connections to continue."
                         : "This tool requires a primary connection. Please select at least a primary connection to continue.";
@@ -184,17 +183,17 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         } else {
             if (!primaryConnectionId) {
                 // Regular single-connection flow - prompt if no stored connection
-                logInfo("Showing connection selection modal for new instance...");
+                console.info("Showing connection selection modal for new instance...");
                 try {
                     const selectedConnectionId = await openSelectConnectionModal();
-                    logInfo("Connection established. Continuing with tool launch...");
+                    console.info("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
                     } else {
                         throw new Error("No connection was selected");
                     }
                 } catch (error) {
-                    logInfo("Connection selection cancelled:", { error });
+                    console.info("Connection selection cancelled:", { error });
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
                         body: "A connection is required to use this tool. Please connect to an environment to continue.",
@@ -216,7 +215,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 try {
                     approvedOptionalDomains = await openCspExceptionModal(tool);
                 } catch (error) {
-                    logInfo("CSP consent modal closed without selection:", { error });
+                    console.info("CSP consent modal closed without selection:", { error });
                     approvedOptionalDomains = null;
                 }
 
@@ -275,7 +274,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             return;
         }
 
-        logInfo(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
+        console.info(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
 
         // Count how many instances of this tool are already open
         const existingInstances = Array.from(openTools.values()).filter((t) => t.toolId === toolId);
@@ -304,12 +303,9 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Save session after launching
         saveSession();
 
-        logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
+        console.info("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_launch", toolId },
-            level: "error",
-        });
+        console.error(error instanceof Error ? error : new Error(String(error)));
         window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,
@@ -365,7 +361,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
             }
         } catch (error) {
             const normalizedError = error instanceof Error ? error.message : String(error);
-            logWarn("Failed to fetch connection names for tab:", { error: normalizedError });
+            console.warn("Failed to fetch connection names for tab:", { error: normalizedError });
         }
 
         // Add connection names as subtext if available
@@ -567,10 +563,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
     if (openTool?.isDetailTab) {
         // Hide any active BrowserView
         window.toolboxAPI.hideToolWindows().catch((error: any) => {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { phase: "hide_tool_windows" },
-                level: "error",
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
         });
 
         // Hide the BrowserView placeholder so detail panel gets full space
@@ -611,10 +604,7 @@ export async function switchToTool(instanceId: string): Promise<void> {
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
     window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_switch", instanceId },
-            level: "error",
-        });
+        console.error(error instanceof Error ? error : new Error(String(error)));
     });
 
     // Update connection status display based on this tool's connection
@@ -663,10 +653,7 @@ export function closeTool(instanceId: string): void {
         // Real tool: close the tool window via IPC
         // The ToolWindowManager will destroy the BrowserView
         window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-            captureException(error instanceof Error ? error : new Error(String(error)), {
-                tags: { phase: "tool_close", instanceId },
-                level: "error",
-            });
+            console.error(error instanceof Error ? error : new Error(String(error)));
         });
     }
 
@@ -835,10 +822,7 @@ export async function restoreSession(): Promise<void> {
             // Note: activeToolId won't match since we have new instanceIds
         }
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "session_restore" },
-            level: "error",
-        });
+        console.error(error instanceof Error ? error : new Error(String(error)));
     }
 }
 
@@ -871,7 +855,7 @@ export async function setToolConnection(instanceId: string, connectionId: string
         await updateActiveToolConnectionStatus();
     }
 
-    logInfo(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, { connectionId });
+    console.info(`Tool instance ${instanceId} (toolId: ${toolId}) connection set to:`, { connectionId });
 }
 
 /**
@@ -1276,9 +1260,7 @@ export async function openToolConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        console.error("Connection selection cancelled or failed");
     }
 }
 
@@ -1303,7 +1285,7 @@ export async function setToolSecondaryConnection(instanceId: string, connectionI
         await updateActiveToolConnectionStatus();
     }
 
-    logInfo(`Tool instance ${instanceId} secondary connection set to:`, { connectionId });
+    console.info(`Tool instance ${instanceId} secondary connection set to:`, { connectionId });
 }
 
 /**
@@ -1358,9 +1340,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Secondary connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        console.error("Secondary connection selection cancelled or failed");
     }
 }
 

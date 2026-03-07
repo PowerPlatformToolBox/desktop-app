@@ -4,7 +4,6 @@
  * marketplace tools, connections, and settings.
  */
 
-import { captureException, logInfo } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
@@ -87,7 +86,7 @@ export function openGlobalSearch(): void {
         input.focus();
     });
 
-    logInfo("Global search opened", {});
+    console.info("Global search opened", {});
 }
 
 /**
@@ -158,10 +157,7 @@ async function runSearch(query: string): Promise<void> {
                         import("./toolManagement")
                             .then(({ launchTool }) => launchTool(toolId))
                             .catch((err) => {
-                                captureException(err instanceof Error ? err : new Error(String(err)), {
-                                    tags: { context: "global_search", action: "launch_tool" },
-                                    level: "warning",
-                                });
+                                console.error(err instanceof Error ? err : new Error(String(err)));
                             });
                     },
                 });
@@ -184,10 +180,7 @@ async function runSearch(query: string): Promise<void> {
                     action: () => {
                         closeGlobalSearch();
                         openToolDetail(toolSnapshot, false).catch((err) => {
-                            captureException(err instanceof Error ? err : new Error(String(err)), {
-                                tags: { context: "global_search", action: "open_tool_detail" },
-                                level: "warning",
-                            });
+                            console.error(err instanceof Error ? err : new Error(String(err)));
                         });
                     },
                 });
@@ -238,10 +231,7 @@ async function runSearch(query: string): Promise<void> {
             }
         }
     } catch (err) {
-        captureException(err instanceof Error ? err : new Error(String(err)), {
-            tags: { context: "global_search", action: "run_search" },
-            level: "warning",
-        });
+        console.error(err instanceof Error ? err : new Error(String(err)));
     }
 
     currentResults = results;
@@ -442,10 +432,7 @@ export function initializeGlobalSearch(): void {
 
         input.addEventListener("input", () => {
             runSearch(input.value).catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { context: "global_search", action: "input_search" },
-                    level: "warning",
-                });
+                console.error(err instanceof Error ? err : new Error(String(err)));
             });
         });
 
@@ -483,6 +470,6 @@ export function initializeGlobalSearch(): void {
         }
     });
 
-    logInfo("Global search initialized", {});
+    console.info("Global search initialized", {});
 }
 

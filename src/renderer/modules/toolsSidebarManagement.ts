@@ -3,7 +3,6 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -170,7 +169,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Create lookup for menu actions
         const toolLookup = new Map(sortedTools.map((t) => [t.id, t]));
 
-        logInfo(`Loaded ${sortedTools.length} installed tools`);
+        console.info(`Loaded ${sortedTools.length} installed tools`);
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
@@ -379,7 +378,7 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
     } catch (error) {
-        captureMessage("Failed to load sidebar tools:", "error", { extra: { error } });
+        console.error("Failed to load sidebar tools:");
         toolsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading tools</p>

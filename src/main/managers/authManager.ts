@@ -3,7 +3,6 @@ import { BrowserWindow } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
@@ -56,7 +55,7 @@ export class AuthManager {
                 system: {
                     loggerOptions: {
                         loggerCallback(loglevel: LogLevel, message: string) {
-                            logWarn(message);
+                            console.warn(message);
                         },
                         piiLoggingEnabled: false,
                         logLevel: LogLevel.Warning,
@@ -91,7 +90,7 @@ export class AuthManager {
                 system: {
                     loggerOptions: {
                         loggerCallback(loglevel: LogLevel, message: string) {
-                            logWarn(message);
+                            console.warn(message);
                         },
                         piiLoggingEnabled: false,
                         logLevel: LogLevel.Warning,
@@ -146,9 +145,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            captureMessage("Interactive authentication failed:", "error", {
-                extra: { error },
-            });
+            console.error("Interactive authentication failed:");
             // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
             // No need to show modal dialog as it causes UI conflicts
             throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -202,7 +199,7 @@ export class AuthManager {
                 // Force close any remaining connections after graceful shutdown attempt
                 server.closeAllConnections();
                 if (logMessage) {
-                    logInfo(logMessage);
+                    console.info(logMessage);
                 }
             });
         }
@@ -228,7 +225,7 @@ export class AuthManager {
                 server.close(() => {
                     // Force close any remaining connections after graceful shutdown attempt
                     server.closeAllConnections();
-                    logInfo("Authentication server closed and port released");
+                    console.info("Authentication server closed and port released");
                     resolve();
                 });
             } else {
@@ -384,7 +381,7 @@ export class AuthManager {
             }, AuthManager.AUTH_TIMEOUT_MS);
 
             server.listen(port, "localhost", () => {
-                logInfo(`Listening for OAuth redirect on ${redirectUri}`);
+                console.info(`Listening for OAuth redirect on ${redirectUri}`);
                 // Server is ready, now open the browser with profile support
                 this.browserManager.openBrowserWithProfile(authCodeUrl, connection).catch((err) => {
                     cleanupAndReject(new Error(`Failed to open browser: ${err.message}`));
@@ -440,9 +437,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            captureMessage("Client secret authentication failed:", "error", {
-                extra: { error },
-            });
+            console.error("Client secret authentication failed:");
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -495,9 +490,7 @@ export class AuthManager {
                 msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
             };
         } catch (error) {
-            captureMessage("Username/password authentication failed:", "error", {
-                extra: { error },
-            });
+            console.error("Username/password authentication failed:");
 
             // Extract error message from MSAL error or generic error
             let errorMessage = "";
@@ -583,9 +576,7 @@ export class AuthManager {
 
             throw new Error("Connection test failed: Unable to verify identity");
         } catch (error) {
-            captureMessage("Test connection failed:", "error", {
-                extra: { error },
-            });
+            console.error("Test connection failed:");
             throw error;
         }
     }
@@ -688,7 +679,7 @@ export class AuthManager {
                 throw new Error("Unable to verify user identity in the selected environment");
             }
 
-            logInfo("Environment access validated successfully", { userId: data.UserId });
+            console.info("Environment access validated successfully", { userId: data.UserId });
         } catch (error) {
             // Enhance error message for permission-related failures
             const errorMessage = (error as Error).message;
@@ -764,9 +755,7 @@ export class AuthManager {
             };
         } catch (error) {
             // Silent acquisition failed - likely refresh token expired
-            captureMessage("Silent token acquisition failed - re-authentication required", "warning", {
-                extra: { error, connectionId: connection.id },
-            });
+            console.warn("Silent token acquisition failed - re-authentication required");
             throw new Error("Token refresh failed. Please authenticate again.");
         }
     }
@@ -802,9 +791,7 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            captureMessage("Token refresh failed:", "error", {
-                extra: { error },
-            });
+            console.error("Token refresh failed:");
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }
@@ -814,7 +801,7 @@ export class AuthManager {
      * This ensures a clean state on next app launch
      */
     cleanup(): void {
-        logInfo("[AuthManager] Cleaning up MSAL instances");
+        console.info("[AuthManager] Cleaning up MSAL instances");
         this.msalApps.clear();
         this.confidentialApps.clear();
     }

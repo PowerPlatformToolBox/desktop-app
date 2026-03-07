@@ -3,7 +3,6 @@
  * Handles the troubleshooting modal for diagnosing connectivity issues
  */
 
-import { captureMessage } from "../../common/sentryHelper";
 import type { ModalWindowMessagePayload } from "../../common/types";
 import { getTroubleshootingModalControllerScript } from "../modals/troubleshooting/controller";
 import { getTroubleshootingModalView } from "../modals/troubleshooting/view";
@@ -36,7 +35,7 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
             height: TROUBLESHOOTING_MODAL_DIMENSIONS.height,
         });
     } catch (error) {
-        captureMessage("Failed to open troubleshooting modal", "error", { extra: { error } });
+        console.error("Failed to open troubleshooting modal");
         await window.toolboxAPI.utils.showNotification({
             title: "Troubleshooting",
             body: `Unable to open troubleshooting modal: ${formatError(error)}`,

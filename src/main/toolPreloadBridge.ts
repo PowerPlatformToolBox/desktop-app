@@ -12,7 +12,6 @@ import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
 import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
-import { logInfo } from "../common/sentryHelper";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 
 // Tool context received from main process
@@ -32,7 +31,7 @@ const toolContextReady = new Promise<void>((resolve) => {
 ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge new context with existing to preserve all fields
     toolContext = { ...toolContext, ...context };
-    logInfo("[ToolPreloadBridge] Received tool context update", context);
+    console.info("[ToolPreloadBridge] Received tool context update", context);
     // Resolve the promise so any pending API calls can proceed (only once)
     if (resolveToolContext) {
         resolveToolContext();
@@ -414,4 +413,4 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
     orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
 });
 
-logInfo("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
+console.info("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");

@@ -1,5 +1,4 @@
 import * as path from "path";
-import { logInfo, logWarn } from "../../common/sentryHelper";
 
 /**
  * Manages filesystem access permissions for tools
@@ -24,7 +23,7 @@ export class ToolFileSystemAccessManager {
         }
 
         this.allowedPaths.get(instanceId)!.add(resolvedPath);
-        logInfo(`[ToolFilesystemAccess] Granted access to tool instance ${instanceId}: ${resolvedPath}`);
+        console.info(`[ToolFilesystemAccess] Granted access to tool instance ${instanceId}: ${resolvedPath}`);
     }
 
     /**
@@ -67,7 +66,7 @@ export class ToolFileSystemAccessManager {
     validateAccess(instanceId: string, targetPath: string): void {
         if (!this.canAccess(instanceId, targetPath)) {
             const resolvedPath = path.resolve(targetPath);
-            logWarn(`[ToolFilesystemAccess] Access denied for tool instance ${instanceId} to path: ${resolvedPath}`);
+            console.warn(`[ToolFilesystemAccess] Access denied for tool instance ${instanceId} to path: ${resolvedPath}`);
             throw new Error(
                 `Access denied. This tool does not have permission to access "${resolvedPath}". ` +
                     `Please use toolboxAPI.fileSystem.selectPath() to grant access to a directory, ` +
@@ -82,7 +81,7 @@ export class ToolFileSystemAccessManager {
     revokeAllAccess(instanceId: string): void {
         const removed = this.allowedPaths.delete(instanceId);
         if (removed) {
-            logInfo(`[ToolFilesystemAccess] Revoked all filesystem access for tool instance: ${instanceId}`);
+            console.info(`[ToolFilesystemAccess] Revoked all filesystem access for tool instance: ${instanceId}`);
         }
     }
 
@@ -99,6 +98,6 @@ export class ToolFileSystemAccessManager {
      */
     clearAll(): void {
         this.allowedPaths.clear();
-        logInfo("[ToolFilesystemAccess] Cleared all filesystem permissions");
+        console.info("[ToolFilesystemAccess] Cleared all filesystem permissions");
     }
 }
