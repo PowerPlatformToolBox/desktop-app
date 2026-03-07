@@ -18,13 +18,14 @@ import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCre
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
+import { logInfo, logWarn, logError, logCheckpoint } from "../../common/logger";
 
 /**
  * Initialize the application
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
-    console.log("Renderer initialization started");
+    logCheckpoint("Renderer initialization started");
 
     try {
         initializeBrowserWindowModals();
@@ -71,16 +72,16 @@ export async function initializeApplication(): Promise<void> {
         await (async () => {
                 await loadInitialSettings();
             })();
-        console.log("Initial settings loaded");
+        logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
         await (async () => {
                 await loadToolsLibrary();
             })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
+            logError(err);
         });
-        console.log("Tools library loaded");
+        logCheckpoint("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
         await (async () => {
@@ -96,9 +97,9 @@ export async function initializeApplication(): Promise<void> {
                 await loadSidebarConnections();
             })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
+            logError(err);
         });
-        console.log("Connections loaded");
+        logCheckpoint("Connections loaded");
 
         // Update footer connection info
         // Update footer connection status
@@ -112,18 +113,18 @@ export async function initializeApplication(): Promise<void> {
                 await loadHomepageData();
             })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
+            logError(err);
         });
-        console.log("Homepage data loaded");
+        logCheckpoint("Homepage data loaded");
 
         // Restore previous session
         await (async () => {
                 await restoreSession();
             })().catch((error) => {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
+            logError(err);
         });
-        console.log("Session restored");
+        logCheckpoint("Session restored");
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
@@ -146,9 +147,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
 
-        console.log("Renderer initialization completed successfully");
+        logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
-        console.error(error instanceof Error ? error : new Error(String(error)));
+        logError(error instanceof Error ? error : new Error(String(error)));
         // Show error to user using a proper error modal
         const errorMessage = (error as Error).message || "Unknown error occurred";
         const errorElement = document.createElement("div");
@@ -240,7 +241,7 @@ function setupSidebarButtons(): void {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openAddConnectionModal().catch((error) => {
-                console.error(error instanceof Error ? error : new Error(String(error)));
+                logError(error instanceof Error ? error : new Error(String(error)));
             });
         });
     }
@@ -286,7 +287,7 @@ function setupSidebarButtons(): void {
             try {
                 await handleCheckForUpdates();
             } catch (error) {
-                console.error(error instanceof Error ? error : new Error(String(error)));
+                logError(error instanceof Error ? error : new Error(String(error)));
             }
         });
     }
@@ -527,23 +528,23 @@ function setupApplicationEventListeners(): void {
 
     // Tool update event listeners
     window.toolboxAPI.onToolUpdateStarted(() => {
-        console.info("Tool update started, reloading tools...");
+        logInfo("Tool update started, reloading tools...");
         loadSidebarTools().catch((err) => {
-            console.error(err instanceof Error ? err : new Error(String(err)));
+            logError(err instanceof Error ? err : new Error(String(err)));
         });
     });
 
     window.toolboxAPI.onToolUpdateCompleted(() => {
-        console.info("Tool update completed, reloading tools...");
+        logInfo("Tool update completed, reloading tools...");
         loadSidebarTools().catch((err) => {
-            console.error(err instanceof Error ? err : new Error(String(err)));
+            logError(err instanceof Error ? err : new Error(String(err)));
         });
     });
 
     // Protocol deep link handler
     window.toolboxAPI.onProtocolInstallToolRequest((params: { toolId: string; toolName: string }) => {
         handleProtocolInstallToolRequest(params).catch((error) => {
-            console.error(error instanceof Error ? error : new Error(String(error)));
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
     });
 }
@@ -585,7 +586,7 @@ function setupAuthenticationListeners(): void {
     });
 
     window.toolboxAPI.onTokenExpired(async (data: { connectionId: string; connectionName: string }) => {
-        console.info("Token expired for connection:", data);
+        logInfo("Token expired for connection:", data);
 
         showPPTBNotification({
             title: "Connection Token Expired",
@@ -639,7 +640,7 @@ function setupLoadingScreenListeners(): void {
 function setupToolboxEventListeners(): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.toolboxAPI.events.on((event: any, payload: any) => {
-        console.info("ToolBox Event:", { payload });
+        logInfo("ToolBox Event:", { payload });
 
         if (payload.event === "menu:launch-tool") {
             const toolId = typeof payload.data?.toolId === "string" ? payload.data.toolId : null;
@@ -650,7 +651,7 @@ function setupToolboxEventListeners(): void {
                     secondaryConnectionId: payload.data?.secondaryConnectionId ?? null,
                 });
             } else {
-                console.warn("Menu launch event missing toolId", { payload });
+                logWarn("Menu launch event missing toolId", { payload });
             }
             return;
         }
@@ -668,23 +669,23 @@ function setupToolboxEventListeners(): void {
 
         // Reload connections when connection events occur
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
-            console.info("Connection event detected, reloading connections...");
+            logInfo("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => {
-                console.error(err instanceof Error ? err : new Error(String(err)));
+                logError(err instanceof Error ? err : new Error(String(err)));
             });
             // Update active tool connection status to reflect changes
             import("./toolManagement").then(({ updateActiveToolConnectionStatus }) => {
                 updateActiveToolConnectionStatus().catch((err) => {
-                    console.error(err instanceof Error ? err : new Error(String(err)));
+                    logError(err instanceof Error ? err : new Error(String(err)));
                 });
             });
         }
 
         // Reload tools when tool events occur
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
-            console.info("Tool event detected, reloading tools...");
+            logInfo("Tool event detected, reloading tools...");
             loadSidebarTools().catch((err) => {
-                console.error(err instanceof Error ? err : new Error(String(err)));
+                logError(err instanceof Error ? err : new Error(String(err)));
             });
         }
 
@@ -718,10 +719,10 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: Math.round(rect.height),
             };
-            console.info("[Renderer] Sending tool panel bounds:", bounds);
+            logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
-            console.warn("[Renderer] Tool panel content element not found");
+            logWarn("[Renderer] Tool panel content element not found");
         }
     });
 }
@@ -844,6 +845,6 @@ async function checkActiveToolTokenExpiry(): Promise<void> {
         await updateActiveToolConnectionStatus();
     } catch (error) {
         // Silently fail - this is a background check
-        console.info("Token expiry check failed:", { error });
+        logInfo("Token expiry check failed:", { error });
     }
 }

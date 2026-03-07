@@ -7,6 +7,7 @@ import type { ModalWindowMessagePayload } from "../../common/types";
 import { getTroubleshootingModalControllerScript } from "../modals/troubleshooting/controller";
 import { getTroubleshootingModalView } from "../modals/troubleshooting/view";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import { logError } from "../../common/logger";
 
 const TROUBLESHOOTING_MODAL_CHANNELS = {
     runCheck: "troubleshooting:run-check",
@@ -35,7 +36,7 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
             height: TROUBLESHOOTING_MODAL_DIMENSIONS.height,
         });
     } catch (error) {
-        console.error("Failed to open troubleshooting modal");
+        logError("Failed to open troubleshooting modal");
         await window.toolboxAPI.utils.showNotification({
             title: "Troubleshooting",
             body: `Unable to open troubleshooting modal: ${formatError(error)}`,

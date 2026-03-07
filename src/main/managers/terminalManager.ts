@@ -2,6 +2,7 @@ import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
+import { logInfo, logError } from "../../common/logger";
 
 /**
  * Manages terminal instances for tools
@@ -47,7 +48,7 @@ export class TerminalManager extends EventEmitter {
 
         // Verify shell exists, fallback to default if not
         if (options.shell && !(await this.shellExists(options.shell))) {
-            console.error(`Shell ${options.shell} not found`);
+            logError(`Shell ${options.shell} not found`);
             shell = this.defaultShell;
         }
 
@@ -225,9 +226,9 @@ class TerminalInstance extends EventEmitter {
         };
 
         // Log shell startup for debugging (can be removed in production)
-        console.info(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(" ")}`);
-        console.info(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
-        console.info(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
+        logInfo(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(" ")}`);
+        logInfo(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
+        logInfo(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
 
         this.process = spawn(this.terminal.shell, shellArgs, {
             cwd: this.terminal.cwd,

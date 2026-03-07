@@ -4,6 +4,7 @@
  */
 
 import { loadSidebarSettings } from "./settingsManagement";
+import { logError } from "../../common/logger";
 
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
@@ -42,7 +43,7 @@ export function switchSidebar(sidebarId: string): void {
             // Load settings when re-expanding settings sidebar
             if (sidebarId === "settings") {
                 loadSidebarSettings().catch((err) => {
-                    console.error(err instanceof Error ? err : new Error(String(err)));
+                    logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
         }
@@ -75,7 +76,7 @@ export function switchSidebar(sidebarId: string): void {
     // Load settings when switching to settings sidebar
     if (sidebarId === "settings") {
         loadSidebarSettings().catch((err) => {
-            console.error(err instanceof Error ? err : new Error(String(err)));
+            logError(err instanceof Error ? err : new Error(String(err)));
         });
     }
 

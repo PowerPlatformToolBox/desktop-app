@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { SettingsManager } from "./settingsManager";
+import { logInfo } from "../../common/logger";
 
 /**
  * Manages a unique install identifier for analytics purposes
@@ -27,7 +28,7 @@ export class InstallIdManager {
 
         if (storedInstallId) {
             this.installId = storedInstallId;
-            console.info("[InstallId] Retrieved existing install ID");
+            logInfo("[InstallId] Retrieved existing install ID");
             return this.installId;
         }
 
@@ -36,14 +37,14 @@ export class InstallIdManager {
         if (legacyMachineId) {
             this.installId = legacyMachineId;
             this.settingsManager.setSetting("installId", legacyMachineId);
-            console.info("[InstallId] Migrated legacy machine ID to install ID");
+            logInfo("[InstallId] Migrated legacy machine ID to install ID");
             return this.installId;
         }
 
         // Generate new install ID using randomUUID from crypto module (Node 18+)
         this.installId = randomUUID();
         this.settingsManager.setSetting("installId", this.installId);
-        console.info("[InstallId] Generated new install ID");
+        logInfo("[InstallId] Generated new install ID");
 
         return this.installId;
     }

@@ -7,6 +7,7 @@ import AnsiToHtml from "ansi-to-html";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
 import type { TerminalTab } from "../types/index";
 import { getToolInstanceDisplayName } from "./toolManagement";
+import { logInfo, logError } from "../../common/logger";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml(ANSI_CONVERTER_CONFIG);
@@ -78,7 +79,7 @@ export function setupTerminalPanel(): void {
  * Handle terminal created event
  */
 export function handleTerminalCreated(terminal: any): void {
-    console.info("Terminal created:", { terminal });
+    logInfo("Terminal created:", { terminal });
     createTerminalTab(terminal);
     showTerminalPanel();
 }
@@ -87,7 +88,7 @@ export function handleTerminalCreated(terminal: any): void {
  * Handle terminal closed event
  */
 export function handleTerminalClosed(data: any): void {
-    console.info("Terminal closed:", data);
+    logInfo("Terminal closed:", data);
     removeTerminalTab(data.terminalId);
 }
 
@@ -103,7 +104,7 @@ export function handleTerminalOutput(data: any): void {
  * Handle terminal command completed event
  */
 export function handleTerminalCommandCompleted(result: any): void {
-    console.info("Terminal command completed:", result);
+    logInfo("Terminal command completed:", result);
     // Output is already displayed via terminal:output events
 }
 
@@ -164,7 +165,7 @@ function createTerminalTab(terminal: any): void {
             }
         })
         .catch((_error: Error) => {
-            console.error("Failed to apply terminal font:");
+            logError("Failed to apply terminal font:");
         });
 
     // Store terminal tab

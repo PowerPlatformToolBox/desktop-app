@@ -10,6 +10,7 @@ import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
+import { logInfo, logError } from "../../common/logger";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
 
@@ -169,7 +170,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Create lookup for menu actions
         const toolLookup = new Map(sortedTools.map((t) => [t.id, t]));
 
-        console.info(`Loaded ${sortedTools.length} installed tools`);
+        logInfo(`Loaded ${sortedTools.length} installed tools`);
 
         // Build tools list HTML
         toolsList.innerHTML = sortedTools
@@ -378,7 +379,7 @@ export async function loadSidebarTools(): Promise<void> {
             });
         });
     } catch (error) {
-        console.error("Failed to load sidebar tools:");
+        logError("Failed to load sidebar tools:");
         toolsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading tools</p>

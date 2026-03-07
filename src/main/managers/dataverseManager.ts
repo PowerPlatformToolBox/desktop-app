@@ -11,6 +11,7 @@ import {
     LocalizedLabel,
     MetadataOperationOptions,
 } from "../../common/types";
+import { logWarn, logError } from "../../common/logger";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -190,7 +191,7 @@ export class DataverseManager {
         if (!hasAccount) {
             // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
             this.connectionsManager.clearConnectionTokens(connectionId);
-            console.warn("MSAL account not found in cache - tokens cleared");
+            logWarn("MSAL account not found in cache - tokens cleared");
             throw new Error(errorMessage);
         }
     }
@@ -224,7 +225,7 @@ export class DataverseManager {
             } catch (error) {
                 // Silent acquisition failed - re-auth required
                 const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
-                console.error("MSAL silent token acquisition failed");
+                logError("MSAL silent token acquisition failed");
                 throw new Error(errorMessage);
             }
         }
@@ -248,7 +249,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
-                    console.error("Client secret authentication failed");
+                    logError("Client secret authentication failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -277,7 +278,7 @@ export class DataverseManager {
                 } catch (error) {
                     // Silent token acquisition failed - user needs to re-authenticate
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    console.error("Username/password silent token acquisition failed");
+                    logError("Username/password silent token acquisition failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -300,7 +301,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    console.error("Username/password token refresh failed");
+                    logError("Username/password token refresh failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -325,7 +326,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please sign in again.`;
-                    console.warn("Legacy interactive token refresh failed");
+                    logWarn("Legacy interactive token refresh failed");
                     throw new Error(errorMessage);
                 }
             }

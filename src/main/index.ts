@@ -26,6 +26,7 @@ import {
     ModalWindowOptions,
     ToolBoxEvent,
 } from "../common/types";
+import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -72,7 +73,7 @@ class ToolBoxApp {
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
     constructor() {
-        console.log("ToolBoxApp constructor started");
+        logCheckpoint("ToolBoxApp constructor started");
 
         try {
             this.settingsManager = new SettingsManager();
@@ -100,10 +101,10 @@ class ToolBoxApp {
             this.setupEventListeners();
             this.setupIpcHandlers();
 
-            console.log("ToolBoxApp constructor completed");
+            logCheckpoint("ToolBoxApp constructor completed");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
+            logError(err);
             throw error;
         }
     }
@@ -460,7 +461,7 @@ class ToolBoxApp {
 
                 // Validate date parsing
                 if (isNaN(expiryDate.getTime())) {
-                    console.info(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
+                    logInfo(`[ConnectionAuth] Invalid token expiry date for connection: ${connection.name} (${id})`);
                     tokenState = "needs-auth";
                 } else {
                     const now = new Date();
@@ -487,7 +488,7 @@ class ToolBoxApp {
                     lastUsedAt: new Date().toISOString(),
                 });
 
-                console.info(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
+                logInfo(`[ConnectionAuth] Reusing valid token for connection: ${connection.name} (${id})`);
 
                 // Emit event to notify that connection is active
                 this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
@@ -496,7 +497,7 @@ class ToolBoxApp {
 
             // Handle token refresh - attempt to refresh expired/expiring token
             if (tokenState === "needs-refresh") {
-                console.info(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
+                logInfo(`[ConnectionAuth] Token expired or expiring soon, attempting refresh for connection: ${connection.name} (${id})`);
                 try {
                     let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
 
@@ -526,18 +527,18 @@ class ToolBoxApp {
                     // Clear notification tracking since token is refreshed
                     this.notifiedExpiredTokens.clear();
 
-                    console.info(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
+                    logInfo(`[ConnectionAuth] Token refreshed successfully for connection: ${connection.name} (${id})`);
 
                     this.api.emitEvent(ToolBoxEvent.CONNECTION_UPDATED, { id, isActive: true });
                     return;
                 } catch (error) {
                     // Token refresh failed, fall through to full authentication
-                    console.info(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
+                    logInfo(`[ConnectionAuth] Token refresh failed, proceeding with full authentication: ${(error as Error).message}`);
                 }
             }
 
             // No valid token exists or refresh failed, proceed with full authentication
-            console.info(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
+            logInfo(`[ConnectionAuth] Authenticating connection: ${connection.name} (${id})`);
 
             // Authenticate based on the authentication type
             try {
@@ -680,7 +681,7 @@ class ToolBoxApp {
                 return { success: true };
             } catch (error) {
                 const errorMessage = `Failed to refresh token for connection '${connection.name}': ${(error as Error).message}`;
-                console.error(error instanceof Error ? error : new Error(String(error)));
+                logError(error instanceof Error ? error : new Error(String(error)));
                 throw new Error(errorMessage);
             }
         });
@@ -927,7 +928,7 @@ class ToolBoxApp {
                     this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
                 } catch (error) {
                     // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    console.error(error instanceof Error ? error : new Error(String(error)));
+                    logError(error instanceof Error ? error : new Error(String(error)));
                     // On error, show without bounds (full window fallback)
                     this.loadingOverlayWindowManager.show(message || "Loading...");
                 }
@@ -2330,13 +2331,13 @@ class ToolBoxApp {
             // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
-                console.info(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
+                logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
                 return { success: true, message: `Connected successfully. Found ${tools.length} tools in registry.` };
             }
-            console.warn("[Troubleshooting] Supabase returned invalid data");
+            logWarn("[Troubleshooting] Supabase returned invalid data");
             return { success: false, message: "Unable to fetch tools from registry" };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error connecting to Supabase",
@@ -2352,7 +2353,7 @@ class ToolBoxApp {
             const toolsDirectory = path.join(app.getPath("userData"), "tools");
 
             if (!fs.existsSync(toolsDirectory)) {
-                console.warn("[Troubleshooting] Tools directory missing for local registry check");
+                logWarn("[Troubleshooting] Tools directory missing for local registry check");
                 return {
                     success: false,
                     message: "Tools directory not found. Launch a tool at least once to initialize it.",
@@ -2361,7 +2362,7 @@ class ToolBoxApp {
 
             const manifestPath = path.join(toolsDirectory, "manifest.json");
             if (!fs.existsSync(manifestPath)) {
-                console.warn("[Troubleshooting] Local manifest file not found");
+                logWarn("[Troubleshooting] Local manifest file not found");
                 return {
                     success: false,
                     message: "Local manifest file not found under tools directory",
@@ -2372,14 +2373,14 @@ class ToolBoxApp {
             const manifestJson = JSON.parse(manifestRaw);
             const tools = Array.isArray(manifestJson?.tools) ? manifestJson.tools : [];
 
-            console.info(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
+            logInfo(`[Troubleshooting] Local manifest check passed with ${tools.length} entries`);
             return {
                 success: true,
                 message: `Local manifest found (${tools.length} recorded tools)`,
                 toolCount: tools.length,
             };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to read local manifest",
@@ -2400,19 +2401,19 @@ class ToolBoxApp {
             });
 
             if (response.ok) {
-                console.info(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
+                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
                 return {
                     success: true,
                     message: "Internet connectivity verified via GitHub",
                 };
             }
-            console.warn("[Troubleshooting] Internet connectivity check returned non-OK status");
+            logWarn("[Troubleshooting] Internet connectivity check returned non-OK status");
             return {
                 success: false,
                 message: `Internet connectivity check failed: HTTP ${response.status}`,
             };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Network error during internet connectivity check",
@@ -2439,7 +2440,7 @@ class ToolBoxApp {
             }
 
             const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
-            console.info(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
+            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -2450,7 +2451,7 @@ class ToolBoxApp {
                                 reject(new Error("Too many redirects while downloading test tool"));
                                 return;
                             }
-                            console.info(`[Troubleshooting] Following redirect to ${res.headers.location}`);
+                            logInfo(`[Troubleshooting] Following redirect to ${res.headers.location}`);
                             download(res.headers.location, redirectDepth + 1);
                             return;
                         }
@@ -2505,10 +2506,10 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                console.warn("[Troubleshooting] Failed to clean up download test artifacts");
+                logWarn("[Troubleshooting] Failed to clean up download test artifacts");
             }
 
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Unknown error during download test",
@@ -2524,7 +2525,7 @@ class ToolBoxApp {
         try {
             const settings = this.settingsManager.getUserSettings();
             if (!settings) {
-                console.error("[Troubleshooting] User settings returned null or undefined");
+                logError("[Troubleshooting] User settings returned null or undefined");
                 return {
                     success: false,
                     message: "User settings file could not be loaded",
@@ -2540,7 +2541,7 @@ class ToolBoxApp {
                 if (!hasTheme) missingFields.push("theme");
                 if (!hasAutoUpdate) missingFields.push("autoUpdate");
 
-                console.warn("[Troubleshooting] User settings missing required fields");
+                logWarn("[Troubleshooting] User settings missing required fields");
 
                 return {
                     success: false,
@@ -2548,13 +2549,13 @@ class ToolBoxApp {
                 };
             }
 
-            console.info(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
+            logInfo(`[Troubleshooting] User settings check passed with ${Object.keys(settings).length} properties`);
             return {
                 success: true,
                 message: `User settings loaded successfully (${Object.keys(settings).length} properties)`,
             };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load user settings",
@@ -2580,17 +2581,17 @@ class ToolBoxApp {
                     }
                 } catch (toolError) {
                     // Log individual tool setting errors but don't fail the check
-                    console.info(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
+                    logInfo(`[Troubleshooting] Could not load settings for tool ${tool.id}: ${toolError}`);
                 }
             }
 
-            console.info(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
+            logInfo(`[Troubleshooting] Tool settings check passed: ${toolSettingsCount} tools with settings out of ${installedTools.length} loaded tools`);
             return {
                 success: true,
                 message: `Tool settings accessible (${toolSettingsCount} configured out of ${installedTools.length} loaded tools)`,
             };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to access tool settings",
@@ -2607,7 +2608,7 @@ class ToolBoxApp {
             const connections = this.connectionsManager.getConnections();
 
             if (!Array.isArray(connections)) {
-                console.error("[Troubleshooting] Connections is not an array");
+                logError("[Troubleshooting] Connections is not an array");
                 return {
                     success: false,
                     message: "Connections data is corrupted (not an array)",
@@ -2631,17 +2632,17 @@ class ToolBoxApp {
             }
 
             if (invalidConnections.length > 0) {
-                console.warn("[Troubleshooting] Some connections have invalid structure");
+                logWarn("[Troubleshooting] Some connections have invalid structure");
             }
 
-            console.info(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
+            logInfo(`[Troubleshooting] Connections check passed: ${validConnections} valid connections out of ${connections.length} total`);
             return {
                 success: true,
                 message: `Connections loaded successfully (${validConnections} valid out of ${connections.length} total)`,
                 connectionCount: validConnections,
             };
         } catch (error) {
-            console.error(error as Error);
+            logError(error as Error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to load connections",
@@ -2653,7 +2654,7 @@ class ToolBoxApp {
      * Initialize the application
      */
     async initialize(): Promise<void> {
-        console.log("Application initialization started");
+        logCheckpoint("Application initialization started");
 
         try {
             // Set app user model ID for Windows notifications
@@ -2672,20 +2673,20 @@ class ToolBoxApp {
             this.protocolHandlerManager.initialize();
 
             await app.whenReady();
-            console.log("Electron app ready");
+            logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
 
             this.createWindow();
-            console.log("Main window created");
+            logCheckpoint("Main window created");
 
             // Set up deep link protocol handler callback after the main window exists.
             // The callback defers IPC delivery until the renderer has finished loading so
             // that protocol URLs captured during startup (buffered in pendingUrls) are
             // reliably delivered even on a cold launch via pptb://.
             this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
-                console.info(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
+                logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
                 // Bring app window to focus
                 if (this.mainWindow) {
@@ -2719,11 +2720,11 @@ class ToolBoxApp {
             // Load all installed tools from registry
             try {
                 await this.toolManager.loadAllInstalledTools();
-                console.log("Tools loaded from registry");
+                logCheckpoint("Tools loaded from registry");
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                console.error(err);
-                console.error(error instanceof Error ? error : new Error(String(error)));
+                logError(err);
+                logError(error instanceof Error ? error : new Error(String(error)));
             }
 
             // Check if auto-update is enabled
@@ -2750,7 +2751,7 @@ class ToolBoxApp {
             });
 
             app.on("before-quit", () => {
-                console.log("Application shutting down");
+                logCheckpoint("Application shutting down");
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
@@ -2761,11 +2762,11 @@ class ToolBoxApp {
                 this.connectionsManager.clearAllConnectionTokens();
             });
 
-            console.log("Application initialization completed successfully");
+            logCheckpoint("Application initialization completed successfully");
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
-            console.error(err);
-            console.log("Application initialization failed", { error: err.message });
+            logError(err);
+            logCheckpoint("Application initialization failed", { error: err.message });
             throw error;
         }
     }
@@ -2774,5 +2775,5 @@ class ToolBoxApp {
 // Create and initialize the application
 const toolboxApp = new ToolBoxApp();
 toolboxApp.initialize().catch((error) => {
-    console.error(error instanceof Error ? error : new Error(String(error)));
+    logError(error instanceof Error ? error : new Error(String(error)));
 });

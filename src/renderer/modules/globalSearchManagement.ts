@@ -10,6 +10,7 @@ import type { ToolDetail } from "../types/index";
 import { escapeHtml } from "../utils/toolIconResolver";
 import { getToolLibrary, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
+import { logInfo, logError } from "../../common/logger";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ export function openGlobalSearch(): void {
         input.focus();
     });
 
-    console.info("Global search opened", {});
+    logInfo("Global search opened", {});
 }
 
 /**
@@ -157,7 +158,7 @@ async function runSearch(query: string): Promise<void> {
                         import("./toolManagement")
                             .then(({ launchTool }) => launchTool(toolId))
                             .catch((err) => {
-                                console.error(err instanceof Error ? err : new Error(String(err)));
+                                logError(err instanceof Error ? err : new Error(String(err)));
                             });
                     },
                 });
@@ -180,7 +181,7 @@ async function runSearch(query: string): Promise<void> {
                     action: () => {
                         closeGlobalSearch();
                         openToolDetail(toolSnapshot, false).catch((err) => {
-                            console.error(err instanceof Error ? err : new Error(String(err)));
+                            logError(err instanceof Error ? err : new Error(String(err)));
                         });
                     },
                 });
@@ -231,7 +232,7 @@ async function runSearch(query: string): Promise<void> {
             }
         }
     } catch (err) {
-        console.error(err instanceof Error ? err : new Error(String(err)));
+        logError(err instanceof Error ? err : new Error(String(err)));
     }
 
     currentResults = results;
@@ -432,7 +433,7 @@ export function initializeGlobalSearch(): void {
 
         input.addEventListener("input", () => {
             runSearch(input.value).catch((err) => {
-                console.error(err instanceof Error ? err : new Error(String(err)));
+                logError(err instanceof Error ? err : new Error(String(err)));
             });
         });
 
@@ -470,6 +471,6 @@ export function initializeGlobalSearch(): void {
         }
     });
 
-    console.info("Global search initialized", {});
+    logInfo("Global search initialized", {});
 }
 

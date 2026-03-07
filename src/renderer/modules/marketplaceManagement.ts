@@ -10,6 +10,7 @@ import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/to
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 import { openToolDetailTab } from "./toolManagement";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Disable raw HTML pass-through in markdown rendering to prevent XSS via inline event handlers.
 // marked's html() renderer is invoked for both block HTML (Tokens.HTML) and inline HTML (Tokens.Tag),
@@ -75,9 +76,9 @@ export async function loadToolsLibrary(): Promise<void> {
                 }) as ToolDetail,
         );
 
-        console.info(`Loaded ${toolLibrary.length} tools from registry`);
+        logInfo(`Loaded ${toolLibrary.length} tools from registry`);
     } catch (error) {
-        console.error("Failed to load tools from registry:");
+        logError("Failed to load tools from registry:");
         toolLibrary = [];
         // Error will be shown in the marketplace UI
     }
@@ -538,7 +539,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
             const url = link.getAttribute("data-url") || link.getAttribute("href");
             if (url && url.startsWith("https://")) {
                 window.toolboxAPI.openExternal(url).catch((_error) => {
-                    console.error("Failed to open external link");
+                    logError("Failed to open external link");
                 });
             }
         });
@@ -606,13 +607,13 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
                 const href = a.getAttribute("href");
                 if (href && (href.startsWith("https://") || href.startsWith("http://"))) {
                     window.toolboxAPI.openExternal(href).catch((_error) => {
-                        console.error("Failed to open README link");
+                        logError("Failed to open README link");
                     });
                 }
             });
         });
     } catch (error) {
-        console.error(error instanceof Error ? error : new Error(String(error)));
+        logError(error instanceof Error ? error : new Error(String(error)));
         // Only write the error message if this tab is still active
         const detailPanel = document.getElementById("tool-detail-content-panel");
         if (detailPanel && detailPanel.getAttribute("data-tab-id") === tabId) {
@@ -685,7 +686,7 @@ function clearMarketplaceFilters(): void {
  * @param params - Protocol parameters containing toolId and toolName
  */
 export async function handleProtocolInstallToolRequest(params: { toolId: string; toolName: string }): Promise<void> {
-    console.info(`[Protocol] Handling install request for tool: ${params.toolId}`);
+    logInfo(`[Protocol] Handling install request for tool: ${params.toolId}`);
 
     try {
         // First, fetch tool library to get full tool details
@@ -695,7 +696,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         const tool = toolLibrary.find((t) => t.id === params.toolId);
 
         if (!tool) {
-            console.warn(`[Protocol] Tool not found in registry: ${params.toolId}`);
+            logWarn(`[Protocol] Tool not found in registry: ${params.toolId}`);
 
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Not Found",
@@ -711,7 +712,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         const isInstalled = installedTools.some((t) => t.id === params.toolId);
 
         if (isInstalled) {
-            console.info(`[Protocol] Tool ${params.toolId} is already installed`);
+            logInfo(`[Protocol] Tool ${params.toolId} is already installed`);
 
             window.toolboxAPI.utils.showNotification({
                 title: "Already Installed",
@@ -729,7 +730,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         }
 
         // Show tool detail modal with install option
-        console.info(`[Protocol] Opening tool detail modal for ${params.toolId}`);
+        logInfo(`[Protocol] Opening tool detail modal for ${params.toolId}`);
         await openToolDetail(tool, isInstalled);
 
         // Show notification to guide user
@@ -740,7 +741,7 @@ export async function handleProtocolInstallToolRequest(params: { toolId: string;
         });
     } catch (error) {
         const errorMessage = formatError(error);
-        console.error(error instanceof Error ? error : new Error(String(error)));
+        logError(error instanceof Error ? error : new Error(String(error)));
 
         window.toolboxAPI.utils.showNotification({
             title: "Installation Failed",

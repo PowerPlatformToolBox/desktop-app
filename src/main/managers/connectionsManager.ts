@@ -1,6 +1,7 @@
 import Store from "electron-store";
 import { DataverseConnection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
+import { logInfo } from "../../common/logger";
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
@@ -53,10 +54,10 @@ export class ConnectionsManager {
         }
 
         if (needsMigration) {
-            console.info("Migrating connections to encrypted storage...");
+            logInfo("Migrating connections to encrypted storage...");
             const encryptedConnections = connections.map((conn) => this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
             this.store.set("connections", encryptedConnections);
-            console.info("Connection migration complete");
+            logInfo("Connection migration complete");
         }
     }
 
@@ -162,7 +163,7 @@ export class ConnectionsManager {
         connection.msalAccountId = undefined;
 
         this.store.set("connections", connections);
-        console.info(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
     }
 
     /**
@@ -181,7 +182,7 @@ export class ConnectionsManager {
         }
 
         this.store.set("connections", connections);
-        console.info(`[ConnectionsManager] Cleared tokens for all connections`);
+        logInfo(`[ConnectionsManager] Cleared tokens for all connections`);
     }
 
     /**

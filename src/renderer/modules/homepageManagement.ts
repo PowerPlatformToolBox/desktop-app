@@ -7,6 +7,7 @@ import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
+import { logError } from "../../common/logger";
 
 function normalizeHomepageError(error: unknown, fallbackMessage: string): Error {
     if (error instanceof Error) {
@@ -27,7 +28,7 @@ function normalizeHomepageError(error: unknown, fallbackMessage: string): Error 
 
 function reportHomepageError(operation: string, error: unknown, _extra?: Record<string, unknown>): void {
     const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
-    console.error(normalized);
+    logError(normalized);
 }
 
 /**

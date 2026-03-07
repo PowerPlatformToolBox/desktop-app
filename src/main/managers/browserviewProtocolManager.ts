@@ -4,6 +4,7 @@ import * as path from "path";
 import { normalizeCspExceptionSource } from "../../common/types";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
+import { logInfo, logError } from "../../common/logger";
 
 /**
  * BrowserviewProtocolManager
@@ -70,13 +71,13 @@ export class BrowserviewProtocolManager {
             const [toolId, ...pathParts] = url.split("/");
             const filePath = pathParts.join("/") || "index.html";
 
-            console.info(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
+            logInfo(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
 
             // Get the tool
             const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
 
             if (!tool) {
-                console.error(`[pptb-webview] Tool not found: ${toolId}`);
+                logError(`[pptb-webview] Tool not found: ${toolId}`);
                 callback({ error: -6 }); // FILE_NOT_FOUND
                 return;
             }
@@ -84,7 +85,7 @@ export class BrowserviewProtocolManager {
             // Determine the tool's base directory
             const toolBaseDir = this.getToolBaseDirectory(tool);
             if (!toolBaseDir) {
-                console.error(`[pptb-webview] Cannot determine tool directory for: ${toolId}`);
+                logError(`[pptb-webview] Cannot determine tool directory for: ${toolId}`);
                 callback({ error: -6 });
                 return;
             }
@@ -94,14 +95,14 @@ export class BrowserviewProtocolManager {
 
             // Security: Ensure the path is within the tool's directory
             if (!this.isPathSafe(fullPath, toolBaseDir)) {
-                console.error(`[pptb-webview] Path traversal attempt blocked: ${fullPath}`);
+                logError(`[pptb-webview] Path traversal attempt blocked: ${fullPath}`);
                 callback({ error: -6 });
                 return;
             }
 
             // Check if file exists
             if (!fs.existsSync(fullPath)) {
-                console.error(`[pptb-webview] File not found: ${fullPath}`);
+                logError(`[pptb-webview] File not found: ${fullPath}`);
                 callback({ error: -6 });
                 return;
             }
@@ -119,7 +120,7 @@ export class BrowserviewProtocolManager {
                     const cspString = this.buildToolCsp(tool);
                     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${this.escapeHtml(cspString)}">`;
 
-                    console.info(`[pptb-webview] Injecting CSP for ${toolId}: ${cspString}`);
+                    logInfo(`[pptb-webview] Injecting CSP for ${toolId}: ${cspString}`);
 
                     // Inject CSP meta tag in <head>
                     if (htmlContent.includes("</head>")) {
@@ -134,8 +135,8 @@ export class BrowserviewProtocolManager {
                         htmlContent = `${cspMetaTag}\n${htmlContent}`;
                     }
 
-                    console.info(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
-                    console.info(`[pptb-webview] CSP: ${cspString}`);
+                    logInfo(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
+                    logInfo(`[pptb-webview] CSP: ${cspString}`);
 
                     // Return the modified HTML content with proper MIME type
                     callback({
@@ -144,21 +145,21 @@ export class BrowserviewProtocolManager {
                     });
                     return;
                 } catch (error) {
-                    console.error(`[pptb-webview] Error injecting CSP/bridge: ${(error as Error).message}`);
+                    logError(`[pptb-webview] Error injecting CSP/bridge: ${(error as Error).message}`);
                     callback({ error: -2 }); // FAILED
                     return;
                 }
             }
 
             // Read and serve the file
-            console.info(`[pptb-webview] Serving: ${fullPath}`);
+            logInfo(`[pptb-webview] Serving: ${fullPath}`);
             const content = fs.readFileSync(fullPath);
             callback({
                 mimeType,
                 data: content,
             });
         } catch (error) {
-            console.error(`[pptb-webview] Error handling protocol request: ${(error as Error).message}`);
+            logError(`[pptb-webview] Error handling protocol request: ${(error as Error).message}`);
             callback({ error: -2 }); // FAILED
         }
     }
