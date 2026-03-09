@@ -23,10 +23,9 @@ jobs:
         permissions:
             pull-requests: write
         steps:
-            - name: Checkout main branch
+            - name: Checkout PR branch
               uses: actions/checkout@v4
               with:
-                  ref: main
                   fetch-depth: 0
 
             - name: Setup Node.js
@@ -36,6 +35,7 @@ jobs:
 
             - name: Validate version bump and release notes
               id: validate_release_notes
+              continue-on-error: true
               shell: bash
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
@@ -48,6 +48,7 @@ jobs:
 
             - name: Validate @pptb/types version matches ToolBox version
               id: validate_types_version
+              continue-on-error: true
               shell: bash
               run: |
                   TOOLBOX_VERSION=$(node -p "require('./package.json').version")
@@ -68,6 +69,30 @@ jobs:
                   fi
 
                   echo "✅ Version validation passed: ToolBox $TOOLBOX_VERSION matches @pptb/types $TYPES_VERSION"
+
+            - name: Assert all preflight checks passed
+              id: assert
+              shell: bash
+              run: |
+                  ERRORS=()
+
+                  if [ "${{ steps.validate_release_notes.outcome }}" = "failure" ]; then
+                    ERRORS+=("  - RELEASE_NOTES.md is missing a heading for the current version")
+                  fi
+
+                  if [ "${{ steps.validate_types_version.outcome }}" = "failure" ]; then
+                    ERRORS+=("  - @pptb/types version (packages/package.json) does not match the ToolBox version")
+                  fi
+
+                  if [ ${#ERRORS[@]} -gt 0 ]; then
+                    echo "❌ Preflight failed with ${#ERRORS[@]} error(s):"
+                    for ERR in "${ERRORS[@]}"; do
+                      echo "$ERR"
+                    done
+                    exit 1
+                  fi
+
+                  echo "✅ All preflight checks passed."
 
             - name: Comment on PR with failure reason
               if: failure() && github.event_name == 'pull_request'
