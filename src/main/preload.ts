@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, instanceId, tool, primaryConnectionId, secondaryConnectionId),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
+    hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
@@ -84,7 +85,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
@@ -132,7 +133,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkUserSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_USER_SETTINGS),
         checkToolSettings: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_SETTINGS),
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
-        checkSentryLogging: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_SENTRY_LOGGING),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
         checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
     },
@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     downloadUpdate: () => ipcRenderer.invoke(UPDATE_CHANNELS.DOWNLOAD_UPDATE),
     quitAndInstall: () => ipcRenderer.invoke(UPDATE_CHANNELS.QUIT_AND_INSTALL),
     getAppVersion: () => ipcRenderer.invoke(UPDATE_CHANNELS.GET_APP_VERSION),
+    getVersionCompatibilityInfo: () => ipcRenderer.invoke(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO),
     onUpdateChecking: (callback: () => void) => {
         ipcRenderer.on(EVENT_CHANNELS.UPDATE_CHECKING, callback);
     },
@@ -226,6 +227,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     },
     onToolUpdateCompleted: (callback: (toolId: string) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.TOOL_UPDATE_COMPLETED, (_, toolId) => callback(toolId));
+    },
+
+    // Protocol deep link events
+    onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
     },
 
     // Dataverse API - Can be called by tools via message routing

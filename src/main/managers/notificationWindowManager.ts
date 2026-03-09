@@ -12,8 +12,9 @@ interface NotificationOptions {
 /**
  * NotificationWindowManager
  *
- * Manages a frameless, always-on-top BrowserWindow for displaying notifications.
- * This ensures notifications are always visible above BrowserView components.
+ * Manages a frameless BrowserWindow for displaying notifications.
+ * The window is set as a child of the main window so it stays
+ * associated without floating above unrelated windows (e.g. modals).
  *
  * Notification system - notifications appear in a dedicated
  * window that floats above the main application.
@@ -43,7 +44,7 @@ export class NotificationWindowManager {
             height: this.calculateWindowHeight(),
             frame: false,
             transparent: true,
-            alwaysOnTop: true,
+            alwaysOnTop: false,
             skipTaskbar: true,
             resizable: false,
             movable: false,
@@ -174,7 +175,7 @@ export class NotificationWindowManager {
         this.updateWindow();
 
         // Auto-dismiss after duration
-        const duration = options.duration || 5000;
+        const duration = options.duration !== undefined ? options.duration : 5000;
         if (duration > 0) {
             setTimeout(() => {
                 const index = this.notifications.indexOf(options);

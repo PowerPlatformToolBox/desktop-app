@@ -3,7 +3,6 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
-import { captureMessage, logDebug, logInfo } from "../../common/sentryHelper";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
@@ -23,6 +22,7 @@ import {
     sendBrowserWindowModalMessage,
     showBrowserWindowModal,
 } from "./browserWindowModals";
+import { logInfo, logWarn, logError, logDebug } from "../../common/logger";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
@@ -47,6 +47,9 @@ interface ConnectionFormPayload {
     browserType?: string;
     browserProfile?: string;
     browserProfileName?: string;
+    category?: string;
+    environmentColor?: string;
+    categoryColor?: string;
 }
 
 interface AuthenticateConnectionAction {
@@ -78,7 +81,7 @@ const ADD_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const ADD_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
@@ -92,7 +95,7 @@ const EDIT_CONNECTION_MODAL_CHANNELS = {
 } as const;
 
 const EDIT_CONNECTION_MODAL_DIMENSIONS = {
-    width: 520,
+    width: 920,
     height: 700,
 };
 
@@ -163,7 +166,7 @@ async function getConnectionsSortPreference(): Promise<ConnectionsSortOption> {
         const storedPreference = await window.toolboxAPI.getSetting(CONNECTIONS_SORT_SETTING_KEY);
         return coerceConnectionsSortOption(storedPreference);
     } catch (error) {
-        captureMessage("Failed to read connections sort preference", "warning", { extra: { error } });
+        logWarn("Failed to read connections sort preference");
         return DEFAULT_CONNECTIONS_SORT;
     }
 }
@@ -187,7 +190,7 @@ export async function updateFooterConnection(): Promise<void> {
             footerChangeBtn.style.display = "none";
         }
     } catch (error) {
-        captureMessage("Error updating footer connection:", "error", { extra: { error } });
+        logError("Error updating footer connection", error);
     }
 }
 
@@ -344,7 +347,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
             resolveHandler(connectionId);
         }
     } catch (error) {
-        captureMessage("Error connecting to selected connection:", "error", { extra: { error } });
+        logError("Error connecting to selected connection", error);
 
         // Clean up the error message - remove IPC wrapper text
         let errorMessage = (error as Error).message;
@@ -390,12 +393,18 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                         // If highlightConnectionId is set (tool-specific modal), use it to mark as active
                         // Otherwise, mark none as active since there's no global active connection
                         isActive: highlightConnectionId ? conn.id === highlightConnectionId : false,
+                        browserType: conn.browserType,
+                        browserProfile: conn.browserProfile,
+                        browserProfileName: conn.browserProfileName,
+                        category: conn.category,
+                        environmentColor: conn.environmentColor,
+                        categoryColor: conn.categoryColor,
                     }),
                 ),
             },
         });
     } catch (error) {
-        captureMessage("Failed to populate connections:", "error", { extra: { error } });
+        logError("Failed to populate connections", error);
         await sendBrowserWindowModalMessage({
             channel: SELECT_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -493,7 +502,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 },
             });
         } catch (error) {
-            captureMessage("Error authenticating connection:", "error", { extra: { error } });
+            logError("Error authenticating connection", error);
             // Send failure message back to modal
             await sendBrowserWindowModalMessage({
                 channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady,
@@ -524,7 +533,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
                 resolveHandler({ primaryConnectionId: data.primaryConnectionId, secondaryConnectionId: data.secondaryConnectionId });
             }
         } catch (error) {
-            captureMessage("Error confirming multi-connections:", "error", { extra: { error } });
+            logError("Error confirming multi-connections", error);
         }
         return;
     }
@@ -552,7 +561,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             resolveHandler({ primaryConnectionId, secondaryConnectionId });
         }
     } catch (error) {
-        captureMessage("Error selecting multi-connections:", "error", { extra: { error } });
+        logError("Error selecting multi-connections", error);
         await signalSelectMultiConnectionReady();
     }
 }
@@ -577,11 +586,17 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     lastUsedAt: conn.lastUsedAt,
                     createdAt: conn.createdAt,
                     isActive: false,
+                    browserType: conn.browserType,
+                    browserProfile: conn.browserProfile,
+                    browserProfileName: conn.browserProfileName,
+                    category: conn.category,
+                    environmentColor: conn.environmentColor,
+                    categoryColor: conn.categoryColor,
                 })),
             },
         });
     } catch (error) {
-        captureMessage("Failed to populate multi-connections:", "error", { extra: { error } });
+        logError("Failed to populate multi-connections", error);
         await sendBrowserWindowModalMessage({
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: { connections: [] },
@@ -600,7 +615,7 @@ export async function loadConnections(): Promise<void> {
     logInfo("loadConnections() called");
     const connectionsList = document.getElementById("connections-list");
     if (!connectionsList) {
-        captureMessage("connections-list element not found", "error");
+        logError("connections-list element not found");
         return;
     }
 
@@ -626,7 +641,7 @@ export async function loadConnections(): Promise<void> {
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
-                        <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                        ${getEnvBadgeMarkup(conn as DataverseConnection)}
                     </div>
                     <div class="connection-actions">
                         ${
@@ -670,7 +685,7 @@ export async function loadConnections(): Promise<void> {
         const activeConn = connections.find((c: any) => c.isActive);
         updateFooterConnectionStatus(activeConn || null);
     } catch (error) {
-        captureMessage("Error loading connections:", "error", { extra: { error } });
+        logError("Error loading connections", error);
         connectionsList.innerHTML = `
             <div class="empty-state">
                 <p>Error loading connections</p>
@@ -777,9 +792,7 @@ export async function handleReauthentication(connectionId: string): Promise<void
         await loadSidebarConnections();
         await updateFooterConnection();
     } catch (error) {
-        captureMessage("Token refresh failed:", "error", {
-            extra: { error, connectionId, connectionName },
-        });
+        logError("Token refresh failed", error);
 
         // Extract meaningful error message (strip generic parts)
         const errorMessage = (error as Error).message || "Token refresh failed";
@@ -822,7 +835,7 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
         await closeBrowserWindowModal();
         await loadConnections();
     } catch (error) {
-        captureMessage("Error adding connection:", "error", { extra: { error } });
+        logError("Error adding connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Add Connection",
             body: (error as Error).message,
@@ -962,7 +975,7 @@ function buildEditConnectionModalHtml(): string {
 
 async function handlePopulateEditConnectionRequest(): Promise<void> {
     if (!editingConnectionId) {
-        captureMessage("No connection ID to edit", "error");
+        logError("No connection ID to edit");
         return;
     }
 
@@ -977,7 +990,7 @@ async function handlePopulateEditConnectionRequest(): Promise<void> {
             data: connection,
         });
     } catch (error) {
-        captureMessage("Failed to populate connection for editing:", "error", { extra: { error } });
+        logError("Failed to populate connection for editing", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Load Connection",
             body: (error as Error).message,
@@ -1023,7 +1036,7 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         await loadConnections();
         await loadSidebarConnections();
     } catch (error) {
-        captureMessage("Error updating connection:", "error", { extra: { error } });
+        logError("Error updating connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Update Connection",
             body: (error as Error).message,
@@ -1066,7 +1079,7 @@ export async function deleteConnection(id: string): Promise<void> {
 
         await loadConnections();
     } catch (error) {
-        captureMessage("Error deleting connection:", "error", { extra: { error } });
+        logError("Error deleting connection", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Failed to Delete Connection",
             body: (error as Error).message,
@@ -1175,6 +1188,16 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         connection.browserProfile = browserProfile || undefined;
         connection.browserProfileName = browserProfileName || undefined;
 
+        // Category and custom environment color
+        const category = sanitizeInput(formPayload.category);
+        const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+        const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+        const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+        const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
+        connection.category = category || undefined;
+        connection.environmentColor = environmentColor;
+        connection.categoryColor = categoryColor;
+
         return connection;
     }
 
@@ -1196,6 +1219,16 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
     connection.browserProfile = browserProfile || undefined;
     connection.browserProfileName = browserProfileName || undefined;
+
+    // Category and custom environment color
+    const category = sanitizeInput(formPayload.category);
+    const environmentColorRaw = sanitizeInput(formPayload.environmentColor);
+    const environmentColor = /^#[0-9A-Fa-f]{6}$/.test(environmentColorRaw) ? environmentColorRaw : undefined;
+    const categoryColorRaw = sanitizeInput(formPayload.categoryColor);
+    const categoryColor = /^#[0-9A-Fa-f]{6}$/.test(categoryColorRaw) ? categoryColorRaw : undefined;
+    connection.category = category || undefined;
+    connection.environmentColor = environmentColor;
+    connection.categoryColor = categoryColor;
 
     if (authenticationType === "clientSecret") {
         connection.clientId = sanitizeInput(formPayload.clientId);
@@ -1278,6 +1311,16 @@ function getBrowserBadgeMarkup(conn: DataverseConnection): string {
             <span class="browser-profile-label">${safeProfileName}</span>
         </span>
     `;
+}
+
+function getEnvBadgeMarkup(conn: DataverseConnection): string {
+    const env = conn.environment || "Dev";
+    const safeEnv = escapeHtml(env);
+    if (conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor)) {
+        const safeColor = escapeHtml(conn.environmentColor);
+        return `<span class="connection-env-badge" style="background-color:${safeColor}1a;color:${safeColor};border:1px solid ${safeColor}4d">${safeEnv}</span>`;
+    }
+    return `<span class="connection-env-badge env-${escapeHtml(env.toLowerCase())}">${safeEnv}</span>`;
 }
 
 function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
@@ -1472,6 +1515,33 @@ export async function loadSidebarConnections(): Promise<void> {
         }
         const sortOption = sortSelect ? coerceConnectionsSortOption(sortSelect.value) : savedSort;
 
+        // Build unique categories for the category filter dropdown
+        const categoryFilter = document.getElementById("connections-category-filter") as HTMLSelectElement | null;
+        if (categoryFilter) {
+            const allCategories = new Set<string>();
+            connections.forEach((conn: DataverseConnection) => {
+                if (conn.category) allCategories.add(conn.category);
+            });
+            const currentCategoryValue = categoryFilter.value;
+            // Rebuild options (keep "All Categories" + "__default__" if there are any uncategorized)
+            const hasDefault = connections.some((conn: DataverseConnection) => !conn.category);
+            let optionsHtml = '<option value="">All Categories</option>';
+            if (hasDefault) {
+                optionsHtml += '<option value="__default__">Default (No Category)</option>';
+            }
+            allCategories.forEach((cat) => {
+                optionsHtml += `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`;
+            });
+            categoryFilter.innerHTML = optionsHtml;
+            // Restore previous selection if still valid
+            if (currentCategoryValue) {
+                categoryFilter.value = currentCategoryValue;
+            }
+        }
+
+        // Category filter
+        const selectedCategory = categoryFilter?.value || "";
+
         // Apply filters
         const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
@@ -1490,6 +1560,14 @@ export async function loadSidebarConnections(): Promise<void> {
             // Authentication type filter
             if (selectedAuthType && conn.authenticationType !== selectedAuthType) {
                 return false;
+            }
+
+            // Category filter
+            if (selectedCategory) {
+                if (selectedCategory === "__default__") {
+                    return !conn.category;
+                }
+                return conn.category === selectedCategory;
             }
 
             return true;
@@ -1517,18 +1595,34 @@ export async function loadSidebarConnections(): Promise<void> {
             return;
         }
 
-        connectionsList.innerHTML = sortedConnections
-            .map((conn: DataverseConnection) => {
-                const isDarkTheme = document.body.classList.contains("dark-theme");
-                const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
-                const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+        // Group connections by category (empty string = uncategorized / "Default")
+        const groupMap = new Map<string, DataverseConnection[]>();
+        sortedConnections.forEach((conn: DataverseConnection) => {
+            const key = conn.category || "";
+            if (!groupMap.has(key)) groupMap.set(key, []);
+            groupMap.get(key)!.push(conn);
+        });
 
-                return `
+        // Sort groups: uncategorized ("") first, then alphabetical
+        const groupKeys = Array.from(groupMap.keys()).sort((a, b) => {
+            if (a === "") return -1;
+            if (b === "") return 1;
+            return a.localeCompare(b);
+        });
+
+        const renderConnectionItem = (conn: DataverseConnection): string => {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
+            const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
+            const envBadgeMarkup = getEnvBadgeMarkup(conn);
+            const safeName = escapeHtml(conn.name || "");
+            const safeUrl = escapeHtml(conn.url || "");
+            return `
                 <div class="connection-item-pptb">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
-                                <div class="connection-item-name-pptb">${conn.name}</div>
+                                <div class="connection-item-name-pptb">${safeName}</div>
                             </div>
                         </div>
                         <div class="connection-item-header-right-pptb">
@@ -1537,10 +1631,10 @@ export async function loadSidebarConnections(): Promise<void> {
                             </button>
                         </div>
                     </div>
-                    <div class="connection-item-url-pptb">${conn.url}</div>
+                    <div class="connection-item-url-pptb">${safeUrl}</div>
                     <div class="connection-item-footer-pptb">
                         <div class="connection-item-meta-left">
-                            <span class="connection-env-badge env-${conn.environment.toLowerCase()}">${conn.environment}</span>
+                            ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
                         </div>
                         <div class="connection-item-meta-left">
@@ -1549,8 +1643,33 @@ export async function loadSidebarConnections(): Promise<void> {
                     </div>
                 </div>
             `;
-            })
-            .join("");
+        };
+
+        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
+
+        if (useGroups) {
+            connectionsList.innerHTML = groupKeys
+                .map((groupKey) => {
+                    const groupConns = groupMap.get(groupKey)!;
+                    const displayKey = groupKey === "" ? "Default" : groupKey;
+                    const escapedKey = escapeHtml(displayKey);
+                    const items = groupConns.map(renderConnectionItem).join("");
+                    return `
+                    <div class="connection-group" data-category="${escapedKey}">
+                        <div class="connection-group-header" data-category="${escapedKey}" role="button" tabindex="0" aria-expanded="true">
+                            <span class="connection-group-title">${escapedKey}</span>
+                            <span class="connection-group-count">${groupConns.length}</span>
+                            <span class="connection-group-toggle">▼</span>
+                        </div>
+                        <div class="connection-group-items" data-category="${escapedKey}">
+                            ${items}
+                        </div>
+                    </div>`;
+                })
+                .join("");
+        } else {
+            connectionsList.innerHTML = sortedConnections.map(renderConnectionItem).join("");
+        }
 
         // Add event listeners for more buttons and context menu
         connectionsList.querySelectorAll(".tool-more-btn").forEach((button) => {
@@ -1564,6 +1683,29 @@ export async function loadSidebarConnections(): Promise<void> {
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
+            });
+        });
+
+        // Setup group header collapse toggle
+        connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
+            const headerEl = header as HTMLElement;
+            const toggleGroup = () => {
+                const group = headerEl.closest(".connection-group");
+                const items = group?.querySelector(".connection-group-items");
+                if (!items) return;
+                const isCollapsed = items.classList.contains("collapsed");
+                items.classList.toggle("collapsed", !isCollapsed);
+                const toggle = headerEl.querySelector(".connection-group-toggle");
+                if (toggle) toggle.textContent = isCollapsed ? "▼" : "▶";
+                headerEl.setAttribute("aria-expanded", (!isCollapsed).toString());
+            };
+            headerEl.addEventListener("click", toggleGroup);
+            headerEl.addEventListener("keydown", (event: Event) => {
+                const ke = event as KeyboardEvent;
+                if (ke.key === "Enter" || ke.key === " ") {
+                    ke.preventDefault();
+                    toggleGroup();
+                }
             });
         });
 
@@ -1611,6 +1753,14 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         }
 
+        // Setup category filter event listener
+        if (categoryFilter && !(categoryFilter as any)._pptbBound) {
+            (categoryFilter as any)._pptbBound = true;
+            categoryFilter.addEventListener("change", () => {
+                loadSidebarConnections();
+            });
+        }
+
         // Setup sort event listener
         if (sortSelect && !(sortSelect as any)._pptbBound) {
             (sortSelect as any)._pptbBound = true;
@@ -1623,6 +1773,6 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         }
     } catch (error) {
-        captureMessage("Failed to load connections:", "error", { extra: { error } });
+        logError("Failed to load connections", error);
     }
 }

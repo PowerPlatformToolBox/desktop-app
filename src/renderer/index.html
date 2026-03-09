@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co; frame-src 'self' pptb-webview:"
+            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co https://*.blob.core.windows.net; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform ToolBox</title>
         <link rel="stylesheet" href="styles.scss" />
@@ -28,6 +28,9 @@
                     </button>
                     <button class="activity-item" data-sidebar="marketplace" title="Tools Marketplace">
                         <img id="marketplace-icon" src="icons/dark/marketplace.svg" alt="Marketplace Icon" class="activity-icon" />
+                    </button>
+                    <button class="activity-item" id="global-search-btn" title="Global Search (Ctrl+Shift+P)">
+                        <img id="search-icon" src="icons/dark/search.svg" alt="Search Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" data-sidebar="debug" title="Debug / Install by Package">
                         <img id="debug-icon" src="icons/dark/debug.svg" alt="Debug Icon" class="activity-icon" />
@@ -128,6 +131,13 @@
                                 <option value="interactive">Microsoft Login</option>
                                 <option value="clientSecret">Client Secret</option>
                                 <option value="usernamePassword">Username/Password</option>
+                            </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <div class="filter-section-title">Category</div>
+                            <select id="connections-category-filter" class="filter-dropdown-select">
+                                <option value="">All Categories</option>
                             </select>
                         </div>
                     </div>
@@ -310,6 +320,18 @@
                                         </select>
                                         <span class="setting-hint">Choose how tools are displayed in Installed Tools and Marketplace.</span>
                                     </div>
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-notification-duration-select">Notification Duration</label>
+                                        <select id="sidebar-notification-duration-select" class="fluent-select">
+                                            <option value="3000">3 seconds</option>
+                                            <option value="5000">5 seconds (Default)</option>
+                                            <option value="8000">8 seconds</option>
+                                            <option value="10000">10 seconds</option>
+                                            <option value="15000">15 seconds</option>
+                                            <option value="0">Never (persistent)</option>
+                                        </select>
+                                        <span class="setting-hint">How long toast notifications stay visible before auto-dismissing.</span>
+                                    </div>
                                 </div>
                             </section>
 
@@ -341,7 +363,9 @@
                                         <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
                                         <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
                                     </div>
-                                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span>
+                                    <span class="setting-hint settings-inline-hint"
+                                        >Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span
+                                    >
                                 </div>
                             </section>
 
@@ -408,6 +432,8 @@
                         <div class="tool-panel-content" id="tool-panel-content">
                             <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
                         </div>
+                        <!-- Tool detail tab content panel (rendered inline, shown when a detail tab is active) -->
+                        <div id="tool-detail-content-panel" style="display:none"></div>
                     </div>
                     <!-- Terminal Panel -->
                     <div class="terminal-panel" id="terminal-panel" style="display: none">
@@ -798,6 +824,33 @@
 
         <!-- VS Code-style Notification Container -->
         <div id="notification-container" class="notification-container"></div>
+
+        <!-- Global Search Command Palette -->
+        <div id="global-search-overlay" class="global-search-overlay" style="display: none" role="dialog" aria-modal="true" aria-label="Global Search">
+            <div class="global-search-container">
+                <div class="global-search-input-wrapper">
+                    <img src="icons/dark/search.svg" alt="" class="global-search-input-icon" id="global-search-input-icon" />
+                    <input
+                        type="text"
+                        id="global-search-input"
+                        class="global-search-input"
+                        placeholder="Search tools, connections, settings..."
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-label="Search tools, connections, and settings"
+                    />
+                    <kbd class="global-search-kbd">ESC</kbd>
+                </div>
+                <div class="global-search-results" id="global-search-results" role="listbox">
+                    <!-- Results populated dynamically -->
+                </div>
+                <div class="global-search-footer">
+                    <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+                    <span><kbd>↵</kbd> select</span>
+                    <span><kbd>ESC</kbd> close</span>
+                </div>
+            </div>
+        </div>
 
         <script type="module" src="renderer.ts"></script>
     </body>

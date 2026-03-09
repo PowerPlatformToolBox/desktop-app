@@ -83,6 +83,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_ACTIVE: "tool-window:get-active",
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
+    HIDE_ALL: "tool-window:hide-all",
 } as const;
 
 // Terminal-related IPC channels
@@ -113,7 +114,6 @@ export const UTIL_CHANNELS = {
     CHECK_USER_SETTINGS: "check-user-settings",
     CHECK_TOOL_SETTINGS: "check-tool-settings",
     CHECK_CONNECTIONS: "check-connections",
-    CHECK_SENTRY_LOGGING: "check-sentry-logging",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
 } as const;
@@ -137,6 +137,7 @@ export const UPDATE_CHANNELS = {
     DOWNLOAD_UPDATE: "download-update",
     QUIT_AND_INSTALL: "quit-and-install",
     GET_APP_VERSION: "get-app-version",
+    GET_VERSION_COMPATIBILITY_INFO: "get-version-compatibility-info",
 } as const;
 
 // Dataverse-related IPC channels
@@ -189,6 +190,11 @@ export const DATAVERSE_CHANNELS = {
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
 } as const;
 
+// Protocol handler-related IPC channels
+export const PROTOCOL_CHANNELS = {
+    PROTOCOL_INSTALL_TOOL: "protocol:install-tool",
+} as const;
+
 // Event-related IPC channels (from main to renderer)
 export const EVENT_CHANNELS = {
     TOOLBOX_EVENT: "toolbox-event",
@@ -210,6 +216,7 @@ export const EVENT_CHANNELS = {
     MODAL_WINDOW_MESSAGE: "modal-window:message",
     TOOL_UPDATE_STARTED: "tool:update-started",
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
+    PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

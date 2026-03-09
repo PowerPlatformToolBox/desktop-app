@@ -11,5 +11,13 @@
         ],
         "category": "Development",
         "maintainer": "Power Platform ToolBox"
-    }
+    },
+    "protocols": [
+        {
+            "name": "Power Platform ToolBox Protocol",
+            "schemes": [
+                "pptb"
+            ]
+        }
+    ]
 }

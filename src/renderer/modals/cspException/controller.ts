@@ -1,3 +1,5 @@
+import type { CspExceptionSource } from "../../../common/types";
+
 export interface CspExceptionModalChannelIds {
     acceptConsent: string;
     declineConsent: string;
@@ -7,7 +9,7 @@ export interface CspExceptionData {
     toolName: string;
     authors: string[];
     cspExceptions: {
-        [directive: string]: string[];
+        [directive: string]: CspExceptionSource[];
     };
 }
 
@@ -29,9 +31,16 @@ export function getCspExceptionModalControllerScript(channels: CspExceptionModal
     const acceptButton = document.getElementById("csp-accept-btn");
     const declineButton = document.getElementById("csp-decline-btn");
 
-    // Handle accept button
+    // Handle accept button — collect which optional (non-disabled) domains are checked
     acceptButton?.addEventListener('click', () => {
-        modalBridge.send(CHANNELS.acceptConsent, {});
+        const checkboxes = document.querySelectorAll('.csp-optional-checkbox:not([disabled])');
+        const approvedOptionalDomains = [];
+        checkboxes.forEach((cb) => {
+            if (cb.checked) {
+                approvedOptionalDomains.push(cb.value);
+            }
+        });
+        modalBridge.send(CHANNELS.acceptConsent, { approvedOptionalDomains });
     });
 
     // Handle decline button

@@ -3,10 +3,11 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
+import { VersionManager } from "./versionManager";
+import { logInfo, logError } from "../../common/logger";
 
 /**
  * Package.json structure for tool validation
@@ -17,7 +18,7 @@ interface ToolPackageJson {
     displayName?: string;
     description?: string;
     author?: string;
-    icon?: string;
+    icon?: string; // Relative path to SVG icon (e.g., "dist/icon.svg")
     cspExceptions?: CspExceptions;
     features?: ToolFeatures;
     repository?: string | { type: string; url: string };
@@ -37,10 +38,10 @@ export class ToolManager extends EventEmitter {
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
     private updatingTools: Set<string> = new Set();
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager) {
+    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -48,8 +49,46 @@ export class ToolManager extends EventEmitter {
             this.emit("tool:installed", manifest);
         });
         this.registryManager.on("tool:uninstalled", (toolId) => {
+            // Clear from cache when uninstalled
+            this.tools.delete(toolId);
             this.emit("tool:uninstalled", toolId);
         });
+    }
+
+    private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
+        const tool: Tool = {
+            id: manifest.id,
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description,
+            authors: manifest.authors,
+            icon: manifest.icon,
+            cspExceptions: manifest.cspExceptions,
+            features: manifest.features,
+            categories: manifest.categories,
+            license: manifest.license,
+            downloads: manifest.downloads,
+            rating: manifest.rating,
+            mau: manifest.mau,
+            status: manifest.status,
+            repository: manifest.repository,
+            website: manifest.website,
+            readmeUrl: manifest.readme,
+            publishedAt: manifest.publishedAt,
+            createdAt: manifest.createdAt,
+            minAPI: manifest.minAPI,
+            maxAPI: manifest.maxAPI,
+            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+        };
+
+        const cached = this.analyticsCache.get(tool.id);
+        if (cached) {
+            tool.downloads = cached.downloads;
+            tool.rating = cached.rating;
+            tool.mau = cached.mau;
+        }
+
+        return tool;
     }
 
     /**
@@ -76,7 +115,7 @@ export class ToolManager extends EventEmitter {
 
             // Refresh analytics for this tool only (non-blocking)
             this.refreshAnalyticsForTools([toolId]).catch((error) => {
-                captureMessage(`[ToolManager] Failed to refresh analytics for ${toolId}:`, "error", { extra: { error } });
+                logError(`[ToolManager] Failed to refresh analytics for ${toolId}`, error);
             });
 
             return tool;
@@ -95,7 +134,7 @@ export class ToolManager extends EventEmitter {
             version: manifest.version,
             description: manifest.description,
             authors: manifest.authors,
-            iconUrl: manifest.icon,
+            icon: manifest.icon,
             cspExceptions: manifest.cspExceptions,
             features: manifest.features,
             categories: manifest.categories,
@@ -107,6 +146,9 @@ export class ToolManager extends EventEmitter {
             repository: manifest.repository,
             website: manifest.website,
             readmeUrl: manifest.readme,
+            minAPI: manifest.minAPI,
+            maxAPI: manifest.maxAPI,
+            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -135,7 +177,7 @@ export class ToolManager extends EventEmitter {
                 await this.loadTool(manifest.id);
                 toolIds.push(manifest.id);
             } catch (error) {
-                captureMessage(`Failed to load registry tool ${manifest.id}:`, "error", { extra: { error } });
+                logError(`Failed to load registry tool ${manifest.id}`, error);
             }
         }
 
@@ -158,7 +200,18 @@ export class ToolManager extends EventEmitter {
      */
     getTool(toolId: string): Tool | undefined {
         const tool = this.tools.get(toolId);
-        return tool;
+        if (tool) {
+            // Always recompute isSupported in case ToolBox version changed
+            tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+            return tool;
+        }
+
+        const manifest = this.registryManager.getInstalledManifestSync(toolId);
+        if (manifest) {
+            return this.createToolFromInstalledManifest(manifest);
+        }
+
+        return undefined;
     }
 
     getInstalledManifestSync(toolId: string): ToolManifest | null {
@@ -169,7 +222,33 @@ export class ToolManager extends EventEmitter {
      * Get all loaded tools
      */
     getAllTools(): Tool[] {
-        return Array.from(this.tools.values());
+        const toolsById = new Map<string, Tool>();
+
+        // Prefer installed tools from manifest so the sidebar stays stable even
+        // when a tool is temporarily unloaded during update.
+        const installedManifests = this.registryManager.getInstalledToolsSync();
+        installedManifests.forEach((manifest) => {
+            const loaded = this.tools.get(manifest.id);
+            if (loaded) {
+                // Always recompute isSupported in case ToolBox version changed
+                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI, loaded.maxAPI);
+                toolsById.set(manifest.id, loaded);
+            } else {
+                toolsById.set(manifest.id, this.createToolFromInstalledManifest(manifest));
+            }
+        });
+
+        // Include any loaded tools that might not be in the registry manifest
+        // (e.g., local dev tools).
+        this.tools.forEach((tool, id) => {
+            if (!toolsById.has(id)) {
+                // Recompute isSupported for these tools too
+                tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+                toolsById.set(id, tool);
+            }
+        });
+
+        return Array.from(toolsById.values());
     }
 
     /**
@@ -191,8 +270,17 @@ export class ToolManager extends EventEmitter {
     /**
      * Fetch available tools from registry
      */
-    async fetchAvailableTools() {
-        return await this.registryManager.fetchRegistry();
+    async fetchAvailableTools(): Promise<Tool[]> {
+        const registryTools = await this.registryManager.fetchRegistry();
+        
+        // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
+        return registryTools.map((registryTool) => {
+            const tool: Tool = {
+                ...registryTool,
+                isSupported: VersionManager.isToolSupported(registryTool.minAPI, registryTool.maxAPI),
+            };
+            return tool;
+        });
     }
 
     /**
@@ -313,7 +401,7 @@ export class ToolManager extends EventEmitter {
             return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
         }
 
-        captureMessage(`[ToolManager] Neither pnpm nor npm found globally installed`, "error");
+        logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
         return null;
     }
 
@@ -353,7 +441,7 @@ export class ToolManager extends EventEmitter {
             install.stderr?.on("data", (data: Buffer) => {
                 const output = data.toString();
                 stderr += output;
-                captureMessage(`[ToolManager] ${pkgManager.name} stderr: ${output}`, "error");
+                logError(`[ToolManager] ${pkgManager.name} stderr: ${output}`);
             });
 
             install.on("close", (code: number) => {
@@ -366,7 +454,7 @@ export class ToolManager extends EventEmitter {
             });
 
             install.on("error", (err: Error) => {
-                captureMessage(`[ToolManager] ${pkgManager.name} process error: ${err.message}`, "error");
+                logError(`[ToolManager] ${pkgManager.name} process error: ${err.message}`);
                 if (err.message.includes("ENOENT")) {
                     const instructions = this.getInstallInstructions();
                     reject(new Error(`${pkgManager.name} command not found. Please install it globally:\n\n${instructions}`));
@@ -458,7 +546,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Tool installed from npm",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             npmPackageName: packageName, // Store the npm package name for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
@@ -646,7 +734,7 @@ export class ToolManager extends EventEmitter {
             version: packageJson.version || "0.0.0",
             description: packageJson.description || "Local development tool",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
-            iconUrl: packageJson.icon,
+            icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
@@ -669,7 +757,7 @@ export class ToolManager extends EventEmitter {
     getLocalToolWebviewHtml(localPath: string): string | undefined {
         // Validate path safety before loading
         if (!this.isPathSafe(localPath)) {
-            captureMessage(`[ToolManager] Unsafe local path rejected: ${localPath}`, "error", { extra: { localPath } });
+            logError(`[ToolManager] Unsafe local path rejected: ${localPath}`);
             return undefined;
         }
 

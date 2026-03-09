@@ -12,6 +12,7 @@ export interface OpenTool {
     isPinned: boolean;
     connectionId: string | null; // Primary connection
     secondaryConnectionId: string | null; // Secondary connection (for multi-connection tools)
+    isDetailTab?: boolean; // True for tool detail view tabs (not real tool instances)
 }
 
 /**
@@ -55,6 +56,7 @@ export interface SettingsState {
     deprecatedToolsVisibility?: string;
     toolDisplayMode?: string;
     terminalFont?: string;
+    notificationDuration?: number;
 }
 
 /**
@@ -86,10 +88,13 @@ export interface ToolDetail {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
-    iconUrl?: string;
+    icon?: string;
     readmeUrl?: string;
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
     createdAt?: string; // ISO date string from created_at field
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
+    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }

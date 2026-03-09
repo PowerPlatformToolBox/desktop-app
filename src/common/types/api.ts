@@ -6,7 +6,7 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
-import { LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { Tool, ToolContext, ToolSettings } from "./tool";
 
@@ -86,7 +86,6 @@ export interface TroubleshootingAPI {
     checkUserSettings: () => Promise<{ success: boolean; message?: string }>;
     checkToolSettings: () => Promise<{ success: boolean; message?: string }>;
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
-    checkSentryLogging: () => Promise<{ success: boolean; message?: string }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
 }
@@ -137,9 +136,9 @@ export interface ToolboxAPI {
 
     // CSP consent management
     hasCspConsent: (toolId: string) => Promise<boolean>;
-    grantCspConsent: (toolId: string) => Promise<void>;
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
-    getCspConsents: () => Promise<{ [toolId: string]: boolean }>;
+    getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
 
     // Webview URL generation
     getToolWebviewUrl: (toolId: string) => Promise<string>;
@@ -148,6 +147,7 @@ export interface ToolboxAPI {
     launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
+    hideToolWindows: () => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
@@ -209,6 +209,7 @@ export interface ToolboxAPI {
     downloadUpdate: () => Promise<void>;
     quitAndInstall: () => Promise<void>;
     getAppVersion: () => Promise<string>;
+    getVersionCompatibilityInfo: () => Promise<{ appVersion: string; minSupportedApiVersion: string }>;
     onUpdateChecking: (callback: () => void) => void;
     onUpdateAvailable: (callback: (info: unknown) => void) => void;
     onUpdateNotAvailable: (callback: () => void) => void;
@@ -228,6 +229,9 @@ export interface ToolboxAPI {
     // Tool update events
     onToolUpdateStarted: (callback: (toolId: string) => void) => void;
     onToolUpdateCompleted: (callback: (toolId: string) => void) => void;
+
+    // Protocol deep link events
+    onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => void;
 
     // Dataverse namespace
     dataverse: DataverseAPI;

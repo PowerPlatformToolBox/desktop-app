@@ -154,7 +154,7 @@ export function updateToolSidebarIconsForTheme(): void {
     });
 
     // Update default tool icons (fallback icons only)
-    toolsList.querySelectorAll(".tool-item-icon-img").forEach((img) => {
+    toolsList.querySelectorAll("img.tool-item-icon-img").forEach((img) => {
         const currentSrc = (img as HTMLImageElement).src;
         // Only update if it's using the default tool icon (not custom tool icons)
         if (currentSrc.includes("tool-default.svg")) {
@@ -177,7 +177,7 @@ export function updateMarketplaceIconsForTheme(): void {
     if (!marketplaceList) return;
 
     // Update default tool icons (fallback icons only, not custom tool icons)
-    marketplaceList.querySelectorAll(".marketplace-item-icon-pptb .tool-item-icon-img").forEach((img) => {
+    marketplaceList.querySelectorAll(".marketplace-item-icon-pptb img.tool-item-icon-img").forEach((img) => {
         const currentSrc = (img as HTMLImageElement).src;
         // Only update if it's using the default tool icon (not custom tool icons from URLs)
         if (currentSrc.includes("tool-default.svg")) {

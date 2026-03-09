@@ -1,8 +1,8 @@
 import { BrowserWindow } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, MODAL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage } from "../../common/sentryHelper";
 import { ModalWindowClosedPayload, ModalWindowMessagePayload, ModalWindowOptions } from "../../common/types";
+import { logError } from "../../common/logger";
 
 const MIN_MODAL_WIDTH = 280;
 const MIN_MODAL_HEIGHT = 180;
@@ -45,12 +45,16 @@ export class ModalWindowManager {
             .then(() => {
                 if (!modalWindow.isDestroyed()) {
                     modalWindow.show();
+                    if (this.currentOptions?.alwaysOnTop) {
+                        modalWindow.setAlwaysOnTop(true, "modal-panel");
+                    }
+                    modalWindow.moveTop();
                     modalWindow.focus();
                     this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
                 }
             })
             .catch((error) => {
-                captureMessage("Failed to load modal content", "error", { extra: { error } });
+                logError("Failed to load modal content", error);
             });
     }
 
@@ -115,6 +119,11 @@ export class ModalWindowManager {
         this.mainWindow.on("restore", () => {
             if (this.currentOptions && this.modalWindow && !this.modalWindow.isDestroyed()) {
                 this.modalWindow.show();
+                if (this.currentOptions.alwaysOnTop) {
+                    this.modalWindow.setAlwaysOnTop(true, "modal-panel");
+                    this.modalWindow.moveTop();
+                }
+                this.modalWindow.focus();
             }
         });
         this.mainWindow.on("closed", () => this.destroy());
@@ -137,7 +146,7 @@ export class ModalWindowManager {
 <html>
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src data: https://github.com/PowerPlatformToolBox/pptb-web/releases/download/ https://release-assets.githubusercontent.com/; font-src data:; connect-src https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src data: https://*.blob.core.windows.net/ https://github.com/PowerPlatformToolBox/pptb-web/releases/download/ https://release-assets.githubusercontent.com/; font-src data:; connect-src https:;" />
     <style>
         html, body {
             margin: 0;

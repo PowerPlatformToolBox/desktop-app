@@ -9,7 +9,7 @@ import { getCspExceptionModalView } from "../modals/cspException/view";
 import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 
 interface CspExceptionModalPromiseHandlers {
-    resolve: ((granted: boolean) => void) | null;
+    resolve: ((approvedOptionalDomains: string[] | null) => void) | null;
     reject: ((error: Error) => void) | null;
 }
 
@@ -20,7 +20,7 @@ const CSP_EXCEPTION_MODAL_CHANNELS = {
 
 const CSP_EXCEPTION_MODAL_DIMENSIONS = {
     width: 600,
-    height: 580,
+    height: 620,
 };
 
 let cspExceptionModalHandlersRegistered = false;
@@ -31,10 +31,11 @@ const cspExceptionModalPromiseHandlers: CspExceptionModalPromiseHandlers = {
 let cspExceptionModalClosedHandler: ((payload: ModalWindowClosedPayload) => void) | null = null;
 
 /**
- * Open the CSP exception consent modal
- * Returns a promise that resolves with true if user accepts, false if declines
+ * Open the CSP exception consent modal.
+ * Returns a promise that resolves with the list of approved optional domains if the user accepts,
+ * or null if the user declines.
  */
-export async function openCspExceptionModal(tool: any): Promise<boolean> {
+export async function openCspExceptionModal(tool: any): Promise<string[] | null> {
     return new Promise((resolve, reject) => {
         initializeCspExceptionModalBridge();
 
@@ -81,7 +82,7 @@ function handleCspExceptionModalMessage(payload: ModalWindowMessagePayload): voi
 
     switch (payload.channel) {
         case CSP_EXCEPTION_MODAL_CHANNELS.acceptConsent:
-            handleCspConsentAccepted();
+            handleCspConsentAccepted(payload.data);
             break;
         case CSP_EXCEPTION_MODAL_CHANNELS.declineConsent:
             handleCspConsentDeclined();
@@ -92,15 +93,23 @@ function handleCspExceptionModalMessage(payload: ModalWindowMessagePayload): voi
 }
 
 /**
- * Handle accept consent action
+ * Handle accept consent action with selected optional domains
  */
-function handleCspConsentAccepted(): void {
+function handleCspConsentAccepted(data: unknown): void {
     if (!cspExceptionModalPromiseHandlers.resolve) return;
+
+    interface CspConsentData {
+        approvedOptionalDomains?: unknown[];
+    }
+    const consentData = data as CspConsentData;
+    const approvedOptionalDomains: string[] = Array.isArray(consentData?.approvedOptionalDomains)
+        ? consentData.approvedOptionalDomains.filter((d): d is string => typeof d === "string")
+        : [];
 
     const resolveHandler = cspExceptionModalPromiseHandlers.resolve;
     cleanupModalHandlers();
     void closeBrowserWindowModal();
-    resolveHandler(true);
+    resolveHandler(approvedOptionalDomains);
 }
 
 /**
@@ -112,7 +121,7 @@ function handleCspConsentDeclined(): void {
     const resolveHandler = cspExceptionModalPromiseHandlers.resolve;
     cleanupModalHandlers();
     void closeBrowserWindowModal();
-    resolveHandler(false);
+    resolveHandler(null);
 }
 
 /**

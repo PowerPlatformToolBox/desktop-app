@@ -10,6 +10,7 @@ export interface ToolDetailModalState {
     toolId: string;
     toolName: string;
     isInstalled: boolean;
+    isSupported?: boolean;
     readmeUrl?: string | null;
     reviewUrl: string;
     repositoryUrl?: string | null;
@@ -71,6 +72,14 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
     const handleInstallClick = () => {
         if (!(installBtn instanceof HTMLButtonElement)) return;
         if (installBtn.disabled) return;
+
+        // Double-check compatibility
+        if (CONFIG.state.isSupported === false) {
+            installBtn.disabled = true;
+            installBtn.textContent = "Not supported";
+            setFeedback("This tool is not compatible with your version of Power Platform ToolBox. Please update your ToolBox to use this tool.", true);
+            return;
+        }
         installBtn.disabled = true;
         installBtn.textContent = "Installing...";
         setFeedback("");

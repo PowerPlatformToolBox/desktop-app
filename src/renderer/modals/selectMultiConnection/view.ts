@@ -153,6 +153,13 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
                         <option value="usernamePassword">Username/Password</option>
                     </select>
                 </div>
+                <div class="modal-filter-divider"></div>
+                <div class="modal-filter-section">
+                    <div class="modal-filter-title">Category</div>
+                    <select id="multi-connection-category-filter" class="modal-filter-select">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
             </div>
         </div>
         

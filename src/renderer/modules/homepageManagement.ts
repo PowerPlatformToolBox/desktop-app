@@ -3,10 +3,11 @@
  * Handles homepage display, data loading, and user interactions
  */
 
-import { captureException } from "../../common/sentryHelper";
 import type { LastUsedToolEntry } from "../../common/types";
+import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
+import { logError } from "../../common/logger";
 
 function normalizeHomepageError(error: unknown, fallbackMessage: string): Error {
     if (error instanceof Error) {
@@ -25,15 +26,9 @@ function normalizeHomepageError(error: unknown, fallbackMessage: string): Error 
     }
 }
 
-function reportHomepageError(operation: string, error: unknown, extra?: Record<string, unknown>): void {
+function reportHomepageError(operation: string, error: unknown): void {
     const normalized = normalizeHomepageError(error, `Homepage operation failed: ${operation}`);
-    captureException(normalized, {
-        tags: {
-            module: "homepage",
-            operation,
-        },
-        extra,
-    });
+    logError(normalized);
 }
 
 /**
@@ -304,15 +299,6 @@ async function loadQuickAccessTools(): Promise<void> {
 }
 
 /**
- * Escape HTML to prevent XSS attacks
- */
-function escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-/**
  * Load favorite tools into the UI
  */
 async function loadFavoriteTools(allTools: any[], favoriteToolIds: string[]): Promise<void> {
@@ -388,11 +374,10 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
         const iconContainer = document.createElement("div");
         iconContainer.className = "quick-tool-icon";
 
-        if (tool.iconUrl) {
-            const img = document.createElement("img");
-            img.src = tool.iconUrl;
-            img.alt = escapeHtml(tool.name);
-            iconContainer.appendChild(img);
+        // Theme-aware icon rendering (SVGs use CSS mask + currentColor)
+        const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, "");
+        if (toolIconHtml) {
+            iconContainer.innerHTML = toolIconHtml;
         } else {
             const placeholder = document.createElement("div");
             placeholder.className = "quick-tool-icon-placeholder";
@@ -427,6 +412,8 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
         // Add to container
         container.appendChild(toolItem);
     });
+
+    applyToolIconMasks(container);
 }
 
 function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry: LastUsedToolEntry }[]): void {
@@ -440,11 +427,10 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         const iconContainer = document.createElement("div");
         iconContainer.className = "quick-tool-icon";
 
-        if (tool.iconUrl) {
-            const img = document.createElement("img");
-            img.src = tool.iconUrl;
-            img.alt = escapeHtml(tool.name);
-            iconContainer.appendChild(img);
+        // Theme-aware icon rendering (SVGs use CSS mask + currentColor)
+        const toolIconHtml = generateToolIconHtml(tool.id, tool.icon, tool.name, "");
+        if (toolIconHtml) {
+            iconContainer.innerHTML = toolIconHtml;
         } else {
             const placeholder = document.createElement("div");
             placeholder.className = "quick-tool-icon-placeholder";
@@ -487,6 +473,8 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
 
         container.appendChild(toolItem);
     });
+
+    applyToolIconMasks(container);
 }
 
 /**
@@ -496,7 +484,7 @@ async function openTool(toolId: string, options?: LaunchToolOptions): Promise<vo
     try {
         await launchTool(toolId, options);
     } catch (error) {
-        reportHomepageError("openTool", error, { toolId });
+        reportHomepageError("openTool", error);
     }
 }
 

@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow } from "electron";
 import { autoUpdater } from "electron-updater";
 import { EventEmitter } from "events";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
@@ -40,24 +40,6 @@ export class AutoUpdateManager extends EventEmitter {
                 releaseNotes: info.releaseNotes,
                 releaseDate: info.releaseDate,
             });
-
-            // Show dialog to user
-            if (this.mainWindow) {
-                dialog
-                    .showMessageBox(this.mainWindow, {
-                        type: "info",
-                        title: "Update Available",
-                        message: `A new version ${info.version} is available. Would you like to download it now?`,
-                        buttons: ["Download", "Later"],
-                        defaultId: 0,
-                        cancelId: 1,
-                    })
-                    .then((result) => {
-                        if (result.response === 0) {
-                            this.downloadUpdate();
-                        }
-                    });
-            }
         });
 
         // Update not available event
@@ -91,24 +73,6 @@ export class AutoUpdateManager extends EventEmitter {
             this.sendToRenderer(EVENT_CHANNELS.UPDATE_DOWNLOADED, {
                 version: info.version,
             });
-
-            // Show dialog to user
-            if (this.mainWindow) {
-                dialog
-                    .showMessageBox(this.mainWindow, {
-                        type: "info",
-                        title: "Update Ready",
-                        message: `Version ${info.version} has been downloaded. Restart the application to apply the update?`,
-                        buttons: ["Restart Now", "Later"],
-                        defaultId: 0,
-                        cancelId: 1,
-                    })
-                    .then((result) => {
-                        if (result.response === 0) {
-                            autoUpdater.quitAndInstall();
-                        }
-                    });
-            }
         });
     }
 

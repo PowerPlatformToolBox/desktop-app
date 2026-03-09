@@ -3,82 +3,22 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-// Initialize Sentry as early as possible in the renderer process
-import * as Sentry from "@sentry/electron/renderer";
-import { getSentryConfig } from "../../common/sentry";
-import { addBreadcrumb, captureException, initializeSentryHelper, logCheckpoint, logInfo, logWarn, setSentryInstallId, wrapAsyncOperation } from "../../common/sentryHelper";
-
-const sentryConfig = getSentryConfig();
-if (sentryConfig) {
-    Sentry.init({
-        dsn: sentryConfig.dsn,
-        environment: sentryConfig.environment,
-        release: sentryConfig.release,
-        tracesSampleRate: sentryConfig.tracesSampleRate,
-        replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
-        replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-        // Enable Sentry logger for structured logging only in development to reduce telemetry noise
-        // In production, we rely on captureException/captureMessage for explicit error reporting
-        enableLogs: sentryConfig.environment === "development",
-        // Capture unhandled promise rejections and console errors
-        integrations: [
-            Sentry.captureConsoleIntegration({
-                levels: ["error", "warn"],
-            }),
-            Sentry.browserTracingIntegration({
-                // Track navigation and page loads
-                enableLongTask: true,
-                enableInp: true,
-            }),
-            Sentry.replayIntegration(),
-            // Context lines integration for better error context
-            Sentry.contextLinesIntegration(),
-        ],
-        // Before sending events, add install ID and additional context
-        beforeSend(event) {
-            // Ensure install ID is in tags
-            if (!event.tags) {
-                event.tags = {};
-            }
-            event.tags.process = "renderer";
-
-            // Add user agent for browser context
-            if (!event.request) {
-                event.request = {};
-            }
-            event.request.headers = {
-                "User-Agent": navigator.userAgent,
-            };
-
-            return event;
-        },
-    });
-
-    // Initialize the helper with the Sentry module
-    initializeSentryHelper(Sentry);
-
-    logInfo("[Sentry] Initialized in renderer process with tracing and logging");
-    addBreadcrumb("Renderer process Sentry initialized", "init", "info");
-
-    // Install ID will be set via IPC from main process after settings are loaded
-} else {
-    logInfo("[Sentry] Telemetry disabled - no DSN configured");
-}
-
-import { DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
+import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
-import { loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { showPPTBNotification } from "./notifications";
+import { showPPTBNotification, setDefaultNotificationDuration } from "./notifications";
 import { saveSidebarSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
+import { logInfo, logWarn, logError, logCheckpoint } from "../../common/logger";
 
 /**
  * Initialize the application
@@ -88,24 +28,8 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
-        // Get install ID from main process and set it in Sentry
-        if (sentryConfig) {
-            try {
-                const settings = await window.toolboxAPI.getUserSettings();
-                const installId = settings.installId || settings.machineId;
-                if (installId) {
-                    setSentryInstallId(installId);
-                    logCheckpoint("Install ID set in renderer Sentry", { installId });
-                }
-            } catch (error) {
-                // Use logWarn instead of console.warn for proper telemetry tracking
-                logWarn("Failed to get install ID for Sentry", { error: error instanceof Error ? error.message : String(error) });
-            }
-        }
-
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
-        addBreadcrumb("Modal bridges initialized", "init", "info");
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -140,108 +64,45 @@ export async function initializeApplication(): Promise<void> {
         // Set up homepage actions
         setupHomepageActions();
 
-        addBreadcrumb("UI components initialized", "init", "info");
+        // Set up global search command palette
+        initializeGlobalSearch();
+
 
         // Load and apply theme settings on startup
-        await wrapAsyncOperation(
-            "loadInitialSettings",
-            async () => {
-                await loadInitialSettings();
-            },
-            { tags: { phase: "initialization" } },
-        );
+        await loadInitialSettings();
         logCheckpoint("Initial settings loaded");
 
         // Load tools library from registry
-        await wrapAsyncOperation(
-            "loadToolsLibrary",
-            async () => {
-                await loadToolsLibrary();
-            },
-            { tags: { phase: "tools_library_loading" } },
-        ).catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "tools_library_loading" },
-                level: "warning",
-            });
+        await loadToolsLibrary().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Tools library loaded");
 
         // Load initial sidebar content (tools by default)
-        await wrapAsyncOperation(
-            "loadSidebarTools",
-            async () => {
-                await loadSidebarTools();
-            },
-            { tags: { phase: "sidebar_loading" } },
-        );
+        await loadSidebarTools();
 
-        await wrapAsyncOperation(
-            "loadMarketplace",
-            async () => {
-                await loadMarketplace();
-            },
-            { tags: { phase: "marketplace_loading" } },
-        );
-        addBreadcrumb("Sidebar content loaded", "init", "info");
+        await loadMarketplace();
 
         // Load connections in sidebar immediately (was previously delayed until events)
-        await wrapAsyncOperation(
-            "loadSidebarConnections",
-            async () => {
-                await loadSidebarConnections();
-            },
-            { tags: { phase: "connections_loading" } },
-        ).catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "connections_loading" },
-                level: "warning",
-            });
+        await loadSidebarConnections().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Connections loaded");
 
         // Update footer connection info
         // Update footer connection status
         // Note: Footer shows active tool's connection, not a global connection
-        await wrapAsyncOperation(
-            "updateFooterConnection",
-            async () => {
-                await updateFooterConnection();
-            },
-            { tags: { phase: "footer_update" } },
-        );
+        await updateFooterConnection();
 
         // Load homepage data
-        await wrapAsyncOperation(
-            "loadHomepageData",
-            async () => {
-                await loadHomepageData();
-            },
-            { tags: { phase: "homepage_loading" } },
-        ).catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "homepage_loading" },
-                level: "warning",
-            });
+        await loadHomepageData().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Homepage data loaded");
 
         // Restore previous session
-        await wrapAsyncOperation(
-            "restoreSession",
-            async () => {
-                await restoreSession();
-            },
-            { tags: { phase: "session_restore" } },
-        ).catch((error) => {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "session_restore" },
-                level: "warning",
-            });
+        await restoreSession().catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
         logCheckpoint("Session restored");
 
@@ -266,17 +127,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
 
-        addBreadcrumb("All listeners set up", "init", "info");
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
-        // If Sentry is available, capture the error
-        if (sentryConfig) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            captureException(err, {
-                tags: { phase: "renderer_initialization" },
-                level: "fatal",
-            });
-        }
+        logError(error instanceof Error ? error : new Error(String(error)));
         // Show error to user using a proper error modal
         const errorMessage = (error as Error).message || "Unknown error occurred";
         const errorElement = document.createElement("div");
@@ -368,10 +221,7 @@ function setupSidebarButtons(): void {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openAddConnectionModal().catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "modal_opening" },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
             });
         });
     }
@@ -417,10 +267,7 @@ function setupSidebarButtons(): void {
             try {
                 await handleCheckForUpdates();
             } catch (error) {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "check_for_updates" },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
             }
         });
     }
@@ -663,20 +510,21 @@ function setupApplicationEventListeners(): void {
     window.toolboxAPI.onToolUpdateStarted(() => {
         logInfo("Tool update started, reloading tools...");
         loadSidebarTools().catch((err) => {
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-                tags: { phase: "tools_reload" },
-                level: "warning",
-            });
+            logError(err instanceof Error ? err : new Error(String(err)));
         });
     });
 
     window.toolboxAPI.onToolUpdateCompleted(() => {
         logInfo("Tool update completed, reloading tools...");
         loadSidebarTools().catch((err) => {
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-                tags: { phase: "tools_reload" },
-                level: "warning",
-            });
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    });
+
+    // Protocol deep link handler
+    window.toolboxAPI.onProtocolInstallToolRequest((params: { toolId: string; toolName: string }) => {
+        handleProtocolInstallToolRequest(params).catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
     });
 }
@@ -689,6 +537,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
+    setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
 }
 
 /**
@@ -794,7 +643,7 @@ function setupToolboxEventListeners(): void {
                 title: notificationData.title,
                 body: notificationData.body,
                 type: notificationData.type || "info",
-                duration: notificationData.duration || 5000,
+                duration: notificationData.duration,
             });
         }
 
@@ -802,18 +651,12 @@ function setupToolboxEventListeners(): void {
         if (payload.event === "connection:created" || payload.event === "connection:updated" || payload.event === "connection:deleted") {
             logInfo("Connection event detected, reloading connections...");
             loadSidebarConnections().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "connection_reload" },
-                    level: "warning",
-                });
+                logError(err instanceof Error ? err : new Error(String(err)));
             });
             // Update active tool connection status to reflect changes
             import("./toolManagement").then(({ updateActiveToolConnectionStatus }) => {
                 updateActiveToolConnectionStatus().catch((err) => {
-                    captureException(err instanceof Error ? err : new Error(String(err)), {
-                        tags: { phase: "footer_update" },
-                        level: "warning",
-                    });
+                    logError(err instanceof Error ? err : new Error(String(err)));
                 });
             });
         }
@@ -822,10 +665,7 @@ function setupToolboxEventListeners(): void {
         if (payload.event === "tool:loaded" || payload.event === "tool:unloaded") {
             logInfo("Tool event detected, reloading tools...");
             loadSidebarTools().catch((err) => {
-                captureException(err instanceof Error ? err : new Error(String(err)), {
-                    tags: { phase: "tools_reload" },
-                    level: "warning",
-                });
+                logError(err instanceof Error ? err : new Error(String(err)));
             });
         }
 

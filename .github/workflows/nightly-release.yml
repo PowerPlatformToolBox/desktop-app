@@ -75,7 +75,7 @@ jobs:
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
                   DATE_TAG=$(date +%Y%m%d)
-                  NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
+                  NEW_VERSION="$CURRENT_VERSION-beta.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
                   echo "📦 Insider version: $NEW_VERSION"
 
@@ -468,7 +468,7 @@ jobs:
               run: |
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
                   DATE_TAG=$(date +%Y%m%d)
-                  NEW_VERSION="$CURRENT_VERSION-dev.$DATE_TAG"
+                  NEW_VERSION="$CURRENT_VERSION-beta.$DATE_TAG"
                   echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
                   echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
                   echo "release_name=Insider Dev Build - $NEW_VERSION" >> $GITHUB_OUTPUT

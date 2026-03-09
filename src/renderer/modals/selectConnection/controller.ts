@@ -1,4 +1,5 @@
 import { UIConnectionData } from "../../../common/types/connection";
+import { chromeIconUrl, edgeIconUrl } from "../../utils/browserIcons";
 import { getConnectionSortingUtilitiesScript } from "../../utils/connectionSorting";
 
 export interface SelectConnectionModalChannelIds {
@@ -35,6 +36,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const searchInput = document.getElementById("select-connection-search");
     const envFilter = document.getElementById("select-connection-env-filter");
     const authFilter = document.getElementById("select-connection-auth-filter");
+    const categoryFilter = document.getElementById("select-connection-category-filter");
     const sortSelect = document.getElementById("select-connection-sort");
     const filterButton = document.getElementById("select-connection-filter-btn");
     const filterDropdown = document.getElementById("select-connection-filter-dropdown");
@@ -57,11 +59,38 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
         };
         return labels[authType] || authType;
     };
+
+    const escapeHtml = (value) => {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const getBrowserBadgeMarkup = (conn) => {
+        const browserType = conn.browserType;
+        if (!browserType || browserType === "default") return "";
+        const profileName = conn.browserProfileName || conn.browserProfile;
+        if (!profileName) return "";
+        const browserLabels = { chrome: "Chrome", edge: "Edge" };
+        const browserLabel = browserLabels[browserType] || "Browser";
+        const iconPaths = { chrome: ${JSON.stringify(chromeIconUrl)}, edge: ${JSON.stringify(edgeIconUrl)} };
+        const iconPath = iconPaths[browserType];
+        const safeProfile = escapeHtml(profileName);
+        const safeTitle = escapeHtml(browserLabel + " \xb7 " + profileName);
+        const iconMarkup = iconPath
+            ? \`<img src="\${iconPath}" alt="\${browserLabel} icon" class="browser-profile-icon" />\`
+            : \`<span class="browser-profile-icon browser-profile-icon-fallback">\${browserLabel.charAt(0).toUpperCase()}</span>\`;
+        return \`<span class="browser-profile-badge" title="\${safeTitle}">\${iconMarkup}<span class="browser-profile-label">\${safeProfile}</span></span>\`;
+    };
 ${sortingUtilities}
     const getFilteredConnections = () => {
         const searchTerm = searchInput?.value?.toLowerCase() || "";
         const selectedEnv = envFilter?.value || "";
         const selectedAuth = authFilter?.value || "";
+        const selectedCategory = categoryFilter?.value || "";
         const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
 
         let filtered = allConnections.filter(conn => {
@@ -81,6 +110,15 @@ ${sortingUtilities}
             // Auth type filter
             if (selectedAuth && conn.authenticationType !== selectedAuth) {
                 return false;
+            }
+
+            // Category filter
+            if (selectedCategory) {
+                if (selectedCategory === "__default__") {
+                    if (conn.category) return false;
+                } else if (conn.category !== selectedCategory) {
+                    return false;
+                }
             }
 
             return true;
@@ -105,6 +143,21 @@ ${sortingUtilities}
             }
         }
 
+        // Populate category filter dropdown from actual connection data
+        if (categoryFilter && Array.isArray(connectionsData)) {
+            const allCategories = new Set();
+            allConnections.forEach(conn => { if (conn.category) allCategories.add(conn.category); });
+            const currentCategoryValue = categoryFilter.value;
+            const hasDefault = allConnections.some(conn => !conn.category);
+            let optionsHtml = '<option value="">All Categories</option>';
+            if (hasDefault) optionsHtml += '<option value="__default__">Default (No Category)</option>';
+            [...allCategories].sort().forEach(cat => {
+                optionsHtml += \`<option value="\${escapeHtml(String(cat))}">\${escapeHtml(String(cat))}</option>\`;
+            });
+            categoryFilter.innerHTML = optionsHtml;
+            if (currentCategoryValue) categoryFilter.value = currentCategoryValue;
+        }
+
         const connections = getFilteredConnections();
         
         if (allConnections.length === 0) {
@@ -127,21 +180,88 @@ ${sortingUtilities}
             return;
         }
 
-        connectionsListContainer.innerHTML = connections.map(conn => \`
-            <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${conn.id}">
+        const renderConnectionItem = (conn) => {
+            const browserBadge = getBrowserBadgeMarkup(conn);
+            const envColor = conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor) ? conn.environmentColor : null;
+            const envBadgeStyle = envColor ? \` style="background-color:\${envColor}1a;color:\${envColor};border:1px solid \${envColor}4d"\` : '';
+            const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
+            const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
+            const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
+            return \`
+            <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${escapeHtml(conn.id)}">
                 <div class="connection-header">
-                    <div class="connection-name">\${conn.name}</div>
+                    <div class="connection-name">\${escapeHtml(conn.name)}</div>
                 </div>
-                <div class="connection-url">\${conn.url}</div>
+                <div class="connection-url">\${escapeHtml(conn.url)}</div>
                 <div class="connection-item-footer">
                     <div class="connection-item-meta-left">
-                        <span class="connection-env-badge env-\${conn.environment.toLowerCase()}">\${conn.environment}</span>
+                        <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${catBadgeMarkup}
                         \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
+                    \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
                 </div>
             </div>
-        \`).join('');
+        \`;
+        };
+
+        // Group connections by category
+        const groupMap = new Map();
+        connections.forEach(conn => {
+            const key = conn.category || "";
+            if (!groupMap.has(key)) groupMap.set(key, []);
+            groupMap.get(key).push(conn);
+        });
+        const groupKeys = [...groupMap.keys()].sort((a, b) => {
+            if (a === "") return -1;
+            if (b === "") return 1;
+            return a.localeCompare(b);
+        });
+        const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
+
+        if (useGroups) {
+            connectionsListContainer.innerHTML = groupKeys.map(groupKey => {
+                const groupConns = groupMap.get(groupKey);
+                const displayKey = groupKey === "" ? "Default" : groupKey;
+                const escapedKey = escapeHtml(displayKey);
+                const items = groupConns.map(renderConnectionItem).join('');
+                return \`
+                <div class="connection-group" data-category="\${escapedKey}">
+                    <div class="connection-group-header" data-category="\${escapedKey}" role="button" tabindex="0" aria-expanded="true">
+                        <span class="connection-group-title">\${escapedKey}</span>
+                        <span class="connection-group-count">\${groupConns.length}</span>
+                        <span class="connection-group-toggle">▼</span>
+                    </div>
+                    <div class="connection-group-items" data-category="\${escapedKey}">
+                        \${items}
+                    </div>
+                </div>\`;
+            }).join('');
+
+            // Add group toggle handlers
+            connectionsListContainer.querySelectorAll('.connection-group-header').forEach(header => {
+                const toggleGroup = () => {
+                    const group = header.closest('.connection-group');
+                    const items = group?.querySelector('.connection-group-items');
+                    if (!items) return;
+                    const isCollapsed = items.classList.contains('collapsed');
+                    items.classList.toggle('collapsed', !isCollapsed);
+                    const toggle = header.querySelector('.connection-group-toggle');
+                    if (toggle) toggle.textContent = isCollapsed ? '▼' : '▶';
+                    header.setAttribute('aria-expanded', String(isCollapsed));
+                };
+                header.addEventListener('click', toggleGroup);
+                header.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggleGroup();
+                    }
+                });
+            });
+        } else {
+            connectionsListContainer.innerHTML = connections.map(renderConnectionItem).join('');
+        }
 
         // Add click handlers to connection items
         const connectionItems = connectionsListContainer.querySelectorAll('.connection-item');
@@ -255,6 +375,7 @@ ${sortingUtilities}
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
     envFilter?.addEventListener('change', () => renderConnections(allConnections));
     authFilter?.addEventListener('change', () => renderConnections(allConnections));
+    categoryFilter?.addEventListener('change', () => renderConnections(allConnections));
     sortSelect?.addEventListener('change', () => {
         injectedSortOption = sanitizeSortOption(sortSelect.value);
         renderConnections(allConnections);

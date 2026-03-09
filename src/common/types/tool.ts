@@ -15,6 +15,12 @@ export interface ToolFeatures {
      * - "none": Single connection only (default behavior)
      */
     multiConnection?: "required" | "optional" | "none";
+    /**
+     * Minimum ToolBox API version required by this tool
+     * Tool developers should specify this in their package.json
+     * @example "1.0.12"
+     */
+    minAPI?: string;
 }
 
 /**
@@ -28,7 +34,7 @@ export interface Tool {
     publishedAt?: string;
     createdAt?: string; // ISO date string from created_at field
     authors?: string[];
-    iconUrl?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     settings?: ToolSettings;
     localPath?: string; // For local development tools - absolute path to tool directory
     npmPackageName?: string; // For npm-installed tools - package name in node_modules
@@ -43,6 +49,9 @@ export interface Tool {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    minAPI?: string; // Minimum ToolBox API version required
+    maxAPI?: string; // Maximum ToolBox API version tested
+    isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
 }
 
 /**
@@ -54,7 +63,7 @@ export interface ToolRegistryEntry {
     description: string;
     authors?: string[]; // full list of contributors
     version: string;
-    iconUrl?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     downloadUrl: string;
     readmeUrl?: string; // URL or relative path to README file
     checksum?: string;
@@ -71,6 +80,8 @@ export interface ToolRegistryEntry {
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
     repository?: string;
     website?: string;
+    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
+    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
 }
 
 /**
@@ -82,7 +93,7 @@ export interface ToolManifest {
     version: string;
     description: string;
     authors?: string[]; // contributors list
-    icon?: string;
+    icon?: string; // Relative path to SVG icon in dist/ folder (e.g., "icon.svg" or "icons/icon.svg")
     installPath: string;
     installedAt: string;
     source: "registry" | "npm" | "local"; // Track installation source
@@ -100,6 +111,8 @@ export interface ToolManifest {
     website?: string;
     publishedAt?: string;
     createdAt?: string;
+    minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
+    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
 }
 
 /**

@@ -4,10 +4,10 @@
  */
 
 import AnsiToHtml from "ansi-to-html";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { ANSI_CONVERTER_CONFIG, TERMINAL_RESIZE_CONFIG } from "../constants";
 import type { TerminalTab } from "../types/index";
 import { getToolInstanceDisplayName } from "./toolManagement";
+import { logInfo, logError } from "../../common/logger";
 
 // Create ANSI to HTML converter instance
 const ansiConverter = new AnsiToHtml(ANSI_CONVERTER_CONFIG);
@@ -165,7 +165,7 @@ function createTerminalTab(terminal: any): void {
             }
         })
         .catch((error: Error) => {
-            captureMessage("Failed to apply terminal font:", "error", { extra: { error } });
+            logError("Failed to apply terminal font", error);
         });
 
     // Store terminal tab

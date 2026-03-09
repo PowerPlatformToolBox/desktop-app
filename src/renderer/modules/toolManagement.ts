@@ -3,12 +3,14 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import { captureException, captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import type { DataverseConnection } from "../../common/types/connection";
+import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { OpenTool, SessionData } from "../types/index";
+import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -25,6 +27,9 @@ export interface LaunchToolOptions {
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
+
+// Detail tab state - maps tabId to render callback for tool detail tabs
+const detailTabs = new Map<string, (panel: HTMLElement) => void>();
 
 /**
  * Check if a connection token is expired
@@ -91,6 +96,25 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 title: "Tool Launch Failed",
                 body: `Tool ${toolId} not found`,
                 type: "error",
+            });
+            return;
+        }
+
+        // Check if tool is supported by current ToolBox version
+        if (tool.isSupported === false) {
+            const versionInfo = await window.toolboxAPI.getVersionCompatibilityInfo().catch((error) => {
+                logWarn("Failed to retrieve version compatibility info for unsupported tool message", {
+                    error: error instanceof Error ? error.message : String(error),
+                    toolId,
+                });
+                return null;
+            });
+
+            const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Not Supported",
+                body: getUnsupportedToolMessage(tool.name, unsupportedRequirement),
+                type: "warning",
             });
             return;
         }
@@ -188,15 +212,15 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (!hasConsent) {
                 // Show consent dialog using BrowserWindow modal framework
-                let consentGranted = false;
+                let approvedOptionalDomains: string[] | null = null;
                 try {
-                    consentGranted = await openCspExceptionModal(tool);
+                    approvedOptionalDomains = await openCspExceptionModal(tool);
                 } catch (error) {
                     logInfo("CSP consent modal closed without selection:", { error });
-                    consentGranted = false;
+                    approvedOptionalDomains = null;
                 }
 
-                if (!consentGranted) {
+                if (approvedOptionalDomains === null) {
                     // User declined or closed, don't load the tool
                     window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Cancelled",
@@ -206,8 +230,20 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent
-                await window.toolboxAPI.grantCspConsent(tool.id);
+                // Grant consent — store required domains (for future re-consent detection) and selected optional domains
+                const requiredDomainsSet = new Set<string>();
+                for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
+                    if (Array.isArray(sources)) {
+                        for (const s of sources) {
+                            const entry = normalizeCspExceptionSource(s);
+                            if (!entry.optional) {
+                                requiredDomainsSet.add(entry.domain);
+                            }
+                        }
+                    }
+                }
+                const requiredDomains = Array.from(requiredDomainsSet).sort();
+                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
             }
         }
 
@@ -256,6 +292,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         });
 
         // Create and add tab with instance number if multiple instances exist
+        // Tab is appended synchronously; connection subtext is populated asynchronously
         createTab(instanceId, tool, instanceNumber);
 
         // Switch to the new tab (this will also call backend to show the BrowserView)
@@ -269,10 +306,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_launch", toolId },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
         window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,
@@ -300,6 +334,46 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     const displayName = instanceNumber > 1 ? `${tool.name} (${instanceNumber})` : tool.name;
     name.textContent = displayName;
     name.title = displayName;
+
+    // Create a container for the name and subtext
+    const nameContainer = document.createElement("div");
+    nameContainer.className = "tool-tab-name-container";
+    nameContainer.appendChild(name);
+
+    // Fetch connection names asynchronously and populate subtext once ready
+    (async () => {
+        let connectionSubtext = "";
+        try {
+            const openTool = openTools.get(instanceId);
+
+            const [primaryConnection, secondaryConnection] = await Promise.all([
+                openTool?.connectionId ? window.toolboxAPI.connections.getById(openTool.connectionId) : Promise.resolve(null),
+                openTool?.secondaryConnectionId ? window.toolboxAPI.connections.getById(openTool.secondaryConnectionId) : Promise.resolve(null),
+            ]);
+
+            const primaryLabel = primaryConnection?.name ?? null;
+            const secondaryLabel = secondaryConnection?.name ?? null;
+
+            // Display both connections if both exist, otherwise just the primary
+            if (primaryLabel && secondaryLabel) {
+                connectionSubtext = `${primaryLabel} / ${secondaryLabel}`;
+            } else if (primaryLabel) {
+                connectionSubtext = primaryLabel;
+            }
+        } catch (error) {
+            const normalizedError = error instanceof Error ? error.message : String(error);
+            logWarn("Failed to fetch connection names for tab:", { error: normalizedError });
+        }
+
+        // Add connection names as subtext if available
+        if (connectionSubtext) {
+            const subtext = document.createElement("span");
+            subtext.className = "tool-tab-subtext";
+            subtext.textContent = connectionSubtext;
+            subtext.title = connectionSubtext;
+            nameContainer.appendChild(subtext);
+        }
+    })();
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -358,12 +432,99 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
 
-    tab.appendChild(name);
+    tab.appendChild(nameContainer);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
 
     // Update scroll button visibility after adding tab
+    updateTabScrollButtons();
+}
+
+/**
+ * Open a tool detail tab (shows tool details as a tab instead of a modal dialog)
+ * @param tabId Unique identifier for the tab (e.g., "tool-detail-{toolId}")
+ * @param displayName Name shown on the tab
+ * @param renderContent Callback that populates the detail panel with content
+ */
+export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void): Promise<void> {
+    // If this tool's detail tab is already open, just switch to it
+    if (openTools.has(tabId)) {
+        // Refresh content in case install state changed
+        detailTabs.set(tabId, renderContent);
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (detailPanel) {
+            detailPanel.removeAttribute("data-tab-id");
+        }
+        await switchToTool(tabId);
+        return;
+    }
+
+    // Store the render callback
+    detailTabs.set(tabId, renderContent);
+
+    // Create the tab element
+    const toolTabs = document.getElementById("tool-tabs");
+    if (!toolTabs) return;
+
+    const tab = document.createElement("div");
+    tab.className = "tool-tab tool-detail-tab";
+    tab.id = `tool-tab-${tabId}`;
+    tab.setAttribute("data-instance-id", tabId);
+    tab.setAttribute("draggable", "false");
+
+    const name = document.createElement("span");
+    name.className = "tool-tab-name";
+    name.textContent = `${displayName} - Details`;
+    name.title = `${displayName} - Details`;
+    tab.appendChild(name);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "tool-tab-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close";
+    closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTool(tabId);
+    });
+    tab.appendChild(closeBtn);
+
+    tab.addEventListener("click", () => {
+        switchToTool(tabId);
+    });
+
+    // Middle-click to close
+    tab.addEventListener("mousedown", (e) => {
+        if (e.button === MIDDLE_MOUSE_BUTTON) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeTool(tabId);
+        }
+    });
+
+    toolTabs.appendChild(tab);
+
+    // Register as an open tool entry (detail tab variant)
+    openTools.set(tabId, {
+        instanceId: tabId,
+        toolId: "",
+        tool: { name: displayName },
+        isPinned: false,
+        connectionId: null,
+        secondaryConnectionId: null,
+        isDetailTab: true,
+    });
+
+    // Ensure tool panel is visible
+    hideHomePage();
+    const toolPanel = document.getElementById("tool-panel");
+    if (toolPanel) {
+        toolPanel.style.display = "flex";
+    }
+
+    // Switch to the new detail tab
+    await switchToTool(tabId);
+
     updateTabScrollButtons();
 }
 
@@ -397,13 +558,54 @@ export async function switchToTool(instanceId: string): Promise<void> {
         activeTab.classList.add("active");
     }
 
+    const openTool = openTools.get(instanceId);
+
+    // Handle tool detail tabs (no BrowserView - content is rendered inline)
+    if (openTool?.isDetailTab) {
+        // Hide any active BrowserView
+        window.toolboxAPI.hideToolWindows().catch((error: any) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
+        });
+
+        // Hide the BrowserView placeholder so detail panel gets full space
+        const toolPanelContent = document.getElementById("tool-panel-content");
+        if (toolPanelContent) {
+            toolPanelContent.style.display = "none";
+        }
+
+        // Show detail panel and populate with this tab's content
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (detailPanel) {
+            const currentTabId = detailPanel.getAttribute("data-tab-id");
+            if (currentTabId !== instanceId) {
+                const renderContent = detailTabs.get(instanceId);
+                if (renderContent) {
+                    detailPanel.innerHTML = "";
+                    renderContent(detailPanel);
+                    detailPanel.setAttribute("data-tab-id", instanceId);
+                }
+            }
+            detailPanel.style.display = "flex";
+        }
+
+        await updateActiveToolConnectionStatus();
+        return;
+    }
+
+    // Regular tool tab: restore tool-panel-content, hide detail panel, show BrowserView
+    const toolPanelContent = document.getElementById("tool-panel-content");
+    if (toolPanelContent) {
+        toolPanelContent.style.display = "";
+    }
+    const detailPanel = document.getElementById("tool-detail-content-panel");
+    if (detailPanel) {
+        detailPanel.style.display = "none";
+    }
+
     // Use IPC to switch the BrowserView in the backend
     // The ToolWindowManager will show the appropriate BrowserView
     window.toolboxAPI.switchToolWindow(instanceId).catch((error: any) => {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_switch", instanceId },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
     });
 
     // Update connection status display based on this tool's connection
@@ -417,8 +619,8 @@ export function closeTool(instanceId: string): void {
     const openTool = openTools.get(instanceId);
     if (!openTool) return;
 
-    // Check if tab is pinned
-    if (openTool.isPinned) {
+    // Check if tab is pinned (only for real tool instances, not detail tabs)
+    if (!openTool.isDetailTab && openTool.isPinned) {
         window.toolboxAPI.utils.showNotification({
             title: "Cannot Close Pinned Tab",
             body: "Unpin the tab before closing it",
@@ -433,14 +635,28 @@ export function closeTool(instanceId: string): void {
         tab.remove();
     }
 
-    // Close the tool window via IPC
-    // The ToolWindowManager will destroy the BrowserView
-    window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "tool_close", instanceId },
-            level: "error",
+    if (openTool.isDetailTab) {
+        // Detail tab: clean up render callback and hide detail panel if active
+        detailTabs.delete(instanceId);
+        if (activeToolId === instanceId) {
+            const detailPanel = document.getElementById("tool-detail-content-panel");
+            if (detailPanel) {
+                detailPanel.style.display = "none";
+                detailPanel.removeAttribute("data-tab-id");
+            }
+            // Restore tool-panel-content visibility for when a real tool is shown next
+            const toolPanelContent = document.getElementById("tool-panel-content");
+            if (toolPanelContent) {
+                toolPanelContent.style.display = "";
+            }
+        }
+    } else {
+        // Real tool: close the tool window via IPC
+        // The ToolWindowManager will destroy the BrowserView
+        window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
         });
-    });
+    }
 
     // Remove from open tools
     openTools.delete(instanceId);
@@ -573,14 +789,16 @@ function handleDragEnd(e: DragEvent, tab: HTMLElement): void {
  */
 export function saveSession(): void {
     const session: SessionData = {
-        openTools: Array.from(openTools.entries()).map(([instanceId, tool]) => ({
-            instanceId,
-            toolId: tool.toolId,
-            isPinned: tool.isPinned,
-            connectionId: tool.connectionId,
-            secondaryConnectionId: tool.secondaryConnectionId,
-        })),
-        activeToolId,
+        openTools: Array.from(openTools.entries())
+            .filter(([, tool]) => !tool.isDetailTab)
+            .map(([instanceId, tool]) => ({
+                instanceId,
+                toolId: tool.toolId,
+                isPinned: tool.isPinned,
+                connectionId: tool.connectionId,
+                secondaryConnectionId: tool.secondaryConnectionId,
+            })),
+        activeToolId: activeToolId && openTools.get(activeToolId)?.isDetailTab ? null : activeToolId,
     };
     localStorage.setItem("toolbox-session", JSON.stringify(session));
 }
@@ -605,10 +823,7 @@ export async function restoreSession(): Promise<void> {
             // Note: activeToolId won't match since we have new instanceIds
         }
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "session_restore" },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
     }
 }
 
@@ -700,12 +915,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
     if (secondaryStatusElement) {
         secondaryStatusElement.classList.remove("visible", "connected", "expired");
         secondaryStatusElement.textContent = "";
+        secondaryStatusElement.style.color = "";
+        secondaryStatusElement.style.backgroundColor = "";
     }
 
     if (!activeToolId) {
         // No active tool, show "Not Connected"
         statusElement.textContent = "Not Connected";
         statusElement.className = "connection-status";
+        statusElement.style.color = "";
+        statusElement.style.backgroundColor = "";
         // Clear tool panel border
         updateToolPanelBorder(null);
         return;
@@ -736,7 +955,16 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             statusElement.textContent = primaryText;
             const primaryEnvClass = `env-${primaryConnection.environment.toLowerCase()}`;
             const primaryStatusClass = isPrimaryExpired ? "expired" : "connected";
-            statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
+            const primaryHasCustomColor = !isPrimaryExpired && primaryConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(primaryConnection.environmentColor);
+            if (primaryHasCustomColor) {
+                statusElement.className = `connection-status ${primaryStatusClass}`;
+                statusElement.style.color = primaryConnection.environmentColor as string;
+                statusElement.style.backgroundColor = `${primaryConnection.environmentColor}1a`;
+            } else {
+                statusElement.className = `connection-status ${primaryStatusClass} ${primaryEnvClass}`;
+                statusElement.style.color = "";
+                statusElement.style.backgroundColor = "";
+            }
 
             // Handle secondary connection display
             if (secondaryStatusElement) {
@@ -753,10 +981,19 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         secondaryStatusElement.textContent = secondaryText;
                         const secondaryEnvClass = `env-${secondaryConnection.environment.toLowerCase()}`;
                         const secondaryStatusClass = isSecondaryExpired ? "expired" : "connected";
-                        secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
+                        const secondaryHasCustomColor = !isSecondaryExpired && secondaryConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryConnection.environmentColor);
+                        if (secondaryHasCustomColor) {
+                            secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible`;
+                            secondaryStatusElement.style.color = secondaryConnection.environmentColor as string;
+                            secondaryStatusElement.style.backgroundColor = `${secondaryConnection.environmentColor}1a`;
+                        } else {
+                            secondaryStatusElement.className = `secondary-connection-status ${secondaryStatusClass} visible ${secondaryEnvClass}`;
+                            secondaryStatusElement.style.color = "";
+                            secondaryStatusElement.style.backgroundColor = "";
+                        }
 
                         // Update tool panel border based on both primary and secondary environment
-                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment);
+                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment, primaryConnection.environmentColor, secondaryConnection.environmentColor, primaryConnection.categoryColor);
                         return;
                     }
                 } else {
@@ -773,7 +1010,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             }
 
             // Update tool panel border based on primary environment only
-            updateToolPanelBorder(primaryConnection.environment);
+            updateToolPanelBorder(primaryConnection.environment, null, primaryConnection.environmentColor, null, primaryConnection.categoryColor);
             return;
         }
     } else if (toolConnectionId) {
@@ -788,64 +1025,112 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
             if (isExpired) {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name} ⚠ (Token Expired)`;
                 statusElement.className = `connection-status expired ${envClass}`;
+                statusElement.style.color = "";
+                statusElement.style.backgroundColor = "";
             } else {
                 statusElement.textContent = `${activeTool.tool.name} is connected to: ${toolConnection.name}`;
-                statusElement.className = `connection-status connected ${envClass}`;
+                const singleHasCustomColor = toolConnection.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(toolConnection.environmentColor);
+                if (singleHasCustomColor) {
+                    statusElement.className = `connection-status connected`;
+                    statusElement.style.color = toolConnection.environmentColor as string;
+                    statusElement.style.backgroundColor = `${toolConnection.environmentColor}1a`;
+                } else {
+                    statusElement.className = `connection-status connected ${envClass}`;
+                    statusElement.style.color = "";
+                    statusElement.style.backgroundColor = "";
+                }
             }
             // Update tool panel border based on environment
-            updateToolPanelBorder(toolConnection.environment);
+            updateToolPanelBorder(toolConnection.environment, null, toolConnection.environmentColor, null, toolConnection.categoryColor);
             return;
         }
     }
     // Tool doesn't have a connection
     statusElement.textContent = `${activeTool.tool.name} is not connected`;
     statusElement.className = "connection-status";
+    statusElement.style.color = "";
+    statusElement.style.backgroundColor = "";
     // Clear tool panel border
     updateToolPanelBorder(null);
+}
+
+/**
+ * Resolve the CSS-variable-based border color for a given environment type.
+ * Used as a fallback when no custom environmentColor is set on a connection.
+ */
+function getEnvBorderColor(environment: string): string {
+    const styles = getComputedStyle(document.documentElement);
+    const varMap: Record<string, string> = {
+        dev: "--env-border-dev",
+        test: "--env-border-test",
+        uat: "--env-border-uat",
+        production: "--env-border-prod",
+    };
+    const cssVar = varMap[environment.toLowerCase()] || "--env-border-dev";
+    return styles.getPropertyValue(cssVar).trim() || "#8a8886";
 }
 
 /**
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null): void {
+function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null, environmentColor?: string | null, secondaryEnvironmentColor?: string | null, categoryColor?: string | null): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
         const classesToRemove = Array.from(toolPanelWrapper.classList).filter((cls) => cls.startsWith("env-") || cls.startsWith("multi-env-"));
         classesToRemove.forEach((cls) => toolPanelWrapper.classList.remove(cls));
+        // Reset inline styles
+        toolPanelWrapper.style.border = "";
+        toolPanelWrapper.style.borderImage = "";
 
-        // Add the appropriate class based on environment(s)
+        // Add the appropriate class or inline style based on environment(s)
         if (environment && secondaryEnvironment) {
-            const primaryEnvClass = environment.toLowerCase();
-            const secondaryEnvClass = secondaryEnvironment.toLowerCase();
-
-            // If both environments are the same, use single environment class for efficiency
-            if (primaryEnvClass === secondaryEnvClass) {
-                toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+            const primaryColor = environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor) ? environmentColor : null;
+            const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : null;
+            if (primaryColor || secColor) {
+                // At least one connection has a custom color — use inline gradient border
+                const leftColor = primaryColor || getEnvBorderColor(environment);
+                const rightColor = secColor || getEnvBorderColor(secondaryEnvironment);
+                toolPanelWrapper.style.border = "5px solid transparent";
+                toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${leftColor} 50%, ${rightColor} 50%) 1`;
             } else {
-                // Multi-connection: use split border with both environments
-                const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
-                toolPanelWrapper.classList.add(multiEnvClass);
+                const primaryEnvClass = environment.toLowerCase();
+                const secondaryEnvClass = secondaryEnvironment.toLowerCase();
+                if (primaryEnvClass === secondaryEnvClass) {
+                    toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+                } else {
+                    const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+                    toolPanelWrapper.classList.add(multiEnvClass);
+                }
             }
         } else if (environment) {
-            // Single connection: use solid border
-            const envClass = `env-${environment.toLowerCase()}`;
-            toolPanelWrapper.classList.add(envClass);
+            if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
+                toolPanelWrapper.style.border = `5px solid ${environmentColor}`;
+            } else {
+                const envClass = `env-${environment.toLowerCase()}`;
+                toolPanelWrapper.classList.add(envClass);
+            }
         }
     }
 
-    // Update the active tab with environment class
+    // Update the active tab with environment class or category color
     if (activeToolId) {
         const activeTab = document.getElementById(`tool-tab-${activeToolId}`);
         if (activeTab) {
             // Remove all environment classes from tab
             activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
+            // Reset inline style
+            activeTab.style.borderBottom = "";
 
-            // Add the appropriate class based on environment (use primary for tabs)
+            // Add the appropriate class or inline style based on environment (use primary for tabs)
             if (environment) {
-                const envClass = `env-${environment.toLowerCase()}`;
-                activeTab.classList.add(envClass);
+                if (categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor)) {
+                    activeTab.style.borderBottom = `5px solid ${categoryColor}`;
+                } else {
+                    const envClass = `env-${environment.toLowerCase()}`;
+                    activeTab.classList.add(envClass);
+                }
             }
         }
     }
@@ -976,9 +1261,7 @@ export async function openToolConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        logError("Connection selection cancelled or failed", error);
     }
 }
 
@@ -1058,9 +1341,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         }
     } catch (error) {
         // User cancelled or error occurred
-        captureMessage("Secondary connection selection cancelled or failed", "error", {
-            extra: { error },
-        });
+        logError("Secondary connection selection cancelled or failed", error);
     }
 }
 

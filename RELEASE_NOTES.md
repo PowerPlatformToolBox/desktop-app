@@ -1,44 +1,44 @@
-# Power Platform ToolBox 1.1.3
+# Power Platform ToolBox 1.2.0
 
 ## Highlights
 
-- Hardened tool filesystem sandbox so tools can only access user-selected paths and system directories are blocked
-- Connection sign-in supports choosing Chrome/Edge plus a specific browser profile to better isolate sessions per connection
-- Signed Windows installers (EXE/MSI) via Azure Trusted Signing and repackaged portable ZIPs with signed binaries
-- Release metadata now records correct SHA256 and SHA512 hashes for stronger artifact integrity verification
-- macOS release pipeline notarizes and staples DMG/ZIP/PKG artifacts with improved signing verification steps
-- Dataverse API adds metadata CRUD operations and a `getCSDLDocument` helper for retrieving the OData CSDL document
-- Save dialogs support optional file-type filters with extension-based default filter derivation
-- Loading overlay positioning is fixed and includes a manual dismiss button
+- Global search command palette in the activity bar for faster navigation and commands
+- Tool details open as a tab (instead of a modal) for smoother browsing and install decisions
+- Tool version compatibility checking to prevent running incompatible tools
+- Marketplace content moved to Azure Blob storage for improved reliability and load performance
+- `pptb://` protocol handler to install tools directly from links
+- Connections: category filter/grouping plus environment color and browser-profile badges in selection modals
+- CSP exceptions: toolmakers can explain why an exception is needed with optional per-domain user consent
+- Update UX uses a themed in-app modal instead of native OS dialogs
 
 ## Fixes
 
-- Connections: hardened auth/session isolation to reduce cross-connection token and browser profile leakage
-- macOS notarization and stapling no longer skips artifacts and handles unavailable submission logs more reliably
-- macOS code signing verification avoids premature `spctl --assess` failures before notarization/stapling completes
-- Release workflows regenerate Windows update metadata with correct SHA256/SHA512 after signing
-- Tool filesystem reads/writes now enforce explicit user-consent access and reject unsafe/system paths
-- Connection and toolbox API handling is more robust for multi-connection scenarios and updated connection fields
-- Release workflow date formatting is consistent across jobs and platforms
+- Auto-update: "Restart & Install Now" now triggers the update correctly
+- Auto-update: update notification always-on-top behavior respects the configured option
+- Tools: tool tabs and launch logic correctly handle environment names in tab titles
+- Dataverse: entity collection bound actions/functions are handled correctly
+- Dataverse: date values in function parameters are formatted correctly
+- Notifications: toast behavior no longer forces always-on-top
 
 ## Developer & Build
 
-- `dataverseAPI` types expand with metadata CRUD operations and `getCSDLDocument`
-- `toolboxAPI.fileSystem.saveFile` supports filters and derives defaults from filename extensions
-- Added `BrowserManager` for browser detection and profile enumeration used by interactive auth flows
-- Signing/notarization scripts and workflows improved for multi-artifact pipelines and better diagnostics
+- Added `pptb-validate` CLI for pre-publish tool validation (`packages/bin/pptb-validate.js`)
+- Added CI workflow to publish `@pptb/types` with improved npm auth and environment isolation
+- Added build preflight checks to validate app version and ensure release notes are updated
+- Release workflows: refined versioning scheme and improved cross-platform artifact merge scripts
+- Telemetry: removed Sentry monitoring in favor of the centralized logger
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-1.1.3-Setup.exe
-- macOS: Power-Platform-ToolBox-1.1.3.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-1.1.3.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-1.2.0-Setup.exe
+- macOS: Power-Platform-ToolBox-1.2.0.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-1.2.0.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed; existing settings and connections continue to work.
-- Tool developers: filesystem reads/writes now require `toolboxAPI.fileSystem.selectPath()` or `saveFile()` to grant access.
+- Tool developers: run `pptb-validate` before publishing, and include clear CSP exception rationale for any requested domains.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.1.2...v1.1.3
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.1.3...v1.2.0

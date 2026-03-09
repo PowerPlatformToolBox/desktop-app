@@ -11,8 +11,134 @@ on:
         branches:
             - main
             - dev
+    workflow_dispatch:
 
 jobs:
+    preflight:
+        if: >
+            ${{ (github.event_name == 'pull_request' &&
+            github.base_ref == 'main') ||
+            github.event_name == 'workflow_dispatch' }}
+        runs-on: ubuntu-latest
+        permissions:
+            pull-requests: write
+        steps:
+            - name: Checkout PR branch
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Validate version bump and release notes
+              id: validate_release_notes
+              continue-on-error: true
+              shell: bash
+              run: |
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  if ! grep -q "^# Power Platform ToolBox $CURRENT_VERSION" RELEASE_NOTES.md; then
+                    echo "Error: RELEASE_NOTES.md does not contain heading '# Power Platform ToolBox $CURRENT_VERSION'."
+                    exit 1
+                  fi
+
+                  echo "Release notes validation passed for Power Platform ToolBox $CURRENT_VERSION."
+
+            - name: Validate @pptb/types version matches ToolBox version
+              id: validate_types_version
+              continue-on-error: true
+              shell: bash
+              run: |
+                  TOOLBOX_VERSION=$(node -p "require('./package.json').version")
+                  TYPES_VERSION=$(node -p "require('./packages/package.json').version")
+
+                  # Extract major.minor.patch from both versions (ignore pre-release tags)
+                  TOOLBOX_BASE=$(echo "$TOOLBOX_VERSION" | cut -d'-' -f1)
+                  TYPES_BASE=$(echo "$TYPES_VERSION" | cut -d'-' -f1)
+
+                  if [ "$TOOLBOX_BASE" != "$TYPES_BASE" ]; then
+                    echo "❌ Error: @pptb/types version ($TYPES_VERSION) does not match ToolBox version ($TOOLBOX_VERSION)"
+                    echo "The base version (major.minor.patch) must be identical for stable releases."
+                    echo ""
+                    echo "To fix this:"
+                    echo "1. Update packages/package.json version to match $TOOLBOX_VERSION"
+                    echo "2. Commit the change and push"
+                    exit 1
+                  fi
+
+                  echo "✅ Version validation passed: ToolBox $TOOLBOX_VERSION matches @pptb/types $TYPES_VERSION"
+
+            - name: Assert all preflight checks passed
+              id: assert
+              shell: bash
+              run: |
+                  ERRORS=()
+
+                  if [ "${{ steps.validate_release_notes.outcome }}" = "failure" ]; then
+                    ERRORS+=("  - RELEASE_NOTES.md is missing a heading for the current version")
+                  fi
+
+                  if [ "${{ steps.validate_types_version.outcome }}" = "failure" ]; then
+                    ERRORS+=("  - @pptb/types version (packages/package.json) does not match the ToolBox version")
+                  fi
+
+                  if [ ${#ERRORS[@]} -gt 0 ]; then
+                    echo "❌ Preflight failed with ${#ERRORS[@]} error(s):"
+                    for ERR in "${ERRORS[@]}"; do
+                      echo "$ERR"
+                    done
+                    exit 1
+                  fi
+
+                  echo "✅ All preflight checks passed."
+
+            - name: Comment on PR with failure reason
+              if: failure() && github.event_name == 'pull_request'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const outcomes = {
+                          validate_release_notes: '${{ steps.validate_release_notes.outcome }}',
+                          validate_types_version: '${{ steps.validate_types_version.outcome }}'
+                      };
+
+                      const failures = [];
+
+                      if (outcomes.validate_release_notes === 'failure') {
+                          failures.push(
+                              '### ❌ Release notes validation failed\n' +
+                              'The `RELEASE_NOTES.md` file does not contain a heading matching the current version in `package.json`.\n\n' +
+                              '**To fix:** Add a heading in `RELEASE_NOTES.md` that matches `# Power Platform ToolBox <version>`.'
+                          );
+                      }
+
+                      if (outcomes.validate_types_version === 'failure') {
+                          failures.push(
+                              '### ❌ @pptb/types version mismatch\n' +
+                              'The base version (`major.minor.patch`) in `packages/package.json` does not match the version in `package.json`.\n\n' +
+                              '**To fix:** Update `packages/package.json` so its version matches the ToolBox version.'
+                          );
+                      }
+
+                      const body = [
+                          '## 🚨 Preflight checks failed',
+                          '',
+                          'The following checks must pass before this PR can be merged into `main`:',
+                          '',
+                          ...failures,
+                          '',
+                          `> Triggered by commit ${context.sha.slice(0, 7)} — [view run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+                      ].join('\n');
+
+                      await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.issue.number,
+                          body
+                      });
+
     build:
         name: Build
         runs-on: ubuntu-latest
@@ -57,6 +183,6 @@ jobs:
             - name: Verify build output
               run: |
                   if [ "$RUNNER_OS" != "Windows" ]; then
-                    bash buildScripts/verify-build.sh
+                    bash buildScripts/sh/verify-build.sh
                   fi
               shell: bash
