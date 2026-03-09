@@ -1076,6 +1076,11 @@ export class DataverseManager {
             return value.toString();
         }
 
+        // Handle dates - convert to ISO string
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+
         // Handle string
         if (typeof value === "string") {
             // Check if it's a Dataverse enum value with Microsoft.Dynamics.CRM prefix
