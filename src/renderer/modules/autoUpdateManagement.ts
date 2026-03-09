@@ -94,7 +94,6 @@ async function showUpdateNotificationModal(type: "available" | "downloaded", ver
             html,
             width: UPDATE_NOTIFICATION_MODAL_WIDTH,
             height: UPDATE_NOTIFICATION_MODAL_HEIGHT,
-            alwaysOnTop: true,
         });
     } catch (_error) {
         onClosed();

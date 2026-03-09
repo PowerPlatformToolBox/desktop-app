@@ -34,7 +34,7 @@ export class LoadingOverlayWindowManager {
             height: 300,
             frame: false,
             transparent: true,
-            alwaysOnTop: true,
+            alwaysOnTop: false, // Don't set alwaysOnTop to avoid issues with other system modals (e.g. file dialogs)
             skipTaskbar: true,
             resizable: false,
             movable: false,
@@ -52,7 +52,7 @@ export class LoadingOverlayWindowManager {
             },
         });
         this.overlayWindow.setParentWindow(this.mainWindow);
-        
+
         // Handle close button click - hide the overlay instead of destroying it
         // Allow close during app shutdown to prevent blocking quit
         this.closeHandler = (e: Electron.Event) => {
@@ -63,7 +63,7 @@ export class LoadingOverlayWindowManager {
             // Otherwise allow close to proceed during shutdown
         };
         this.overlayWindow.on("close", this.closeHandler);
-        
+
         this.reloadContent();
         this.updateWindowBounds();
     }
@@ -71,12 +71,12 @@ export class LoadingOverlayWindowManager {
     /** Resize & reposition to cover the tool panel area (or entire window as fallback) */
     private updateWindowBounds(): void {
         if (!this.overlayWindow) return;
-        
+
         if (this.currentBounds) {
             // BrowserView bounds are relative to window content area (x, y from top-left of content)
             // We need to convert to screen coordinates for the overlay BrowserWindow
             const contentBounds = this.mainWindow.getContentBounds();
-            
+
             // Position overlay in screen coordinates
             this.overlayWindow.setBounds({
                 x: contentBounds.x + this.currentBounds.x,
@@ -107,7 +107,7 @@ export class LoadingOverlayWindowManager {
     private generateHTML(message: string): string {
         // Escape message to prevent HTML/script injection
         const escapedMessage = this.escapeHtml(message);
-        
+
         return `<!DOCTYPE html><html><head><meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
 <style>
@@ -140,7 +140,7 @@ body { display:flex; align-items:center; justify-content:center; position:relati
      */
     private escapeHtml(text: string): string {
         return text
-            .replace(/&/g, "&amp;")   // Must be first to avoid double-escaping
+            .replace(/&/g, "&amp;") // Must be first to avoid double-escaping
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
