@@ -40,6 +40,9 @@ export async function initializeApplication(): Promise<void> {
         // Set up sidebar buttons
         setupSidebarButtons();
 
+        // Set up inline search clear buttons
+        setupSidebarSearchClearButtons();
+
         // Set up debug section buttons
         setupDebugSection();
 
@@ -66,7 +69,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up global search command palette
         initializeGlobalSearch();
-
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
@@ -271,6 +273,39 @@ function setupSidebarButtons(): void {
             }
         });
     }
+}
+
+function setupSidebarSearchClearButtons(): void {
+    const clearButtons = document.querySelectorAll<HTMLButtonElement>(".search-clear-btn");
+
+    clearButtons.forEach((button) => {
+        const boundButton = button as HTMLButtonElement & { _pptbBound?: boolean };
+        if (boundButton._pptbBound) {
+            return;
+        }
+
+        boundButton._pptbBound = true;
+        button.addEventListener("click", () => {
+            const targetId = button.dataset.clearTarget;
+            if (!targetId) {
+                return;
+            }
+
+            const input = document.getElementById(targetId) as HTMLInputElement | null;
+            if (!input) {
+                return;
+            }
+
+            if (!input.value) {
+                input.focus();
+                return;
+            }
+
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.focus();
+        });
+    });
 }
 
 /**
