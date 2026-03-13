@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { logInfo, logWarn, logError } from "../../common/logger";
+import { logError, logInfo, logWarn } from "../../common/logger";
 
 /**
  * Protocol URL structure for tool installation
@@ -48,8 +48,23 @@ export class ProtocolHandlerManager {
     private recentProtocolRequests: number[] = [];
     private pendingUrls: string[] = [];
 
+    private readonly protocolEnabled: boolean;
+
     constructor() {
+        this.protocolEnabled = this.computeProtocolEnabled();
         logInfo("[ProtocolHandler] Initializing protocol handler manager");
+    }
+
+    private computeProtocolEnabled(): boolean {
+        const rawOverride = process.env.PPTB_ENABLE_PROTOCOL?.trim();
+        if (rawOverride !== undefined) {
+            const normalized = rawOverride.toLowerCase();
+            return normalized === "1" || normalized === "true" || normalized === "yes";
+        }
+
+        // Default behavior: only register/handle the OS-level pptb:// protocol when packaged.
+        // This prevents local development runs from hijacking/claiming the protocol handler.
+        return app.isPackaged;
     }
 
     /**
@@ -60,6 +75,11 @@ export class ProtocolHandlerManager {
         try {
             if (app.isReady()) {
                 logWarn("[ProtocolHandler] Warning: registerScheme called after app is ready. This may not work correctly.");
+            }
+
+            if (!this.protocolEnabled) {
+                logInfo("[ProtocolHandler] Skipping pptb:// protocol registration (local/dev run)");
+                return;
             }
 
             // Register the scheme as standard to allow query parameters
@@ -78,6 +98,13 @@ export class ProtocolHandlerManager {
      * no deep link is lost before the main window exists.
      */
     initialize(): void {
+        // If the protocol is disabled (e.g. local/dev run), we skip all protocol-related setup to avoid any risk of
+        // accidentally hijacking the protocol handler on a developer's machine.
+        if (!this.protocolEnabled) {
+            logInfo("[ProtocolHandler] pptb:// protocol disabled for local/dev run; skipping protocol event listeners");
+            return;
+        }
+
         // Acquire the single-instance lock as early as possible so a second launch
         // forwards its command line to the first instance and then quits.
         const gotTheLock = app.requestSingleInstanceLock();
@@ -123,6 +150,11 @@ export class ProtocolHandlerManager {
      * been created so that the callback can safely deliver IPC to the renderer.
      */
     setupProtocolHandler(callback: ProtocolHandlerCallback): void {
+        if (!this.protocolEnabled) {
+            logInfo("[ProtocolHandler] pptb:// protocol disabled; ignoring protocol handler setup");
+            return;
+        }
+
         this.protocolCallback = callback;
 
         // Process any URLs received before the callback was registered.
@@ -249,7 +281,7 @@ export class ProtocolHandlerManager {
                     return "&lt;";
                 case ">":
                     return "&gt;";
-                case "\"":
+                case '"':
                     return "&quot;";
                 case "'":
                     return "&#39;";
