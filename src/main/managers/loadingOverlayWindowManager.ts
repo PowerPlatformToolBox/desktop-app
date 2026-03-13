@@ -34,7 +34,7 @@ export class LoadingOverlayWindowManager {
             height: 300,
             frame: false,
             transparent: true,
-            alwaysOnTop: false, // Don't set alwaysOnTop to avoid covering system dialogs; we'll position it above the tool panel instead
+            alwaysOnTop: false, // Don't set alwaysOnTop to avoid issues with other system modals (e.g. file dialogs)
             skipTaskbar: true,
             resizable: false,
             movable: false,
