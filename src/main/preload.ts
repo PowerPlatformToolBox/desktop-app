@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
+        showContextMenu: (request: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_CONTEXT_MENU, request),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {

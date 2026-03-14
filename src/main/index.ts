@@ -24,6 +24,7 @@ import {
     MetadataOperationOptions,
     ModalWindowMessagePayload,
     ModalWindowOptions,
+    NativeContextMenuRequest,
     ToolBoxEvent,
 } from "../common/types";
 import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
@@ -292,6 +293,7 @@ class ToolBoxApp {
 
         // Notification and utility handlers
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_CONTEXT_MENU);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
@@ -897,6 +899,44 @@ class ToolBoxApp {
         // Notification handler
         ipcMain.handle(UTIL_CHANNELS.SHOW_NOTIFICATION, (_, options) => {
             this.api.showNotification(options);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SHOW_CONTEXT_MENU, async (event, request: NativeContextMenuRequest) => {
+            const window = BrowserWindow.fromWebContents(event.sender) || this.mainWindow;
+            if (!window || !request || !Array.isArray(request.items) || request.items.length === 0) {
+                return null;
+            }
+
+            return await new Promise<string | null>((resolve) => {
+                let settled = false;
+                const settle = (value: string | null) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    resolve(value);
+                };
+
+                const template: MenuItemConstructorOptions[] = request.items.map((item) => {
+                    if (item.type === "separator") {
+                        return { type: "separator" };
+                    }
+
+                    return {
+                        label: item.label || "",
+                        enabled: item.enabled !== false,
+                        click: () => settle(item.id),
+                    };
+                });
+
+                const menu = Menu.buildFromTemplate(template);
+                menu.popup({
+                    window,
+                    x: Number.isFinite(request.x) ? Math.round(request.x as number) : undefined,
+                    y: Number.isFinite(request.y) ? Math.round(request.y as number) : undefined,
+                    callback: () => settle(null),
+                });
+            });
         });
 
         // BrowserWindow modal handlers

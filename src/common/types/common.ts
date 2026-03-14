@@ -55,6 +55,25 @@ export interface NotificationOptions {
 }
 
 /**
+ * Native context menu item configuration for Electron-hosted menus
+ */
+export interface NativeContextMenuItem {
+    id: string;
+    label?: string;
+    enabled?: boolean;
+    type?: "normal" | "separator";
+}
+
+/**
+ * Request payload for showing a native context menu in the main process
+ */
+export interface NativeContextMenuRequest {
+    items: NativeContextMenuItem[];
+    x?: number;
+    y?: number;
+}
+
+/**
  * File dialog filter definition (mirrors Electron's FileFilter type)
  */
 export interface FileDialogFilter {
