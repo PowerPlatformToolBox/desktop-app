@@ -55,6 +55,45 @@ export interface NotificationOptions {
 }
 
 /**
+ * Native context menu item configuration for Electron-hosted menus
+ * Normal items require id and label. Separators only require type: "separator".
+ */
+export interface NativeContextMenuNormalItem {
+    id: string;
+    label: string;
+    enabled?: boolean;
+    /**
+     * Optional type for normal items. When omitted, the item is treated as a normal menu item.
+     */
+    type?: "normal";
+}
+
+export interface NativeContextMenuSeparatorItem {
+    type: "separator";
+    enabled?: boolean;
+}
+
+export type NativeContextMenuItem = NativeContextMenuNormalItem | NativeContextMenuSeparatorItem;
+
+/**
+ * Request payload for showing a native context menu in the main process
+ */
+export interface NativeContextMenuRequest {
+    /**
+     * Menu items to display in the native context menu.
+     */
+    items: NativeContextMenuItem[];
+    /**
+     * Optional horizontal position for the menu in client coordinates (relative to the renderer window).
+     */
+    x?: number;
+    /**
+     * Optional vertical position for the menu in client coordinates (relative to the renderer window).
+     */
+    y?: number;
+}
+
+/**
  * File dialog filter definition (mirrors Electron's FileFilter type)
  */
 export interface FileDialogFilter {

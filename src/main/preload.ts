@@ -85,7 +85,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
@@ -112,6 +113,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
+        showContextMenu: (request: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_CONTEXT_MENU, request),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {

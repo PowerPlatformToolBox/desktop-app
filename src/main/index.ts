@@ -24,6 +24,7 @@ import {
     MetadataOperationOptions,
     ModalWindowMessagePayload,
     ModalWindowOptions,
+    NativeContextMenuRequest,
     ToolBoxEvent,
 } from "../common/types";
 import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
@@ -292,6 +293,7 @@ class ToolBoxApp {
 
         // Notification and utility handlers
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_CONTEXT_MENU);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
@@ -897,6 +899,50 @@ class ToolBoxApp {
         // Notification handler
         ipcMain.handle(UTIL_CHANNELS.SHOW_NOTIFICATION, (_, options) => {
             this.api.showNotification(options);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SHOW_CONTEXT_MENU, async (event, request: NativeContextMenuRequest) => {
+            const window = BrowserWindow.fromWebContents(event.sender) || this.mainWindow;
+            if (!window || !request || !Array.isArray(request.items) || request.items.length === 0) {
+                return null;
+            }
+
+            return await new Promise<string | null>((resolve) => {
+                let settled = false;
+                const settle = (value: string | null) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    resolve(value);
+                };
+
+                const template: MenuItemConstructorOptions[] = request.items.map((item) => {
+                    if (item.type === "separator") {
+                        return { type: "separator" };
+                    }
+
+                    return {
+                        label: item.label || "",
+                        enabled: item.enabled !== false,
+                        click: () => settle(item.id),
+                    };
+                });
+
+                const menu = Menu.buildFromTemplate(template);
+                const popupOptions: Electron.PopupOptions = {
+                    window,
+                    callback: () => settle(null),
+                };
+
+                if (typeof request.x === "number" && typeof request.y === "number") {
+                    const contentBounds = window.getContentBounds();
+                    popupOptions.x = Math.round(contentBounds.x + request.x);
+                    popupOptions.y = Math.round(contentBounds.y + request.y);
+                }
+
+                menu.popup(popupOptions);
+            });
         });
 
         // BrowserWindow modal handlers
