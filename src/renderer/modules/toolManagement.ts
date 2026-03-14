@@ -85,7 +85,6 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
     }
 
     try {
-        const { openSelectConnectionModal } = await import("./connectionManagement");
         const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId);
 
         if (!selectedConnectionId) {
