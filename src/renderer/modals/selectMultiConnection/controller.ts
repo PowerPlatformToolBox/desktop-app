@@ -38,6 +38,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
     const cancelButton = document.getElementById("cancel-select-multi-connection-btn");
     const closeButton = document.getElementById("close-select-multi-connection-modal");
     const searchInput = document.getElementById("multi-connection-search");
+    const searchClearButton = document.getElementById("multi-connection-search-clear");
     const envFilter = document.getElementById("multi-connection-env-filter");
     const authFilter = document.getElementById("multi-connection-auth-filter");
     const categoryFilter = document.getElementById("multi-connection-category-filter");
@@ -421,6 +422,21 @@ ${sortingUtilities}
             }
         });
     }
+
+    searchClearButton?.addEventListener('click', () => {
+        if (!(searchInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (!searchInput.value) {
+            searchInput.focus();
+            return;
+        }
+
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.focus();
+    });
 
     // Setup filter event listeners
     searchInput?.addEventListener('input', () => renderConnections(allConnections));
