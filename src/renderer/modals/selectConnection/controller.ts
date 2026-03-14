@@ -372,7 +372,7 @@ ${sortingUtilities}
         });
     }
 
-    searchClearButton?.addEventListener('click', () => {
+    const handleSearchClearClick = () => {
         if (!(searchInput instanceof HTMLInputElement)) {
             return;
         }
@@ -382,17 +382,19 @@ ${sortingUtilities}
             return;
         }
 
-        searchInput.value = '';
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.value = "";
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
         searchInput.focus();
-    });
+    };
+
+    searchClearButton?.addEventListener("click", handleSearchClearClick);
 
     // Setup filter event listeners
-    searchInput?.addEventListener('input', () => renderConnections(allConnections));
-    envFilter?.addEventListener('change', () => renderConnections(allConnections));
-    authFilter?.addEventListener('change', () => renderConnections(allConnections));
-    categoryFilter?.addEventListener('change', () => renderConnections(allConnections));
-    sortSelect?.addEventListener('change', () => {
+    searchInput?.addEventListener("input", () => renderConnections(allConnections));
+    envFilter?.addEventListener("change", () => renderConnections(allConnections));
+    authFilter?.addEventListener("change", () => renderConnections(allConnections));
+    categoryFilter?.addEventListener("change", () => renderConnections(allConnections));
+    sortSelect?.addEventListener("change", () => {
         injectedSortOption = sanitizeSortOption(sortSelect.value);
         renderConnections(allConnections);
     });
