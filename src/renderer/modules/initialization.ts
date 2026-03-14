@@ -275,6 +275,10 @@ function setupSidebarButtons(): void {
     }
 }
 
+/**
+ * Set up clear buttons for sidebar search inputs
+ * Binds click handlers so clear buttons reset and refocus their target inputs
+ */
 function setupSidebarSearchClearButtons(): void {
     const clearButtons = document.querySelectorAll<HTMLButtonElement>(".search-clear-btn");
 
