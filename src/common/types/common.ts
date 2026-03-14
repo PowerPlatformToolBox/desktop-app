@@ -56,13 +56,24 @@ export interface NotificationOptions {
 
 /**
  * Native context menu item configuration for Electron-hosted menus
+ * Normal items require id and label. Separators only require type: "separator".
  */
-export interface NativeContextMenuItem {
+export interface NativeContextMenuNormalItem {
     id: string;
-    label?: string;
+    label: string;
     enabled?: boolean;
-    type?: "normal" | "separator";
+    /**
+     * Optional type for normal items. When omitted, the item is treated as a normal menu item.
+     */
+    type?: "normal";
 }
+
+export interface NativeContextMenuSeparatorItem {
+    type: "separator";
+    enabled?: boolean;
+}
+
+export type NativeContextMenuItem = NativeContextMenuNormalItem | NativeContextMenuSeparatorItem;
 
 /**
  * Request payload for showing a native context menu in the main process
