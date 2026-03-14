@@ -3,7 +3,6 @@ import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, loadEnv } from "vite";
 import electron from "vite-plugin-electron/simple";
-import packageJson from "./package.json";
 
 export default defineConfig(({ mode }) => {
     const isProd = mode === "production";
@@ -17,6 +16,7 @@ export default defineConfig(({ mode }) => {
     const supabaseUrl = env.SUPABASE_URL || process.env.SUPABASE_URL || "";
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
     const azureBlobBaseUrl = env.AZURE_BLOB_BASE_URL || process.env.AZURE_BLOB_BASE_URL || "";
+    const updatesOrigin = env.PPTB_UPDATES_ORIGIN || process.env.PPTB_UPDATES_ORIGIN || "https://www.powerplatformtoolbox.com";
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
         "process.env.SUPABASE_URL": JSON.stringify(supabaseUrl),
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
         "process.env.AZURE_BLOB_BASE_URL": JSON.stringify(azureBlobBaseUrl),
+        "process.env.PPTB_UPDATES_ORIGIN": JSON.stringify(updatesOrigin),
     };
 
     return {

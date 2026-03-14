@@ -16,6 +16,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -26,7 +27,6 @@ import {
     ModalWindowOptions,
     ToolBoxEvent,
 } from "../common/types";
-import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -195,6 +195,9 @@ class ToolBoxApp {
         });
 
         this.autoUpdateManager.on("update-downloaded", (info) => {
+            // Record that an auto-update is pending installation so we can auto-open
+            // the What's New tab after the next restart into the new version.
+            this.settingsManager.setSetting("pendingWhatsNewVersion", info.version);
             this.api.showNotification({
                 title: "Update Ready",
                 body: `Version ${info.version} has been downloaded and will be installed on restart.`,
@@ -2024,6 +2027,12 @@ class ToolBoxApp {
                             this.showTroubleshootingModal();
                         },
                     },
+                    {
+                        label: "What's New",
+                        click: () => {
+                            this.sendWhatsNewRequest("menu");
+                        },
+                    },
                     { type: "separator" },
                     {
                         label: "Learn More",
@@ -2183,6 +2192,34 @@ class ToolBoxApp {
         this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
     }
 
+    private sendWhatsNewRequest(source: "menu" | "auto-update", version?: string): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:show-whats-new",
+            data: {
+                source,
+                ...(version ? { version } : {}),
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+            }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
+        }
+    }
+
     /**
      * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
      * This method cancels any pending menu recreation and schedules a new one after a short delay.
@@ -2266,6 +2303,11 @@ class ToolBoxApp {
         // Load the index.html
         this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 
+        // After the renderer is ready, auto-open What's New if an auto-update was installed.
+        this.mainWindow.webContents.once("did-finish-load", () => {
+            this.openWhatsNewIfPending();
+        });
+
         // Open DevTools in development
         if (process.env.NODE_ENV === "development") {
             this.mainWindow.webContents.openDevTools();
@@ -2320,6 +2362,22 @@ class ToolBoxApp {
 
         // Send message to renderer to open the troubleshooting modal
         this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    private openWhatsNewIfPending(): void {
+        const pendingVersion = this.settingsManager.getSetting("pendingWhatsNewVersion");
+        if (!pendingVersion || typeof pendingVersion !== "string" || pendingVersion.trim().length === 0) {
+            return;
+        }
+
+        const currentVersion = app.getVersion();
+        if (pendingVersion.trim() !== currentVersion) {
+            return;
+        }
+
+        // Clear first so the tab only auto-opens once.
+        this.settingsManager.setSetting("pendingWhatsNewVersion", null);
+        this.sendWhatsNewRequest("auto-update", currentVersion);
     }
 
     /**
