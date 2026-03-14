@@ -423,19 +423,23 @@ ${sortingUtilities}
         });
     }
 
+    const handleSearchClearButtonClick = (inputElement) => {
+        if (!(inputElement instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (!inputElement.value) {
+            inputElement.focus();
+            return;
+        }
+
+        inputElement.value = '';
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        inputElement.focus();
+    };
+
     searchClearButton?.addEventListener('click', () => {
-        if (!(searchInput instanceof HTMLInputElement)) {
-            return;
-        }
-
-        if (!searchInput.value) {
-            searchInput.focus();
-            return;
-        }
-
-        searchInput.value = '';
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        searchInput.focus();
+        handleSearchClearButtonClick(searchInput);
     });
 
     // Setup filter event listeners
