@@ -26,7 +26,10 @@ export function getSelectConnectionModalView(isDarkTheme: boolean): ModalViewTem
         </div>
         <div class="modal-search-container">
             <div class="modal-search-bar">
-                <input type="text" id="select-connection-search" class="modal-search-input" placeholder="Search connections..." />
+                <div class="modal-search-input-wrapper">
+                    <input type="text" id="select-connection-search" class="modal-search-input" placeholder="Search connections..." />
+                    <button type="button" id="select-connection-search-clear" class="modal-search-clear-btn" aria-label="Clear connection search" title="Clear search">&times;</button>
+                </div>
                 <button type="button" id="select-connection-filter-btn" class="modal-search-filter-btn" aria-label="Filters and sorting" aria-haspopup="true" aria-expanded="false" aria-controls="select-connection-filter-dropdown">
                     <svg class="modal-filter-icon" viewBox="0 0 24 24" focusable="false">
                         <path d="M4 5h16l-6 7v5l-4 2v-7z" stroke-linejoin="round"></path>

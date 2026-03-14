@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
@@ -51,7 +51,10 @@
                         <h2 class="sidebar-title">INSTALLED</h2>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="tools-search-input" aria-label="Clear installed tools search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="tools-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -97,7 +100,10 @@
                         <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="connections-search-input" class="search-input" placeholder="Search connections..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="connections-search-input" class="search-input" placeholder="Search connections..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="connections-search-input" aria-label="Clear connections search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="connections-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -154,7 +160,10 @@
                         <h2 class="sidebar-title">MARKETPLACE</h2>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="marketplace-search-input" aria-label="Clear marketplace search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="marketplace-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -433,7 +442,7 @@
                             <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
                         </div>
                         <!-- Tool detail tab content panel (rendered inline, shown when a detail tab is active) -->
-                        <div id="tool-detail-content-panel" style="display:none"></div>
+                        <div id="tool-detail-content-panel" style="display: none"></div>
                     </div>
                     <!-- Terminal Panel -->
                     <div class="terminal-panel" id="terminal-panel" style="display: none">
