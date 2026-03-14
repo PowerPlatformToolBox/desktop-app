@@ -69,8 +69,6 @@ export interface NativeContextMenuItem {
  */
 export interface NativeContextMenuRequest {
     items: NativeContextMenuItem[];
-    x?: number;
-    y?: number;
 }
 
 /**
