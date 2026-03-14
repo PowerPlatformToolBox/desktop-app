@@ -3,6 +3,7 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
+import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -11,14 +12,13 @@ import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { showPPTBNotification, setDefaultNotificationDuration } from "./notifications";
+import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { saveSidebarSettings } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
-import { logInfo, logWarn, logError, logCheckpoint } from "../../common/logger";
 
 /**
  * Initialize the application
@@ -66,7 +66,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up global search command palette
         initializeGlobalSearch();
-
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
@@ -633,6 +632,16 @@ function setupToolboxEventListeners(): void {
             } else {
                 logWarn("Menu launch event missing toolId", { payload });
             }
+            return;
+        }
+
+        if (payload.event === "menu:show-whats-new") {
+            const versionOverride = typeof payload.data?.version === "string" ? payload.data.version : undefined;
+            import("./whatsNewManagement")
+                .then(({ openWhatsNewTab }) => openWhatsNewTab(versionOverride))
+                .catch((err) => {
+                    logError(err instanceof Error ? err : new Error(String(err)));
+                });
             return;
         }
 
