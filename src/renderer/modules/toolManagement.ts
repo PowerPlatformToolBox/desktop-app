@@ -119,7 +119,7 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
                 { id: "close-current", label: "Close Tab", enabled: canCloseCurrent },
                 { id: "close-others", label: "Close Other Tabs", enabled: closableOtherTabIds.length > 0 },
                 { id: "close-all", label: "Close All Tabs", enabled: closableTabIds.length > 0 },
-                { id: "separator-close", type: "separator" },
+                { type: "separator" },
                 { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
                 { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
                 { id: "change-connection", label: "Change Connection", enabled: canManageTab },
