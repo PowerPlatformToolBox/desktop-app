@@ -932,8 +932,6 @@ class ToolBoxApp {
                 const menu = Menu.buildFromTemplate(template);
                 menu.popup({
                     window,
-                    x: Number.isFinite(request.x) ? Math.round(request.x as number) : undefined,
-                    y: Number.isFinite(request.y) ? Math.round(request.y as number) : undefined,
                     callback: () => settle(null),
                 });
             });
