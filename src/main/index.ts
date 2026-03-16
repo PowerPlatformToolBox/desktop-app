@@ -935,12 +935,6 @@ class ToolBoxApp {
                     callback: () => settle(null),
                 };
 
-                if (typeof request.x === "number" && typeof request.y === "number") {
-                    const contentBounds = window.getContentBounds();
-                    popupOptions.x = Math.round(contentBounds.x + request.x);
-                    popupOptions.y = Math.round(contentBounds.y + request.y);
-                }
-
                 menu.popup(popupOptions);
             });
         });
