@@ -101,6 +101,13 @@ export default defineConfig(({ mode }) => {
             //         buildMode: true,
             //     },
             // }),
+            // Plugin to inject the configured PPTB_UPDATES_ORIGIN into the CSP meta tag at build time
+            {
+                name: "inject-csp-updates-origin",
+                transformIndexHtml(html: string) {
+                    return html.replace(/__PPTB_UPDATES_ORIGIN__/g, updatesOrigin);
+                },
+            },
             // Custom plugin to reorganize output and copy static assets
             {
                 name: "reorganize-output",
