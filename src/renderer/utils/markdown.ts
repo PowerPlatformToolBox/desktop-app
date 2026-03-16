@@ -1,9 +1,5 @@
 import { marked } from "marked";
-
-// Keep the escaping local so markdown rendering is safe even when content is remote.
-function escapeHtml(text: string): string {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-}
+import { escapeHtml } from "./toolIconResolver";
 
 function isAllowedLink(href: string): boolean {
     const trimmed = href.trim().toLowerCase();
