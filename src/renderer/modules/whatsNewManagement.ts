@@ -13,6 +13,7 @@ const WHATS_NEW_TITLE = "Check out what's new in this version";
 const UPDATES_ORIGIN = process.env.PPTB_UPDATES_ORIGIN || "https://www.powerplatformtoolbox.com";
 const UPDATES_WEBSITE_PATH = "/updates";
 const UPDATES_MARKDOWN_PATH = "/api/updates";
+const UPDATES_INSIDER_SLUG = "insider";
 
 function normalizeOrigin(origin: string): string {
     const trimmed = origin.trim();
@@ -35,13 +36,18 @@ function toUpdatesSlug(version: string): string {
     return `v${underscored}`;
 }
 
+function isInsiderVersion(version: string): boolean {
+    // Insider releases are identified by a -dev. segment in the version string, e.g. 1.2.3-dev.4
+    return /-dev\./i.test(version);
+}
+
 function buildWhatsNewWebsiteUrl(version: string): string {
-    const slug = toUpdatesSlug(version);
+    const slug = isInsiderVersion(version) ? UPDATES_INSIDER_SLUG : toUpdatesSlug(version);
     return `${normalizeOrigin(UPDATES_ORIGIN)}${UPDATES_WEBSITE_PATH}/${encodeURIComponent(slug)}`;
 }
 
 function buildWhatsNewMarkdownUrl(version: string): string {
-    const slug = toUpdatesSlug(version);
+    const slug = isInsiderVersion(version) ? UPDATES_INSIDER_SLUG : toUpdatesSlug(version);
     return `${normalizeOrigin(UPDATES_ORIGIN)}${UPDATES_MARKDOWN_PATH}/${encodeURIComponent(slug)}`;
 }
 
@@ -55,6 +61,7 @@ function formatError(error: unknown): string {
 export async function openWhatsNewTab(versionOverride?: string): Promise<void> {
     const version = versionOverride || ((await window.toolboxAPI.getAppVersion().catch(() => "")) as string) || "";
     const normalizedVersion = version ? normalizeVersion(version) : "";
+    const isInsider = normalizedVersion ? isInsiderVersion(normalizedVersion) : false;
     const websiteUrl = normalizedVersion ? buildWhatsNewWebsiteUrl(normalizedVersion) : "";
     const markdownUrl = normalizedVersion ? buildWhatsNewMarkdownUrl(normalizedVersion) : "";
 
@@ -62,7 +69,7 @@ export async function openWhatsNewTab(versionOverride?: string): Promise<void> {
         WHATS_NEW_TAB_ID,
         WHATS_NEW_TAB_TITLE,
         (panel) => {
-            const versionLabel = normalizedVersion ? `Version ${normalizedVersion}` : "Release Notes";
+            const versionLabel = normalizedVersion ? (isInsider ? `Insider (${normalizedVersion})` : `Version ${normalizedVersion}`) : "Release Notes";
             const linkMarkup = websiteUrl ? `<a class="tool-detail-tab-link" href="${websiteUrl}" data-url="${websiteUrl}">Open on website</a>` : "";
 
             panel.innerHTML = `
