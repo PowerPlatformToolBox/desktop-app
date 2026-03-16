@@ -3,14 +3,14 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import type { DataverseConnection } from "../../common/types/connection";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
+import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -446,8 +446,9 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
  * @param tabId Unique identifier for the tab (e.g., "tool-detail-{toolId}")
  * @param displayName Name shown on the tab
  * @param renderContent Callback that populates the detail panel with content
+ * @param tabLabelSuffix Text appended to the display name for the tab label and tooltip. Defaults to " - Details" to visually distinguish detail tabs from regular tool tabs.
  */
-export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void): Promise<void> {
+export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void, tabLabelSuffix = " - Details"): Promise<void> {
     // If this tool's detail tab is already open, just switch to it
     if (openTools.has(tabId)) {
         // Refresh content in case install state changed
@@ -475,8 +476,8 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
 
     const name = document.createElement("span");
     name.className = "tool-tab-name";
-    name.textContent = `${displayName} - Details`;
-    name.title = `${displayName} - Details`;
+    name.textContent = `${displayName}${tabLabelSuffix}`;
+    name.title = `${displayName}${tabLabelSuffix}`;
     tab.appendChild(name);
 
     const closeBtn = document.createElement("button");
@@ -993,7 +994,13 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         }
 
                         // Update tool panel border based on both primary and secondary environment
-                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment, primaryConnection.environmentColor, secondaryConnection.environmentColor, primaryConnection.categoryColor);
+                        updateToolPanelBorder(
+                            primaryConnection.environment,
+                            secondaryConnection.environment,
+                            primaryConnection.environmentColor,
+                            secondaryConnection.environmentColor,
+                            primaryConnection.categoryColor,
+                        );
                         return;
                     }
                 } else {
@@ -1074,7 +1081,13 @@ function getEnvBorderColor(environment: string): string {
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null, environmentColor?: string | null, secondaryEnvironmentColor?: string | null, categoryColor?: string | null): void {
+function updateToolPanelBorder(
+    environment: string | null,
+    secondaryEnvironment?: string | null,
+    environmentColor?: string | null,
+    secondaryEnvironmentColor?: string | null,
+    categoryColor?: string | null,
+): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
