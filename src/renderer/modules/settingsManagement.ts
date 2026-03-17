@@ -26,6 +26,7 @@ export async function loadSidebarSettings(): Promise<void> {
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const httpProxyInput = document.getElementById("sidebar-http-proxy-input") as HTMLInputElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -39,6 +40,7 @@ export async function loadSidebarSettings(): Promise<void> {
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
+            httpProxy: settings.httpProxy ?? "",
         };
 
         themeSelect.value = settings.theme;
@@ -49,6 +51,10 @@ export async function loadSidebarSettings(): Promise<void> {
 
         if (notificationDurationSelect) {
             notificationDurationSelect.value = String(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
+        }
+
+        if (httpProxyInput) {
+            httpProxyInput.value = settings.httpProxy ?? "";
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
@@ -90,6 +96,7 @@ export async function saveSidebarSettings(): Promise<void> {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const httpProxyInput = document.getElementById("sidebar-http-proxy-input") as HTMLInputElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -101,6 +108,7 @@ export async function saveSidebarSettings(): Promise<void> {
     }
 
     const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : 5000;
+    const httpProxy = httpProxyInput ? httpProxyInput.value.trim() : "";
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -110,6 +118,7 @@ export async function saveSidebarSettings(): Promise<void> {
         toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
         notificationDuration,
+        httpProxy,
     };
 
     // Only include changed settings in the update
@@ -135,6 +144,9 @@ export async function saveSidebarSettings(): Promise<void> {
     }
     if (currentSettings.notificationDuration !== originalSettings.notificationDuration) {
         changedSettings.notificationDuration = currentSettings.notificationDuration;
+    }
+    if (currentSettings.httpProxy !== originalSettings.httpProxy) {
+        changedSettings.httpProxy = currentSettings.httpProxy;
     }
 
     // Only save and emit event if something changed

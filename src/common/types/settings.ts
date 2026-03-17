@@ -84,6 +84,7 @@ export interface UserSettings {
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
+    httpProxy?: string; // HTTP proxy URL (e.g. http://user:pass@host:port), empty string means no proxy
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;

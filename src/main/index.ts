@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, session, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
 import * as http from "http";
@@ -396,6 +396,10 @@ class ToolBoxApp {
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
+            // Apply proxy immediately if the httpProxy setting changed
+            if ("httpProxy" in settings) {
+                this.applyProxySettings(settings.httpProxy ?? "");
+            }
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_SETTING, (_, key) => {
@@ -2421,6 +2425,34 @@ class ToolBoxApp {
     }
 
     /**
+     * Apply HTTP proxy settings to the Electron session and Node.js environment variables.
+     * @param proxyUrl - Proxy URL (e.g. "http://user:pass@host:port") or empty string to clear.
+     */
+    private applyProxySettings(proxyUrl: string): void {
+        const trimmed = proxyUrl.trim();
+        if (trimmed) {
+            // Redact credentials from URL before logging
+            const redacted = trimmed.replace(/:\/\/([^:@]+:[^@]+@)/, "://<redacted>@");
+            // Configure Chromium-based network requests (renderer, BrowserViews)
+            session.defaultSession.setProxy({ proxyRules: trimmed }).catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+            // Configure Node.js native network requests (main process fetch, http, https)
+            process.env.HTTP_PROXY = trimmed;
+            process.env.HTTPS_PROXY = trimmed;
+            logInfo(`[Proxy] HTTP proxy configured: ${redacted}`);
+        } else {
+            // Clear proxy — use direct connection
+            session.defaultSession.setProxy({ proxyRules: "" }).catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+            delete process.env.HTTP_PROXY;
+            delete process.env.HTTPS_PROXY;
+            logInfo("[Proxy] HTTP proxy cleared — using direct connection");
+        }
+    }
+
+    /**
      * Check Supabase connectivity
      * Tests if the Supabase API is accessible
      */
@@ -2775,6 +2807,12 @@ class ToolBoxApp {
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
+
+            // Apply saved proxy settings before any network requests (apply even if empty to clear any env vars)
+            const savedProxy = this.settingsManager.getSetting("httpProxy");
+            if (savedProxy !== undefined) {
+                this.applyProxySettings(savedProxy);
+            }
 
             this.createWindow();
             logCheckpoint("Main window created");
