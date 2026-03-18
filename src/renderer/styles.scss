@@ -5193,15 +5193,9 @@ body.dark-theme .global-search-item-badge.badge-settings {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
-    transition: opacity 0.15s ease, background 0.15s ease;
+    transition: background 0.15s ease;
     flex-shrink: 0;
     color: var(--text-secondary, rgba(0, 0, 0, 0.6));
-}
-
-.connection-group-header:hover .connection-group-export-btn,
-.connection-group-export-btn:focus-visible {
-    opacity: 1;
 }
 
 .connection-group-export-btn:hover {

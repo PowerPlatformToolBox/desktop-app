@@ -100,6 +100,12 @@ export function updateConnectionIconsForTheme(): void {
     if (exportIcon) {
         exportIcon.src = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
     }
+
+    // Update category group export icons
+    const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
+    document.querySelectorAll(".connection-group-export-icon").forEach((img) => {
+        (img as HTMLImageElement).src = exportIconPath;
+    });
 }
 
 /**
