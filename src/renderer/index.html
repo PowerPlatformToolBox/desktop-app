@@ -388,6 +388,20 @@
 
                             <section class="settings-section-card">
                                 <div class="settings-section-header">
+                                    <p class="settings-section-eyebrow">Network</p>
+                                    <p class="settings-section-description">Configure a proxy server for all internet connections made by ToolBox.</p>
+                                </div>
+                                <div class="settings-section-body">
+                                    <div class="settings-field">
+                                        <label class="setting-label" for="sidebar-http-proxy-input">HTTP Proxy</label>
+                                        <input type="text" id="sidebar-http-proxy-input" class="fluent-input" placeholder="http://user:password@host:port" />
+                                        <span class="setting-hint">Leave empty for a direct connection. Format: <code>http://user:password@host:port</code>. Credentials are stored in plain text in local settings. Applies to all ToolBox network requests on save.</span>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="settings-section-card">
+                                <div class="settings-section-header">
                                     <p class="settings-section-eyebrow">Updates</p>
                                     <p class="settings-section-description">Check for the latest version of Power Platform ToolBox.</p>
                                 </div>

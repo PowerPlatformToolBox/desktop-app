@@ -40,6 +40,7 @@ const SETTINGS_ENTRIES: Array<{ name: string; description: string; focusId?: str
     { name: "Terminal Font", description: "Customize the integrated terminal font", focusId: "sidebar-terminal-font-select" },
     { name: "Deprecated Tools", description: "Control visibility of deprecated tools", focusId: "sidebar-deprecated-tools-select" },
     { name: "Tool Display Mode", description: "Choose standard or compact tool display", focusId: "sidebar-tool-display-mode-select" },
+    { name: "HTTP Proxy", description: "Configure a proxy server for internet connections", focusId: "sidebar-http-proxy-input" },
     { name: "Connections", description: "Manage Dataverse connections" },
     { name: "Installed Tools", description: "Browse installed tools" },
     { name: "Marketplace", description: "Browse and install tools from the marketplace" },
