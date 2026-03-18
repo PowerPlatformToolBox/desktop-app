@@ -4,6 +4,7 @@
  */
 
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -28,8 +29,19 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
+        // Signal the main process that the renderer is starting fresh so it can clean up
+        // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
+        // This must be the very first IPC call so the cleanup happens before session restore.
+        window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
+
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
+
+        // Register the tool panel bounds listener early so it is available when tools are
+        // launched during session restore (restoreSession runs below).  Previously this was
+        // called after restoreSession which meant the main process could not get correct
+        // BrowserView bounds during session restore, causing tools to fill the whole window.
+        setupToolPanelBoundsListener();
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -116,9 +128,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up toolbox event listeners
         setupToolboxEventListeners();
-
-        // Handle request for tool panel bounds (for BrowserView positioning)
-        setupToolPanelBoundsListener();
 
         // Set up filter dropdown toggles for VSCode-style UI
         setupFilterDropdownToggles();

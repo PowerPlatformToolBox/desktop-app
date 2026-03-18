@@ -84,6 +84,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
     HIDE_ALL: "tool-window:hide-all",
+    RENDERER_INITIALIZED: "tool-window:renderer-initialized",
 } as const;
 
 // Terminal-related IPC channels

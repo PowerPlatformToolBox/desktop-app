@@ -58,6 +58,7 @@ export class ToolWindowManager {
     private refreshBoundsListener: () => void;
     private focusListener: () => void;
     private showListener: () => void;
+    private rendererInitializedListener: () => void;
     private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
 
     constructor(
@@ -106,6 +107,10 @@ export class ToolWindowManager {
             this.scheduleBoundsUpdate();
             setTimeout(() => this.scheduleBoundsUpdate(), 140);
             setTimeout(() => this.scheduleBoundsUpdate(), 280);
+        };
+        this.rendererInitializedListener = () => {
+            logInfo("[ToolWindowManager] Renderer initialized signal received – cleaning up stale tool views.");
+            this.closeAllToolViews();
         };
         this.setupIpcHandlers();
     }
@@ -173,6 +178,12 @@ export class ToolWindowManager {
 
         // Restore renderer-provided bounds flow
         ipcMain.on("get-tool-panel-bounds-response", this.boundsResponseListener);
+
+        // Handle renderer re-initialization (e.g. after Cmd+Shift+R reload).
+        // When the renderer sends this signal it is starting fresh, so any stale
+        // BrowserViews from the previous session must be destroyed before new ones
+        // are created by the incoming session restore.
+        ipcMain.on(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED, this.rendererInitializedListener);
 
         // Update tool window bounds on common window state changes
         this.mainWindow.on("resize", this.refreshBoundsListener);
@@ -556,6 +567,39 @@ export class ToolWindowManager {
     }
 
     /**
+     * Destroy all open BrowserViews and reset tool state without touching IPC/window listeners.
+     * Called when the renderer re-initialises (e.g. after a force-reload) so that stale views
+     * from the previous session are cleaned up before the new session creates fresh ones.
+     */
+    private closeAllToolViews(): void {
+        try {
+            this.mainWindow.setBrowserView(null);
+        } catch (error) {
+            logError("[ToolWindowManager] Error clearing active BrowserView during closeAllToolViews", error);
+        }
+
+        this.activeToolId = null;
+        this.boundsUpdatePending = false;
+        this.frameScheduled = false;
+        this.invokeActiveToolChangedCallback();
+
+        for (const [instanceId, toolView] of this.toolViews) {
+            try {
+                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
+                    // @ts-expect-error - destroy method exists but might not be in types
+                    toolView.webContents.destroy();
+                }
+            } catch (error) {
+                logError(`[ToolWindowManager] Error destroying tool view ${instanceId} during closeAllToolViews`, error);
+            }
+        }
+
+        this.toolViews.clear();
+        this.toolConnectionInfo.clear();
+        logInfo("[ToolWindowManager] All stale tool views closed and state reset.");
+    }
+
+    /**
      * Send tool context to a tool via IPC
      */
     private async sendToolContext(toolId: string, tool: Tool): Promise<void> {
@@ -658,6 +702,7 @@ export class ToolWindowManager {
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
         if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);
+        if (this.rendererInitializedListener) ipcMain.removeListener(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED, this.rendererInitializedListener);
 
         if (this.refreshBoundsListener) {
             this.mainWindow.removeListener("resize", this.refreshBoundsListener);
@@ -675,19 +720,7 @@ export class ToolWindowManager {
             this.mainWindow.removeListener("show", this.showListener);
         }
 
-        for (const [toolId, toolView] of this.toolViews) {
-            try {
-                if (toolView.webContents && !toolView.webContents.isDestroyed()) {
-                    // @ts-expect-error - destroy method exists but might not be in types
-                    toolView.webContents.destroy();
-                }
-            } catch (error) {
-                logError(`[ToolWindowManager] Error destroying tool view ${toolId}`, error);
-            }
-        }
-        this.toolViews.clear();
-        this.toolConnectionInfo.clear();
-        this.activeToolId = null;
+        this.closeAllToolViews();
     }
 
     /**
