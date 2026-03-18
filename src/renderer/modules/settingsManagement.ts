@@ -182,20 +182,32 @@ export function getOriginalSettings(): SettingsState {
 
 /**
  * Render settings UI into a container element (used for the settings tab)
+ * Layout follows a VSCode-style two-column design: sticky nav on left, scrollable content on right.
  */
 export function renderSettingsContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
-        <div class="settings-container-sidebar">
-            <section class="settings-section-card">
-                <div class="settings-section-header">
-                    <p class="settings-section-eyebrow">Appearance</p>
-                    <p class="settings-section-description">Choose how ToolBox matches your OS or lock it to a specific look.</p>
-                </div>
-                <div class="settings-section-body">
-                    <div class="settings-field">
-                        <label class="setting-label" for="sidebar-theme-select">Theme</label>
-                        <select id="sidebar-theme-select" class="fluent-select">
+        <nav class="settings-tab-nav" aria-label="Settings categories">
+            <ul>
+                <li><a href="#settings-section-appearance" class="settings-nav-link active" data-section="appearance">Appearance</a></li>
+                <li><a href="#settings-section-behavior" class="settings-nav-link" data-section="behavior">Behavior</a></li>
+                <li><a href="#settings-section-terminal" class="settings-nav-link" data-section="terminal">Terminal</a></li>
+                <li><a href="#settings-section-updates" class="settings-nav-link" data-section="updates">Updates</a></li>
+            </ul>
+        </nav>
+
+        <div class="settings-tab-content" id="settings-tab-scroll-area">
+
+            <section id="settings-section-appearance" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Appearance</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-theme-select">Theme</label>
+                        <p class="settings-vscode-item-description">Choose how ToolBox matches your OS or lock it to a specific look.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-theme-select" class="fluent-select settings-vscode-select">
                             <option value="system">System</option>
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
@@ -204,44 +216,57 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
             </section>
 
-            <section class="settings-section-card">
-                <div class="settings-section-header">
-                    <p class="settings-section-eyebrow">Behavior</p>
-                    <p class="settings-section-description">Fine-tune how ToolBox surfaces menus and deprecated tools.</p>
-                </div>
-                <div class="settings-section-body">
-                    <div class="settings-field">
-                        <div class="settings-field-header">
-                            <div>
-                                <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
-                                <span class="setting-hint">Expose the Debug activity to quickly test tools</span>
-                            </div>
-                            <div class="setting-checkbox-group">
-                                <input type="checkbox" id="sidebar-show-debug-menu-check" class="fluent-checkbox" />
-                            </div>
-                        </div>
+            <section id="settings-section-behavior" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Behavior</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
+                        <p class="settings-vscode-item-description">Expose the Debug activity to quickly test tools in development.</p>
                     </div>
-                    <div class="settings-field">
-                        <label class="setting-label" for="sidebar-deprecated-tools-select">Deprecated Tools</label>
-                        <select id="sidebar-deprecated-tools-select" class="fluent-select">
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-show-debug-menu-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-deprecated-tools-select">Deprecated Tools</label>
+                        <p class="settings-vscode-item-description">Control when deprecated tools appear across the experience.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-deprecated-tools-select" class="fluent-select settings-vscode-select">
                             <option value="hide-all">Hide from All</option>
                             <option value="show-all">Show in All</option>
                             <option value="show-installed">Show in Installed Tools Only</option>
                             <option value="show-marketplace">Show in Marketplace Only</option>
                         </select>
-                        <span class="setting-hint">Control when deprecated tools appear across the experience.</span>
                     </div>
-                    <div class="settings-field">
-                        <label class="setting-label" for="sidebar-tool-display-mode-select">Tool Display Mode</label>
-                        <select id="sidebar-tool-display-mode-select" class="fluent-select">
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-tool-display-mode-select">Tool Display Mode</label>
+                        <p class="settings-vscode-item-description">Choose how tools are displayed in Installed Tools and Marketplace.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-tool-display-mode-select" class="fluent-select settings-vscode-select">
                             <option value="standard">Standard</option>
                             <option value="compact">Compact</option>
                         </select>
-                        <span class="setting-hint">Choose how tools are displayed in Installed Tools and Marketplace.</span>
                     </div>
-                    <div class="settings-field">
-                        <label class="setting-label" for="sidebar-notification-duration-select">Notification Duration</label>
-                        <select id="sidebar-notification-duration-select" class="fluent-select">
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-notification-duration-select">Notification Duration</label>
+                        <p class="settings-vscode-item-description">How long toast notifications stay visible before auto-dismissing.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-notification-duration-select" class="fluent-select settings-vscode-select">
                             <option value="3000">3 seconds</option>
                             <option value="5000">5 seconds (Default)</option>
                             <option value="8000">8 seconds</option>
@@ -249,20 +274,24 @@ export function renderSettingsContent(panel: HTMLElement): void {
                             <option value="15000">15 seconds</option>
                             <option value="0">Never (persistent)</option>
                         </select>
-                        <span class="setting-hint">How long toast notifications stay visible before auto-dismissing.</span>
                     </div>
                 </div>
             </section>
 
-            <section class="settings-section-card">
-                <div class="settings-section-header">
-                    <p class="settings-section-eyebrow">Terminal</p>
-                    <p class="settings-section-description">Pick a monospace font that keeps long log output readable.</p>
-                </div>
-                <div class="settings-section-body">
-                    <div class="settings-field">
-                        <label class="setting-label" for="sidebar-terminal-font-select">Terminal Font</label>
-                        <select id="sidebar-terminal-font-select" class="fluent-select">
+            <section id="settings-section-terminal" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Terminal</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-terminal-font-select">Terminal Font</label>
+                        <p class="settings-vscode-item-description">
+                            Pick a monospace font that keeps long log output readable.
+                            Install fonts locally before selecting them.
+                            <a href="#" id="font-help-link" class="settings-vscode-link">Need help installing fonts?</a>
+                        </p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-terminal-font-select" class="fluent-select settings-vscode-select">
                             <option value="'Consolas', 'Monaco', 'Courier New', monospace">Consolas / Monaco (Default)</option>
                             <option value="'MesloLGS NF', 'MesloLGS Nerd Font', 'Menlo', 'DejaVu Sans Mono', 'Consolas', monospace">MesloLGS Nerd Font (Recommended)</option>
                             <option value="'FiraCode Nerd Font', 'FiraCode NF', 'Fira Code', 'Consolas', monospace">FiraCode Nerd Font</option>
@@ -276,46 +305,49 @@ export function renderSettingsContent(panel: HTMLElement): void {
                             <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
                             <option value="custom">Custom Font...</option>
                         </select>
-                    </div>
-                    <div id="custom-font-input-container" class="settings-field" style="display: none">
-                        <label class="setting-label" for="sidebar-terminal-font-custom">Custom Font</label>
-                        <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
-                        <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
-                    </div>
-                    <span class="setting-hint settings-inline-hint">Install fonts locally before selecting them. <a href="#" id="font-help-link">Need help installing fonts?</a></span>
-                </div>
-            </section>
-
-            <section class="settings-section-card">
-                <div class="settings-section-header">
-                    <p class="settings-section-eyebrow">Updates</p>
-                    <p class="settings-section-description">Check for the latest version of Power Platform ToolBox.</p>
-                </div>
-                <div class="settings-section-body">
-                    <div class="settings-field">
-                        <div class="settings-field-header">
-                            <div>
-                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
-                                <span class="setting-hint">Automatically check for new builds</span>
-                            </div>
-                            <div class="setting-checkbox-group">
-                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
-                            </div>
+                        <div id="custom-font-input-container" style="display: none; margin-top: 8px">
+                            <input type="text" id="sidebar-terminal-font-custom" class="fluent-input settings-vscode-input" placeholder="e.g., 'My Font', monospace" />
+                            <p class="settings-vscode-item-description" style="margin-top: 4px">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</p>
                         </div>
                     </div>
-                    <div class="settings-field">
-                        <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary">
+                </div>
+            </section>
+
+            <section id="settings-section-updates" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Updates</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-auto-update-check">Auto Update</label>
+                        <p class="settings-vscode-item-description">Automatically check for and download new builds of Power Platform ToolBox.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-auto-update-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Check for Updates</span>
+                        <p class="settings-vscode-item-description">Manually trigger an update check for the latest version.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">
                             <span id="check-updates-btn-text">Check for Updates</span>
                         </button>
-                        <div id="update-status-message" class="setting-hint" style="display: none; margin-top: 8px"></div>
+                        <div id="update-status-message" class="settings-vscode-item-description" style="display: none; margin-top: 6px"></div>
                     </div>
                 </div>
             </section>
 
-            <div class="settings-actions-row">
+            <div class="settings-vscode-actions">
                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
-                <span class="setting-hint">Changes apply instantly after saving.</span>
+                <span class="settings-vscode-item-description">Changes apply instantly after saving.</span>
             </div>
+
         </div>
     `;
 
@@ -368,6 +400,43 @@ export function renderSettingsContent(panel: HTMLElement): void {
         terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
     }
 
+    // Wire up left-nav click-to-scroll navigation
+    const scrollArea = panel.querySelector("#settings-tab-scroll-area") as HTMLElement | null;
+    const navLinks = panel.querySelectorAll<HTMLAnchorElement>(".settings-nav-link");
+
+    navLinks.forEach((link) => {
+        link.addEventListener("click", (e) => {
+            e.preventDefault();
+            const sectionId = link.getAttribute("href")?.slice(1);
+            if (!sectionId || !scrollArea) return;
+            const target = panel.querySelector<HTMLElement>(`#${sectionId}`);
+            if (target) {
+                scrollArea.scrollTo({ top: target.offsetTop - 16, behavior: "smooth" });
+            }
+        });
+    });
+
+    // Wire up IntersectionObserver to highlight the active nav link when sections scroll into view
+    if (scrollArea) {
+        let currentActiveId: string | null = null;
+        const sections = panel.querySelectorAll<HTMLElement>(".settings-vscode-section");
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting && entry.target.id !== currentActiveId) {
+                        currentActiveId = entry.target.id;
+                        navLinks.forEach((link) => {
+                            link.classList.toggle("active", link.getAttribute("href") === `#${currentActiveId}`);
+                        });
+                        break;
+                    }
+                }
+            },
+            { root: scrollArea, threshold: 0.3 },
+        );
+        sections.forEach((s) => observer.observe(s));
+    }
+
     // Load current settings into the panel
     loadSidebarSettings()
         .then(() => {
@@ -382,5 +451,5 @@ export function renderSettingsContent(panel: HTMLElement): void {
  * Open settings as a tab in the main content area
  */
 export async function openSettingsTab(): Promise<void> {
-    await openToolDetailTab("app-settings", "Settings", renderSettingsContent);
+    await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
 }
