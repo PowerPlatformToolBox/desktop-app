@@ -2054,6 +2054,15 @@ class ToolBoxApp {
                             }
                         },
                     },
+                    {
+                        label: "Settings",
+                        accelerator: isMac ? "Command+," : "Ctrl+,",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.send(EVENT_CHANNELS.OPEN_SETTINGS);
+                            }
+                        },
+                    },
                     { type: "separator" },
                     { role: "resetZoom" },
                     { role: "zoomIn" },

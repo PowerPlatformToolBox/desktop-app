@@ -1769,6 +1769,19 @@ body.dark-theme .settings-section-card {
     background: var(--bg-color);
 }
 
+/* Settings tab container - scrollable full-height panel */
+.settings-tab-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-tab-container .settings-container-sidebar {
+    max-width: 720px;
+}
+
 .tool-detail-tab-header {
     display: flex;
     gap: 16px;

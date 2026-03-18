@@ -208,6 +208,7 @@ export const EVENT_CHANNELS = {
     UPDATE_DOWNLOADED: "update-downloaded",
     UPDATE_ERROR: "update-error",
     SHOW_HOME_PAGE: "show-home-page",
+    OPEN_SETTINGS: "open-settings",
     SHOW_DEVICE_CODE_DIALOG: "show-device-code-dialog",
     CLOSE_DEVICE_CODE_DIALOG: "close-device-code-dialog",
     SHOW_AUTH_ERROR_DIALOG: "show-auth-error-dialog",

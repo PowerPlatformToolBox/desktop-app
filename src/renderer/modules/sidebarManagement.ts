@@ -3,9 +3,6 @@
  * Handles sidebar switching and activity bar navigation
  */
 
-import { loadSidebarSettings } from "./settingsManagement";
-import { logError } from "../../common/logger";
-
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
 
@@ -39,13 +36,6 @@ export function switchSidebar(sidebarId: string): void {
                 activeActivity.classList.add("active");
             }
             currentSidebarId = sidebarId;
-
-            // Load settings when re-expanding settings sidebar
-            if (sidebarId === "settings") {
-                loadSidebarSettings().catch((err) => {
-                    logError(err instanceof Error ? err : new Error(String(err)));
-                });
-            }
         }
         window.api?.send("sidebar-layout-changed");
         return;
@@ -71,13 +61,6 @@ export function switchSidebar(sidebarId: string): void {
     const targetContent = document.getElementById(`sidebar-${sidebarId}`);
     if (targetContent) {
         targetContent.classList.add("active");
-    }
-
-    // Load settings when switching to settings sidebar
-    if (sidebarId === "settings") {
-        loadSidebarSettings().catch((err) => {
-            logError(err instanceof Error ? err : new Error(String(err)));
-        });
     }
 
     window.api?.send("sidebar-layout-changed");
