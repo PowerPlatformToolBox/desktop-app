@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import Store from "electron-store";
 import { DataverseConnection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
@@ -342,9 +343,9 @@ export class ConnectionsManager {
             }
 
             // Generate a new unique ID if the existing one is already taken
-            let newId = typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID();
+            let newId = typeof entry.id === "string" && entry.id ? entry.id : randomUUID();
             if (existingIds.has(newId)) {
-                newId = crypto.randomUUID();
+                newId = randomUUID();
             }
             existingIds.add(newId);
 
