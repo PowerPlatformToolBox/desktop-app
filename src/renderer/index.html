@@ -97,7 +97,15 @@
                 <div class="sidebar-content" id="sidebar-connections">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">CONNECTIONS</h2>
-                        <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
+                        <div class="sidebar-header-actions">
+                            <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
+                            <button id="sidebar-import-connections-btn" class="sidebar-icon-btn" title="Import connections from JSON file" aria-label="Import connections">
+                                <img id="import-icon" width="16" height="16" alt="" aria-hidden="true" />
+                            </button>
+                            <button id="sidebar-export-connections-btn" class="sidebar-icon-btn" title="Export all connections to JSON file" aria-label="Export connections">
+                                <img id="export-icon" width="16" height="16" alt="" aria-hidden="true" />
+                            </button>
+                        </div>
                     </div>
                     <div class="sidebar-search-bar">
                         <div class="sidebar-search-input-wrapper">

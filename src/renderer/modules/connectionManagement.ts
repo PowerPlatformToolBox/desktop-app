@@ -373,7 +373,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -570,7 +572,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -1088,6 +1092,129 @@ export async function deleteConnection(id: string): Promise<void> {
     }
 }
 
+/**
+ * Export connections to a JSON file.
+ * @param ids Optional array of connection IDs to export. If omitted, all connections are exported.
+ */
+export async function exportConnections(ids?: string[]): Promise<void> {
+    try {
+        const exportData = await window.toolboxAPI.connections.exportConnections(ids);
+
+        if (exportData.connections.length === 0) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Nothing to Export",
+                body: "No connections found to export.",
+                type: "info",
+            });
+            return;
+        }
+
+        const json = JSON.stringify(exportData, null, 2);
+        const defaultFileName = `pptb-connections-${new Date().toISOString().split("T")[0]}.json`;
+
+        const savedPath = await window.toolboxAPI.fileSystem.saveFile(defaultFileName, json, [{ name: "JSON Files", extensions: ["json"] }]);
+
+        if (savedPath) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Export Successful",
+                body: `Exported ${exportData.connections.length} connection(s) to file.`,
+                type: "success",
+            });
+        }
+    } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logError(err);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Export Failed",
+            body: err.message,
+            type: "error",
+        });
+    }
+}
+
+/**
+ * Import connections from a JSON file selected by the user.
+ */
+export async function importConnections(): Promise<void> {
+    try {
+        // Ask user to select a file
+        const filePath = await window.toolboxAPI.fileSystem.selectPath({
+            type: "file",
+            filters: [{ name: "JSON Files", extensions: ["json"] }],
+        });
+
+        if (!filePath) {
+            return; // User cancelled
+        }
+
+        // Read the file content
+        let fileContent: string;
+        try {
+            fileContent = await window.toolboxAPI.fileSystem.readText(filePath);
+        } catch {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: "Could not read the selected file.",
+                type: "error",
+            });
+            return;
+        }
+
+        // Parse JSON
+        let parsedData: unknown;
+        try {
+            parsedData = JSON.parse(fileContent);
+        } catch {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: "The selected file is not valid JSON.",
+                type: "error",
+            });
+            return;
+        }
+
+        // Perform the import (validation and persistence happen in the main process)
+        let result: { imported: number; skipped: number; warnings: string[] };
+        try {
+            result = await window.toolboxAPI.connections.importConnections(parsedData);
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: err.message.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, ""),
+                type: "error",
+            });
+            return;
+        }
+
+        // Reload connections list
+        await loadSidebarConnections();
+
+        // Show result notification
+        const hasWarnings = result.warnings.length > 0;
+        let body = `Imported ${result.imported} connection(s).`;
+        if (result.skipped > 0) {
+            body += ` Skipped ${result.skipped} invalid entry/entries.`;
+        }
+        if (hasWarnings) {
+            body += " Some connections are missing credentials (shown with ⚠).";
+        }
+
+        await window.toolboxAPI.utils.showNotification({
+            title: result.imported > 0 ? "Import Successful" : "Import Completed",
+            body,
+            type: hasWarnings ? "warning" : "success",
+        });
+    } catch (error) {
+        logError(error instanceof Error ? error : new Error(String(error)));
+        await window.toolboxAPI.utils.showNotification({
+            title: "Import Failed",
+            body: (error as Error).message,
+            type: "error",
+        });
+    }
+}
+
 function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
@@ -1392,6 +1519,7 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const editIconPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
     const deleteIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
 
     const menu = document.createElement("div");
     menu.className = "context-menu";
@@ -1402,6 +1530,10 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
         <div class="context-menu-item" data-menu-action="edit">
             <img src="${editIconPath}" class="context-menu-icon" alt="" />
             <span>Edit Connection</span>
+        </div>
+        <div class="context-menu-item" data-menu-action="export">
+            <img src="${exportIconPath}" class="context-menu-icon" alt="" />
+            <span>Export Connection</span>
         </div>
         <div class="context-menu-item context-menu-item-danger" data-menu-action="delete">
             <img src="${deleteIconPath}" class="context-menu-icon" alt="" />
@@ -1448,6 +1580,8 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
 
             if (action === "edit") {
                 await editConnection(conn.id);
+            } else if (action === "export") {
+                await exportConnections([conn.id]);
             } else if (action === "delete") {
                 if (confirm(`Are you sure you want to delete the connection "${conn.name}"?`)) {
                     await window.toolboxAPI.connections.delete(conn.id);
@@ -1617,8 +1751,11 @@ export async function loadSidebarConnections(): Promise<void> {
             const envBadgeMarkup = getEnvBadgeMarkup(conn);
             const safeName = escapeHtml(conn.name || "");
             const safeUrl = escapeHtml(conn.url || "");
+            const warningBadge = conn.hasIncompleteCredentials
+                ? `<span class="connection-warning-badge" title="Missing credentials – this connection cannot be used until credentials are added">⚠ Incomplete</span>`
+                : "";
             return `
-                <div class="connection-item-pptb">
+                <div class="connection-item-pptb${conn.hasIncompleteCredentials ? " connection-item-incomplete" : ""}">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
@@ -1636,6 +1773,7 @@ export async function loadSidebarConnections(): Promise<void> {
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                            ${warningBadge}
                         </div>
                         <div class="connection-item-meta-left">
                             ${browserBadgeMarkup}
@@ -1648,6 +1786,8 @@ export async function loadSidebarConnections(): Promise<void> {
         const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
 
         if (useGroups) {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
@@ -1660,6 +1800,9 @@ export async function loadSidebarConnections(): Promise<void> {
                             <span class="connection-group-title">${escapedKey}</span>
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
+                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                                <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
+                            </button>
                         </div>
                         <div class="connection-group-items" data-category="${escapedKey}">
                             ${items}
@@ -1686,10 +1829,26 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         });
 
+        // Add event listeners for category export buttons
+        connectionsList.querySelectorAll(".connection-group-export-btn").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLButtonElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                // categoryKey is the raw key (empty string for Default)
+                const categoryConns = groupMap.get(categoryKey ?? "");
+                if (!categoryConns || categoryConns.length === 0) return;
+                const ids = categoryConns.map((c: DataverseConnection) => c.id);
+                await exportConnections(ids);
+            });
+        });
+
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             const headerEl = header as HTMLElement;
-            const toggleGroup = () => {
+            const toggleGroup = (event?: Event) => {
+                // Don't toggle if the click originated from the export button
+                if (event && (event.target as HTMLElement).closest(".connection-group-export-btn")) return;
                 const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;

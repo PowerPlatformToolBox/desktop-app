@@ -9,6 +9,19 @@ import { logInfo } from "../../common/logger";
 const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = ["clientId", "clientSecret", "accessToken", "refreshToken", "password"];
 
 /**
+ * Fields that must NOT be included in connection exports (secrets/tokens)
+ */
+const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = ["clientSecret", "password", "accessToken", "refreshToken", "tokenExpiry", "msalAccountId"];
+
+/**
+ * Fields required for a valid importable connection
+ */
+const REQUIRED_IMPORT_FIELDS: (keyof DataverseConnection)[] = ["name", "url", "environment", "authenticationType"];
+
+const VALID_ENVIRONMENTS = new Set(["Dev", "Test", "UAT", "Production"]);
+const VALID_AUTH_TYPES = new Set(["interactive", "clientSecret", "usernamePassword", "connectionString"]);
+
+/**
  * Manages Dataverse connections with encryption for sensitive data
  */
 export class ConnectionsManager {
@@ -215,5 +228,158 @@ export class ConnectionsManager {
         const now = new Date();
 
         return expiryDate.getTime() <= now.getTime();
+    }
+
+    /**
+     * Export connections as a sanitized JSON object (no secrets/tokens).
+     * @param ids Optional array of connection IDs to export. If omitted, all connections are exported.
+     * @returns A JSON-serializable export payload.
+     */
+    exportConnections(ids?: string[]): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+        const decrypted = this.getConnections();
+        const toExport = ids && ids.length > 0 ? decrypted.filter((c) => ids.includes(c.id)) : decrypted;
+
+        const sanitized = toExport.map((conn) => {
+            const sanitizedConn = { ...conn } as Partial<DataverseConnection>;
+            for (const field of EXPORT_EXCLUDED_FIELDS) {
+                delete sanitizedConn[field];
+            }
+            // Never export the hasIncompleteCredentials flag – it is internal state
+            delete sanitizedConn.hasIncompleteCredentials;
+            return sanitizedConn;
+        });
+
+        return {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            connections: sanitized,
+        };
+    }
+
+    /**
+     * Import connections from a parsed JSON export payload.
+     * Validates structure; marks connections with missing required secrets as incomplete.
+     * @throws Error if the payload is structurally invalid.
+     * @returns Summary of imported and skipped connections.
+     */
+    importConnections(data: unknown): { imported: number; skipped: number; warnings: string[] } {
+        // --- Top-level structure validation ---
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+            throw new Error("Invalid import file: expected a JSON object.");
+        }
+
+        const payload = data as Record<string, unknown>;
+
+        if (payload.version !== 1) {
+            throw new Error(`Unsupported export version: ${String(payload.version)}. Expected version 1.`);
+        }
+
+        if (!Array.isArray(payload.connections)) {
+            throw new Error("Invalid import file: 'connections' must be an array.");
+        }
+
+        if (payload.connections.length === 0) {
+            throw new Error("Import file contains no connections.");
+        }
+
+        const existingConnections = this.store.get("connections");
+        const existingIds = new Set(existingConnections.map((c) => c.id));
+
+        let imported = 0;
+        let skipped = 0;
+        const warnings: string[] = [];
+
+        for (const raw of payload.connections as unknown[]) {
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+                skipped++;
+                warnings.push(`Skipped an entry that is not a valid object.`);
+                continue;
+            }
+
+            const entry = raw as Record<string, unknown>;
+            const connName = typeof entry.name === "string" ? entry.name : "(unknown)";
+
+            // Validate required fields
+            const missingRequiredFields: string[] = [];
+            for (const field of REQUIRED_IMPORT_FIELDS) {
+                if (!entry[field] || typeof entry[field] !== "string") {
+                    missingRequiredFields.push(field);
+                }
+            }
+
+            if (missingRequiredFields.length > 0) {
+                skipped++;
+                warnings.push(`Skipped "${connName}": missing required fields: ${missingRequiredFields.join(", ")}.`);
+                continue;
+            }
+
+            if (!VALID_ENVIRONMENTS.has(entry.environment as string)) {
+                skipped++;
+                warnings.push(`Skipped "${connName}": invalid environment "${String(entry.environment)}". Must be Dev, Test, UAT, or Production.`);
+                continue;
+            }
+
+            if (!VALID_AUTH_TYPES.has(entry.authenticationType as string)) {
+                skipped++;
+                warnings.push(`Skipped "${connName}": invalid authenticationType "${String(entry.authenticationType)}".`);
+                continue;
+            }
+
+            // Determine if credentials are incomplete for this auth type
+            const authType = entry.authenticationType as string;
+            let hasIncompleteCredentials = false;
+
+            if (authType === "clientSecret") {
+                if (!entry.clientSecret || typeof entry.clientSecret !== "string") {
+                    hasIncompleteCredentials = true;
+                    warnings.push(`Connection "${connName}" imported with warning: missing clientSecret.`);
+                }
+            } else if (authType === "usernamePassword") {
+                if (!entry.password || typeof entry.password !== "string") {
+                    hasIncompleteCredentials = true;
+                    warnings.push(`Connection "${connName}" imported with warning: missing password.`);
+                }
+            }
+
+            // Generate a new unique ID if the existing one is already taken
+            let newId = typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID();
+            if (existingIds.has(newId)) {
+                newId = crypto.randomUUID();
+            }
+            existingIds.add(newId);
+
+            const newConnection: DataverseConnection = {
+                id: newId,
+                name: entry.name as string,
+                url: entry.url as string,
+                environment: entry.environment as DataverseConnection["environment"],
+                authenticationType: entry.authenticationType as DataverseConnection["authenticationType"],
+                createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date().toISOString(),
+                clientId: typeof entry.clientId === "string" ? entry.clientId : undefined,
+                clientSecret: typeof entry.clientSecret === "string" ? entry.clientSecret : undefined,
+                tenantId: typeof entry.tenantId === "string" ? entry.tenantId : undefined,
+                username: typeof entry.username === "string" ? entry.username : undefined,
+                password: typeof entry.password === "string" ? entry.password : undefined,
+                browserType: typeof entry.browserType === "string" ? (entry.browserType as DataverseConnection["browserType"]) : undefined,
+                browserProfile: typeof entry.browserProfile === "string" ? entry.browserProfile : undefined,
+                browserProfileName: typeof entry.browserProfileName === "string" ? entry.browserProfileName : undefined,
+                category: typeof entry.category === "string" ? entry.category : undefined,
+                environmentColor: typeof entry.environmentColor === "string" ? entry.environmentColor : undefined,
+                categoryColor: typeof entry.categoryColor === "string" ? entry.categoryColor : undefined,
+                hasIncompleteCredentials,
+            };
+
+            // Encrypt sensitive fields and persist
+            const encryptedConnection = this.encryptionManager.encryptFields(newConnection, SENSITIVE_CONNECTION_FIELDS);
+            existingConnections.push(encryptedConnection);
+            imported++;
+        }
+
+        if (imported > 0) {
+            this.store.set("connections", existingConnections);
+            logInfo(`[ConnectionsManager] Imported ${imported} connection(s), skipped ${skipped}.`);
+        }
+
+        return { imported, skipped, warnings };
     }
 }

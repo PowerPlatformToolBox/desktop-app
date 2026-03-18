@@ -7,7 +7,7 @@ import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
 import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
-import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { handleReauthentication, initializeAddConnectionModalBridge, importConnections, exportConnections, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -223,6 +223,26 @@ function setupSidebarButtons(): void {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openAddConnectionModal().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
+    // Sidebar import connections button
+    const sidebarImportConnectionsBtn = document.getElementById("sidebar-import-connections-btn");
+    if (sidebarImportConnectionsBtn) {
+        sidebarImportConnectionsBtn.addEventListener("click", () => {
+            importConnections().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
+    // Sidebar export connections button
+    const sidebarExportConnectionsBtn = document.getElementById("sidebar-export-connections-btn");
+    if (sidebarExportConnectionsBtn) {
+        sidebarExportConnectionsBtn.addEventListener("click", () => {
+            exportConnections().catch((error) => {
                 logError(error instanceof Error ? error : new Error(String(error)));
             });
         });

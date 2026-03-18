@@ -1,4 +1,5 @@
 // Import variables and mixins using modern @use syntax
+@use "sass:color";
 @use "./styles/variables" as *;
 @use "./styles/mixins" as *;
 @use "./styles/homepage" as *;
@@ -2798,6 +2799,70 @@ body.light-theme .install-button:focus-visible img {
     border-left: 3px solid var(--primary-color);
 }
 
+.connection-item-pptb.connection-item-incomplete {
+    border-left: 3px solid $connection-warning-color;
+    background: rgba(247, 168, 0, 0.04);
+}
+
+.connection-warning-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(247, 168, 0, 0.15);
+    color: color.adjust($connection-warning-color, $lightness: -20%);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid rgba(247, 168, 0, 0.4);
+}
+
+.dark-theme .connection-warning-badge {
+    background: rgba(247, 168, 0, 0.18);
+    color: $connection-warning-color-dark;
+    border-color: rgba(247, 168, 0, 0.4);
+}
+
+/* Sidebar header actions group (multiple buttons) */
+.sidebar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Compact icon-only button for sidebar header actions */
+.sidebar-icon-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color);
+    transition: all 0.15s ease-in-out;
+    width: 30px;
+    height: 30px;
+}
+
+.sidebar-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: var(--primary-color);
+}
+
+body.dark-theme .sidebar-icon-btn {
+    border-color: #605e5c;
+}
+
+body.dark-theme .sidebar-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+}
+
+.sidebar-icon-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
 .connection-item-top-tags {
     display: flex;
     gap: 6px;
@@ -5116,6 +5181,34 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .connection-group-toggle {
     font-size: 10px;
     opacity: 0.7;
+}
+
+/* Export button on category group header */
+.connection-group-export-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+    color: var(--text-secondary, rgba(0, 0, 0, 0.6));
+}
+
+.connection-group-export-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.dark-theme .connection-group-export-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.connection-group-export-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .connection-group-items.collapsed {

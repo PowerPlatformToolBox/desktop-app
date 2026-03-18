@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         authenticate: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
+        exportConnections: (ids?: string[]) => ipcRenderer.invoke(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, ids),
+        importConnections: (data: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, data),
     },
 
     // Tools - Only for PPTB UI
