@@ -1122,10 +1122,11 @@ export async function exportConnections(ids?: string[]): Promise<void> {
             });
         }
     } catch (error) {
-        logError(error instanceof Error ? error : new Error(String(error)));
+        const err = error instanceof Error ? error : new Error(String(error));
+        logError(err);
         await window.toolboxAPI.utils.showNotification({
             title: "Export Failed",
-            body: (error as Error).message,
+            body: err.message,
             type: "error",
         });
     }
@@ -1177,9 +1178,10 @@ export async function importConnections(): Promise<void> {
         try {
             result = await window.toolboxAPI.connections.importConnections(parsedData);
         } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
             await window.toolboxAPI.utils.showNotification({
                 title: "Import Failed",
-                body: (error as Error).message.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, ""),
+                body: err.message.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, ""),
                 type: "error",
             });
             return;

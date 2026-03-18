@@ -342,9 +342,9 @@ export class ConnectionsManager {
             }
 
             // Generate a new unique ID if the existing one is already taken
-            let newId = typeof entry.id === "string" && entry.id ? entry.id : Date.now().toString();
+            let newId = typeof entry.id === "string" && entry.id ? entry.id : crypto.randomUUID();
             if (existingIds.has(newId)) {
-                newId = `${newId}_imported_${Date.now()}`;
+                newId = crypto.randomUUID();
             }
             existingIds.add(newId);
 
