@@ -233,10 +233,7 @@ function setupSidebarButtons(): void {
     if (sidebarImportConnectionsBtn) {
         sidebarImportConnectionsBtn.addEventListener("click", () => {
             importConnections().catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "connection_import" },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
             });
         });
     }
@@ -246,10 +243,7 @@ function setupSidebarButtons(): void {
     if (sidebarExportConnectionsBtn) {
         sidebarExportConnectionsBtn.addEventListener("click", () => {
             exportConnections().catch((error) => {
-                captureException(error instanceof Error ? error : new Error(String(error)), {
-                    tags: { phase: "connection_export" },
-                    level: "error",
-                });
+                logError(error instanceof Error ? error : new Error(String(error)));
             });
         });
     }

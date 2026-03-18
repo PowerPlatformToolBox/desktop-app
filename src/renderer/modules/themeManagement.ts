@@ -90,6 +90,16 @@ export function updateConnectionIconsForTheme(): void {
             (img as HTMLImageElement).src = moreIconPath;
         });
     }
+
+    // Update import/export icon buttons in sidebar header
+    const importIcon = document.getElementById("import-icon") as HTMLImageElement | null;
+    if (importIcon) {
+        importIcon.src = isDarkTheme ? "icons/dark/import.svg" : "icons/light/import.svg";
+    }
+    const exportIcon = document.getElementById("export-icon") as HTMLImageElement | null;
+    if (exportIcon) {
+        exportIcon.src = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
+    }
 }
 
 /**

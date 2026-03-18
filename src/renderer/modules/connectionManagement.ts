@@ -1122,10 +1122,7 @@ export async function exportConnections(ids?: string[]): Promise<void> {
             });
         }
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "connection_export" },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
         await window.toolboxAPI.utils.showNotification({
             title: "Export Failed",
             body: (error as Error).message,
@@ -1207,10 +1204,7 @@ export async function importConnections(): Promise<void> {
             type: hasWarnings ? "warning" : "success",
         });
     } catch (error) {
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-            tags: { phase: "connection_import" },
-            level: "error",
-        });
+        logError(error instanceof Error ? error : new Error(String(error)));
         await window.toolboxAPI.utils.showNotification({
             title: "Import Failed",
             body: (error as Error).message,
@@ -1790,6 +1784,8 @@ export async function loadSidebarConnections(): Promise<void> {
         const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
 
         if (useGroups) {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
@@ -1802,6 +1798,9 @@ export async function loadSidebarConnections(): Promise<void> {
                             <span class="connection-group-title">${escapedKey}</span>
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
+                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                                <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
+                            </button>
                         </div>
                         <div class="connection-group-items" data-category="${escapedKey}">
                             ${items}
@@ -1828,10 +1827,26 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         });
 
+        // Add event listeners for category export buttons
+        connectionsList.querySelectorAll(".connection-group-export-btn").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLButtonElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                // categoryKey is the raw key (empty string for Default)
+                const categoryConns = groupMap.get(categoryKey ?? "");
+                if (!categoryConns || categoryConns.length === 0) return;
+                const ids = categoryConns.map((c: DataverseConnection) => c.id);
+                await exportConnections(ids);
+            });
+        });
+
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             const headerEl = header as HTMLElement;
-            const toggleGroup = () => {
+            const toggleGroup = (event?: Event) => {
+                // Don't toggle if the click originated from the export button
+                if (event && (event.target as HTMLElement).closest(".connection-group-export-btn")) return;
                 const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;

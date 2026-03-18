@@ -2824,7 +2824,43 @@ body.light-theme .install-button:focus-visible img {
 .sidebar-header-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Compact icon-only button for sidebar header actions */
+.sidebar-icon-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color);
+    transition: all 0.15s ease-in-out;
+    width: 30px;
+    height: 30px;
+}
+
+.sidebar-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: var(--primary-color);
+}
+
+body.dark-theme .sidebar-icon-btn {
+    border-color: #605e5c;
+}
+
+body.dark-theme .sidebar-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+}
+
+.sidebar-icon-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .connection-item-top-tags {
@@ -5145,6 +5181,40 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .connection-group-toggle {
     font-size: 10px;
     opacity: 0.7;
+}
+
+/* Export button on category group header - only visible on hover */
+.connection-group-export-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+    color: var(--text-secondary, rgba(0, 0, 0, 0.6));
+}
+
+.connection-group-header:hover .connection-group-export-btn,
+.connection-group-export-btn:focus-visible {
+    opacity: 1;
+}
+
+.connection-group-export-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.dark-theme .connection-group-export-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.connection-group-export-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .connection-group-items.collapsed {
