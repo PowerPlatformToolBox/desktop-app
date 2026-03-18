@@ -9,8 +9,8 @@ import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { loadSidebarTools } from "./toolsSidebarManagement";
 import { openToolDetailTab } from "./toolManagement";
+import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
@@ -187,15 +187,6 @@ export function getOriginalSettings(): SettingsState {
 export function renderSettingsContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
-        <nav class="settings-tab-nav" aria-label="Settings categories">
-            <ul>
-                <li><a href="#settings-section-appearance" class="settings-nav-link active" data-section="appearance">Appearance</a></li>
-                <li><a href="#settings-section-behavior" class="settings-nav-link" data-section="behavior">Behavior</a></li>
-                <li><a href="#settings-section-terminal" class="settings-nav-link" data-section="terminal">Terminal</a></li>
-                <li><a href="#settings-section-updates" class="settings-nav-link" data-section="updates">Updates</a></li>
-            </ul>
-        </nav>
-
         <div class="settings-tab-content" id="settings-tab-scroll-area">
 
             <section id="settings-section-appearance" class="settings-vscode-section">
