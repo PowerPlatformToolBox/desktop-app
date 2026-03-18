@@ -240,18 +240,6 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
                     <p class="check-message" id="check-connections-message">Ready to check</p>
                 </div>
             </div>
-
-            <div class="check-item" id="check-sentry">
-                <div class="check-status-icon pending" id="check-sentry-icon">
-                    <svg class="icon-svg" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
-                    </svg>
-                </div>
-                <div class="check-content">
-                    <p class="check-name">Sentry Logging</p>
-                    <p class="check-message" id="check-sentry-message">Ready to check</p>
-                </div>
-            </div>
         </div>
 
         <div class="checks-section">

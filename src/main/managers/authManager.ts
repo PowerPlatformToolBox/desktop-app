@@ -3,10 +3,10 @@ import { BrowserWindow } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { captureMessage, logInfo, logWarn } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * Manages authentication for Power Platform connections
@@ -146,9 +146,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            captureMessage("Interactive authentication failed:", "error", {
-                extra: { error },
-            });
+            logError("Interactive authentication failed", error);
             // Error is already displayed in the localhost browser page during listenForAuthCodeAndValidate
             // No need to show modal dialog as it causes UI conflicts
             throw new Error(`Authentication failed: ${(error as Error).message}`);
@@ -440,9 +438,7 @@ export class AuthManager {
 
             return authResult;
         } catch (error) {
-            captureMessage("Client secret authentication failed:", "error", {
-                extra: { error },
-            });
+            logError("Client secret authentication failed", error);
             const errorMessage = `Authentication failed: ${(error as Error).message}`;
             // Show error in a modal dialog (for main window context)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -495,9 +491,7 @@ export class AuthManager {
                 msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
             };
         } catch (error) {
-            captureMessage("Username/password authentication failed:", "error", {
-                extra: { error },
-            });
+            logError("Username/password authentication failed", error);
 
             // Extract error message from MSAL error or generic error
             let errorMessage = "";
@@ -583,9 +577,7 @@ export class AuthManager {
 
             throw new Error("Connection test failed: Unable to verify identity");
         } catch (error) {
-            captureMessage("Test connection failed:", "error", {
-                extra: { error },
-            });
+            logError("Test connection failed", error);
             throw error;
         }
     }
@@ -764,9 +756,7 @@ export class AuthManager {
             };
         } catch (error) {
             // Silent acquisition failed - likely refresh token expired
-            captureMessage("Silent token acquisition failed - re-authentication required", "warning", {
-                extra: { error, connectionId: connection.id },
-            });
+            logWarn("Silent token acquisition failed - re-authentication required");
             throw new Error("Token refresh failed. Please authenticate again.");
         }
     }
@@ -802,9 +792,7 @@ export class AuthManager {
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
             };
         } catch (error) {
-            captureMessage("Token refresh failed:", "error", {
-                extra: { error },
-            });
+            logError("Token refresh failed", error);
             throw new Error(`Token refresh failed: ${(error as Error).message}`);
         }
     }

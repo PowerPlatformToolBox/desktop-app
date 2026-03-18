@@ -1,7 +1,7 @@
 import Store from "electron-store";
-import { logInfo } from "../../common/sentryHelper";
 import { DataverseConnection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
+import { logInfo } from "../../common/logger";
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects

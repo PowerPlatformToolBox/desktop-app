@@ -474,9 +474,14 @@ export function getModalStyles(isDarkTheme: boolean): string {
         gap: 8px;
     }
 
-    .modal-search-input {
+    .modal-search-input-wrapper {
         flex: 1;
-        padding: 8px 12px;
+        position: relative;
+    }
+
+    .modal-search-input {
+        width: 100%;
+        padding: 8px 34px 8px 12px;
         border-radius: 8px;
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)"};
@@ -488,6 +493,45 @@ export function getModalStyles(isDarkTheme: boolean): string {
     .modal-search-input:focus {
         outline: none;
         border-color: #0e639c;
+        box-shadow: 0 0 0 1px #0e639c;
+    }
+
+    .modal-search-clear-btn {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 1;
+        opacity: 0;
+        pointer-events: none;
+        visibility: hidden;
+        transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .modal-search-input-wrapper:has(.modal-search-input:not(:placeholder-shown)) .modal-search-clear-btn {
+        opacity: 1;
+        pointer-events: auto;
+        visibility: visible;
+    }
+
+    .modal-search-clear-btn:hover {
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)"};
+        color: ${isDarkTheme ? "#fff" : "#000"};
+    }
+
+    .modal-search-clear-btn:focus-visible {
+        outline: none;
         box-shadow: 0 0 0 1px #0e639c;
     }
 

@@ -11,7 +11,7 @@ import {
     LocalizedLabel,
     MetadataOperationOptions,
 } from "../../common/types";
-import { captureMessage } from "../../common/sentryHelper";
+import { logWarn, logError } from "../../common/logger";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -191,9 +191,7 @@ export class DataverseManager {
         if (!hasAccount) {
             // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
             this.connectionsManager.clearConnectionTokens(connectionId);
-            captureMessage("MSAL account not found in cache - tokens cleared", "warning", {
-                extra: { connectionId, connectionName: connection.name },
-            });
+            logWarn("MSAL account not found in cache - tokens cleared");
             throw new Error(errorMessage);
         }
     }
@@ -227,9 +225,7 @@ export class DataverseManager {
             } catch (error) {
                 // Silent acquisition failed - re-auth required
                 const errorMessage = `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`;
-                captureMessage("MSAL silent token acquisition failed", "error", {
-                    extra: { connectionId, connectionName: connection.name, error },
-                });
+                logError("MSAL silent token acquisition failed", error);
                 throw new Error(errorMessage);
             }
         }
@@ -253,9 +249,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Client secret authentication failed for '${connection.name}'. Please verify your credentials.`;
-                    captureMessage("Client secret authentication failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    logError("Client secret authentication failed", error);
                     throw new Error(errorMessage);
                 }
             }
@@ -284,9 +278,7 @@ export class DataverseManager {
                 } catch (error) {
                     // Silent token acquisition failed - user needs to re-authenticate
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    captureMessage("Username/password silent token acquisition failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    logError("Username/password silent token acquisition failed", error);
                     throw new Error(errorMessage);
                 }
             }
@@ -309,9 +301,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`;
-                    captureMessage("Username/password token refresh failed", "error", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    logError("Username/password token refresh failed", error);
                     throw new Error(errorMessage);
                 }
             }
@@ -336,9 +326,7 @@ export class DataverseManager {
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
                     const errorMessage = `Token refresh failed for '${connection.name}'. Please sign in again.`;
-                    captureMessage("Legacy interactive token refresh failed", "warning", {
-                        extra: { connectionId, connectionName: connection.name, error },
-                    });
+                    logWarn("Legacy interactive token refresh failed");
                     throw new Error(errorMessage);
                 }
             }
@@ -598,11 +586,21 @@ export class DataverseManager {
         let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/`);
 
         // Build URL based on operation type
-        if (request.entityName && request.entityId) {
-            // Bound operation - use entity set name
+        if (request.entityName) {
+            
             const entitySetName = this.getEntitySetName(request.entityName);
-            url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
-        } else {
+            if(request.entityId)
+            {
+                // Bound operation - Entity
+                url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
+            }else{
+
+                // Bound operation - Entity Collection
+                url += `${entitySetName}/Microsoft.Dynamics.CRM.${request.operationName}`;
+            }
+            
+        } 
+        else {
             // Unbound operation
             url += request.operationName;
         }
@@ -1076,6 +1074,11 @@ export class DataverseManager {
         // Handle number - no quotes
         if (typeof value === "number") {
             return value.toString();
+        }
+
+        // Handle dates - convert to ISO string
+        if (value instanceof Date) {
+            return value.toISOString();
         }
 
         // Handle string

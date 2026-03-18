@@ -3,7 +3,7 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
+import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
@@ -32,6 +32,7 @@ export interface ConnectionsAPI {
  */
 export interface UtilsAPI {
     showNotification: (options: { title: string; body: string; type?: "info" | "success" | "warning" | "error"; duration?: number }) => Promise<void>;
+    showContextMenu: (request: NativeContextMenuRequest) => Promise<string | null>;
     copyToClipboard: (text: string) => Promise<void>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
@@ -88,7 +89,6 @@ export interface TroubleshootingAPI {
     checkUserSettings: () => Promise<{ success: boolean; message?: string }>;
     checkToolSettings: () => Promise<{ success: boolean; message?: string }>;
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
-    checkSentryLogging: () => Promise<{ success: boolean; message?: string }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
 }

@@ -3,11 +3,11 @@
  * Handles the troubleshooting modal for diagnosing connectivity issues
  */
 
-import { captureMessage } from "../../common/sentryHelper";
 import type { ModalWindowMessagePayload } from "../../common/types";
 import { getTroubleshootingModalControllerScript } from "../modals/troubleshooting/controller";
 import { getTroubleshootingModalView } from "../modals/troubleshooting/view";
 import { onBrowserWindowModalClosed, onBrowserWindowModalMessage, sendBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import { logError } from "../../common/logger";
 
 const TROUBLESHOOTING_MODAL_CHANNELS = {
     runCheck: "troubleshooting:run-check",
@@ -36,7 +36,7 @@ export async function openTroubleshootingModal(isDarkTheme: boolean): Promise<vo
             height: TROUBLESHOOTING_MODAL_DIMENSIONS.height,
         });
     } catch (error) {
-        captureMessage("Failed to open troubleshooting modal", "error", { extra: { error } });
+        logError("Failed to open troubleshooting modal", error);
         await window.toolboxAPI.utils.showNotification({
             title: "Troubleshooting",
             body: `Unable to open troubleshooting modal: ${formatError(error)}`,
@@ -72,9 +72,6 @@ async function handleTroubleshootingModalMessage(payload: ModalWindowMessagePayl
                     break;
                 case "connections":
                     result = await window.toolboxAPI.troubleshooting.checkConnections();
-                    break;
-                case "sentry":
-                    result = await window.toolboxAPI.troubleshooting.checkSentryLogging();
                     break;
                 case "supabase":
                     result = await window.toolboxAPI.troubleshooting.checkSupabaseConnectivity();

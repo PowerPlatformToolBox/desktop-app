@@ -1,5 +1,5 @@
 import { safeStorage } from "electron";
-import { captureMessage } from "../../common/sentryHelper";
+import { logError, logWarn } from "../../common/logger";
 
 /**
  * Manages encryption and decryption of sensitive data using Electron's safeStorage API
@@ -23,7 +23,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            captureMessage("Encryption not available, storing data in plain text", "warning");
+            logWarn("Encryption not available, returning data as-is");
             return plaintext;
         }
 
@@ -40,7 +40,7 @@ export class EncryptionManager {
         }
 
         if (!this.isEncryptionAvailable()) {
-            captureMessage("Encryption not available, returning data as-is", "warning");
+            logWarn("Encryption not available, returning data as-is");
             return encrypted;
         }
 
@@ -48,9 +48,7 @@ export class EncryptionManager {
             const buffer = Buffer.from(encrypted, "base64");
             return safeStorage.decryptString(buffer);
         } catch (error) {
-            captureMessage("Failed to decrypt data:", "error", {
-                extra: { error },
-            });
+            logError("Failed to decrypt data", error);
             // If decryption fails, it might be plain text from before encryption was added
             // Return as-is for backwards compatibility
             return encrypted;

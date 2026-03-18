@@ -12,8 +12,8 @@ import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
 import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
-import { logInfo } from "../common/sentryHelper";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
+import { logInfo } from "../common/logger";
 
 // Tool context received from main process
 let toolContext: Record<string, unknown> | null = null;

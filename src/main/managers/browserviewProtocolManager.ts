@@ -1,10 +1,10 @@
 import { app, protocol } from "electron";
 import * as fs from "fs";
 import * as path from "path";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { normalizeCspExceptionSource } from "../../common/types";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
+import { logInfo, logError } from "../../common/logger";
 
 /**
  * BrowserviewProtocolManager
@@ -77,9 +77,7 @@ export class BrowserviewProtocolManager {
             const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
 
             if (!tool) {
-                captureMessage(`[pptb-webview] Tool not found: ${toolId}`, "error", {
-                    extra: { toolId, filePath },
-                });
+                logError(`[pptb-webview] Tool not found: ${toolId}`);
                 callback({ error: -6 }); // FILE_NOT_FOUND
                 return;
             }
@@ -87,9 +85,7 @@ export class BrowserviewProtocolManager {
             // Determine the tool's base directory
             const toolBaseDir = this.getToolBaseDirectory(tool);
             if (!toolBaseDir) {
-                captureMessage(`[pptb-webview] Cannot determine tool directory for: ${toolId}`, "error", {
-                    extra: { toolId },
-                });
+                logError(`[pptb-webview] Cannot determine tool directory for: ${toolId}`);
                 callback({ error: -6 });
                 return;
             }
@@ -99,18 +95,14 @@ export class BrowserviewProtocolManager {
 
             // Security: Ensure the path is within the tool's directory
             if (!this.isPathSafe(fullPath, toolBaseDir)) {
-                captureMessage(`[pptb-webview] Path traversal attempt blocked: ${fullPath}`, "error", {
-                    extra: { fullPath },
-                });
+                logError(`[pptb-webview] Path traversal attempt blocked: ${fullPath}`);
                 callback({ error: -6 });
                 return;
             }
 
             // Check if file exists
             if (!fs.existsSync(fullPath)) {
-                captureMessage(`[pptb-webview] File not found: ${fullPath}`, "error", {
-                    extra: { fullPath },
-                });
+                logError(`[pptb-webview] File not found: ${fullPath}`);
                 callback({ error: -6 });
                 return;
             }
@@ -153,9 +145,7 @@ export class BrowserviewProtocolManager {
                     });
                     return;
                 } catch (error) {
-                    captureMessage(`[pptb-webview] Error injecting CSP/bridge: ${(error as Error).message}`, "error", {
-                        extra: { error },
-                    });
+                    logError("[pptb-webview] Error injecting CSP/bridge", error);
                     callback({ error: -2 }); // FAILED
                     return;
                 }
@@ -169,9 +159,7 @@ export class BrowserviewProtocolManager {
                 data: content,
             });
         } catch (error) {
-            captureMessage(`[pptb-webview] Error handling protocol request: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[pptb-webview] Error handling protocol request", error);
             callback({ error: -2 }); // FAILED
         }
     }

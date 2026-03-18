@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import { logInfo } from "../../common/sentryHelper";
 import { SettingsManager } from "./settingsManager";
+import { logInfo } from "../../common/logger";
 
 /**
  * Manages a unique install identifier for analytics purposes

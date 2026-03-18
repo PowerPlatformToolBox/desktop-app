@@ -102,6 +102,7 @@ export const TERMINAL_CHANNELS = {
 // Utility-related IPC channels
 export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
+    SHOW_CONTEXT_MENU: "show-context-menu",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
@@ -116,7 +117,6 @@ export const UTIL_CHANNELS = {
     CHECK_USER_SETTINGS: "check-user-settings",
     CHECK_TOOL_SETTINGS: "check-tool-settings",
     CHECK_CONNECTIONS: "check-connections",
-    CHECK_SENTRY_LOGGING: "check-sentry-logging",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
 } as const;

@@ -6,10 +6,10 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { captureMessage, logInfo } from "../../common/sentryHelper";
 import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { InstallIdManager } from "./installIdManager";
+import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * Supabase database types
@@ -153,8 +153,8 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Validate Supabase credentials and create client
         if (!url || !key || url === "" || key === "") {
-            captureMessage("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.", "warning");
-            captureMessage("[ToolRegistry] Falling back to local registry.json file.", "warning");
+            logWarn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+            logWarn("[ToolRegistry] Falling back to local registry.json file.");
             this.useLocalFallback = true;
         } else {
             logInfo("[ToolRegistry] Initializing Supabase client");
@@ -309,9 +309,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools (enhanced) from Supabase registry`);
             return tools;
         } catch (error) {
-            captureMessage(`[ToolRegistry] Failed to fetch registry from Supabase: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[ToolRegistry] Failed to fetch registry from Supabase", error);
             throw new Error(`Failed to fetch registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -328,9 +326,7 @@ export class ToolRegistryManager extends EventEmitter {
                     return tools;
                 }
             } catch (error) {
-                captureMessage(`[ToolRegistry] Azure Blob registry fetch failed, falling back to local: ${(error as Error).message}`, "warning", {
-                    extra: { error },
-                });
+                logWarn(`[ToolRegistry] Azure Blob registry fetch failed`);
             }
         }
         return this.fetchLocalRegistry();
@@ -408,7 +404,7 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private resolveDownloadUrl(downloadUrl: string): string {
         if (!downloadUrl) {
-            captureMessage("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source", "warning");
+            logWarn("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source");
             return "";
         }
         if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
@@ -423,7 +419,7 @@ export class ToolRegistryManager extends EventEmitter {
             return `${base}/packages/${folder}/${filename}`;
         }
         // No base URL configured – cannot resolve
-        captureMessage(`[ToolRegistry] Cannot resolve relative download URL "${downloadUrl}": AZURE_BLOB_BASE_URL is not configured`, "warning");
+        logWarn(`[ToolRegistry] Cannot resolve relative download URL "${downloadUrl}": AZURE_BLOB_BASE_URL is not configured`);
         return "";
     }
 
@@ -435,7 +431,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
 
             if (!fs.existsSync(this.localRegistryPath)) {
-                captureMessage(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`, "warning");
+                logWarn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
                 return [];
             }
 
@@ -475,9 +471,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
         } catch (error) {
-            captureMessage(`[ToolRegistry] Failed to fetch local registry: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[ToolRegistry] Failed to fetch local registry", error);
             throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -674,9 +668,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Track the download (async, don't wait for completion)
         this.trackToolDownload(toolId).catch((error) => {
-            captureMessage(`[ToolRegistry] Failed to track download asynchronously: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[ToolRegistry] Failed to track download asynchronously", error);
         });
 
         return manifest;
@@ -730,9 +722,7 @@ export class ToolRegistryManager extends EventEmitter {
             const tools: Record<string, unknown>[] = manifest.tools || [];
             return tools.map((entry) => this.normalizeManifestEntry(entry));
         } catch (error) {
-            captureMessage(`[ToolRegistry] Failed to read manifest: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[ToolRegistry] Failed to read manifest", error);
             return [];
         }
     }
@@ -794,9 +784,7 @@ export class ToolRegistryManager extends EventEmitter {
             const { data, error } = await this.supabase!.from("tools").select("id, tool_analytics(downloads,rating,mau)").in("id", toolIds);
 
             if (error) {
-                captureMessage(`[ToolRegistry] Failed to fetch analytics: ${(error as Error).message}`, "error", {
-                    extra: { error },
-                });
+                logError(`[ToolRegistry] Failed to fetch analytics: ${(error as Error).message}`);
                 return map;
             }
 
@@ -807,9 +795,7 @@ export class ToolRegistryManager extends EventEmitter {
                 }
             });
         } catch (error) {
-            captureMessage(`[ToolRegistry] Error fetching analytics: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError("[ToolRegistry] Error fetching analytics", error);
         }
 
         return map;
@@ -938,9 +924,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
-            captureMessage(`[ToolRegistry] Failed to track download for ${toolId}: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
         }
     }
 
@@ -958,7 +942,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Skip if no install ID manager available
         if (!this.installIdManager) {
-            captureMessage(`[ToolRegistry] Skipping usage tracking (no InstallIdManager)`, "warning");
+            logWarn(`[ToolRegistry] Skipping usage tracking (no InstallIdManager)`);
             return;
         }
 
@@ -1016,9 +1000,7 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
-            captureMessage(`[ToolRegistry] Failed to track usage for ${toolId}: ${(error as Error).message}`, "error", {
-                extra: { error },
-            });
+            logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
         }
     }
 }
