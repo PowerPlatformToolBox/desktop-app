@@ -592,6 +592,20 @@ export class ToolWindowManager {
             } catch (error) {
                 logError(`[ToolWindowManager] Error destroying tool view ${instanceId} during closeAllToolViews`, error);
             }
+
+            // Dispose any terminals created by this tool instance
+            try {
+                this.terminalManager.closeToolInstanceTerminals(instanceId);
+            } catch (error) {
+                logError(`[ToolWindowManager] Error closing terminals for instance ${instanceId} during closeAllToolViews`, error);
+            }
+
+            // Revoke filesystem access for this specific tool instance
+            try {
+                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+            } catch (error) {
+                logError(`[ToolWindowManager] Error revoking filesystem access for instance ${instanceId} during closeAllToolViews`, error);
+            }
         }
 
         this.toolViews.clear();
