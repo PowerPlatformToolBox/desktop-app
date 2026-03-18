@@ -983,11 +983,13 @@ export async function restoreSession(): Promise<void> {
         const session = JSON.parse(sessionData) as SessionData;
         if (session.openTools && Array.isArray(session.openTools)) {
             // Note: We can't restore exact instanceIds since they're timestamp-based
-            // Instead, we launch the tools fresh, which creates new instances
-            // Session restore for multi-instance is simplified for now
+            // Instead, we launch the tools fresh, which creates new instances.
+            // Saved connection IDs are passed so the tool opens without prompting.
             for (const toolInfo of session.openTools) {
-                await launchTool(toolInfo.toolId);
-                // TODO: Future enhancement - restore pinned state and exact connections per instance
+                await launchTool(toolInfo.toolId, {
+                    primaryConnectionId: toolInfo.connectionId,
+                    secondaryConnectionId: toolInfo.secondaryConnectionId,
+                });
             }
             // Note: activeToolId won't match since we have new instanceIds
         }
