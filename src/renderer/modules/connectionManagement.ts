@@ -1133,14 +1133,138 @@ export async function exportConnections(ids?: string[]): Promise<void> {
 }
 
 /**
- * Import connections from a JSON file selected by the user.
+ * Parse an XrmToolBox connections XML file and convert it to the PPTB import payload format.
+ * @param xmlContent Raw XML string from the XrmToolBox ConnectionsList file.
+ * @returns A PPTB-compatible import payload ready to pass to `importConnections`.
+ */
+function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+
+    // Check for XML parse errors
+    const parseError = xmlDoc.querySelector("parsererror");
+    if (parseError) {
+        throw new Error("Invalid XML: the selected file could not be parsed as valid XML.");
+    }
+
+    // Validate root element
+    const root = xmlDoc.documentElement;
+    if (root.tagName !== "CrmConnections") {
+        throw new Error("The selected XML file is not a valid XrmToolBox connection file. Expected a <CrmConnections> root element.");
+    }
+
+    const connectionNodes = Array.from(xmlDoc.querySelectorAll("ConnectionDetail"));
+    if (connectionNodes.length === 0) {
+        throw new Error("No connections found in the XrmToolBox connection file.");
+    }
+
+    const now = new Date().toISOString();
+    const connections: Partial<DataverseConnection>[] = [];
+
+    for (const node of connectionNodes) {
+        const getText = (tagName: string, parent: Element = node): string => parent.querySelector(tagName)?.textContent?.trim() ?? "";
+
+        // Prefer WebApplicationUrl, fall back to OriginalUrl – strip trailing slash
+        const url = getText("WebApplicationUrl").replace(/\/$/, "") || getText("OriginalUrl").replace(/\/$/, "");
+        if (!url) {
+            logWarn("[importConnections] Skipping XTB connection with no URL", { name: getText("ConnectionName") });
+            continue;
+        }
+
+        // Map XTB NewAuthType → PPTB authenticationType
+        const newAuthType = getText("NewAuthType").toLowerCase();
+        let authenticationType: ConnectionAuthenticationType;
+        switch (newAuthType) {
+            case "clientsecret":
+                authenticationType = "clientSecret";
+                break;
+            case "ad":
+            case "office365":
+            case "onlinefederation":
+            case "ifd":
+                authenticationType = "usernamePassword";
+                break;
+            case "certificate":
+            case "managedidentity":
+                // These auth types are not supported in PPTB; log a warning here and skip this connection
+                logWarn("[importConnections] Skipping unsupported XTB auth type", { authType: newAuthType, name: getText("ConnectionName") });
+                continue;
+            case "oauth":
+            default:
+                authenticationType = "interactive";
+                break;
+        }
+
+        // Map environment from EnvironmentHighlightingInfo > Text
+        const envInfoEl = node.querySelector("EnvironmentHighlightingInfo");
+        const envText = envInfoEl ? getText("Text", envInfoEl).toUpperCase() : "";
+        let environment: ConnectionEnvironment = "Dev";
+        if (envText === "PROD" || envText === "PRODUCTION" || envText === "P") {
+            environment = "Production";
+        } else if (envText === "UAT" || envText === "STAGING" || envText === "SIT" || envText === "STAGE") {
+            environment = "UAT";
+        } else if (envText === "TEST" || envText === "TST" || envText === "T") {
+            environment = "Test";
+        }
+
+        const conn: Partial<DataverseConnection> = {
+            name: getText("ConnectionName"),
+            url,
+            environment,
+            authenticationType,
+            createdAt: now,
+        };
+
+        // Optional fields
+        const tenantId = getText("TenantId");
+        if (tenantId) {
+            conn.tenantId = tenantId;
+        }
+
+        const azureAdAppId = getText("AzureAdAppId");
+        if (azureAdAppId) {
+            conn.clientId = azureAdAppId;
+        }
+
+        const username = getText("UserName");
+        if (username) {
+            conn.username = username;
+        }
+
+        // Map environment color from EnvironmentHighlightingInfo > Color
+        const envColor = envInfoEl ? getText("Color", envInfoEl) : "";
+        if (envColor) {
+            conn.environmentColor = envColor;
+        }
+
+        const lastUsedRaw = getText("LastUsedOn");
+        if (lastUsedRaw) {
+            const lastUsedDate = new Date(lastUsedRaw);
+            if (!isNaN(lastUsedDate.getTime())) {
+                conn.lastUsedAt = lastUsedDate.toISOString();
+            }
+        }
+
+        connections.push(conn);
+    }
+
+    return { version: 1, exportedAt: now, connections };
+}
+
+/**
+ * Import connections from a file selected by the user.
+ * Supports both PPTB JSON export files and XrmToolBox XML connection files.
  */
 export async function importConnections(): Promise<void> {
     try {
-        // Ask user to select a file
+        // Ask user to select a file – accept both PPTB JSON and XTB XML formats
         const filePath = await window.toolboxAPI.fileSystem.selectPath({
             type: "file",
-            filters: [{ name: "JSON Files", extensions: ["json"] }],
+            filters: [
+                { name: "Connection Files (PPTB JSON or XrmToolBox XML)", extensions: ["json", "xml"] },
+                { name: "PPTB JSON Files", extensions: ["json"] },
+                { name: "XrmToolBox XML Files", extensions: ["xml"] },
+            ],
         });
 
         if (!filePath) {
@@ -1160,17 +1284,35 @@ export async function importConnections(): Promise<void> {
             return;
         }
 
-        // Parse JSON
+        // Detect format: XML files (XrmToolBox) vs JSON files (PPTB)
+        const isXml = filePath.toLowerCase().endsWith(".xml") || fileContent.trimStart().startsWith("<?xml") || fileContent.trimStart().startsWith("<CrmConnections");
+
         let parsedData: unknown;
-        try {
-            parsedData = JSON.parse(fileContent);
-        } catch {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Import Failed",
-                body: "The selected file is not valid JSON.",
-                type: "error",
-            });
-            return;
+        if (isXml) {
+            // Parse XrmToolBox XML and convert to PPTB import payload
+            try {
+                parsedData = parseXtbXmlToImportPayload(fileContent);
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: err.message,
+                    type: "error",
+                });
+                return;
+            }
+        } else {
+            // Parse PPTB JSON
+            try {
+                parsedData = JSON.parse(fileContent);
+            } catch {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: "The selected file is not valid JSON.",
+                    type: "error",
+                });
+                return;
+            }
         }
 
         // Perform the import (validation and persistence happen in the main process)
