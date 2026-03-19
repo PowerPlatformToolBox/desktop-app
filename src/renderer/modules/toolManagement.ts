@@ -3,14 +3,14 @@
  * Handles tool launching, tabs, sessions, and lifecycle
  */
 
-import type { DataverseConnection } from "../../common/types/connection";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
+import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
@@ -27,9 +27,160 @@ export interface LaunchToolOptions {
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
+let hasWarnedAboutMissingContextMenuHandler = false;
 
 // Detail tab state - maps tabId to render callback for tool detail tabs
 const detailTabs = new Map<string, (panel: HTMLElement) => void>();
+
+function canCloseTab(instanceId: string): boolean {
+    const openTool = openTools.get(instanceId);
+    if (!openTool) {
+        return false;
+    }
+
+    return openTool.isDetailTab || !openTool.isPinned;
+}
+
+function getClosableTabIds(excludedInstanceId?: string): string[] {
+    return Array.from(openTools.keys()).filter((instanceId) => instanceId !== excludedInstanceId && canCloseTab(instanceId));
+}
+
+function closeTabs(instanceIds: string[]): void {
+    instanceIds.forEach((instanceId) => {
+        if (openTools.has(instanceId)) {
+            closeTool(instanceId);
+        }
+    });
+}
+
+function closeOtherTabs(instanceId: string): void {
+    closeTabs(getClosableTabIds(instanceId));
+}
+
+function canManageToolTab(instanceId: string): boolean {
+    const openTool = openTools.get(instanceId);
+    return Boolean(openTool && !openTool.isDetailTab && openTool.toolId);
+}
+
+async function duplicateToolTab(instanceId: string, promptForNewConnection: boolean = false): Promise<void> {
+    const openTool = openTools.get(instanceId);
+    if (!openTool || openTool.isDetailTab || !openTool.toolId) {
+        return;
+    }
+
+    const launchOptions: LaunchToolOptions | undefined = promptForNewConnection
+        ? undefined
+        : {
+              primaryConnectionId: openTool.connectionId,
+              secondaryConnectionId: openTool.secondaryConnectionId,
+          };
+
+    await launchTool(openTool.toolId, launchOptions);
+}
+
+async function changeToolConnectionForInstance(instanceId: string): Promise<void> {
+    const targetTool = openTools.get(instanceId);
+    if (!targetTool || targetTool.isDetailTab) {
+        return;
+    }
+
+    try {
+        const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId);
+
+        if (!selectedConnectionId) {
+            return;
+        }
+
+        await setToolConnection(instanceId, selectedConnectionId);
+
+        const connections = await window.toolboxAPI.connections.getAll();
+        const connection = connections.find((item: DataverseConnection) => item.id === selectedConnectionId);
+        window.toolboxAPI.utils.showNotification({
+            title: "Connection Set",
+            body: `${targetTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
+            type: "success",
+        });
+    } catch (error) {
+        logError("Connection selection cancelled or failed", error);
+    }
+}
+
+async function showTabContextMenu(instanceId: string, clientX: number, clientY: number): Promise<void> {
+    const canManageTab = canManageToolTab(instanceId);
+    const canCloseCurrent = canCloseTab(instanceId);
+    const closableOtherTabIds = getClosableTabIds(instanceId);
+    const closableTabIds = getClosableTabIds();
+    let action: string | null = null;
+    try {
+        action = await window.toolboxAPI.utils.showContextMenu({
+            x: clientX,
+            y: clientY,
+            items: [
+                { id: "close-current", label: "Close Tab", enabled: canCloseCurrent },
+                { id: "close-others", label: "Close Other Tabs", enabled: closableOtherTabIds.length > 0 },
+                { id: "close-all", label: "Close All Tabs", enabled: closableTabIds.length > 0 },
+                { type: "separator" },
+                { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
+                { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
+                { id: "change-connection", label: "Change Connection", enabled: canManageTab },
+            ],
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logWarn("Native context menu is unavailable", { error: message });
+
+        if (!hasWarnedAboutMissingContextMenuHandler && message.includes("show-context-menu")) {
+            hasWarnedAboutMissingContextMenuHandler = true;
+            await window.toolboxAPI.utils.showNotification({
+                title: "Restart Required",
+                body: "The native tab context menu was added in the main process. Restart the app to load the new handler.",
+                type: "warning",
+            });
+        }
+        return;
+    }
+
+    if (!action) {
+        return;
+    }
+
+    if (action === "duplicate-tab") {
+        await duplicateToolTab(instanceId);
+        return;
+    }
+
+    if (action === "duplicate-tab-new-connection") {
+        await duplicateToolTab(instanceId, true);
+        return;
+    }
+
+    if (action === "change-connection") {
+        await changeToolConnectionForInstance(instanceId);
+        return;
+    }
+
+    if (action === "close-current") {
+        closeTool(instanceId);
+        return;
+    }
+
+    if (action === "close-others") {
+        closeOtherTabs(instanceId);
+        return;
+    }
+
+    if (action === "close-all") {
+        closeTabs(getClosableTabIds());
+    }
+}
+
+function attachTabContextMenu(tab: HTMLElement, instanceId: string): void {
+    tab.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void showTabContextMenu(instanceId, event.clientX, event.clientY);
+    });
+}
 
 /**
  * Check if a connection token is expired
@@ -340,41 +491,6 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     nameContainer.className = "tool-tab-name-container";
     nameContainer.appendChild(name);
 
-    // Fetch connection names asynchronously and populate subtext once ready
-    (async () => {
-        let connectionSubtext = "";
-        try {
-            const openTool = openTools.get(instanceId);
-
-            const [primaryConnection, secondaryConnection] = await Promise.all([
-                openTool?.connectionId ? window.toolboxAPI.connections.getById(openTool.connectionId) : Promise.resolve(null),
-                openTool?.secondaryConnectionId ? window.toolboxAPI.connections.getById(openTool.secondaryConnectionId) : Promise.resolve(null),
-            ]);
-
-            const primaryLabel = primaryConnection?.name ?? null;
-            const secondaryLabel = secondaryConnection?.name ?? null;
-
-            // Display both connections if both exist, otherwise just the primary
-            if (primaryLabel && secondaryLabel) {
-                connectionSubtext = `${primaryLabel} / ${secondaryLabel}`;
-            } else if (primaryLabel) {
-                connectionSubtext = primaryLabel;
-            }
-        } catch (error) {
-            const normalizedError = error instanceof Error ? error.message : String(error);
-            logWarn("Failed to fetch connection names for tab:", { error: normalizedError });
-        }
-
-        // Add connection names as subtext if available
-        if (connectionSubtext) {
-            const subtext = document.createElement("span");
-            subtext.className = "tool-tab-subtext";
-            subtext.textContent = connectionSubtext;
-            subtext.title = connectionSubtext;
-            nameContainer.appendChild(subtext);
-        }
-    })();
-
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
     pinBtn.title = "Pin tab";
@@ -431,14 +547,64 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     tab.addEventListener("dragover", (e) => handleDragOver(e, tab));
     tab.addEventListener("drop", (e) => handleDrop(e));
     tab.addEventListener("dragend", (e) => handleDragEnd(e, tab));
+    attachTabContextMenu(tab, instanceId);
 
     tab.appendChild(nameContainer);
     tab.appendChild(pinBtn);
     tab.appendChild(closeBtn);
     toolTabs.appendChild(tab);
 
+    void updateTabConnectionSubtext(instanceId);
+
     // Update scroll button visibility after adding tab
     updateTabScrollButtons();
+}
+
+async function updateTabConnectionSubtext(instanceId: string): Promise<void> {
+    const tab = document.getElementById(`tool-tab-${instanceId}`);
+    const nameContainer = tab?.querySelector(".tool-tab-name-container");
+    const openTool = openTools.get(instanceId);
+
+    if (!(nameContainer instanceof HTMLElement)) {
+        return;
+    }
+
+    const existingSubtext = nameContainer.querySelector(".tool-tab-subtext");
+    existingSubtext?.remove();
+
+    if (!openTool || openTool.isDetailTab) {
+        return;
+    }
+
+    try {
+        const [primaryConnection, secondaryConnection] = await Promise.all([
+            openTool.connectionId ? window.toolboxAPI.connections.getById(openTool.connectionId) : Promise.resolve(null),
+            openTool.secondaryConnectionId ? window.toolboxAPI.connections.getById(openTool.secondaryConnectionId) : Promise.resolve(null),
+        ]);
+
+        const primaryLabel = primaryConnection?.name ?? null;
+        const secondaryLabel = secondaryConnection?.name ?? null;
+
+        let connectionSubtext = "";
+        if (primaryLabel && secondaryLabel) {
+            connectionSubtext = `${primaryLabel} / ${secondaryLabel}`;
+        } else if (primaryLabel) {
+            connectionSubtext = primaryLabel;
+        }
+
+        if (!connectionSubtext) {
+            return;
+        }
+
+        const subtext = document.createElement("span");
+        subtext.className = "tool-tab-subtext";
+        subtext.textContent = connectionSubtext;
+        subtext.title = connectionSubtext;
+        nameContainer.appendChild(subtext);
+    } catch (error) {
+        const normalizedError = error instanceof Error ? error.message : String(error);
+        logWarn("Failed to refresh connection names for tab:", { error: normalizedError, instanceId });
+    }
 }
 
 /**
@@ -446,8 +612,9 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
  * @param tabId Unique identifier for the tab (e.g., "tool-detail-{toolId}")
  * @param displayName Name shown on the tab
  * @param renderContent Callback that populates the detail panel with content
+ * @param tabLabelSuffix Text appended to the display name for the tab label and tooltip. Defaults to " - Details" to visually distinguish detail tabs from regular tool tabs.
  */
-export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void): Promise<void> {
+export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void, tabLabelSuffix = " - Details"): Promise<void> {
     // If this tool's detail tab is already open, just switch to it
     if (openTools.has(tabId)) {
         // Refresh content in case install state changed
@@ -475,8 +642,8 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
 
     const name = document.createElement("span");
     name.className = "tool-tab-name";
-    name.textContent = `${displayName} - Details`;
-    name.title = `${displayName} - Details`;
+    name.textContent = `${displayName}${tabLabelSuffix}`;
+    name.title = `${displayName}${tabLabelSuffix}`;
     tab.appendChild(name);
 
     const closeBtn = document.createElement("button");
@@ -501,6 +668,8 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
             closeTool(tabId);
         }
     });
+
+    attachTabContextMenu(tab, tabId);
 
     toolTabs.appendChild(tab);
 
@@ -814,11 +983,13 @@ export async function restoreSession(): Promise<void> {
         const session = JSON.parse(sessionData) as SessionData;
         if (session.openTools && Array.isArray(session.openTools)) {
             // Note: We can't restore exact instanceIds since they're timestamp-based
-            // Instead, we launch the tools fresh, which creates new instances
-            // Session restore for multi-instance is simplified for now
+            // Instead, we launch the tools fresh, which creates new instances.
+            // Saved connection IDs are passed so the tool opens without prompting.
             for (const toolInfo of session.openTools) {
-                await launchTool(toolInfo.toolId);
-                // TODO: Future enhancement - restore pinned state and exact connections per instance
+                await launchTool(toolInfo.toolId, {
+                    primaryConnectionId: toolInfo.connectionId,
+                    secondaryConnectionId: toolInfo.secondaryConnectionId,
+                });
             }
             // Note: activeToolId won't match since we have new instanceIds
         }
@@ -848,6 +1019,8 @@ export async function setToolConnection(instanceId: string, connectionId: string
 
     // Update local state
     tool.connectionId = connectionId;
+
+    await updateTabConnectionSubtext(instanceId);
 
     saveSession();
 
@@ -993,7 +1166,13 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                         }
 
                         // Update tool panel border based on both primary and secondary environment
-                        updateToolPanelBorder(primaryConnection.environment, secondaryConnection.environment, primaryConnection.environmentColor, secondaryConnection.environmentColor, primaryConnection.categoryColor);
+                        updateToolPanelBorder(
+                            primaryConnection.environment,
+                            secondaryConnection.environment,
+                            primaryConnection.environmentColor,
+                            secondaryConnection.environmentColor,
+                            primaryConnection.categoryColor,
+                        );
                         return;
                     }
                 } else {
@@ -1074,7 +1253,13 @@ function getEnvBorderColor(environment: string): string {
  * Update the tool panel border and tab highlight based on the connection environment
  * @param environment The connection environment (Dev, Test, UAT, Production) or null to clear
  */
-function updateToolPanelBorder(environment: string | null, secondaryEnvironment?: string | null, environmentColor?: string | null, secondaryEnvironmentColor?: string | null, categoryColor?: string | null): void {
+function updateToolPanelBorder(
+    environment: string | null,
+    secondaryEnvironment?: string | null,
+    environmentColor?: string | null,
+    secondaryEnvironmentColor?: string | null,
+    categoryColor?: string | null,
+): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
@@ -1238,31 +1423,7 @@ export async function openToolConnectionModal(): Promise<void> {
     const activeTool = openTools.get(activeToolId);
     if (!activeTool) return;
 
-    try {
-        // Use the existing selectConnection modal but with tool-specific behavior
-        // Import connectionManagement functions dynamically
-        const { openSelectConnectionModal } = await import("./connectionManagement");
-
-        // Open the modal and pass the tool's current connection ID to highlight it
-        const selectedConnectionId = await openSelectConnectionModal(activeTool.connectionId);
-
-        // After modal closes with a successful connection, update the tool's connection
-        if (selectedConnectionId && activeToolId) {
-            await setToolConnection(activeToolId, selectedConnectionId);
-
-            // Get connection from all connections list
-            const connections = await window.toolboxAPI.connections.getAll();
-            const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
-            window.toolboxAPI.utils.showNotification({
-                title: "Connection Set",
-                body: `${activeTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
-                type: "success",
-            });
-        }
-    } catch (error) {
-        // User cancelled or error occurred
-        logError("Connection selection cancelled or failed", error);
-    }
+    await changeToolConnectionForInstance(activeTool.instanceId);
 }
 
 /**
@@ -1278,6 +1439,8 @@ export async function setToolSecondaryConnection(instanceId: string, connectionI
 
     // Update local state
     tool.secondaryConnectionId = connectionId;
+
+    await updateTabConnectionSubtext(instanceId);
 
     saveSession();
 

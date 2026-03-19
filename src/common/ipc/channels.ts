@@ -52,6 +52,8 @@ export const CONNECTION_CHANNELS = {
     REFRESH_TOKEN: "refresh-connection-token",
     CHECK_BROWSER_INSTALLED: "check-browser-installed",
     GET_BROWSER_PROFILES: "get-browser-profiles",
+    EXPORT_CONNECTIONS: "export-connections",
+    IMPORT_CONNECTIONS: "import-connections",
 } as const;
 
 // Tool-related IPC channels
@@ -84,6 +86,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
     HIDE_ALL: "tool-window:hide-all",
+    RENDERER_INITIALIZED: "tool-window:renderer-initialized",
 } as const;
 
 // Terminal-related IPC channels
@@ -100,6 +103,7 @@ export const TERMINAL_CHANNELS = {
 // Utility-related IPC channels
 export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
+    SHOW_CONTEXT_MENU: "show-context-menu",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
@@ -205,6 +209,7 @@ export const EVENT_CHANNELS = {
     UPDATE_DOWNLOADED: "update-downloaded",
     UPDATE_ERROR: "update-error",
     SHOW_HOME_PAGE: "show-home-page",
+    OPEN_SETTINGS: "open-settings",
     SHOW_DEVICE_CODE_DIALOG: "show-device-code-dialog",
     CLOSE_DEVICE_CODE_DIALOG: "close-device-code-dialog",
     SHOW_AUTH_ERROR_DIALOG: "show-auth-error-dialog",

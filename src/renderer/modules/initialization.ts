@@ -3,22 +3,23 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
+import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
-import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
-import { handleReauthentication, initializeAddConnectionModalBridge, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import { handleReauthentication, initializeAddConnectionModalBridge, importConnections, exportConnections, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { showPPTBNotification, setDefaultNotificationDuration } from "./notifications";
-import { saveSidebarSettings } from "./settingsManagement";
+import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
-import { logInfo, logWarn, logError, logCheckpoint } from "../../common/logger";
 
 /**
  * Initialize the application
@@ -28,8 +29,19 @@ export async function initializeApplication(): Promise<void> {
     logCheckpoint("Renderer initialization started");
 
     try {
+        // Signal the main process that the renderer is starting fresh so it can clean up
+        // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
+        // This must be the very first IPC call so the cleanup happens before session restore.
+        window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
+
         initializeBrowserWindowModals();
         initializeAddConnectionModalBridge();
+
+        // Register the tool panel bounds listener early so it is available when tools are
+        // launched during session restore (restoreSession runs below).  Previously this was
+        // called after restoreSession which meant the main process could not get correct
+        // BrowserView bounds during session restore, causing tools to fill the whole window.
+        setupToolPanelBoundsListener();
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -39,6 +51,9 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up sidebar buttons
         setupSidebarButtons();
+
+        // Set up inline search clear buttons
+        setupSidebarSearchClearButtons();
 
         // Set up debug section buttons
         setupDebugSection();
@@ -66,7 +81,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up global search command palette
         initializeGlobalSearch();
-
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
@@ -114,9 +128,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up toolbox event listeners
         setupToolboxEventListeners();
-
-        // Handle request for tool panel bounds (for BrowserView positioning)
-        setupToolPanelBoundsListener();
 
         // Set up filter dropdown toggles for VSCode-style UI
         setupFilterDropdownToggles();
@@ -195,6 +206,16 @@ function setupActivityBar(): void {
             }
         });
     });
+
+    // Settings button opens a tab instead of a sidebar panel
+    const settingsActivityBtn = document.getElementById("settings-activity-btn");
+    if (settingsActivityBtn) {
+        settingsActivityBtn.addEventListener("click", () => {
+            openSettingsTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
 }
 
 /**
@@ -221,6 +242,26 @@ function setupSidebarButtons(): void {
     if (sidebarAddConnectionBtn) {
         sidebarAddConnectionBtn.addEventListener("click", () => {
             openAddConnectionModal().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
+    // Sidebar import connections button
+    const sidebarImportConnectionsBtn = document.getElementById("sidebar-import-connections-btn");
+    if (sidebarImportConnectionsBtn) {
+        sidebarImportConnectionsBtn.addEventListener("click", () => {
+            importConnections().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
+    // Sidebar export connections button
+    const sidebarExportConnectionsBtn = document.getElementById("sidebar-export-connections-btn");
+    if (sidebarExportConnectionsBtn) {
+        sidebarExportConnectionsBtn.addEventListener("click", () => {
+            exportConnections().catch((error) => {
                 logError(error instanceof Error ? error : new Error(String(error)));
             });
         });
@@ -253,24 +294,43 @@ function setupSidebarButtons(): void {
             await openToolSecondaryConnectionModal();
         });
     }
+}
 
-    // Sidebar save settings button
-    const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
-    if (sidebarSaveSettingsBtn) {
-        sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
-    }
+/**
+ * Set up clear buttons for sidebar search inputs
+ * Binds click handlers so clear buttons reset and refocus their target inputs
+ */
+function setupSidebarSearchClearButtons(): void {
+    const clearButtons = document.querySelectorAll<HTMLButtonElement>(".search-clear-btn");
 
-    // Sidebar check for updates button
-    const sidebarCheckForUpdatesBtn = document.getElementById("sidebar-check-for-updates-btn");
-    if (sidebarCheckForUpdatesBtn) {
-        sidebarCheckForUpdatesBtn.addEventListener("click", async () => {
-            try {
-                await handleCheckForUpdates();
-            } catch (error) {
-                logError(error instanceof Error ? error : new Error(String(error)));
+    clearButtons.forEach((button) => {
+        const boundButton = button as HTMLButtonElement & { _pptbBound?: boolean };
+        if (boundButton._pptbBound) {
+            return;
+        }
+
+        boundButton._pptbBound = true;
+        button.addEventListener("click", () => {
+            const targetId = button.dataset.clearTarget;
+            if (!targetId) {
+                return;
             }
+
+            const input = document.getElementById(targetId) as HTMLInputElement | null;
+            if (!input) {
+                return;
+            }
+
+            if (!input.value) {
+                input.focus();
+                return;
+            }
+
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.focus();
         });
-    }
+    });
 }
 
 /**
@@ -399,31 +459,12 @@ function setupDebugSection(): void {
 
 /**
  * Set up settings change listeners
+ * Note: Settings UI is now rendered dynamically in the settings tab.
+ * Per-element listeners are wired in renderSettingsContent (settingsManagement.ts).
  */
 function setupSettingsListeners(): void {
-    // Terminal font selector
-    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as HTMLSelectElement | null;
-    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
-    const customFontContainer = document.getElementById("custom-font-input-container");
-
-    const toggleCustomFontVisibility = (): void => {
-        if (!customFontContainer) {
-            return;
-        }
-
-        const isCustomSelected = terminalFontSelect?.value === "custom";
-        customFontContainer.style.display = isCustomSelected ? "block" : "none";
-
-        if (isCustomSelected && customFontInput) {
-            customFontInput.focus();
-        }
-    };
-
-    if (terminalFontSelect) {
-        terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
-    }
-
-    toggleCustomFontVisibility();
+    // Settings UI is now rendered dynamically in the settings tab.
+    // Per-element listeners are wired in renderSettingsContent (settingsManagement.ts).
 }
 
 /**
@@ -433,7 +474,6 @@ function setupHomeScreenButtons(): void {
     const links = [
         { id: "sponsor-btn", url: "https://github.com/sponsors/PowerPlatformToolBox" },
         { id: "github-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app" },
-        { id: "font-help-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration" },
         { id: "bugs-features-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/issues" },
         { id: "create-tool-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/TOOL_DEV.md" },
         { id: "docs-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/README.md" },
@@ -496,6 +536,13 @@ function setupApplicationEventListeners(): void {
     // Home page listener
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
+    });
+
+    // Settings tab listener (triggered from menu or keyboard shortcut)
+    window.toolboxAPI.onOpenSettings(() => {
+        openSettingsTab().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
     });
 
     // Troubleshooting modal listener
@@ -633,6 +680,16 @@ function setupToolboxEventListeners(): void {
             } else {
                 logWarn("Menu launch event missing toolId", { payload });
             }
+            return;
+        }
+
+        if (payload.event === "menu:show-whats-new") {
+            const versionOverride = typeof payload.data?.version === "string" ? payload.data.version : undefined;
+            import("./whatsNewManagement")
+                .then(({ openWhatsNewTab }) => openWhatsNewTab(versionOverride))
+                .catch((err) => {
+                    logError(err instanceof Error ? err : new Error(String(err)));
+                });
             return;
         }
 

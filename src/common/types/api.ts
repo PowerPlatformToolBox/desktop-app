@@ -3,7 +3,7 @@
  * These types define the structure of the toolboxAPI exposed to the renderer
  */
 
-import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, SelectPathOptions, Theme } from "./common";
+import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
@@ -23,6 +23,8 @@ export interface ConnectionsAPI {
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
     authenticate: (connectionId: string) => Promise<void>;
+    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] }>;
+    importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
 }
 
 /**
@@ -30,6 +32,7 @@ export interface ConnectionsAPI {
  */
 export interface UtilsAPI {
     showNotification: (options: { title: string; body: string; type?: "info" | "success" | "warning" | "error"; duration?: number }) => Promise<void>;
+    showContextMenu: (request: NativeContextMenuRequest) => Promise<string | null>;
     copyToClipboard: (text: string) => Promise<void>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
@@ -217,6 +220,7 @@ export interface ToolboxAPI {
     onUpdateDownloaded: (callback: (info: unknown) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
     onShowHomePage: (callback: () => void) => void;
+    onOpenSettings: (callback: () => void) => void;
 
     // Authentication dialogs
     onShowDeviceCodeDialog: (callback: (message: string) => void) => void;

@@ -25,6 +25,7 @@ import {
     MetadataOperationOptions,
     ModalWindowMessagePayload,
     ModalWindowOptions,
+    NativeContextMenuRequest,
     ToolBoxEvent,
 } from "../common/types";
 import { AuthManager } from "./managers/authManager";
@@ -195,6 +196,9 @@ class ToolBoxApp {
         });
 
         this.autoUpdateManager.on("update-downloaded", (info) => {
+            // Record that an auto-update is pending installation so we can auto-open
+            // the What's New tab after the next restart into the new version.
+            this.settingsManager.setSetting("pendingWhatsNewVersion", info.version);
             this.api.showNotification({
                 title: "Update Ready",
                 body: `Version ${info.version} has been downloaded and will be installed on restart.`,
@@ -239,6 +243,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
         ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.EXPORT_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.IMPORT_CONNECTIONS);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -292,6 +298,7 @@ class ToolBoxApp {
 
         // Notification and utility handlers
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_CONTEXT_MENU);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
@@ -695,6 +702,16 @@ class ToolBoxApp {
             return this.browserManager.getBrowserProfiles(browserType);
         });
 
+        // Export connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, (_, ids?: string[]) => {
+            return this.connectionsManager.exportConnections(ids);
+        });
+
+        // Import connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, (_, data: unknown) => {
+            return this.connectionsManager.importConnections(data);
+        });
+
         // Tool handlers
         ipcMain.handle(TOOL_CHANNELS.GET_ALL_TOOLS, () => {
             return this.toolManager.getAllTools();
@@ -897,6 +914,44 @@ class ToolBoxApp {
         // Notification handler
         ipcMain.handle(UTIL_CHANNELS.SHOW_NOTIFICATION, (_, options) => {
             this.api.showNotification(options);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.SHOW_CONTEXT_MENU, async (event, request: NativeContextMenuRequest) => {
+            const window = BrowserWindow.fromWebContents(event.sender) || this.mainWindow;
+            if (!window || !request || !Array.isArray(request.items) || request.items.length === 0) {
+                return null;
+            }
+
+            return await new Promise<string | null>((resolve) => {
+                let settled = false;
+                const settle = (value: string | null) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    resolve(value);
+                };
+
+                const template: MenuItemConstructorOptions[] = request.items.map((item) => {
+                    if (item.type === "separator") {
+                        return { type: "separator" };
+                    }
+
+                    return {
+                        label: item.label || "",
+                        enabled: item.enabled !== false,
+                        click: () => settle(item.id),
+                    };
+                });
+
+                const menu = Menu.buildFromTemplate(template);
+                const popupOptions: Electron.PopupOptions = {
+                    window,
+                    callback: () => settle(null),
+                };
+
+                menu.popup(popupOptions);
+            });
         });
 
         // BrowserWindow modal handlers
@@ -2017,6 +2072,15 @@ class ToolBoxApp {
                             }
                         },
                     },
+                    {
+                        label: "Settings",
+                        accelerator: isMac ? "Command+," : "Ctrl+,",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.send(EVENT_CHANNELS.OPEN_SETTINGS);
+                            }
+                        },
+                    },
                     { type: "separator" },
                     { role: "resetZoom" },
                     { role: "zoomIn" },
@@ -2040,6 +2104,12 @@ class ToolBoxApp {
                         label: "Troubleshooting",
                         click: () => {
                             this.showTroubleshootingModal();
+                        },
+                    },
+                    {
+                        label: "What's New",
+                        click: () => {
+                            this.sendWhatsNewRequest("menu");
                         },
                     },
                     { type: "separator" },
@@ -2201,6 +2271,34 @@ class ToolBoxApp {
         this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
     }
 
+    private sendWhatsNewRequest(source: "menu" | "auto-update", version?: string): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:show-whats-new",
+            data: {
+                source,
+                ...(version ? { version } : {}),
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+            }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
+        }
+    }
+
     /**
      * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
      * This method cancels any pending menu recreation and schedules a new one after a short delay.
@@ -2284,6 +2382,11 @@ class ToolBoxApp {
         // Load the index.html
         this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 
+        // After the renderer is ready, auto-open What's New if an auto-update was installed.
+        this.mainWindow.webContents.once("did-finish-load", () => {
+            this.openWhatsNewIfPending();
+        });
+
         // Open DevTools in development
         if (process.env.NODE_ENV === "development") {
             this.mainWindow.webContents.openDevTools();
@@ -2338,6 +2441,22 @@ class ToolBoxApp {
 
         // Send message to renderer to open the troubleshooting modal
         this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    private openWhatsNewIfPending(): void {
+        const pendingVersion = this.settingsManager.getSetting("pendingWhatsNewVersion");
+        if (!pendingVersion || typeof pendingVersion !== "string" || pendingVersion.trim().length === 0) {
+            return;
+        }
+
+        const currentVersion = app.getVersion();
+        if (pendingVersion.trim() !== currentVersion) {
+            return;
+        }
+
+        // Clear first so the tab only auto-opens once.
+        this.settingsManager.setSetting("pendingWhatsNewVersion", null);
+        this.sendWhatsNewRequest("auto-update", currentVersion);
     }
 
     /**

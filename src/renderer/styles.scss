@@ -1,4 +1,5 @@
 // Import variables and mixins using modern @use syntax
+@use "sass:color";
 @use "./styles/variables" as *;
 @use "./styles/mixins" as *;
 @use "./styles/homepage" as *;
@@ -468,9 +469,7 @@ body {
     border-radius: 10px;
     padding: 16px 18px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .settings-section-card:hover {
@@ -1473,9 +1472,7 @@ body.dark-theme .settings-section-card {
     cursor: pointer;
     color: var(--text-color);
     opacity: 0.7;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -1615,9 +1612,7 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
 }
 
 .tool-tab:hover .tool-tab-close {
@@ -1639,9 +1634,7 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1828,6 +1821,196 @@ body.dark-theme .settings-section-card {
     flex-direction: column;
     overflow: hidden;
     background: var(--bg-color);
+}
+
+/* Settings tab container - VSCode-style two-column layout */
+.settings-tab-container {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Left navigation panel */
+.settings-tab-nav {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border-color);
+    padding: 16px 0;
+    overflow-y: auto;
+    background: var(--sidebar-bg, var(--bg-color));
+}
+
+.settings-tab-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.settings-tab-nav ul li {
+    margin: 0;
+}
+
+.settings-nav-link {
+    display: block;
+    padding: 7px 20px;
+    font-size: 13px;
+    color: var(--text-secondary, #8a8886);
+    text-decoration: none;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.15s, color 0.15s;
+}
+
+.settings-nav-link:hover {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    color: var(--text-color);
+}
+
+.settings-nav-link.active {
+    color: var(--text-color);
+    font-weight: 600;
+    border-left-color: var(--accent-color, #0078d4);
+    background: var(--active-bg, rgba(0, 120, 212, 0.08));
+}
+
+body.dark-theme .settings-nav-link:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-theme .settings-nav-link.active {
+    background: rgba(0, 120, 212, 0.15);
+}
+
+/* Right scrollable content area */
+.settings-tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    min-height: 0;
+}
+
+/* Each settings section */
+.settings-vscode-section {
+    border-bottom: 1px solid var(--border-color);
+    padding: 0;
+}
+
+.settings-vscode-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #8a8886);
+    margin: 0;
+    padding: 16px 24px 8px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-color);
+    z-index: 1;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Individual setting row - two-column: info left, control right */
+.settings-vscode-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.15));
+    transition: background 0.1s;
+}
+
+.settings-vscode-item:last-child {
+    border-bottom: none;
+}
+
+.settings-vscode-item:hover {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.03));
+}
+
+body.dark-theme .settings-vscode-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-vscode-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.settings-vscode-item-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    cursor: default;
+}
+
+.settings-vscode-item-description {
+    font-size: 12px;
+    color: var(--text-secondary, #8a8886);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.settings-vscode-item-control {
+    flex-shrink: 0;
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.settings-vscode-select {
+    width: 100%;
+}
+
+.settings-vscode-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.settings-vscode-btn {
+    align-self: flex-start;
+}
+
+/* Checkbox with label */
+.settings-vscode-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-color);
+    user-select: none;
+}
+
+.settings-vscode-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-color, #0078d4);
+    flex-shrink: 0;
+}
+
+.settings-vscode-link {
+    color: var(--accent-color, #0078d4);
+    text-decoration: none;
+}
+
+.settings-vscode-link:hover {
+    text-decoration: underline;
+}
+
+/* Save actions row */
+.settings-vscode-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-color);
 }
 
 .tool-detail-tab-header {
@@ -2053,9 +2236,14 @@ body.dark-theme .settings-section-card {
     position: relative;
 }
 
-.search-input {
+.sidebar-search-input-wrapper {
     flex: 1;
-    padding: 6px 12px;
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 6px 34px 6px 12px;
     font-size: 13px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -2073,6 +2261,45 @@ body.dark-theme .settings-section-card {
 .search-input::placeholder {
     color: var(--text-secondary);
     opacity: 0.7;
+}
+
+.search-clear-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-search-input-wrapper:has(.search-input:not(:placeholder-shown)) .search-clear-btn {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+}
+
+.search-clear-btn:hover {
+    background-color: rgba(128, 128, 128, 0.16);
+    color: var(--text-color);
+}
+
+.search-clear-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent-color);
 }
 
 .search-filter-btn {
@@ -2254,10 +2481,7 @@ body.dark-theme .search-filter-btn.active img {
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .tool-item-pptb-local {
@@ -2346,9 +2570,7 @@ img.tool-item-icon-img {
     border: none;
     cursor: pointer;
     padding: 2px 4px;
-    transition:
-        transform 0.2s,
-        opacity 0.2s;
+    transition: transform 0.2s, opacity 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2601,10 +2823,7 @@ img.tool-item-icon-img {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .marketplace-item-pptb:hover {
@@ -2674,11 +2893,7 @@ img.tool-item-icon-img {
     color: var(--text-color);
     padding: 0;
     cursor: pointer;
-    transition:
-        background-color 0.2s ease,
-        border-color 0.2s ease,
-        color 0.2s ease,
-        transform 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 body.dark-theme .install-button {
@@ -2813,10 +3028,7 @@ body.light-theme .install-button:focus-visible img {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
     margin-bottom: 10px;
 }
 
@@ -2829,6 +3041,70 @@ body.light-theme .install-button:focus-visible img {
 .connection-item-pptb.active {
     background: rgba(0, 120, 212, 0.1);
     border-left: 3px solid var(--primary-color);
+}
+
+.connection-item-pptb.connection-item-incomplete {
+    border-left: 3px solid $connection-warning-color;
+    background: rgba(247, 168, 0, 0.04);
+}
+
+.connection-warning-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(247, 168, 0, 0.15);
+    color: color.adjust($connection-warning-color, $lightness: -20%);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid rgba(247, 168, 0, 0.4);
+}
+
+.dark-theme .connection-warning-badge {
+    background: rgba(247, 168, 0, 0.18);
+    color: $connection-warning-color-dark;
+    border-color: rgba(247, 168, 0, 0.4);
+}
+
+/* Sidebar header actions group (multiple buttons) */
+.sidebar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Compact icon-only button for sidebar header actions */
+.sidebar-icon-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color);
+    transition: all 0.15s ease-in-out;
+    width: 30px;
+    height: 30px;
+}
+
+.sidebar-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: var(--primary-color);
+}
+
+body.dark-theme .sidebar-icon-btn {
+    border-color: #605e5c;
+}
+
+body.dark-theme .sidebar-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+}
+
+.sidebar-icon-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .connection-item-top-tags {
@@ -3421,8 +3697,8 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     content: "";
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%), radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
+    background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
+        radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
 body.dark-theme #tool-detail-modal .modal-content.tool-detail-modern {
@@ -4245,9 +4521,7 @@ fluent-badge {
     border-radius: 3px;
     font-size: 13px;
     cursor: pointer;
-    transition:
-        background-color 0.2s,
-        color 0.2s;
+    transition: background-color 0.2s, color 0.2s;
     white-space: nowrap;
 }
 
@@ -4614,9 +4888,7 @@ body.dark-theme .csp-warning ul {
     align-items: flex-start;
     gap: 12px;
     animation: slideInRight 0.3s ease-out;
-    transition:
-        opacity 0.2s ease-out,
-        transform 0.2s ease-out;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
     max-width: 100%;
 }
 
@@ -5153,6 +5425,34 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .connection-group-toggle {
     font-size: 10px;
     opacity: 0.7;
+}
+
+/* Export button on category group header */
+.connection-group-export-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+    color: var(--text-secondary, rgba(0, 0, 0, 0.6));
+}
+
+.connection-group-export-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.dark-theme .connection-group-export-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.connection-group-export-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .connection-group-items.collapsed {

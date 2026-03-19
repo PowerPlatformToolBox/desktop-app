@@ -373,7 +373,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -570,7 +572,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -1088,6 +1092,271 @@ export async function deleteConnection(id: string): Promise<void> {
     }
 }
 
+/**
+ * Export connections to a JSON file.
+ * @param ids Optional array of connection IDs to export. If omitted, all connections are exported.
+ */
+export async function exportConnections(ids?: string[]): Promise<void> {
+    try {
+        const exportData = await window.toolboxAPI.connections.exportConnections(ids);
+
+        if (exportData.connections.length === 0) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Nothing to Export",
+                body: "No connections found to export.",
+                type: "info",
+            });
+            return;
+        }
+
+        const json = JSON.stringify(exportData, null, 2);
+        const defaultFileName = `pptb-connections-${new Date().toISOString().split("T")[0]}.json`;
+
+        const savedPath = await window.toolboxAPI.fileSystem.saveFile(defaultFileName, json, [{ name: "JSON Files", extensions: ["json"] }]);
+
+        if (savedPath) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Export Successful",
+                body: `Exported ${exportData.connections.length} connection(s) to file.`,
+                type: "success",
+            });
+        }
+    } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logError(err);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Export Failed",
+            body: err.message,
+            type: "error",
+        });
+    }
+}
+
+/**
+ * Parse an XrmToolBox connections XML file and convert it to the PPTB import payload format.
+ * @param xmlContent Raw XML string from the XrmToolBox ConnectionsList file.
+ * @returns A PPTB-compatible import payload ready to pass to `importConnections`.
+ */
+function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+
+    // Check for XML parse errors
+    const parseError = xmlDoc.querySelector("parsererror");
+    if (parseError) {
+        throw new Error("Invalid XML: the selected file could not be parsed as valid XML.");
+    }
+
+    // Validate root element
+    const root = xmlDoc.documentElement;
+    if (root.tagName !== "CrmConnections") {
+        throw new Error("The selected XML file is not a valid XrmToolBox connection file. Expected a <CrmConnections> root element.");
+    }
+
+    const connectionNodes = Array.from(xmlDoc.querySelectorAll("ConnectionDetail"));
+    if (connectionNodes.length === 0) {
+        throw new Error("No connections found in the XrmToolBox connection file.");
+    }
+
+    const now = new Date().toISOString();
+    const connections: Partial<DataverseConnection>[] = [];
+
+    for (const node of connectionNodes) {
+        const getText = (tagName: string, parent: Element = node): string => parent.querySelector(tagName)?.textContent?.trim() ?? "";
+
+        // Prefer WebApplicationUrl, fall back to OriginalUrl – strip trailing slash
+        const url = getText("WebApplicationUrl").replace(/\/$/, "") || getText("OriginalUrl").replace(/\/$/, "");
+        if (!url) {
+            logWarn("[importConnections] Skipping XTB connection with no URL", { name: getText("ConnectionName") });
+            continue;
+        }
+
+        // Map XTB NewAuthType → PPTB authenticationType
+        const newAuthType = getText("NewAuthType").toLowerCase();
+        let authenticationType: ConnectionAuthenticationType;
+        switch (newAuthType) {
+            case "clientsecret":
+                authenticationType = "clientSecret";
+                break;
+            case "ad":
+            case "office365":
+            case "onlinefederation":
+            case "ifd":
+                authenticationType = "usernamePassword";
+                break;
+            case "certificate":
+            case "managedidentity":
+                // These auth types are not supported in PPTB; log a warning here and skip this connection
+                logWarn("[importConnections] Skipping unsupported XTB auth type", { authType: newAuthType, name: getText("ConnectionName") });
+                continue;
+            case "oauth":
+            default:
+                authenticationType = "interactive";
+                break;
+        }
+
+        // Map environment from EnvironmentHighlightingInfo > Text
+        const envInfoEl = node.querySelector("EnvironmentHighlightingInfo");
+        const envText = envInfoEl ? getText("Text", envInfoEl).toUpperCase() : "";
+        let environment: ConnectionEnvironment = "Dev";
+        if (envText === "PROD" || envText === "PRODUCTION" || envText === "P") {
+            environment = "Production";
+        } else if (envText === "UAT" || envText === "STAGING" || envText === "SIT" || envText === "STAGE") {
+            environment = "UAT";
+        } else if (envText === "TEST" || envText === "TST" || envText === "T") {
+            environment = "Test";
+        }
+
+        const conn: Partial<DataverseConnection> = {
+            name: getText("ConnectionName"),
+            url,
+            environment,
+            authenticationType,
+            createdAt: now,
+        };
+
+        // Optional fields
+        const tenantId = getText("TenantId");
+        if (tenantId) {
+            conn.tenantId = tenantId;
+        }
+
+        const azureAdAppId = getText("AzureAdAppId");
+        if (azureAdAppId) {
+            conn.clientId = azureAdAppId;
+        }
+
+        const username = getText("UserName");
+        if (username) {
+            conn.username = username;
+        }
+
+        // Map environment color from EnvironmentHighlightingInfo > Color
+        const envColor = envInfoEl ? getText("Color", envInfoEl) : "";
+        if (envColor) {
+            conn.environmentColor = envColor;
+        }
+
+        const lastUsedRaw = getText("LastUsedOn");
+        if (lastUsedRaw) {
+            const lastUsedDate = new Date(lastUsedRaw);
+            if (!isNaN(lastUsedDate.getTime())) {
+                conn.lastUsedAt = lastUsedDate.toISOString();
+            }
+        }
+
+        connections.push(conn);
+    }
+
+    return { version: 1, exportedAt: now, connections };
+}
+
+/**
+ * Import connections from a file selected by the user.
+ * Supports both PPTB JSON export files and XrmToolBox XML connection files.
+ */
+export async function importConnections(): Promise<void> {
+    try {
+        // Ask user to select a file – accept both PPTB JSON and XTB XML formats
+        const filePath = await window.toolboxAPI.fileSystem.selectPath({
+            type: "file",
+            filters: [
+                { name: "Connection Files (PPTB JSON or XrmToolBox XML)", extensions: ["json", "xml"] },
+                { name: "PPTB JSON Files", extensions: ["json"] },
+                { name: "XrmToolBox XML Files", extensions: ["xml"] },
+            ],
+        });
+
+        if (!filePath) {
+            return; // User cancelled
+        }
+
+        // Read the file content
+        let fileContent: string;
+        try {
+            fileContent = await window.toolboxAPI.fileSystem.readText(filePath);
+        } catch {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: "Could not read the selected file.",
+                type: "error",
+            });
+            return;
+        }
+
+        // Detect format: XML files (XrmToolBox) vs JSON files (PPTB)
+        const isXml = filePath.toLowerCase().endsWith(".xml") || fileContent.trimStart().startsWith("<?xml") || fileContent.trimStart().startsWith("<CrmConnections");
+
+        let parsedData: unknown;
+        if (isXml) {
+            // Parse XrmToolBox XML and convert to PPTB import payload
+            try {
+                parsedData = parseXtbXmlToImportPayload(fileContent);
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: err.message,
+                    type: "error",
+                });
+                return;
+            }
+        } else {
+            // Parse PPTB JSON
+            try {
+                parsedData = JSON.parse(fileContent);
+            } catch {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: "The selected file is not valid JSON.",
+                    type: "error",
+                });
+                return;
+            }
+        }
+
+        // Perform the import (validation and persistence happen in the main process)
+        let result: { imported: number; skipped: number; warnings: string[] };
+        try {
+            result = await window.toolboxAPI.connections.importConnections(parsedData);
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: err.message.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, ""),
+                type: "error",
+            });
+            return;
+        }
+
+        // Reload connections list
+        await loadSidebarConnections();
+
+        // Show result notification
+        const hasWarnings = result.warnings.length > 0;
+        let body = `Imported ${result.imported} connection(s).`;
+        if (result.skipped > 0) {
+            body += ` Skipped ${result.skipped} invalid entry/entries.`;
+        }
+        if (hasWarnings) {
+            body += " Some connections are missing credentials (shown with ⚠).";
+        }
+
+        await window.toolboxAPI.utils.showNotification({
+            title: result.imported > 0 ? "Import Successful" : "Import Completed",
+            body,
+            type: hasWarnings ? "warning" : "success",
+        });
+    } catch (error) {
+        logError(error instanceof Error ? error : new Error(String(error)));
+        await window.toolboxAPI.utils.showNotification({
+            title: "Import Failed",
+            body: (error as Error).message,
+            type: "error",
+        });
+    }
+}
+
 function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
@@ -1392,6 +1661,7 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const editIconPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
     const deleteIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
 
     const menu = document.createElement("div");
     menu.className = "context-menu";
@@ -1402,6 +1672,10 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
         <div class="context-menu-item" data-menu-action="edit">
             <img src="${editIconPath}" class="context-menu-icon" alt="" />
             <span>Edit Connection</span>
+        </div>
+        <div class="context-menu-item" data-menu-action="export">
+            <img src="${exportIconPath}" class="context-menu-icon" alt="" />
+            <span>Export Connection</span>
         </div>
         <div class="context-menu-item context-menu-item-danger" data-menu-action="delete">
             <img src="${deleteIconPath}" class="context-menu-icon" alt="" />
@@ -1448,6 +1722,8 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
 
             if (action === "edit") {
                 await editConnection(conn.id);
+            } else if (action === "export") {
+                await exportConnections([conn.id]);
             } else if (action === "delete") {
                 if (confirm(`Are you sure you want to delete the connection "${conn.name}"?`)) {
                     await window.toolboxAPI.connections.delete(conn.id);
@@ -1617,8 +1893,11 @@ export async function loadSidebarConnections(): Promise<void> {
             const envBadgeMarkup = getEnvBadgeMarkup(conn);
             const safeName = escapeHtml(conn.name || "");
             const safeUrl = escapeHtml(conn.url || "");
+            const warningBadge = conn.hasIncompleteCredentials
+                ? `<span class="connection-warning-badge" title="Missing credentials – this connection cannot be used until credentials are added">⚠ Incomplete</span>`
+                : "";
             return `
-                <div class="connection-item-pptb">
+                <div class="connection-item-pptb${conn.hasIncompleteCredentials ? " connection-item-incomplete" : ""}">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
@@ -1636,6 +1915,7 @@ export async function loadSidebarConnections(): Promise<void> {
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                            ${warningBadge}
                         </div>
                         <div class="connection-item-meta-left">
                             ${browserBadgeMarkup}
@@ -1648,6 +1928,8 @@ export async function loadSidebarConnections(): Promise<void> {
         const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
 
         if (useGroups) {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
@@ -1660,6 +1942,9 @@ export async function loadSidebarConnections(): Promise<void> {
                             <span class="connection-group-title">${escapedKey}</span>
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
+                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                                <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
+                            </button>
                         </div>
                         <div class="connection-group-items" data-category="${escapedKey}">
                             ${items}
@@ -1686,10 +1971,26 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         });
 
+        // Add event listeners for category export buttons
+        connectionsList.querySelectorAll(".connection-group-export-btn").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLButtonElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                // categoryKey is the raw key (empty string for Default)
+                const categoryConns = groupMap.get(categoryKey ?? "");
+                if (!categoryConns || categoryConns.length === 0) return;
+                const ids = categoryConns.map((c: DataverseConnection) => c.id);
+                await exportConnections(ids);
+            });
+        });
+
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             const headerEl = header as HTMLElement;
-            const toggleGroup = () => {
+            const toggleGroup = (event?: Event) => {
+                // Don't toggle if the click originated from the export button
+                if (event && (event.target as HTMLElement).closest(".connection-group-export-btn")) return;
                 const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;

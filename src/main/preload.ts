@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         authenticate: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
+        exportConnections: (ids?: string[]) => ipcRenderer.invoke(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, ids),
+        importConnections: (data: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, data),
     },
 
     // Tools - Only for PPTB UI
@@ -85,7 +87,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
@@ -112,6 +115,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
+        showContextMenu: (request: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_CONTEXT_MENU, request),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
@@ -203,6 +207,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Home page - Only for PPTB UI
     onShowHomePage: (callback: () => void) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_HOME_PAGE, callback);
+    },
+
+    // Settings tab - Only for PPTB UI
+    onOpenSettings: (callback: () => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.OPEN_SETTINGS, callback);
     },
 
     // Authentication dialogs - Only for PPTB UI
