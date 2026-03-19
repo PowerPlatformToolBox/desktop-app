@@ -33,8 +33,14 @@ Precondition
 - Start implementation only when one of these is true:
     - Plan checkpoint status is **GO** (fast path), or
     - Plan checkpoint status is **APPROVED** (standard/high-risk), or
-    - The user explicitly says "go ahead" / "proceed" after reviewing the plan summary.
+    - The user explicitly confirms via a checkpoint question selection (**Go** / **Approve**) (preferred) OR says "go" / "go ahead" / "proceed" / "approved" (case-insensitive) after reviewing the plan summary.
 - If none apply, ask for the missing confirmation (keep it to 1 question).
+- If the user says GO/APPROVED but required inputs are missing, explicitly list what is missing and ask for it (GO does not override missing prerequisites).
+
+If the user selects **No Go** / **Reject**
+
+- Do not implement.
+- Ask what changes are needed to reach Go/Approve.
 
 What you do
 
@@ -51,3 +57,8 @@ Mesh collaboration
 Output requirements
 
 - Record an execution log in the plan (files changed, commands run, key decisions).
+
+Chat output contract
+
+- Do NOT paste the full plan file into chat.
+- In chat, provide a short progress summary and point to the plan execution log for details.

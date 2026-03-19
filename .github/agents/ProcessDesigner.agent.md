@@ -41,6 +41,12 @@ Constraints
 - Do NOT run commands.
 - Only edit files under `.github/plans/`.
 
+Chat output contract
+
+- Do NOT paste the full plan content into chat.
+- Use `edit` to update the plan file under `.github/plans/`.
+- In chat, provide only a short summary of what you changed and what is still needed from the user.
+
 Mesh + speed principles
 
 - Provide the **minimum** workflow that still makes the change verifiable.
@@ -49,6 +55,6 @@ Mesh + speed principles
 
 Checkpoint guidance (risk-based)
 
-- `Fast` work: require a simple **GO** checkpoint (user confirms scope + acceptance criteria), then proceed.
+- `Fast` work: require a simple **GO** checkpoint (prefer an explicit **Go / No Go** user choice; user confirms scope + acceptance criteria), then proceed.
 - `Standard` work: recommend Critic review before implementation.
-- `High-risk` work (IPC/preload, auth, encryption, updates, tool isolation, CSP): require explicit user approval before implementation.
+- `High-risk` work (IPC/preload, auth, encryption, updates, tool isolation, CSP): require explicit user approval before implementation (prefer an explicit **Approve / Reject** user choice).

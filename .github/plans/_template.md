@@ -72,6 +72,10 @@ Rules:
 - `Standard`: prefer Critic review; user approval recommended.
 - `High-risk`: require explicit **APPROVED** before implementation.
 
+Note
+
+- Checkpoints should be asked as an explicit user choice when possible (e.g., **Go / No Go**, **Approve / Reject**) rather than requiring the user to type a magic word.
+
 ---
 
 ## Execution log (only after GO/APPROVED)

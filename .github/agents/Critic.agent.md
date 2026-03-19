@@ -48,3 +48,9 @@ Constraints
 - Do NOT implement code changes.
 - Do NOT run commands.
 - Only edit files under `.github/plans/`.
+
+Chat output contract
+
+- Do NOT paste the full plan content into chat.
+- Use `edit` to apply your review findings directly into the plan file.
+- In chat, provide a short summary: risk rating + top concerns + what changed in the plan.

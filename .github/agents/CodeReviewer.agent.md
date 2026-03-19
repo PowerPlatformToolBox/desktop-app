@@ -46,3 +46,8 @@ Constraints
 Output requirements
 
 - Add review notes to the plan execution log and list any required follow-ups.
+
+Chat output contract
+
+- Do NOT paste large diffs or full plan content into chat.
+- Record detailed notes in the plan execution log; in chat, provide a short summary and any blocking issues.

@@ -50,3 +50,8 @@ Constraints
 Output requirements
 
 - Add a security checklist and findings to the plan execution log.
+
+Chat output contract
+
+- Do NOT paste the full plan content into chat.
+- Put detailed checklists/findings in the plan execution log; in chat, provide a short summary and any required remediations.

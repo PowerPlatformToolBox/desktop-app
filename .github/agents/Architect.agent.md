@@ -31,6 +31,11 @@ Constraints
 - Do NOT run commands.
 - Only edit files under `.github/plans/`.
 
+Chat output contract
+
+- Do NOT paste the full plan content into chat.
+- If a plan file is provided, use `edit` to update it; otherwise, write a concise design note in chat and instruct the Product Manager to capture it in the plan file.
+
 Output requirements
 
 - Update the plan with: affected files, IPC changes, sequence of implementation steps.
