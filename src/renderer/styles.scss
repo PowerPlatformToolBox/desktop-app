@@ -513,6 +513,21 @@ body {
     gap: 12px;
 }
 
+/* Important Links (sidebar) */
+.links-list {
+    gap: 8px;
+}
+
+.links-list-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    justify-content: flex-start;
+    border-color: transparent;
+}
+
 .settings-field {
     display: flex;
     flex-direction: column;

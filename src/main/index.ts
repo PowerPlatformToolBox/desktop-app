@@ -16,6 +16,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -26,7 +27,6 @@ import {
     ModalWindowOptions,
     ToolBoxEvent,
 } from "../common/types";
-import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -996,8 +996,26 @@ class ToolBoxApp {
         });
 
         // Open external URL handler
-        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
-            await shell.openExternal(url);
+        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url: unknown) => {
+            if (typeof url !== "string") {
+                logWarn("Blocked openExternal call with non-string url", { urlType: typeof url });
+                return;
+            }
+
+            let parsedUrl: URL;
+            try {
+                parsedUrl = new URL(url);
+            } catch {
+                logWarn("Blocked openExternal call with invalid url", { url });
+                return;
+            }
+
+            if (parsedUrl.protocol !== "https:") {
+                logWarn("Blocked openExternal call with non-https protocol", { url, protocol: parsedUrl.protocol });
+                return;
+            }
+
+            await shell.openExternal(parsedUrl.toString());
         });
 
         // Filesystem handlers with access control

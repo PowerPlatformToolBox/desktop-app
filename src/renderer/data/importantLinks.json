@@ -1,0 +1,53 @@
+{
+    "version": 1,
+    "groups": [
+        {
+            "id": "newsletters",
+            "title": "Newsletters",
+            "links": [
+                {
+                    "id": "pp-weekly",
+                    "label": "PP Weekly",
+                    "url": "https://www.ppweekly.com/"
+                },
+                {
+                    "id": "pp-dev-weekly",
+                    "label": "PP Dev Weekly",
+                    "url": "https://www.ppdevweekly.com/"
+                }
+            ]
+        },
+        {
+            "id": "release-plans",
+            "title": "Release plans",
+            "links": [
+                {
+                    "id": "release-plans-visualized",
+                    "label": "Release Plans Visualized",
+                    "url": "https://releaseplans.net/"
+                }
+            ]
+        },
+        {
+            "id": "calculators-estimators",
+            "title": "Calculators / estimators",
+            "links": [
+                {
+                    "id": "dataverse-capacity-calculator",
+                    "label": "Dataverse Capacity Calculator",
+                    "url": "https://dataverse.licensing.guide/"
+                },
+                {
+                    "id": "power-pages-licensing-cost-calculator",
+                    "label": "Power Pages Licensing Cost Calculator",
+                    "url": "https://powerportals.de/tools/power-pages-pricing-calculator.html"
+                },
+                {
+                    "id": "microsoft-agent-usage-estimator",
+                    "label": "Microsoft agent usage estimator",
+                    "url": "https://microsoft.github.io/copilot-studio-estimator/"
+                }
+            ]
+        }
+    ]
+}
