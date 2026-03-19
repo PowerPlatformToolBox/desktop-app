@@ -2,12 +2,13 @@
 
 ## Request summary
 
-Configure custom agents for VS Code in this repo using `.github/agents/*.agent.md`, with **Product Manager (orchestrator)** as the single entry point that routes to other agents, and a **human approval gate after Critic** before any implementation agents run.
+Configure custom agents for VS Code in this repo using `.github/agents/*.agent.md`, using a **mesh collaboration** pattern. **Product Manager (gateway)** remains the default entry point for user prompts, but the user can invoke other agents directly when needed. Add a risk-based checkpoint model with a fast path for small fixes.
 
 ## Goals
 
-- Add `.github/agents/*.agent.md` profiles defining roles and a strict execution order.
-- Enforce a hard gate after the Critic step requiring explicit human approval.
+- Add `.github/agents/*.agent.md` profiles defining roles and mesh collaboration norms.
+- Keep Product Manager as the primary input gateway while allowing direct invocation of other agents.
+- Replace the universal Critic→human gate with a **risk-based checkpoint** (Fast/Standard/High-risk) and a **GO fast path**.
 - Establish a repeatable convention for saving outputs to `.github/plans/plan-<slug>.md`.
 - Standardize tool naming/availability per agent (planning vs execution).
 
@@ -25,8 +26,10 @@ Configure custom agents for VS Code in this repo using `.github/agents/*.agent.m
 ## Acceptance criteria
 
 - `.github/agents/*.agent.md` exists for all requested roles.
-- The Product Manager agent is the single entry point and explicitly routes planning work to the other agents (via the `agent` tool) and enforces the Critic → human approval gate.
-- `.github/plans/_template.md` exists and includes a human approval checkpoint after Critic.
+- The Product Manager agent is the default user gateway and can route to other agents (via the `agent` tool) based on need.
+- Other agents can be invoked directly and do not block the user.
+- The plan template supports Fast/Standard/High-risk triage and a checkpoint status (`GO` / `APPROVED`).
+- `.github/plans/_template.md` includes triage + a risk-based checkpoint section that supports fast-path `GO`.
 - `.github/plans/README.md` documents naming and gating.
 - Each agent prompt includes an explicit `Role:` section.
 - Tool configuration matches the agreed tool taxonomy, with `execute` enabled only for the App Developer.
@@ -35,14 +38,14 @@ Configure custom agents for VS Code in this repo using `.github/agents/*.agent.m
 
 ### Product Manager (Orchestrator)
 
-- Define the target roles and execution order.
-- Make PM the single entry point that routes to other agents using the `agent` tool.
-- Enforce the Critic → human approval gate and only route execution agents after approval.
+- Define the target roles and mesh collaboration norms.
+- Keep PM as the default gateway; allow direct invocation of other agents.
+- Define the triage + checkpointing model to enable a fast path for low-risk work.
 - Define the plan artifact naming convention under `.github/plans/`.
 
 ### Process Designer
 
-- Add a hard stop after Critic and require explicit human approval.
+- Define Fast/Standard/High-risk workflow checkpoints.
 - Define validation expectations and repo constraints.
 
 ### UI Designer
@@ -61,7 +64,7 @@ Configure custom agents for VS Code in this repo using `.github/agents/*.agent.m
 ### Critic
 
 - Ensure minimal scope (docs only) and no extra workflow automation beyond what was requested.
-- Check that the tool names match the requested taxonomy and that no planning agent can execute commands.
+- Check that the mesh workflow is demand-driven and that fast-path still captures acceptance criteria.
 
 ## Tooling (agreed taxonomy)
 
@@ -79,7 +82,7 @@ The agent profiles should use tool names from this set (scoped per role):
 
 ---
 
-## Human approval checkpoint
+## Checkpoint
 
 Status: **APPROVED (completed)**
 
@@ -88,11 +91,11 @@ Status: **APPROVED (completed)**
 
 ---
 
-## Execution log (only after approval)
+## Execution log (only after GO/APPROVED)
 
 ### App Developer
 
-- Created `.github/agents/*.agent.md` with role instructions and the hard gate after Critic.
+- Created `.github/agents/*.agent.md` with mesh collaboration norms and risk-based checkpoint guidance.
 - Moved the plan folder under `.github/plans/` (template + README + example plan).
 - Created this plan file to demonstrate the convention.
 

@@ -11,6 +11,11 @@ Examples:
 
 Workflow gate:
 
-- Plans are drafted through the **Critic** role.
-- Then the human user must approve the plan.
-- Only after approval do implementation and reviews proceed.
+- Default workflow uses **Product Manager (gateway)** to create a plan file.
+- Agents collaborate as a **mesh** (only the relevant specialists are invoked).
+
+Checkpointing (risk-based):
+
+- `Fast` (small, low-risk): proceed on **GO** after scope + acceptance criteria are confirmed.
+- `Standard`: Critic review is recommended; explicit user approval is encouraged.
+- `High-risk` (IPC/preload, auth, encryption, updates, tool isolation, CSP): require explicit **APPROVED** before implementation.

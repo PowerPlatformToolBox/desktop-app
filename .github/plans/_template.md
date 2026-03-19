@@ -20,6 +20,18 @@
 
 -
 
+## Triage
+
+Type: **Fast** | **Standard** | **High-risk**
+
+Rationale:
+
+-
+
+## Participants (mesh)
+
+- Product Manager (gateway)
+
 ## Plan (drafted by agents)
 
 ### Product Manager (Orchestrator)
@@ -44,22 +56,25 @@
 
 ### Critic
 
--
+- ***
+
+## Checkpoint
+
+Status: **NOT READY** | **GO (fast path)** | **APPROVED**
+
+- [ ] Scope and acceptance criteria confirmed
+- [ ] Critic reviewed (optional)
+- [ ] User approved plan (required for high-risk)
+
+Rules:
+
+- `Fast`: OK to proceed with **GO** once scope + acceptance criteria are confirmed.
+- `Standard`: prefer Critic review; user approval recommended.
+- `High-risk`: require explicit **APPROVED** before implementation.
 
 ---
 
-## Human approval checkpoint
-
-Status: **NOT APPROVED**
-
-- [ ] Human reviewed plan
-- [ ] Human approved plan
-
-> Implementation MUST NOT start until approved.
-
----
-
-## Execution log (only after approval)
+## Execution log (only after GO/APPROVED)
 
 ### App Developer
 

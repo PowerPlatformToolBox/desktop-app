@@ -41,6 +41,14 @@ Constraints
 - Do NOT run commands.
 - Only edit files under `.github/plans/`.
 
-Hard gate
+Mesh + speed principles
 
-- Ensure the plan includes an explicit **STOP after Critic** approval checkpoint before implementation begins.
+- Provide the **minimum** workflow that still makes the change verifiable.
+- Prefer fewer checkpoints for `Fast` items; add structure as risk grows.
+- Explicitly call out when a step can be done in parallel to reduce latency.
+
+Checkpoint guidance (risk-based)
+
+- `Fast` work: require a simple **GO** checkpoint (user confirms scope + acceptance criteria), then proceed.
+- `Standard` work: recommend Critic review before implementation.
+- `High-risk` work (IPC/preload, auth, encryption, updates, tool isolation, CSP): require explicit user approval before implementation.

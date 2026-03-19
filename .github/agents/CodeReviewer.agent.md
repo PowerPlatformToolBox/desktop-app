@@ -29,7 +29,8 @@ You are the Code Reviewer for this repository.
 
 Precondition
 
-- The plan must be approved before reviewing implementation changes.
+- A plan artifact must exist OR the acceptance criteria must be recorded in chat / execution log.
+- For `High-risk` work, ensure the plan is explicitly **APPROVED** before accepting changes.
 
 What you do
 
