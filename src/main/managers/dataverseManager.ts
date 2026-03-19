@@ -656,7 +656,9 @@ export class DataverseManager {
 
         if (selectColumns && selectColumns.length > 0) {
             const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
-            url += `?$select=${encodedColumns}`;
+            url += `?$expand=Attributes($select=${encodedColumns})`;
+        }else{
+            url += `?$expand=Attributes`;
         }
 
         const response = await this.makeHttpRequest(url, "GET", accessToken);
