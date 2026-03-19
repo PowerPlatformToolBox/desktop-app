@@ -40,6 +40,21 @@ function tryNormalizeHttpsUrl(value: string): string | null {
     return parsed.toString();
 }
 
+function tryGetDisplayHost(value: string): string | null {
+    const normalized = tryNormalizeHttpsUrl(value);
+    if (!normalized) {
+        return null;
+    }
+
+    try {
+        const parsed = new URL(normalized);
+        const host = parsed.hostname.replace(/^www\./i, "");
+        return host || null;
+    } catch {
+        return null;
+    }
+}
+
 function buildAllowlist(collection: ImportantLinksCollection): ReadonlySet<string> {
     const allowlist = new Set<string>();
 
@@ -118,7 +133,33 @@ function createGroupCard(group: ImportantLinksGroup): HTMLElement {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "fluent-button fluent-button-secondary links-list-item";
-        button.textContent = link.label;
+        const content = document.createElement("span");
+        content.className = "links-list-item-content";
+
+        const text = document.createElement("span");
+        text.className = "links-list-item-text";
+
+        const titleText = document.createElement("span");
+        titleText.className = "links-list-item-title";
+        titleText.textContent = link.label;
+
+        const metaText = document.createElement("span");
+        metaText.className = "links-list-item-meta";
+        metaText.textContent = tryGetDisplayHost(link.url) ?? "";
+
+        text.appendChild(titleText);
+        if (metaText.textContent) {
+            text.appendChild(metaText);
+        }
+
+        const indicator = document.createElement("span");
+        indicator.className = "links-list-item-indicator";
+        indicator.textContent = "\u2197";
+        indicator.setAttribute("aria-hidden", "true");
+
+        content.appendChild(text);
+        content.appendChild(indicator);
+        button.appendChild(content);
         button.setAttribute("aria-label", `Open ${link.label} in your browser`);
 
         button.addEventListener("click", (e) => {

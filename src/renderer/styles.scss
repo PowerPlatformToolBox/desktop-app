@@ -526,6 +526,45 @@ body {
     text-align: left;
     justify-content: flex-start;
     border-color: transparent;
+    padding: 10px 12px;
+}
+
+.links-list-item-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+.links-list-item-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.links-list-item-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.links-list-item-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.links-list-item-indicator {
+    color: var(--text-secondary);
+    flex: 0 0 auto;
 }
 
 .settings-field {
