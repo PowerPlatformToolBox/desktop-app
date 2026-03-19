@@ -43,6 +43,15 @@ interface FetchXmlResult {
 }
 
 /**
+ * Attribute metadata for Dataverse columns
+ */
+export interface AttributeMetadata {
+    LogicalName: string;
+    AttributeType: string;
+    [key: string]: unknown;
+}
+
+/**
  * Entity metadata response
  */
 interface EntityMetadata {
@@ -51,6 +60,7 @@ interface EntityMetadata {
     DisplayName?: {
         LocalizedLabels: Array<{ Label: string; LanguageCode: number }>;
     };
+    Attributes?: AttributeMetadata[];
     [key: string]: unknown;
 }
 
