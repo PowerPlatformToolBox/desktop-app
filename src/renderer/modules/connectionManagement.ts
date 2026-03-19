@@ -1186,7 +1186,7 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
                 break;
             case "certificate":
             case "managedidentity":
-                // These auth types are not supported in PPTB; skip with a warning logged by the caller
+                // These auth types are not supported in PPTB; log a warning here and skip this connection
                 logWarn("[importConnections] Skipping unsupported XTB auth type", { authType: newAuthType, name: getText("ConnectionName") });
                 continue;
             case "oauth":
