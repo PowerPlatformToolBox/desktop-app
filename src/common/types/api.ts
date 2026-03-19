@@ -220,6 +220,7 @@ export interface ToolboxAPI {
     onUpdateDownloaded: (callback: (info: unknown) => void) => void;
     onUpdateError: (callback: (error: string) => void) => void;
     onShowHomePage: (callback: () => void) => void;
+    onOpenSettings: (callback: () => void) => void;
 
     // Authentication dialogs
     onShowDeviceCodeDialog: (callback: (message: string) => void) => void;

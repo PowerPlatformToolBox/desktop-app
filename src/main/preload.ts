@@ -209,6 +209,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_HOME_PAGE, callback);
     },
 
+    // Settings tab - Only for PPTB UI
+    onOpenSettings: (callback: () => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.OPEN_SETTINGS, callback);
+    },
+
     // Authentication dialogs - Only for PPTB UI
     onShowDeviceCodeDialog: (callback: (message: string) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_DEVICE_CODE_DIALOG, (_, message) => callback(message));

@@ -9,8 +9,9 @@ import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
 import { escapeHtml } from "../utils/toolIconResolver";
 import { getToolLibrary, openToolDetail } from "./marketplaceManagement";
-import { switchSidebar } from "./sidebarManagement";
 import { logInfo, logError } from "../../common/logger";
+import { switchSidebar } from "./sidebarManagement";
+import { openSettingsTab } from "./settingsManagement";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -116,22 +117,26 @@ function syncInputIconTheme(): void {
 // ── Settings focus helper ─────────────────────────────────────────────────────
 
 /**
- * Switch to settings sidebar and focus/scroll a specific setting element.
+ * Open the settings tab and focus/scroll a specific setting element.
  */
 function navigateToSetting(focusId: string | undefined): void {
-    switchSidebar("settings");
-    if (!focusId) return;
-
-    // Wait for sidebar transition then focus/scroll the element
-    requestAnimationFrame(() => {
-        const el = document.getElementById(focusId) as HTMLElement | null;
-        if (!el) return;
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.focus();
-        // Highlight briefly so the user sees the focused setting
-        el.classList.add("global-search-highlight");
-        setTimeout(() => el.classList.remove("global-search-highlight"), 1500);
-    });
+    openSettingsTab()
+        .then(() => {
+            if (!focusId) return;
+            // Wait for tab content to render then focus/scroll the element
+            requestAnimationFrame(() => {
+                const el = document.getElementById(focusId) as HTMLElement | null;
+                if (!el) return;
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.focus();
+                // Highlight briefly so the user sees the focused setting
+                el.classList.add("global-search-highlight");
+                setTimeout(() => el.classList.remove("global-search-highlight"), 1500);
+            });
+        })
+        .catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────

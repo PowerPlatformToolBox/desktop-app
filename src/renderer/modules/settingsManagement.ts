@@ -3,20 +3,22 @@
  * Handles user settings UI and persistence
  */
 
+import { logError } from "../../common/logger";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT } from "../constants";
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { openToolDetailTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
 
 /**
- * Load settings in the sidebar
+ * Load settings into the settings UI panel
  */
-export async function loadSidebarSettings(): Promise<void> {
+export async function loadSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
@@ -79,9 +81,9 @@ export async function loadSidebarSettings(): Promise<void> {
 }
 
 /**
- * Save settings from the sidebar
+ * Save settings from the settings UI panel
  */
-export async function saveSidebarSettings(): Promise<void> {
+export async function saveSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
@@ -176,4 +178,269 @@ export async function saveSidebarSettings(): Promise<void> {
  */
 export function getOriginalSettings(): SettingsState {
     return originalSettings;
+}
+
+/**
+ * Render settings UI into a container element (used for the settings tab)
+ * Layout follows a VSCode-style two-column design: sticky nav on left, scrollable content on right.
+ */
+export function renderSettingsContent(panel: HTMLElement): void {
+    panel.className = "settings-tab-container";
+    panel.innerHTML = `
+        <div class="settings-tab-content" id="settings-tab-scroll-area">
+
+            <section id="settings-section-appearance" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Appearance</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-theme-select">Theme</label>
+                        <p class="settings-vscode-item-description">Choose how ToolBox matches your OS or lock it to a specific look.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-theme-select" class="fluent-select settings-vscode-select">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-section-behavior" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Behavior</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
+                        <p class="settings-vscode-item-description">Expose the Debug activity to quickly test tools in development.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-show-debug-menu-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-deprecated-tools-select">Deprecated Tools</label>
+                        <p class="settings-vscode-item-description">Control when deprecated tools appear across the experience.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-deprecated-tools-select" class="fluent-select settings-vscode-select">
+                            <option value="hide-all">Hide from All</option>
+                            <option value="show-all">Show in All</option>
+                            <option value="show-installed">Show in Installed Tools Only</option>
+                            <option value="show-marketplace">Show in Marketplace Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-tool-display-mode-select">Tool Display Mode</label>
+                        <p class="settings-vscode-item-description">Choose how tools are displayed in Installed Tools and Marketplace.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-tool-display-mode-select" class="fluent-select settings-vscode-select">
+                            <option value="standard">Standard</option>
+                            <option value="compact">Compact</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-notification-duration-select">Notification Duration</label>
+                        <p class="settings-vscode-item-description">How long toast notifications stay visible before auto-dismissing.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-notification-duration-select" class="fluent-select settings-vscode-select">
+                            <option value="3000">3 seconds</option>
+                            <option value="5000">5 seconds (Default)</option>
+                            <option value="8000">8 seconds</option>
+                            <option value="10000">10 seconds</option>
+                            <option value="15000">15 seconds</option>
+                            <option value="0">Never (persistent)</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-section-terminal" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Terminal</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-terminal-font-select">Terminal Font</label>
+                        <p class="settings-vscode-item-description">
+                            Pick a monospace font that keeps long log output readable.
+                            Install fonts locally before selecting them.
+                            <a href="#" id="font-help-link" class="settings-vscode-link">Need help installing fonts?</a>
+                        </p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-terminal-font-select" class="fluent-select settings-vscode-select">
+                            <option value="'Consolas', 'Monaco', 'Courier New', monospace">Consolas / Monaco (Default)</option>
+                            <option value="'MesloLGS NF', 'MesloLGS Nerd Font', 'Menlo', 'DejaVu Sans Mono', 'Consolas', monospace">MesloLGS Nerd Font (Recommended)</option>
+                            <option value="'FiraCode Nerd Font', 'FiraCode NF', 'Fira Code', 'Consolas', monospace">FiraCode Nerd Font</option>
+                            <option value="'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Consolas', monospace">JetBrains Mono Nerd Font</option>
+                            <option value="'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code', 'Consolas', monospace">CaskaydiaCove Nerd Font (Cascadia)</option>
+                            <option value="'Hack Nerd Font', 'Hack NF', 'Hack', 'Consolas', monospace">Hack Nerd Font</option>
+                            <option value="'UbuntuMono Nerd Font', 'UbuntuMono NF', 'Ubuntu Mono', 'Consolas', monospace">Ubuntu Mono Nerd Font</option>
+                            <option value="'SourceCodePro Nerd Font', 'SauceCodePro NF', 'Source Code Pro', 'Consolas', monospace">Source Code Pro Nerd Font</option>
+                            <option value="'JetBrains Mono', 'Consolas', monospace">JetBrains Mono</option>
+                            <option value="'Fira Code', 'Consolas', monospace">Fira Code</option>
+                            <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
+                            <option value="custom">Custom Font...</option>
+                        </select>
+                        <div id="custom-font-input-container" style="display: none; margin-top: 8px">
+                            <input type="text" id="sidebar-terminal-font-custom" class="fluent-input settings-vscode-input" placeholder="e.g., 'My Font', monospace" />
+                            <p class="settings-vscode-item-description" style="margin-top: 4px">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-section-updates" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Updates</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-auto-update-check">Auto Update</label>
+                        <p class="settings-vscode-item-description">Automatically check for and download new builds of Power Platform ToolBox.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-auto-update-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Check for Updates</span>
+                        <p class="settings-vscode-item-description">Manually trigger an update check for the latest version.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">
+                            <span id="check-updates-btn-text">Check for Updates</span>
+                        </button>
+                        <div id="update-status-message" class="settings-vscode-item-description" style="display: none; margin-top: 6px"></div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="settings-vscode-actions">
+                <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
+                <span class="settings-vscode-item-description">Changes apply instantly after saving.</span>
+            </div>
+
+        </div>
+    `;
+
+    // Wire up save button
+    const saveBtn = panel.querySelector("#sidebar-save-settings-btn") as HTMLButtonElement | null;
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+            saveSettings().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
+
+    // Wire up check for updates button
+    const checkForUpdatesBtn = panel.querySelector("#sidebar-check-for-updates-btn") as HTMLButtonElement | null;
+    if (checkForUpdatesBtn) {
+        checkForUpdatesBtn.addEventListener("click", () => {
+            import("./autoUpdateManagement")
+                .then(({ handleCheckForUpdates }) => handleCheckForUpdates())
+                .catch((err) => {
+                    logError(err instanceof Error ? err : new Error(String(err)));
+                });
+        });
+    }
+
+    // Wire up font help link
+    const fontHelpLink = panel.querySelector("#font-help-link") as HTMLAnchorElement | null;
+    if (fontHelpLink) {
+        fontHelpLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.toolboxAPI.openExternal("https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration");
+        });
+    }
+
+    // Wire up terminal font selector to show/hide custom font input
+    const terminalFontSelect = panel.querySelector("#sidebar-terminal-font-select") as HTMLSelectElement | null;
+    const customFontInput = panel.querySelector("#sidebar-terminal-font-custom") as HTMLInputElement | null;
+    const customFontContainer = panel.querySelector("#custom-font-input-container") as HTMLElement | null;
+
+    const toggleCustomFontVisibility = (): void => {
+        if (!customFontContainer) return;
+        const isCustomSelected = terminalFontSelect?.value === "custom";
+        customFontContainer.style.display = isCustomSelected ? "block" : "none";
+        if (isCustomSelected && customFontInput) {
+            customFontInput.focus();
+        }
+    };
+
+    if (terminalFontSelect) {
+        terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
+    }
+
+    // Wire up left-nav click-to-scroll navigation
+    const scrollArea = panel.querySelector("#settings-tab-scroll-area") as HTMLElement | null;
+    const navLinks = panel.querySelectorAll<HTMLAnchorElement>(".settings-nav-link");
+
+    navLinks.forEach((link) => {
+        link.addEventListener("click", (e) => {
+            e.preventDefault();
+            const sectionId = link.getAttribute("href")?.slice(1);
+            if (!sectionId || !scrollArea) return;
+            const target = panel.querySelector<HTMLElement>(`#${sectionId}`);
+            if (target) {
+                scrollArea.scrollTo({ top: target.offsetTop - 16, behavior: "smooth" });
+            }
+        });
+    });
+
+    // Wire up IntersectionObserver to highlight the active nav link when sections scroll into view
+    if (scrollArea) {
+        let currentActiveId: string | null = null;
+        const sections = panel.querySelectorAll<HTMLElement>(".settings-vscode-section");
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting && entry.target.id !== currentActiveId) {
+                        currentActiveId = entry.target.id;
+                        navLinks.forEach((link) => {
+                            link.classList.toggle("active", link.getAttribute("href") === `#${currentActiveId}`);
+                        });
+                        break;
+                    }
+                }
+            },
+            { root: scrollArea, threshold: 0.3 },
+        );
+        sections.forEach((s) => observer.observe(s));
+    }
+
+    // Load current settings into the panel
+    loadSettings()
+        .then(() => {
+            toggleCustomFontVisibility();
+        })
+        .catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+}
+
+/**
+ * Open settings as a tab in the main content area
+ */
+export async function openSettingsTab(): Promise<void> {
+    await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
 }

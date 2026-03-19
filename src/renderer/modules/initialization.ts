@@ -6,7 +6,7 @@
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
-import { handleCheckForUpdates, setupAutoUpdateListeners } from "./autoUpdateManagement";
+import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, importConnections, exportConnections, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
@@ -14,7 +14,7 @@ import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
-import { saveSidebarSettings } from "./settingsManagement";
+import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
@@ -206,6 +206,16 @@ function setupActivityBar(): void {
             }
         });
     });
+
+    // Settings button opens a tab instead of a sidebar panel
+    const settingsActivityBtn = document.getElementById("settings-activity-btn");
+    if (settingsActivityBtn) {
+        settingsActivityBtn.addEventListener("click", () => {
+            openSettingsTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
 }
 
 /**
@@ -282,24 +292,6 @@ function setupSidebarButtons(): void {
             // Import the function dynamically to avoid circular dependencies
             const { openToolSecondaryConnectionModal } = await import("./toolManagement");
             await openToolSecondaryConnectionModal();
-        });
-    }
-
-    // Sidebar save settings button
-    const sidebarSaveSettingsBtn = document.getElementById("sidebar-save-settings-btn");
-    if (sidebarSaveSettingsBtn) {
-        sidebarSaveSettingsBtn.addEventListener("click", saveSidebarSettings);
-    }
-
-    // Sidebar check for updates button
-    const sidebarCheckForUpdatesBtn = document.getElementById("sidebar-check-for-updates-btn");
-    if (sidebarCheckForUpdatesBtn) {
-        sidebarCheckForUpdatesBtn.addEventListener("click", async () => {
-            try {
-                await handleCheckForUpdates();
-            } catch (error) {
-                logError(error instanceof Error ? error : new Error(String(error)));
-            }
         });
     }
 }
@@ -467,31 +459,12 @@ function setupDebugSection(): void {
 
 /**
  * Set up settings change listeners
+ * Note: Settings UI is now rendered dynamically in the settings tab.
+ * Per-element listeners are wired in renderSettingsContent (settingsManagement.ts).
  */
 function setupSettingsListeners(): void {
-    // Terminal font selector
-    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as HTMLSelectElement | null;
-    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
-    const customFontContainer = document.getElementById("custom-font-input-container");
-
-    const toggleCustomFontVisibility = (): void => {
-        if (!customFontContainer) {
-            return;
-        }
-
-        const isCustomSelected = terminalFontSelect?.value === "custom";
-        customFontContainer.style.display = isCustomSelected ? "block" : "none";
-
-        if (isCustomSelected && customFontInput) {
-            customFontInput.focus();
-        }
-    };
-
-    if (terminalFontSelect) {
-        terminalFontSelect.addEventListener("change", toggleCustomFontVisibility);
-    }
-
-    toggleCustomFontVisibility();
+    // Settings UI is now rendered dynamically in the settings tab.
+    // Per-element listeners are wired in renderSettingsContent (settingsManagement.ts).
 }
 
 /**
@@ -501,7 +474,6 @@ function setupHomeScreenButtons(): void {
     const links = [
         { id: "sponsor-btn", url: "https://github.com/sponsors/PowerPlatformToolBox" },
         { id: "github-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app" },
-        { id: "font-help-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/terminal-setup.md#font-configuration" },
         { id: "bugs-features-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/issues" },
         { id: "create-tool-btn", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/docs/TOOL_DEV.md" },
         { id: "docs-link", url: "https://github.com/PowerPlatformToolBox/desktop-app/blob/main/README.md" },
@@ -564,6 +536,13 @@ function setupApplicationEventListeners(): void {
     // Home page listener
     window.toolboxAPI.onShowHomePage(() => {
         showHomePage();
+    });
+
+    // Settings tab listener (triggered from menu or keyboard shortcut)
+    window.toolboxAPI.onOpenSettings(() => {
+        openSettingsTab().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
     });
 
     // Troubleshooting modal listener
