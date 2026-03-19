@@ -16,9 +16,9 @@ import { loadSidebarTools } from "./toolsSidebarManagement";
 let originalSettings: SettingsState = {};
 
 /**
- * Load settings in the sidebar
+ * Load settings into the settings UI panel
  */
-export async function loadSidebarSettings(): Promise<void> {
+export async function loadSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
@@ -81,9 +81,9 @@ export async function loadSidebarSettings(): Promise<void> {
 }
 
 /**
- * Save settings from the sidebar
+ * Save settings from the settings UI panel
  */
-export async function saveSidebarSettings(): Promise<void> {
+export async function saveSettings(): Promise<void> {
     const themeSelect = document.getElementById("sidebar-theme-select") as any; // Fluent UI select element
     const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any; // Fluent UI checkbox element
     const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any; // Fluent UI checkbox element
@@ -346,7 +346,7 @@ export function renderSettingsContent(panel: HTMLElement): void {
     const saveBtn = panel.querySelector("#sidebar-save-settings-btn") as HTMLButtonElement | null;
     if (saveBtn) {
         saveBtn.addEventListener("click", () => {
-            saveSidebarSettings().catch((err) => {
+            saveSettings().catch((err) => {
                 logError(err instanceof Error ? err : new Error(String(err)));
             });
         });
@@ -429,7 +429,7 @@ export function renderSettingsContent(panel: HTMLElement): void {
     }
 
     // Load current settings into the panel
-    loadSidebarSettings()
+    loadSettings()
         .then(() => {
             toggleCustomFontVisibility();
         })
