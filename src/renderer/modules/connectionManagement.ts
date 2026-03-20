@@ -1357,6 +1357,29 @@ export async function importConnections(): Promise<void> {
     }
 }
 
+/**
+ * Hostname pattern for valid Dataverse environments.
+ * Matches: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * The org-name segment follows RFC 1123 (starts and ends with alphanumeric, hyphens allowed in the middle).
+ * \d* is intentionally lenient to accommodate current and future Microsoft region codes (crm, crm4, crm9, crm11, etc.).
+ * End-anchored and case-insensitive; applied against the parsed hostname only.
+ */
+const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)$/i;
+
+/**
+ * Validates that a URL string points to a Dataverse environment hostname.
+ * Accepted domains: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * Validation is performed against the parsed hostname only (not the path/query) and is case-insensitive.
+ */
+function isValidDataverseUrl(rawUrl: string): boolean {
+    try {
+        const { hostname } = new URL(rawUrl);
+        return DATAVERSE_HOST_PATTERN.test(hostname);
+    } catch {
+        return false;
+    }
+}
+
 function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
@@ -1378,8 +1401,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         }
 
         // Validate URL format (commercial, GCC High, and DoD environments)
-        const dynamicsUrlPattern = /\.crm\d*\.(dynamics|microsoftdynamics|appsplatform)/;
-        if (!dynamicsUrlPattern.test(parsed.url)) {
+        if (!isValidDataverseUrl(parsed.url)) {
             return "Connection string URL must contain a valid Dataverse domain (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
         }
 
@@ -1398,8 +1420,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
 
     // Validate URL format matches Dynamics 365/Dataverse pattern (commercial, GCC High, and DoD environments)
     const url = sanitizeInput(formPayload.url);
-    const dynamicsUrlPattern = /\.crm\d*\.(dynamics|microsoftdynamics|appsplatform)/;
-    if (!dynamicsUrlPattern.test(url)) {
+    if (!isValidDataverseUrl(url)) {
         return "Please provide a valid Dynamics 365/Dataverse URL (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
     }
 
