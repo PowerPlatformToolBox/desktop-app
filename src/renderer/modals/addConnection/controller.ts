@@ -161,17 +161,13 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         })(),
         environmentColor: (() => {
             const colorInput = document.getElementById("connection-environment-color");
-            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
-                return colorInput.value;
-            }
-            return "";
+            return colorInput instanceof HTMLInputElement ? colorInput.value : "";
         })(),
         categoryColor: (() => {
+            const sel = document.getElementById("connection-category-select");
+            if (!(sel instanceof HTMLSelectElement) || !sel.value) return "";
             const colorInput = document.getElementById("connection-category-color");
-            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
-                return colorInput.value;
-            }
-            return "";
+            return colorInput instanceof HTMLInputElement ? colorInput.value : "";
         })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
@@ -209,24 +205,49 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
 
-    // Color picker setup
+    // Environment default colors per env type
+    const ENV_COLORS = { Dev: "#2e7d32", Test: "#0288d1", UAT: "#f57c00", Production: "#c62828" };
+    const getDefaultEnvColor = (env) => ENV_COLORS[env] || "#2e7d32";
+
+    // Environment color picker setup
+    const envSelectEl = document.getElementById("connection-environment");
     const colorInput = document.getElementById("connection-environment-color");
     const colorLabel = document.getElementById("connection-environment-color-label");
     const clearColorBtn = document.getElementById("clear-environment-color");
+
+    const updateEnvColorResetState = () => {
+        if (!(clearColorBtn instanceof HTMLButtonElement) || !(colorInput instanceof HTMLInputElement) || !(envSelectEl instanceof HTMLSelectElement)) return;
+        clearColorBtn.disabled = colorInput.value === getDefaultEnvColor(envSelectEl.value || "Dev");
+    };
+
+    const applyEnvDefaultColor = (env, force) => {
+        if (!(colorInput instanceof HTMLInputElement)) return;
+        if (force || colorInput.dataset.customSet !== "true") {
+            const defaultColor = getDefaultEnvColor(env);
+            colorInput.value = defaultColor;
+            colorInput.dataset.customSet = "false";
+            if (colorLabel) colorLabel.textContent = defaultColor;
+        }
+        updateEnvColorResetState();
+    };
+
+    // Initialize env color from current selection
+    applyEnvDefaultColor(envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev", true);
+
+    envSelectEl?.addEventListener("change", () => {
+        applyEnvDefaultColor((envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev"), false);
+    });
+
     if (colorInput instanceof HTMLInputElement) {
-        // Initialize with no custom color
         colorInput.dataset.customSet = "false";
         colorInput.addEventListener("input", () => {
             colorInput.dataset.customSet = "true";
             if (colorLabel) colorLabel.textContent = colorInput.value;
+            updateEnvColorResetState();
         });
     }
     clearColorBtn?.addEventListener("click", () => {
-        if (colorInput instanceof HTMLInputElement) {
-            colorInput.dataset.customSet = "false";
-            colorInput.value = "#0288d1";
-            if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
-        }
+        applyEnvDefaultColor(envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev", true);
     });
 
     // Category select + new-category input setup
@@ -276,9 +297,13 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             categoryNewInput.style.display = val === "__new__" ? "block" : "none";
             if (val !== "__new__") categoryNewInput.value = "";
         }
-        // Auto-fill color for existing categories (only when user hasn't manually set a color)
+        // Show Reset only when creating a new category
+        if (clearCategoryColorBtn instanceof HTMLButtonElement) {
+            clearCategoryColorBtn.style.display = val === "__new__" ? "" : "none";
+        }
+        // Auto-fill color for existing categories (don't override a manually set color)
         if (categoryColorInput instanceof HTMLInputElement && categoryColorInput.dataset.customSet !== "true") {
-            if (val === "" || val === "__new__") {
+            if (!val || val === "__new__") {
                 resetCategoryColor();
             } else {
                 const match = existingCategories.find(c => c.name === val);

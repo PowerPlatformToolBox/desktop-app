@@ -1956,11 +1956,17 @@ export async function loadSidebarConnections(): Promise<void> {
                     const groupConns = groupMap.get(groupKey)!;
                     const displayKey = groupKey === "" ? "Default" : groupKey;
                     const escapedKey = escapeHtml(displayKey);
+                    const catColor = groupKey !== "" ? (groupConns.find((c: DataverseConnection) => c.categoryColor)?.categoryColor || "") : "";
+                    const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
+                    const colorSwatchHtml = groupKey !== ""
+                        ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(groupKey)}" title="Change category color" />`
+                        : "";
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
                         <div class="connection-group-header" data-category="${escapedKey}" role="button" tabindex="0" aria-expanded="true">
                             <span class="connection-group-title">${escapedKey}</span>
+                            ${colorSwatchHtml}
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
                             <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
@@ -2006,12 +2012,39 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         });
 
+        // Add event listeners for category color pickers (named categories only)
+        connectionsList.querySelectorAll(".connection-group-color-picker").forEach((picker) => {
+            // Prevent click on the color swatch from toggling the group collapse
+            picker.addEventListener("click", (e: Event) => {
+                e.stopPropagation();
+            });
+            picker.addEventListener("change", async (e: Event) => {
+                e.stopPropagation();
+                const target = e.target as HTMLInputElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                const newColor = target.value;
+                if (!categoryKey || !newColor || !/^#[0-9A-Fa-f]{6}$/.test(newColor)) return;
+                try {
+                    const allConns = await window.toolboxAPI.connections.getAll();
+                    await Promise.all(
+                        allConns
+                            .filter((c: DataverseConnection) => (c.category || "") === categoryKey)
+                            .map((c: DataverseConnection) => window.toolboxAPI.connections.update(c.id, { categoryColor: newColor })),
+                    );
+                    await loadConnections();
+                } catch (err) {
+                    logError("Failed to update category color", { err });
+                }
+            });
+        });
+
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             const headerEl = header as HTMLElement;
             const toggleGroup = (event?: Event) => {
-                // Don't toggle if the click originated from the export button
+                // Don't toggle if the click originated from the export button or color picker
                 if (event && (event.target as HTMLElement).closest(".connection-group-export-btn")) return;
+                if (event && (event.target as HTMLElement).closest(".connection-group-color-picker")) return;
                 const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;
