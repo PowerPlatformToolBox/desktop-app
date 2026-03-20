@@ -160,6 +160,8 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
 
         if (host) {
             const faviconApiUrl = getFaviconApiUrl(link.url);
+            faviconImg.onerror = applyFallback;
+            iconEl.appendChild(faviconImg);
             window.toolboxAPI
                 .fetchFavicon(faviconApiUrl)
                 .then((dataUri) => {
@@ -173,9 +175,6 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
         } else {
             applyFallback();
         }
-
-        faviconImg.onerror = applyFallback;
-        iconEl.appendChild(faviconImg);
 
         // Text body
         const bodyEl = document.createElement("span");
@@ -247,17 +246,28 @@ export function loadSidebarImportantLinks(): void {
         if (importantLinksCollection.groups.length === 0) {
             const empty = document.createElement("div");
             empty.className = "empty-state";
-            empty.innerHTML = "<p>No links configured</p>";
+            const message = document.createElement("p");
+            message.textContent = "No links configured";
+            empty.appendChild(message);
             container.appendChild(empty);
         }
     } catch (error) {
         logError("Failed to render Important links sidebar", error);
 
-        container.innerHTML = `
-            <div class="empty-state">
-                <p>Error loading links</p>
-                <p class="empty-state-hint">${(error as Error).message}</p>
-            </div>
-        `;
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+
+        const errorTitle = document.createElement("p");
+        errorTitle.textContent = "Error loading links";
+
+        const errorHint = document.createElement("p");
+        errorHint.className = "empty-state-hint";
+        errorHint.textContent = (error as Error).message;
+
+        empty.appendChild(errorTitle);
+        empty.appendChild(errorHint);
+
+        container.innerHTML = "";
+        container.appendChild(empty);
     }
 }

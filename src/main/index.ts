@@ -50,6 +50,16 @@ import { VersionManager } from "./managers/versionManager";
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
 
+// Favicon proxy allowlist: only fetch favicons from these known provider domains and their redirect targets.
+const FAVICON_ALLOWED_HOSTS = new Set<string>(["www.google.com"]);
+const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
+const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
+
+const isFaviconAllowedHost = (hostname: string): boolean => {
+    if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
+    return FAVICON_ALLOWED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+};
+
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
@@ -1054,9 +1064,8 @@ class ToolBoxApp {
         // Favicon proxy: fetch a favicon URL server-side and return a base64 data URI.
         // Follows up to 5 https: redirects (Google favicon service uses a 302 to gstatic.com).
         // This bypasses renderer CSP restrictions on external image sources.
+        // Only requests to the known favicon provider domains (and their redirect targets) are allowed.
         ipcMain.handle(UTIL_CHANNELS.FETCH_FAVICON, async (_, url: unknown): Promise<string | null> => {
-            logInfo(`[Favicon] Handler invoked, url type=${typeof url}, value=${String(url).substring(0, 120)}`);
-
             if (typeof url !== "string") {
                 logWarn("[Favicon] Rejected: url is not a string");
                 return null;
@@ -1067,23 +1076,25 @@ class ToolBoxApp {
                 try {
                     parsedUrl = new URL(targetUrl);
                 } catch (e) {
-                    logWarn(`[Favicon] Rejected: invalid URL "${targetUrl}" — ${(e as Error).message}`);
+                    logWarn(`[Favicon] Rejected: invalid URL — ${(e as Error).message}`);
                     return null;
                 }
 
                 if (parsedUrl.protocol !== "https:") {
-                    logWarn(`[Favicon] Rejected: non-https redirect target "${parsedUrl.protocol}"`);
+                    logWarn(`[Favicon] Rejected: non-https URL protocol "${parsedUrl.protocol}"`);
                     return null;
                 }
 
-                logInfo(`[Favicon] Fetching ${parsedUrl.toString()} (hopsLeft=${hopsLeft})`);
+                if (!isFaviconAllowedHost(parsedUrl.hostname)) {
+                    logWarn("[Favicon] Rejected: hostname not in favicon provider allowlist");
+                    return null;
+                }
 
                 const https = await import("https");
                 return new Promise<string | null>((resolve) => {
                     const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
                         const status = res.statusCode ?? 0;
                         const contentType = res.headers["content-type"] ?? "image/png";
-                        logInfo(`[Favicon] HTTP ${status}, content-type=${contentType}, location=${res.headers["location"] ?? "-"}`);
 
                         // Follow redirects
                         if ((status === 301 || status === 302 || status === 303 || status === 307 || status === 308) && res.headers["location"]) {
@@ -1094,23 +1105,35 @@ class ToolBoxApp {
                                 return;
                             }
                             const next = new URL(res.headers["location"], parsedUrl).toString();
-                            logInfo(`[Favicon] Redirecting to ${next}`);
                             resolve(fetchWithRedirects(next, hopsLeft - 1));
                             return;
                         }
 
                         if (status !== 200) {
-                            logWarn(`[Favicon] Non-200 status ${status}, giving up`);
+                            logWarn(`[Favicon] Non-200 status ${status}`);
                             res.resume();
                             resolve(null);
                             return;
                         }
 
                         const chunks: Buffer[] = [];
-                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        let totalBytes = 0;
+                        let limitExceeded = false;
+                        res.on("data", (chunk: Buffer) => {
+                            if (limitExceeded) return;
+                            totalBytes += chunk.length;
+                            if (totalBytes > FAVICON_MAX_BYTES) {
+                                limitExceeded = true;
+                                logWarn(`[Favicon] Response exceeded max size (${FAVICON_MAX_BYTES} bytes), aborting`);
+                                req.destroy();
+                                resolve(null);
+                                return;
+                            }
+                            chunks.push(chunk);
+                        });
                         res.on("end", () => {
+                            if (limitExceeded) return;
                             const buffer = Buffer.concat(chunks);
-                            logInfo(`[Favicon] Successfully fetched ${buffer.length} bytes`);
                             const mimeType = contentType.split(";")[0].trim() || "image/png";
                             resolve(`data:${mimeType};base64,${buffer.toString("base64")}`);
                         });
