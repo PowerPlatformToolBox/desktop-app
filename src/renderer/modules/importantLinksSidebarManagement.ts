@@ -94,8 +94,8 @@ function openAllowlistedImportantLink(candidateUrl: string): void {
 
 const LINK_ICON_COLOR_CLASSES = ["link-icon-color-purple", "link-icon-color-blue", "link-icon-color-teal", "link-icon-color-green", "link-icon-color-orange"] as const;
 
-function getFaviconApiUrl(host: string): string {
-    return `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
+function getFaviconApiUrl(url: string): string {
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url)}&sz=64`;
 }
 
 const EXTERNAL_LINK_SVG = `<svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 4.25H15.75V14.5M15.75 4.25L4.25 15.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -160,6 +160,8 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
 
         if (host) {
             const faviconApiUrl = getFaviconApiUrl(link.url);
+            faviconImg.onerror = applyFallback;
+            iconEl.appendChild(faviconImg);
             window.toolboxAPI
                 .fetchFavicon(faviconApiUrl)
                 .then((dataUri) => {
@@ -173,9 +175,6 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
         } else {
             applyFallback();
         }
-
-        faviconImg.onerror = applyFallback;
-        iconEl.appendChild(faviconImg);
 
         // Text body
         const bodyEl = document.createElement("span");
@@ -247,17 +246,28 @@ export function loadSidebarImportantLinks(): void {
         if (importantLinksCollection.groups.length === 0) {
             const empty = document.createElement("div");
             empty.className = "empty-state";
-            empty.innerHTML = "<p>No links configured</p>";
+            const message = document.createElement("p");
+            message.textContent = "No links configured";
+            empty.appendChild(message);
             container.appendChild(empty);
         }
     } catch (error) {
         logError("Failed to render Important links sidebar", error);
 
-        container.innerHTML = `
-            <div class="empty-state">
-                <p>Error loading links</p>
-                <p class="empty-state-hint">${(error as Error).message}</p>
-            </div>
-        `;
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+
+        const errorTitle = document.createElement("p");
+        errorTitle.textContent = "Error loading links";
+
+        const errorHint = document.createElement("p");
+        errorHint.className = "empty-state-hint";
+        errorHint.textContent = (error as Error).message;
+
+        empty.appendChild(errorTitle);
+        empty.appendChild(errorHint);
+
+        container.innerHTML = "";
+        container.appendChild(empty);
     }
 }
