@@ -4,6 +4,7 @@
         {
             "id": "newsletters",
             "title": "Newsletters",
+            "description": "Short weekly reads to stay current.",
             "links": [
                 {
                     "id": "pp-weekly",
@@ -20,6 +21,7 @@
         {
             "id": "release-plans",
             "title": "Release plans",
+            "description": "Track what's coming to Power Platform.",
             "links": [
                 {
                     "id": "release-plans-visualized",
@@ -31,6 +33,7 @@
         {
             "id": "calculators-estimators",
             "title": "Calculators / estimators",
+            "description": "Quick sizing and licensing estimates.",
             "links": [
                 {
                     "id": "dataverse-capacity-calculator",

@@ -307,6 +307,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
+        ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
 
         // Filesystem handlers
@@ -1048,6 +1049,95 @@ class ToolBoxApp {
         // Event history handler
         ipcMain.handle(UTIL_CHANNELS.GET_EVENT_HISTORY, (_, limit) => {
             return this.api.getEventHistory(limit);
+        });
+
+        // Favicon proxy: fetch a favicon URL server-side and return a base64 data URI.
+        // Follows up to 5 https: redirects (Google favicon service uses a 302 to gstatic.com).
+        // This bypasses renderer CSP restrictions on external image sources.
+        ipcMain.handle(UTIL_CHANNELS.FETCH_FAVICON, async (_, url: unknown): Promise<string | null> => {
+            logInfo(`[Favicon] Handler invoked, url type=${typeof url}, value=${String(url).substring(0, 120)}`);
+
+            if (typeof url !== "string") {
+                logWarn("[Favicon] Rejected: url is not a string");
+                return null;
+            }
+
+            const fetchWithRedirects = async (targetUrl: string, hopsLeft: number): Promise<string | null> => {
+                let parsedUrl: URL;
+                try {
+                    parsedUrl = new URL(targetUrl);
+                } catch (e) {
+                    logWarn(`[Favicon] Rejected: invalid URL "${targetUrl}" — ${(e as Error).message}`);
+                    return null;
+                }
+
+                if (parsedUrl.protocol !== "https:") {
+                    logWarn(`[Favicon] Rejected: non-https redirect target "${parsedUrl.protocol}"`);
+                    return null;
+                }
+
+                logInfo(`[Favicon] Fetching ${parsedUrl.toString()} (hopsLeft=${hopsLeft})`);
+
+                const https = await import("https");
+                return new Promise<string | null>((resolve) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                        const status = res.statusCode ?? 0;
+                        const contentType = res.headers["content-type"] ?? "image/png";
+                        logInfo(`[Favicon] HTTP ${status}, content-type=${contentType}, location=${res.headers["location"] ?? "-"}`);
+
+                        // Follow redirects
+                        if ((status === 301 || status === 302 || status === 303 || status === 307 || status === 308) && res.headers["location"]) {
+                            res.resume();
+                            if (hopsLeft <= 0) {
+                                logWarn("[Favicon] Too many redirects, giving up");
+                                resolve(null);
+                                return;
+                            }
+                            const next = new URL(res.headers["location"], parsedUrl).toString();
+                            logInfo(`[Favicon] Redirecting to ${next}`);
+                            resolve(fetchWithRedirects(next, hopsLeft - 1));
+                            return;
+                        }
+
+                        if (status !== 200) {
+                            logWarn(`[Favicon] Non-200 status ${status}, giving up`);
+                            res.resume();
+                            resolve(null);
+                            return;
+                        }
+
+                        const chunks: Buffer[] = [];
+                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        res.on("end", () => {
+                            const buffer = Buffer.concat(chunks);
+                            logInfo(`[Favicon] Successfully fetched ${buffer.length} bytes`);
+                            const mimeType = contentType.split(";")[0].trim() || "image/png";
+                            resolve(`data:${mimeType};base64,${buffer.toString("base64")}`);
+                        });
+                        res.on("error", (e) => {
+                            logWarn(`[Favicon] Response stream error: ${e.message}`);
+                            resolve(null);
+                        });
+                    });
+
+                    req.on("error", (e) => {
+                        logWarn(`[Favicon] Request error: ${e.message}`);
+                        resolve(null);
+                    });
+                    req.on("timeout", () => {
+                        logWarn("[Favicon] Request timed out");
+                        req.destroy();
+                        resolve(null);
+                    });
+                });
+            };
+
+            try {
+                return await fetchWithRedirects(url, 5);
+            } catch (e) {
+                logError(e instanceof Error ? e : new Error(`[Favicon] Unexpected error: ${String(e)}`));
+                return null;
+            }
         });
 
         // Open external URL handler

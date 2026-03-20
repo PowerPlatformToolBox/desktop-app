@@ -200,6 +200,7 @@ export interface ToolboxAPI {
     fileSystem: FileSystemAPI;
 
     openExternal: (url: string) => Promise<void>;
+    fetchFavicon: (url: string) => Promise<string | null>;
 
     // Terminal namespace
     terminal: TerminalAPI;

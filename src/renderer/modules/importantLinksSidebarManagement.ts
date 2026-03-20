@@ -14,6 +14,7 @@ interface ImportantLinksCollection {
 interface ImportantLinksGroup {
     id: string;
     title: string;
+    description?: string;
     links: ImportantLinksItem[];
 }
 
@@ -91,89 +92,128 @@ function openAllowlistedImportantLink(candidateUrl: string): void {
     window.toolboxAPI.openExternal(normalized);
 }
 
-function createHeaderCard(): HTMLElement {
-    const card = document.createElement("section");
-    card.className = "settings-section-card";
+const LINK_ICON_COLOR_CLASSES = ["link-icon-color-purple", "link-icon-color-blue", "link-icon-color-teal", "link-icon-color-green", "link-icon-color-orange"] as const;
 
-    const header = document.createElement("div");
-    header.className = "settings-section-header";
-
-    const title = document.createElement("p");
-    title.className = "settings-section-title";
-    title.textContent = "Important links";
-
-    const description = document.createElement("p");
-    description.className = "settings-section-description";
-    description.textContent = "Curated Power Platform resources—news, planning, and quick calculators.";
-
-    header.appendChild(title);
-    header.appendChild(description);
-    card.appendChild(header);
-
-    return card;
+function getFaviconApiUrl(host: string): string {
+    return `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
 }
 
-function createGroupCard(group: ImportantLinksGroup): HTMLElement {
-    const card = document.createElement("section");
-    card.className = "settings-section-card";
+const EXTERNAL_LINK_SVG = `<svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 4.25H15.75V14.5M15.75 4.25L4.25 15.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-    const header = document.createElement("div");
-    header.className = "settings-section-header";
+function createHubIntro(): HTMLElement {
+    const intro = document.createElement("div");
+    intro.className = "links-hub-intro";
 
-    const title = document.createElement("p");
-    title.className = "settings-section-title";
-    title.textContent = group.title;
+    const desc = document.createElement("p");
+    desc.className = "links-hub-intro-text";
+    desc.textContent = "Curated Power Platform resources—news, planning, and quick calculators.";
 
-    header.appendChild(title);
+    intro.appendChild(desc);
+    return intro;
+}
 
-    const body = document.createElement("div");
-    body.className = "settings-section-body links-list";
+function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number): HTMLElement {
+    const section = document.createElement("section");
+    section.className = "links-group";
 
-    for (const link of group.links) {
+    // Category header
+    const groupHeader = document.createElement("div");
+    groupHeader.className = "links-group-header";
+
+    const categoryLabel = document.createElement("span");
+    categoryLabel.className = "links-group-category";
+    categoryLabel.textContent = group.title;
+    groupHeader.appendChild(categoryLabel);
+
+    section.appendChild(groupHeader);
+
+    // Links list
+    const list = document.createElement("ul");
+    list.className = "links-group-list";
+
+    group.links.forEach((link, linkIndex) => {
+        const li = document.createElement("li");
+
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "fluent-button fluent-button-secondary links-list-item";
-        const content = document.createElement("span");
-        content.className = "links-list-item-content";
+        button.className = "link-row";
+        button.setAttribute("aria-label", `Open ${link.label} in your browser`);
 
-        const text = document.createElement("span");
-        text.className = "links-list-item-text";
+        const iconEl = document.createElement("span");
+        iconEl.className = "link-row-icon link-row-icon--favicon";
+        iconEl.setAttribute("aria-hidden", "true");
 
-        const titleText = document.createElement("span");
-        titleText.className = "links-list-item-title";
-        titleText.textContent = link.label;
+        const host = tryGetDisplayHost(link.url);
+        const faviconImg = document.createElement("img");
+        faviconImg.className = "link-row-favicon";
+        faviconImg.width = 28;
+        faviconImg.height = 28;
+        faviconImg.setAttribute("aria-hidden", "true");
 
-        const metaText = document.createElement("span");
-        metaText.className = "links-list-item-meta";
-        metaText.textContent = tryGetDisplayHost(link.url) ?? "";
+        const applyFallback = () => {
+            faviconImg.remove();
+            iconEl.classList.remove("link-row-icon--favicon");
+            const colorClass = LINK_ICON_COLOR_CLASSES[(iconColorOffset + linkIndex) % LINK_ICON_COLOR_CLASSES.length];
+            iconEl.classList.add(colorClass);
+            iconEl.textContent = link.label.charAt(0).toUpperCase();
+        };
 
-        text.appendChild(titleText);
-        if (metaText.textContent) {
-            text.appendChild(metaText);
+        if (host) {
+            const faviconApiUrl = getFaviconApiUrl(link.url);
+            window.toolboxAPI
+                .fetchFavicon(faviconApiUrl)
+                .then((dataUri) => {
+                    if (dataUri) {
+                        faviconImg.src = dataUri;
+                    } else {
+                        applyFallback();
+                    }
+                })
+                .catch(() => applyFallback());
+        } else {
+            applyFallback();
         }
 
-        const indicator = document.createElement("span");
-        indicator.className = "links-list-item-indicator";
-        indicator.textContent = "\u2197";
-        indicator.setAttribute("aria-hidden", "true");
+        faviconImg.onerror = applyFallback;
+        iconEl.appendChild(faviconImg);
 
-        content.appendChild(text);
-        content.appendChild(indicator);
-        button.appendChild(content);
-        button.setAttribute("aria-label", `Open ${link.label} in your browser`);
+        // Text body
+        const bodyEl = document.createElement("span");
+        bodyEl.className = "link-row-body";
+
+        const titleEl = document.createElement("span");
+        titleEl.className = "link-row-title";
+        titleEl.textContent = link.label;
+
+        const hostEl = document.createElement("span");
+        hostEl.className = "link-row-host";
+        hostEl.textContent = tryGetDisplayHost(link.url) ?? "";
+
+        bodyEl.appendChild(titleEl);
+        if (hostEl.textContent) {
+            bodyEl.appendChild(hostEl);
+        }
+
+        // External link arrow
+        const arrowEl = document.createElement("span");
+        arrowEl.className = "link-row-arrow";
+        arrowEl.innerHTML = EXTERNAL_LINK_SVG;
+
+        button.appendChild(iconEl);
+        button.appendChild(bodyEl);
+        button.appendChild(arrowEl);
 
         button.addEventListener("click", (e) => {
             e.preventDefault();
             openAllowlistedImportantLink(link.url);
         });
 
-        body.appendChild(button);
-    }
+        li.appendChild(button);
+        list.appendChild(li);
+    });
 
-    card.appendChild(header);
-    card.appendChild(body);
-
-    return card;
+    section.appendChild(list);
+    return section;
 }
 
 /**
@@ -192,14 +232,16 @@ export function loadSidebarImportantLinks(): void {
             throw new Error("Important links JSON is missing groups");
         }
 
-        container.appendChild(createHeaderCard());
+        container.appendChild(createHubIntro());
 
+        let iconColorOffset = 0;
         for (const group of importantLinksCollection.groups) {
             if (!group || typeof group.title !== "string" || !Array.isArray(group.links)) {
                 continue;
             }
 
-            container.appendChild(createGroupCard(group));
+            container.appendChild(createGroupSection(group, iconColorOffset));
+            iconColorOffset += group.links.length;
         }
 
         if (importantLinksCollection.groups.length === 0) {

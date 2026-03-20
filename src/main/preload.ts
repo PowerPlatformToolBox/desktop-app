@@ -157,6 +157,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // External URL - Only for PPTB UI
     openExternal: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
 
+    // Favicon proxy - fetches a favicon URL via main process to bypass renderer CSP
+    fetchFavicon: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.FETCH_FAVICON, url) as Promise<string | null>,
+
     // Terminal namespace - organized like in the iframe
     terminal: {
         create: (toolId: string, options: unknown) => ipcRenderer.invoke(TERMINAL_CHANNELS.CREATE_TERMINAL, toolId, options),
