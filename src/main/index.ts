@@ -1155,8 +1155,9 @@ class ToolBoxApp {
                 return;
             }
 
-            if (parsedUrl.protocol !== "https:") {
-                logWarn("Blocked openExternal call with non-https protocol", { url, protocol: parsedUrl.protocol });
+            const allowedProtocols = new Set<string>(["https:", "http:", "mailto:"]);
+            if (!allowedProtocols.has(parsedUrl.protocol)) {
+                logWarn("Blocked openExternal call with disallowed protocol", { url, protocol: parsedUrl.protocol });
                 return;
             }
 
