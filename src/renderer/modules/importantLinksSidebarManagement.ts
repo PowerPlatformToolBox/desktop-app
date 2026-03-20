@@ -95,7 +95,7 @@ function openAllowlistedImportantLink(candidateUrl: string): void {
 const LINK_ICON_COLOR_CLASSES = ["link-icon-color-purple", "link-icon-color-blue", "link-icon-color-teal", "link-icon-color-green", "link-icon-color-orange"] as const;
 
 function getFaviconApiUrl(url: string): string {
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url)}&sz=64`;
+    return `https://www.google.com/s2/favicons?domain=${url}&sz=64`;
 }
 
 const EXTERNAL_LINK_SVG = `<svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5.5 4.25H15.75V14.5M15.75 4.25L4.25 15.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
