@@ -480,7 +480,7 @@ declare namespace DataverseAPI {
          *
          * @param entityLogicalName - Logical name of the entity
          * @param searchByLogicalName - Whether to search by logical name (true) or metadata ID (false)
-         * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @param entityProperties - Optional array of property names to retrieve (retrieves all if not specified)
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing entity metadata
          *
@@ -500,11 +500,11 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const metadata = await dataverseAPI.getEntityMetadata('account', true, ['LogicalName'], 'secondary');
          */
-        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadata>;
+        getEntityMetadata: (entityLogicalName: string, searchByLogicalName: boolean, entityProperties?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadata>;
 
         /**
          * Get metadata for all entities
-         * @param selectColumns - Optional array of column names to retrieve (retrieves LogicalName, DisplayName, MetadataId by default)
+         * @param entityProperties - Optional array of property names to retrieve (retrieves LogicalName, DisplayName, MetadataId by default)
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object with value array containing all entity metadata
          *
@@ -519,14 +519,14 @@ declare namespace DataverseAPI {
          * // Multi-connection tool using secondary connection
          * const allEntities = await dataverseAPI.getAllEntitiesMetadata(['LogicalName'], 'secondary');
          */
-        getAllEntitiesMetadata: (selectColumns?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadataCollection>;
+        getAllEntitiesMetadata: (entityProperties?: string[], connectionTarget?: "primary" | "secondary") => Promise<EntityMetadataCollection>;
 
         /**
          * Get related metadata for a specific entity (attributes, relationships, etc.)
          *
          * @param entityLogicalName - Logical name of the entity
          * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships', 'ManyToManyRelationships', 'Keys')
-         * @param selectColumns - Optional array of column names to retrieve (retrieves all if not specified)
+         * @param relatedProperties - Optional array of property names to retrieve (retrieves all if not specified)
          * @param connectionTarget - Optional connection target for multi-connection tools ('primary' or 'secondary'). Defaults to 'primary'.
          * @returns Object containing the related metadata
          *
@@ -600,7 +600,7 @@ declare namespace DataverseAPI {
         getEntityRelatedMetadata: <P extends EntityRelatedMetadataPath>(
             entityLogicalName: string,
             relatedPath: P,
-            selectColumns?: string[],
+            relatedProperties?: string[],
             connectionTarget?: "primary" | "secondary",
         ) => Promise<EntityRelatedMetadataResponse<P>>;
 
