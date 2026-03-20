@@ -61,9 +61,12 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
         </div>
         <div class="form-row-two-col">
             <div class="form-group">
-                <label for="connection-category">Category (Optional)</label>
-                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" list="existing-categories" autocomplete="off" />
-                <datalist id="existing-categories"></datalist>
+                <label for="connection-category-select">Category (Optional)</label>
+                <select id="connection-category-select" class="modal-input">
+                    <option value="">--</option>
+                    <option value="__new__">+ New category...</option>
+                </select>
+                <input type="text" id="connection-category-new" class="modal-input" placeholder="e.g. Client Name" style="display: none; margin-top: 6px;" />
             </div>
             <div class="form-group">
                 <label for="connection-category-color">Category Color (Optional)</label>

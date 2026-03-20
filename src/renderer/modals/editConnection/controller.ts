@@ -168,7 +168,15 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
-        category: getInputValue("connection-category"),
+        category: (() => {
+            const sel = document.getElementById("connection-category-select");
+            if (!(sel instanceof HTMLSelectElement)) return "";
+            if (sel.value === "__new__") {
+                const newInput = document.getElementById("connection-category-new");
+                return newInput instanceof HTMLInputElement ? newInput.value.trim() : "";
+            }
+            return sel.value;
+        })(),
         environmentColor: (() => {
             const colorInput = document.getElementById("connection-environment-color");
             if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
@@ -213,8 +221,33 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             }
         });
 
-        // Populate category
-        setInputValue("connection-category", connection.category || "");
+        // Populate category — select existing if it exists, otherwise fall back to "new"
+        const categorySelect = document.getElementById("connection-category-select");
+        const categoryNewInput = document.getElementById("connection-category-new");
+        if (categorySelect instanceof HTMLSelectElement) {
+            const existingOpt = connection.category
+                ? Array.from(categorySelect.options).find(o => o.value === connection.category && o.value !== "__new__")
+                : null;
+            if (existingOpt) {
+                categorySelect.value = connection.category;
+                if (categoryNewInput instanceof HTMLInputElement) {
+                    categoryNewInput.style.display = "none";
+                    categoryNewInput.value = "";
+                }
+            } else if (connection.category) {
+                categorySelect.value = "__new__";
+                if (categoryNewInput instanceof HTMLInputElement) {
+                    categoryNewInput.style.display = "block";
+                    categoryNewInput.value = connection.category;
+                }
+            } else {
+                categorySelect.value = "";
+                if (categoryNewInput instanceof HTMLInputElement) {
+                    categoryNewInput.style.display = "none";
+                    categoryNewInput.value = "";
+                }
+            }
+        }
 
         // Populate environment color
         const colorInput = document.getElementById("connection-environment-color");
@@ -309,25 +342,69 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         }
     });
 
-    // Category color picker setup
+    // Category select + new-category input setup
+    const categorySelect = document.getElementById("connection-category-select");
+    const categoryNewInput = document.getElementById("connection-category-new");
     const categoryColorInput = document.getElementById("connection-category-color");
     const categoryColorLabel = document.getElementById("connection-category-color-label");
     const clearCategoryColorBtn = document.getElementById("clear-category-color");
-    const categoryInput = document.getElementById("connection-category");
-    const categoriesDatalist = document.getElementById("existing-categories");
 
-    // Load existing categories to power datalist and color auto-fill
+    const resetCategoryColor = () => {
+        if (categoryColorInput instanceof HTMLInputElement) {
+            categoryColorInput.dataset.customSet = "false";
+            categoryColorInput.value = "#2e7d32";
+            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
+        }
+    };
+
+    const applyCategoryColor = (color) => {
+        if (categoryColorInput instanceof HTMLInputElement && /^#[0-9A-Fa-f]{6}$/.test(color)) {
+            categoryColorInput.value = color;
+            if (categoryColorLabel) categoryColorLabel.textContent = color;
+        }
+    };
+
+    // Load existing categories and populate the select
     let existingCategories = [];
     try {
         existingCategories = await window.toolboxAPI.connections.getCategories() || [];
-        if (Array.isArray(existingCategories) && categoriesDatalist) {
-            categoriesDatalist.innerHTML = existingCategories
-                .map(c => \`<option value="\${c.name.replace(/"/g, '&quot;')}">\`)
-                .join("");
+        if (Array.isArray(existingCategories) && existingCategories.length > 0 && categorySelect instanceof HTMLSelectElement) {
+            // Insert existing category options before the "+ New category..." option
+            const newCatOption = categorySelect.querySelector('option[value="__new__"]');
+            for (const cat of existingCategories) {
+                const opt = document.createElement("option");
+                opt.value = cat.name;
+                opt.textContent = cat.name;
+                categorySelect.insertBefore(opt, newCatOption);
+            }
         }
     } catch (_) {
         // categories not critical — proceed without them
     }
+
+    const onCategorySelectChange = () => {
+        if (!(categorySelect instanceof HTMLSelectElement)) return;
+        const val = categorySelect.value;
+        if (categoryNewInput instanceof HTMLInputElement) {
+            categoryNewInput.style.display = val === "__new__" ? "block" : "none";
+            if (val !== "__new__") categoryNewInput.value = "";
+        }
+        // Auto-fill color for existing categories (only when user hasn't manually set a color)
+        if (categoryColorInput instanceof HTMLInputElement && categoryColorInput.dataset.customSet !== "true") {
+            if (val === "" || val === "__new__") {
+                resetCategoryColor();
+            } else {
+                const match = existingCategories.find(c => c.name === val);
+                if (match && match.color) {
+                    applyCategoryColor(match.color);
+                } else {
+                    resetCategoryColor();
+                }
+            }
+        }
+    };
+
+    categorySelect?.addEventListener("change", onCategorySelectChange);
 
     if (categoryColorInput instanceof HTMLInputElement) {
         if (!categoryColorInput.dataset.customSet) categoryColorInput.dataset.customSet = "false";
@@ -336,32 +413,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             if (categoryColorLabel) categoryColorLabel.textContent = categoryColorInput.value;
         });
     }
-    clearCategoryColorBtn?.addEventListener("click", () => {
-        if (categoryColorInput instanceof HTMLInputElement) {
-            categoryColorInput.dataset.customSet = "false";
-            categoryColorInput.value = "#2e7d32";
-            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
-        }
-    });
-
-    // When a category is typed/selected, auto-fill color from the existing category (if any)
-    categoryInput?.addEventListener("change", () => {
-        if (!(categoryInput instanceof HTMLInputElement)) return;
-        // Only auto-fill if the user has NOT already manually set a custom color
-        if (categoryColorInput instanceof HTMLInputElement && categoryColorInput.dataset.customSet !== "true") {
-            const typed = categoryInput.value.trim();
-            const match = existingCategories.find(c => c.name === typed);
-            if (match && match.color && /^#[0-9A-Fa-f]{6}$/.test(match.color)) {
-                categoryColorInput.value = match.color;
-                // Keep customSet as "false" so switching to another existing category still auto-fills
-                if (categoryColorLabel) categoryColorLabel.textContent = match.color;
-            } else if (!typed) {
-                // Category cleared — reset the color picker to its default state
-                categoryColorInput.value = "#2e7d32";
-                if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
-            }
-        }
-    });
+    clearCategoryColorBtn?.addEventListener("click", resetCategoryColor);
 
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {
