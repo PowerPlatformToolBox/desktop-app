@@ -50,6 +50,16 @@ import { VersionManager } from "./managers/versionManager";
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
 
+// Favicon proxy allowlist: only fetch favicons from these known provider domains and their redirect targets.
+const FAVICON_ALLOWED_HOSTS = new Set<string>(["www.google.com"]);
+const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
+const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
+
+const isFaviconAllowedHost = (hostname: string): boolean => {
+    if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
+    return FAVICON_ALLOWED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+};
+
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
@@ -307,6 +317,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
+        ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
 
         // Filesystem handlers
@@ -1050,9 +1061,130 @@ class ToolBoxApp {
             return this.api.getEventHistory(limit);
         });
 
+        // Favicon proxy: fetch a favicon URL server-side and return a base64 data URI.
+        // Follows up to 5 https: redirects (Google favicon service uses a 302 to gstatic.com).
+        // This bypasses renderer CSP restrictions on external image sources.
+        // Only requests to the known favicon provider domains (and their redirect targets) are allowed.
+        ipcMain.handle(UTIL_CHANNELS.FETCH_FAVICON, async (_, url: unknown): Promise<string | null> => {
+            if (typeof url !== "string") {
+                logWarn("[Favicon] Rejected: url is not a string");
+                return null;
+            }
+
+            const fetchWithRedirects = async (targetUrl: string, hopsLeft: number): Promise<string | null> => {
+                let parsedUrl: URL;
+                try {
+                    parsedUrl = new URL(targetUrl);
+                } catch (e) {
+                    logWarn(`[Favicon] Rejected: invalid URL — ${(e as Error).message}`);
+                    return null;
+                }
+
+                if (parsedUrl.protocol !== "https:") {
+                    logWarn(`[Favicon] Rejected: non-https URL protocol "${parsedUrl.protocol}"`);
+                    return null;
+                }
+
+                if (!isFaviconAllowedHost(parsedUrl.hostname)) {
+                    logWarn("[Favicon] Rejected: hostname not in favicon provider allowlist");
+                    return null;
+                }
+
+                const https = await import("https");
+                return new Promise<string | null>((resolve) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                        const status = res.statusCode ?? 0;
+                        const contentType = res.headers["content-type"] ?? "image/png";
+
+                        // Follow redirects
+                        if ((status === 301 || status === 302 || status === 303 || status === 307 || status === 308) && res.headers["location"]) {
+                            res.resume();
+                            if (hopsLeft <= 0) {
+                                logWarn("[Favicon] Too many redirects, giving up");
+                                resolve(null);
+                                return;
+                            }
+                            const next = new URL(res.headers["location"], parsedUrl).toString();
+                            resolve(fetchWithRedirects(next, hopsLeft - 1));
+                            return;
+                        }
+
+                        if (status !== 200) {
+                            logWarn(`[Favicon] Non-200 status ${status}`);
+                            res.resume();
+                            resolve(null);
+                            return;
+                        }
+
+                        const chunks: Buffer[] = [];
+                        let totalBytes = 0;
+                        let limitExceeded = false;
+                        res.on("data", (chunk: Buffer) => {
+                            if (limitExceeded) return;
+                            totalBytes += chunk.length;
+                            if (totalBytes > FAVICON_MAX_BYTES) {
+                                limitExceeded = true;
+                                logWarn(`[Favicon] Response exceeded max size (${FAVICON_MAX_BYTES} bytes), aborting`);
+                                req.destroy();
+                                resolve(null);
+                                return;
+                            }
+                            chunks.push(chunk);
+                        });
+                        res.on("end", () => {
+                            if (limitExceeded) return;
+                            const buffer = Buffer.concat(chunks);
+                            const mimeType = contentType.split(";")[0].trim() || "image/png";
+                            resolve(`data:${mimeType};base64,${buffer.toString("base64")}`);
+                        });
+                        res.on("error", (e) => {
+                            logWarn(`[Favicon] Response stream error: ${e.message}`);
+                            resolve(null);
+                        });
+                    });
+
+                    req.on("error", (e) => {
+                        logWarn(`[Favicon] Request error: ${e.message}`);
+                        resolve(null);
+                    });
+                    req.on("timeout", () => {
+                        logWarn("[Favicon] Request timed out");
+                        req.destroy();
+                        resolve(null);
+                    });
+                });
+            };
+
+            try {
+                return await fetchWithRedirects(url, 5);
+            } catch (e) {
+                logError(e instanceof Error ? e : new Error(`[Favicon] Unexpected error: ${String(e)}`));
+                return null;
+            }
+        });
+
         // Open external URL handler
-        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
-            await shell.openExternal(url);
+        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url: unknown) => {
+            if (typeof url !== "string") {
+                logWarn("Blocked openExternal call with non-string url", { urlType: typeof url });
+                return;
+            }
+
+            let parsedUrl: URL;
+            try {
+                parsedUrl = new URL(url);
+            } catch {
+                logWarn("Blocked openExternal call with invalid url", { url });
+                return;
+            }
+
+            const allowedProtocols = new Set<string>(["https:", "http:", "mailto:"]);
+            if (!allowedProtocols.has(parsedUrl.protocol)) {
+                logWarn("Blocked openExternal call with disallowed protocol", { url, protocol: parsedUrl.protocol });
+                return;
+            }
+
+            await shell.openExternal(parsedUrl.toString());
         });
 
         // Filesystem handlers with access control

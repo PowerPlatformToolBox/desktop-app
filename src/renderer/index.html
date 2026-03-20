@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
@@ -31,6 +31,9 @@
                     </button>
                     <button class="activity-item" id="global-search-btn" title="Global Search (Ctrl+Shift+P)">
                         <img id="search-icon" src="icons/dark/search.svg" alt="Search Icon" class="activity-icon" />
+                    </button>
+                    <button class="activity-item" data-sidebar="links" title="Important links">
+                        <img id="links-icon" src="icons/dark/bookmark.svg" alt="Links Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" data-sidebar="debug" title="Debug / Install by Package">
                         <img id="debug-icon" src="icons/dark/debug.svg" alt="Debug Icon" class="activity-icon" />
@@ -216,6 +219,16 @@
                     </div>
                 </div>
 
+                <!-- Links Sidebar -->
+                <div class="sidebar-content" id="sidebar-links">
+                    <div class="sidebar-header">
+                        <h2 class="sidebar-title">LINKS</h2>
+                    </div>
+                    <div class="sidebar-body">
+                        <div class="settings-container-sidebar" id="sidebar-important-links-container"></div>
+                    </div>
+                </div>
+
                 <!-- Debug Sidebar -->
                 <div class="sidebar-content" id="sidebar-debug">
                     <div class="sidebar-header">
@@ -277,7 +290,6 @@
                         </div>
                     </div>
                 </div>
-
             </aside>
 
             <!-- Main Content -->
