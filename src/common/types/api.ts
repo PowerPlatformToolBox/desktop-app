@@ -36,7 +36,10 @@ export interface UtilsAPI {
     copyToClipboard: (text: string) => Promise<void>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
+    // TODO: Remove showLoading and hideLoading - deprecated, use a tool-level loading pattern instead
+    /** @deprecated Use a tool-level loading pattern instead. Will be removed in a future version. */
     showLoading: (message?: string) => Promise<void>;
+    /** @deprecated Use a tool-level loading pattern instead. Will be removed in a future version. */
     hideLoading: () => Promise<void>;
     showModalWindow: (options: ModalWindowOptions) => Promise<void>;
     closeModalWindow: () => Promise<void>;

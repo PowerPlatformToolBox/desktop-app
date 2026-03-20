@@ -191,11 +191,13 @@ declare namespace ToolBoxAPI {
         /**
          * Show a loading screen in the tool's context
          * @param message Optional message to display (default: "Loading...")
+         * @deprecated Use a tool-level loading pattern instead. Will be removed in a future version.
          */
         showLoading: (message?: string) => Promise<void>;
 
         /**
          * Hide the loading screen in the tool's context
+         * @deprecated Use a tool-level loading pattern instead. Will be removed in a future version.
          */
         hideLoading: () => Promise<void>;
     }

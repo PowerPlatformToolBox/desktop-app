@@ -123,7 +123,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);
         },
+        // TODO: Remove showLoading and hideLoading - deprecated
+        /** @deprecated */
         showLoading: (message?: string) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_LOADING, message),
+        /** @deprecated */
         hideLoading: () => ipcRenderer.invoke(UTIL_CHANNELS.HIDE_LOADING),
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
