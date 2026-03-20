@@ -1377,10 +1377,10 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
             return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
         }
 
-        // Validate URL format
-        const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+        // Validate URL format (commercial, GCC High, and DoD environments)
+        const dynamicsUrlPattern = /\.crm\d*\.(dynamics|microsoftdynamics|appsplatform)/;
         if (!dynamicsUrlPattern.test(parsed.url)) {
-            return "Connection string URL must contain .crm*.dynamics pattern (e.g., https://orgname.crm.dynamics.com).";
+            return "Connection string URL must contain a valid Dataverse domain (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
         }
 
         // Connection name is still required for add/edit modes even with connection string
@@ -1396,11 +1396,11 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
-    // Validate URL format matches Dynamics 365/Dataverse pattern
+    // Validate URL format matches Dynamics 365/Dataverse pattern (commercial, GCC High, and DoD environments)
     const url = sanitizeInput(formPayload.url);
-    const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
+    const dynamicsUrlPattern = /\.crm\d*\.(dynamics|microsoftdynamics|appsplatform)/;
     if (!dynamicsUrlPattern.test(url)) {
-        return "Please provide a valid Dynamics 365/Dataverse URL (must contain .crm*.dynamics pattern, e.g., https://orgname.crm.dynamics.com).";
+        return "Please provide a valid Dynamics 365/Dataverse URL (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
     }
 
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
