@@ -645,7 +645,7 @@ export class DataverseManager {
     /**
      * Get metadata for a specific entity
      */
-    async getEntityMetadata(connectionId: string, entityLogicalNameOrId: string, searchByLogicalName: boolean, selectColumns?: string[]): Promise<EntityMetadata> {
+    async getEntityMetadata(connectionId: string, entityLogicalNameOrId: string, searchByLogicalName: boolean, entityProperties?: string[]): Promise<EntityMetadata> {
         if (!entityLogicalNameOrId || !entityLogicalNameOrId.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
         }
@@ -654,8 +654,8 @@ export class DataverseManager {
         const encodedLogicalName = encodeURIComponent(entityLogicalNameOrId);
         let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(${searchByLogicalName ? `LogicalName='${encodedLogicalName}'` : encodedLogicalName})`);
 
-        if (selectColumns && selectColumns.length > 0) {
-            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
+        if (entityProperties && entityProperties.length > 0) {
+            const encodedColumns = entityProperties.map((col) => encodeURIComponent(col)).join(",");
             url += `?$select=${encodedColumns}`;
         }
 
@@ -665,13 +665,13 @@ export class DataverseManager {
 
     /**
      * Get metadata for all entities
-     * @param selectColumns - Optional array of column names to select (defaults to ["LogicalName", "DisplayName", "MetadataId"])
+     * @param entityProperties - Optional array of property names to select (defaults to ["LogicalName", "DisplayName", "MetadataId"])
      * @returns Promise containing array of EntityMetadata objects
      */
-    async getAllEntitiesMetadata(connectionId: string, selectColumns?: string[]): Promise<{ value: EntityMetadata[] }> {
+    async getAllEntitiesMetadata(connectionId: string, entityProperties?: string[]): Promise<{ value: EntityMetadata[] }> {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
-        // Default to lightweight columns if selectColumns is not provided or empty
-        const columns = selectColumns && selectColumns.length > 0 ? selectColumns : ["LogicalName", "DisplayName", "MetadataId"];
+        // Default to lightweight columns if entityProperties is not provided or empty
+        const columns = entityProperties && entityProperties.length > 0 ? entityProperties : ["LogicalName", "DisplayName", "MetadataId"];
         const encodedColumns = columns.map((col) => encodeURIComponent(col)).join(",");
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions?$select=${encodedColumns}`);
         const response = await this.makeHttpRequest(url, "GET", accessToken);
@@ -682,13 +682,13 @@ export class DataverseManager {
      * Get related metadata for a specific entity (attributes, relationships, etc.)
      * @param entityLogicalName - Logical name of the entity
      * @param relatedPath - Path after EntityDefinitions(LogicalName='name') (e.g., 'Attributes', 'OneToManyRelationships', 'ManyToOneRelationships')
-     * @param selectColumns - Optional array of column names to select
+     * @param relatedProperties - Optional array of property names to select
      */
     async getEntityRelatedMetadata<P extends EntityRelatedMetadataPath>(
         connectionId: string,
         entityLogicalName: string,
         relatedPath: P,
-        selectColumns?: string[],
+        relatedProperties?: string[],
     ): Promise<EntityRelatedMetadataResponse<P>> {
         if (!entityLogicalName || !entityLogicalName.trim()) {
             throw new Error("entityLogicalName parameter cannot be empty");
@@ -713,8 +713,8 @@ export class DataverseManager {
             .join("/");
         let url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/EntityDefinitions(LogicalName='${encodedLogicalName}')/${encodedPath}`);
 
-        if (selectColumns && selectColumns.length > 0) {
-            const encodedColumns = selectColumns.map((col) => encodeURIComponent(col)).join(",");
+        if (relatedProperties && relatedProperties.length > 0) {
+            const encodedColumns = relatedProperties.map((col) => encodeURIComponent(col)).join(",");
             url += `?$select=${encodedColumns}`;
         }
 
