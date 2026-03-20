@@ -1172,6 +1172,7 @@ export async function updateActiveToolConnectionStatus(): Promise<void> {
                             primaryConnection.environmentColor,
                             secondaryConnection.environmentColor,
                             primaryConnection.categoryColor,
+                            secondaryConnection.categoryColor,
                         );
                         return;
                     }
@@ -1259,6 +1260,7 @@ function updateToolPanelBorder(
     environmentColor?: string | null,
     secondaryEnvironmentColor?: string | null,
     categoryColor?: string | null,
+    secondaryCategoryColor?: string | null,
 ): void {
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
@@ -1299,23 +1301,30 @@ function updateToolPanelBorder(
         }
     }
 
-    // Update the active tab with environment class or category color
+    // Update the active tab highlight based solely on category color(s).
+    // If no category color is set the tab shows no color indicator (no env-class fallback).
     if (activeToolId) {
         const activeTab = document.getElementById(`tool-tab-${activeToolId}`);
         if (activeTab) {
             // Remove all environment classes from tab
             activeTab.classList.remove("env-dev", "env-test", "env-uat", "env-production");
-            // Reset inline style
+            // Reset inline styles (including any previous border-image gradient)
             activeTab.style.borderBottom = "";
+            activeTab.style.removeProperty("border-image");
 
-            // Add the appropriate class or inline style based on environment (use primary for tabs)
-            if (environment) {
-                if (categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor)) {
-                    activeTab.style.borderBottom = `5px solid ${categoryColor}`;
-                } else {
-                    const envClass = `env-${environment.toLowerCase()}`;
-                    activeTab.classList.add(envClass);
+            const primaryCatColor = categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor) ? categoryColor : null;
+            const secondaryCatColor = secondaryCategoryColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryCategoryColor) ? secondaryCategoryColor : null;
+
+            if (primaryCatColor && secondaryCatColor && primaryCatColor !== secondaryCatColor) {
+                // Dual connection with two different category colors — split gradient on bottom border
+                activeTab.style.borderBottom = "5px solid transparent";
+                activeTab.style.setProperty("border-image", `linear-gradient(to right, ${primaryCatColor} 50%, ${secondaryCatColor} 50%) 0 0 1 0 / 0 0 5px 0`);
+            } else {
+                const singleColor = primaryCatColor || secondaryCatColor;
+                if (singleColor) {
+                    activeTab.style.borderBottom = `5px solid ${singleColor}`;
                 }
+                // If no category color is present, leave the tab with no color indicator
             }
         }
     }

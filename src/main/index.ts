@@ -247,6 +247,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.DELETE_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTIONS);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CATEGORIES);
         ipcMain.removeHandler(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
@@ -462,6 +463,19 @@ class ToolBoxApp {
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (event, connectionId: string) => {
             return this.connectionsManager.getConnectionById(connectionId);
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CATEGORIES, () => {
+            const connections = this.connectionsManager.getConnections();
+            const categoryMap = new Map<string, string | undefined>();
+            for (const conn of connections) {
+                if (conn.category && !categoryMap.has(conn.category)) {
+                    categoryMap.set(conn.category, conn.categoryColor);
+                }
+            }
+            return Array.from(categoryMap.entries())
+                .map(([name, color]) => ({ name, color }))
+                .sort((a, b) => a.name.localeCompare(b.name));
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {

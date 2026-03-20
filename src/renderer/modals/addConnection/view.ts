@@ -62,7 +62,8 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
         <div class="form-row-two-col">
             <div class="form-group">
                 <label for="connection-category">Category (Optional)</label>
-                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" />
+                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" list="existing-categories" autocomplete="off" />
+                <datalist id="existing-categories"></datalist>
             </div>
             <div class="form-group">
                 <label for="connection-category-color">Category Color (Optional)</label>

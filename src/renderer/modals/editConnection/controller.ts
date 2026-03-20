@@ -14,7 +14,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const serializedChannels = JSON.stringify(channels);
     return `
 <script>
-(() => {
+(async () => {
     const CHANNELS = ${serializedChannels};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
@@ -313,6 +313,22 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const categoryColorInput = document.getElementById("connection-category-color");
     const categoryColorLabel = document.getElementById("connection-category-color-label");
     const clearCategoryColorBtn = document.getElementById("clear-category-color");
+    const categoryInput = document.getElementById("connection-category");
+    const categoriesDatalist = document.getElementById("existing-categories");
+
+    // Load existing categories to power datalist and color auto-fill
+    let existingCategories = [];
+    try {
+        existingCategories = await window.toolboxAPI.connections.getCategories() || [];
+        if (Array.isArray(existingCategories) && categoriesDatalist) {
+            categoriesDatalist.innerHTML = existingCategories
+                .map(c => \`<option value="\${c.name.replace(/"/g, '&quot;')}">\`)
+                .join("");
+        }
+    } catch (_) {
+        // categories not critical — proceed without them
+    }
+
     if (categoryColorInput instanceof HTMLInputElement) {
         if (!categoryColorInput.dataset.customSet) categoryColorInput.dataset.customSet = "false";
         categoryColorInput.addEventListener("input", () => {
@@ -325,6 +341,25 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             categoryColorInput.dataset.customSet = "false";
             categoryColorInput.value = "#2e7d32";
             if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
+        }
+    });
+
+    // When a category is typed/selected, auto-fill color from the existing category (if any)
+    categoryInput?.addEventListener("change", () => {
+        if (!(categoryInput instanceof HTMLInputElement)) return;
+        // Only auto-fill if the user has NOT already manually set a custom color
+        if (categoryColorInput instanceof HTMLInputElement && categoryColorInput.dataset.customSet !== "true") {
+            const typed = categoryInput.value.trim();
+            const match = existingCategories.find(c => c.name === typed);
+            if (match && match.color && /^#[0-9A-Fa-f]{6}$/.test(match.color)) {
+                categoryColorInput.value = match.color;
+                // Keep customSet as "false" so switching to another existing category still auto-fills
+                if (categoryColorLabel) categoryColorLabel.textContent = match.color;
+            } else if (!typed) {
+                // Category cleared — reset the color picker to its default state
+                categoryColorInput.value = "#2e7d32";
+                if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
+            }
         }
     });
 
