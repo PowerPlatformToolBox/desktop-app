@@ -6,6 +6,7 @@
 import { getAboutModalControllerScript } from "../modals/about/controller";
 import { getAboutModalView } from "../modals/about/view";
 import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
+import { showPPTBNotification } from "./notifications";
 
 const ABOUT_MODAL_ID = "about-dialog";
 const ABOUT_COPY_CHANNEL = "about:copy";
@@ -58,7 +59,17 @@ export async function openAboutModal(info: AboutModalInfo): Promise<void> {
         if (payload.channel === ABOUT_COPY_CHANNEL) {
             const text = (payload.data as { text?: string })?.text ?? "";
             if (text) {
-                window.toolboxAPI.utils.copyToClipboard(text).catch(() => undefined);
+                window.toolboxAPI.utils
+                    .copyToClipboard(text)
+                    .then(() => {
+                        showPPTBNotification({
+                            title: "Copied to Clipboard",
+                            body: "About information has been copied to the clipboard.",
+                            type: "success",
+                            duration: 3000,
+                        });
+                    })
+                    .catch(() => undefined);
             }
         }
     };
