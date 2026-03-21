@@ -68,7 +68,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 </select>
                 <input type="text" id="connection-category-new" class="modal-input" placeholder="e.g. Client Name" style="display: none; margin-top: 6px;" />
             </div>
-            <div class="form-group">
+            <div class="form-group" id="category-color-group" style="display: none;">
                 <label for="connection-category-color">Category Color (Optional)</label>
                 <div class="color-picker-row">
                     <input type="color" id="connection-category-color" class="modal-color-input" value="#2e7d32" />

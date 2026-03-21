@@ -297,6 +297,9 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             categoryNewInput.style.display = val === "__new__" ? "block" : "none";
             if (val !== "__new__") categoryNewInput.value = "";
         }
+        // Show category color section only when a category is selected (not default/none)
+        const catColorGroup = document.getElementById("category-color-group");
+        if (catColorGroup) catColorGroup.style.display = val ? "" : "none";
         // Show Reset only when creating a new category
         if (clearCategoryColorBtn instanceof HTMLButtonElement) {
             clearCategoryColorBtn.style.display = val === "__new__" ? "" : "none";

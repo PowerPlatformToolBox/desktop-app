@@ -284,11 +284,14 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             }
         }
 
-        // Show/hide category Reset button based on current selection
+        // Show/hide category color group and Reset button based on current selection
         const clearCatBtnEl = document.getElementById("clear-category-color");
         const catSelEl = document.getElementById("connection-category-select");
+        const catColorGroupEl = document.getElementById("category-color-group");
+        const catSelValue = catSelEl instanceof HTMLSelectElement ? catSelEl.value : "";
+        if (catColorGroupEl) catColorGroupEl.style.display = catSelValue ? "" : "none";
         if (clearCatBtnEl instanceof HTMLButtonElement) {
-            clearCatBtnEl.style.display = (catSelEl instanceof HTMLSelectElement && catSelEl.value === "__new__") ? "" : "none";
+            clearCatBtnEl.style.display = catSelValue === "__new__" ? "" : "none";
         }
         
         // Populate auth type specific fields
@@ -419,6 +422,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             categoryNewInput.style.display = val === "__new__" ? "block" : "none";
             if (val !== "__new__") categoryNewInput.value = "";
         }
+        // Show category color section only when a category is selected (not default/none)
+        const catColorGroup = document.getElementById("category-color-group");
+        if (catColorGroup) catColorGroup.style.display = val ? "" : "none";
         // Show Reset only when creating a new category
         if (clearCategoryColorBtn instanceof HTMLButtonElement) {
             clearCategoryColorBtn.style.display = val === "__new__" ? "" : "none";
