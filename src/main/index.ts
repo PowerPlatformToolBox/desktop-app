@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
 import * as http from "http";
@@ -319,6 +319,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+        ipcMain.removeHandler(UTIL_CHANNELS.GET_ABOUT_INFO);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -1350,6 +1351,20 @@ class ToolBoxApp {
 
         ipcMain.handle(UPDATE_CHANNELS.GET_APP_VERSION, () => {
             return this.autoUpdateManager.getCurrentVersion();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.GET_ABOUT_INFO, () => {
+            return {
+                appVersion: app.getVersion(),
+                installId: this.installIdManager.getInstallId(),
+                locale: app.getLocale(),
+                electronVersion: process.versions.electron,
+                nodeVersion: process.versions.node,
+                chromeVersion: process.versions.chrome,
+                platform: process.platform,
+                arch: process.arch,
+                osVersion: process.getSystemVersion(),
+            };
         });
 
         ipcMain.handle(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO, () => {
@@ -2526,23 +2541,17 @@ class ToolBoxApp {
             const installId = this.installIdManager.getInstallId();
             const locale = app.getLocale();
 
-            const message = `Power Platform ToolBox
-            Version: ${appVersion}
-            Install ID: ${installId}
-
-            Environment:
-            Electron: ${process.versions.electron}
-            Node.js: ${process.versions.node}
-            Chromium: ${process.versions.chrome}
-
-            System:
-            OS: ${process.platform} ${process.arch}
-            OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}`;
-
-            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
-                clipboard.writeText(message);
-            }
+            this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_ABOUT, {
+                appVersion,
+                installId,
+                locale,
+                electronVersion: process.versions.electron,
+                nodeVersion: process.versions.node,
+                chromeVersion: process.versions.chrome,
+                platform: process.platform,
+                arch: process.arch,
+                osVersion: process.getSystemVersion(),
+            });
         }
     }
 

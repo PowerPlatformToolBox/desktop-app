@@ -121,6 +121,7 @@ export const UTIL_CHANNELS = {
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
     FETCH_FAVICON: "fetch-favicon",
+    GET_ABOUT_INFO: "get-about-info",
 } as const;
 
 // Filesystem-related IPC channels
@@ -223,6 +224,7 @@ export const EVENT_CHANNELS = {
     TOOL_UPDATE_STARTED: "tool:update-started",
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
     PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
+    SHOW_ABOUT: "show-about",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

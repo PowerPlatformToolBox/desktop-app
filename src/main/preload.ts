@@ -131,6 +131,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
+        getAboutInfo: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_ABOUT_INFO),
     },
 
     // Troubleshooting namespace - organized like other features
@@ -247,6 +248,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Protocol deep link events
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
+    },
+
+    // About dialog event
+    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));
     },
 
     // Dataverse API - Can be called by tools via message routing
