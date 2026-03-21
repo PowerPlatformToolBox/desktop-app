@@ -1710,19 +1710,19 @@ body.dark-theme .settings-section-card {
 
 /* Environment-specific tab highlights */
 .tool-tab.active.env-dev {
-    border-bottom: 5px solid var(--env-border-dev);
+    border-bottom: var(--cat-border-thickness, 5px) solid var(--env-border-dev);
 }
 
 .tool-tab.active.env-test {
-    border-bottom: 5px solid var(--env-border-test);
+    border-bottom: var(--cat-border-thickness, 5px) solid var(--env-border-test);
 }
 
 .tool-tab.active.env-uat {
-    border-bottom: 5px solid var(--env-border-uat);
+    border-bottom: var(--cat-border-thickness, 5px) solid var(--env-border-uat);
 }
 
 .tool-tab.active.env-production {
-    border-bottom: 5px solid var(--env-border-prod);
+    border-bottom: var(--cat-border-thickness, 5px) solid var(--env-border-prod);
 }
 
 .tool-tab.secondary-active {
@@ -1852,83 +1852,83 @@ body.dark-theme .settings-section-card {
 
 /* Environment-specific border styles */
 .tool-panel-content-wrapper.env-dev {
-    border: 5px solid var(--env-border-dev);
+    border: var(--env-border-thickness, 5px) solid var(--env-border-dev);
 }
 
 .tool-panel-content-wrapper.env-test {
-    border: 5px solid var(--env-border-test);
+    border: var(--env-border-thickness, 5px) solid var(--env-border-test);
 }
 
 .tool-panel-content-wrapper.env-uat {
-    border: 5px solid var(--env-border-uat);
+    border: var(--env-border-thickness, 5px) solid var(--env-border-uat);
 }
 
 .tool-panel-content-wrapper.env-production {
-    border: 5px solid var(--env-border-prod);
+    border: var(--env-border-thickness, 5px) solid var(--env-border-prod);
 }
 
 /* Multi-connection split border styles */
 /* Dev Primary */
 .tool-panel-content-wrapper.multi-env-dev-test {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-test) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-dev-uat {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-uat) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-dev-production {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-dev) 50%, var(--env-border-prod) 50%) 1;
 }
 
 /* Test Primary */
 .tool-panel-content-wrapper.multi-env-test-dev {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-dev) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-test-uat {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-uat) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-test-production {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-test) 50%, var(--env-border-prod) 50%) 1;
 }
 
 /* UAT Primary */
 .tool-panel-content-wrapper.multi-env-uat-dev {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-dev) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-uat-test {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-test) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-uat-production {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-uat) 50%, var(--env-border-prod) 50%) 1;
 }
 
 /* Production Primary */
 .tool-panel-content-wrapper.multi-env-production-dev {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-dev) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-production-test {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-test) 50%) 1;
 }
 
 .tool-panel-content-wrapper.multi-env-production-uat {
-    border: 5px solid;
+    border: var(--env-border-thickness, 5px) solid;
     border-image: linear-gradient(to right, var(--env-border-prod) 50%, var(--env-border-uat) 50%) 1;
 }
 
@@ -2136,6 +2136,10 @@ body.dark-theme .settings-vscode-item:hover {
 .settings-vscode-input {
     width: 100%;
     box-sizing: border-box;
+}
+
+.settings-vscode-number-input {
+    width: 80px;
 }
 
 .settings-vscode-btn {
