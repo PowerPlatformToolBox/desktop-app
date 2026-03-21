@@ -4,7 +4,16 @@
  */
 
 import { logError } from "../../common/logger";
-import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT } from "../constants";
+import {
+    DEFAULT_CATEGORY_COLOR_THICKNESS,
+    DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    DEFAULT_NOTIFICATION_DURATION,
+    DEFAULT_SHOW_CATEGORY_COLOR,
+    DEFAULT_SHOW_ENVIRONMENT_COLOR,
+    DEFAULT_TERMINAL_FONT,
+    MAX_COLOR_BORDER_THICKNESS,
+    MIN_COLOR_BORDER_THICKNESS,
+} from "../constants";
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
@@ -45,10 +54,10 @@ export async function loadSettings(): Promise<void> {
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
-            showCategoryColor: settings.showCategoryColor ?? true,
-            showEnvironmentColor: settings.showEnvironmentColor ?? true,
-            categoryColorThickness: settings.categoryColorThickness ?? 5,
-            environmentColorThickness: settings.environmentColorThickness ?? 5,
+            showCategoryColor: settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
+            showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
+            categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
+            environmentColorThickness: settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
         };
 
         themeSelect.value = settings.theme;
@@ -62,16 +71,16 @@ export async function loadSettings(): Promise<void> {
         }
 
         if (showCategoryColorCheck) {
-            showCategoryColorCheck.checked = settings.showCategoryColor ?? true;
+            showCategoryColorCheck.checked = settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR;
         }
         if (showEnvironmentColorCheck) {
-            showEnvironmentColorCheck.checked = settings.showEnvironmentColor ?? true;
+            showEnvironmentColorCheck.checked = settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR;
         }
         if (categoryColorThicknessInput) {
-            categoryColorThicknessInput.value = String(settings.categoryColorThickness ?? 5);
+            categoryColorThicknessInput.value = String(settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS);
         }
         if (environmentColorThicknessInput) {
-            environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? 5);
+            environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
@@ -127,11 +136,15 @@ export async function saveSettings(): Promise<void> {
         terminalFont = customFontInput.value.trim() || DEFAULT_TERMINAL_FONT;
     }
 
-    const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : 5000;
-    const showCategoryColor = showCategoryColorCheck ? showCategoryColorCheck.checked : true;
-    const showEnvironmentColor = showEnvironmentColorCheck ? showEnvironmentColorCheck.checked : true;
-    const categoryColorThickness = categoryColorThicknessInput ? Math.min(10, Math.max(1, Number(categoryColorThicknessInput.value) || 5)) : 5;
-    const environmentColorThickness = environmentColorThicknessInput ? Math.min(10, Math.max(1, Number(environmentColorThicknessInput.value) || 5)) : 5;
+    const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : DEFAULT_NOTIFICATION_DURATION;
+    const showCategoryColor = showCategoryColorCheck ? showCategoryColorCheck.checked : DEFAULT_SHOW_CATEGORY_COLOR;
+    const showEnvironmentColor = showEnvironmentColorCheck ? showEnvironmentColorCheck.checked : DEFAULT_SHOW_ENVIRONMENT_COLOR;
+    const categoryColorThickness = categoryColorThicknessInput
+        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS))
+        : DEFAULT_CATEGORY_COLOR_THICKNESS;
+    const environmentColorThickness = environmentColorThicknessInput
+        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS))
+        : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -268,10 +281,10 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 <div class="settings-vscode-item">
                     <div class="settings-vscode-item-info">
                         <label class="settings-vscode-item-label" for="sidebar-category-color-thickness">Category Color Thickness</label>
-                        <p class="settings-vscode-item-description">Thickness in pixels of the category color border displayed under the tool tab (1–10 px).</p>
+                        <p class="settings-vscode-item-description">Thickness in pixels of the category color border displayed under the tool tab (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
                     </div>
                     <div class="settings-vscode-item-control">
-                        <input type="number" id="sidebar-category-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="1" max="10" step="1" value="5" />
+                        <input type="number" id="sidebar-category-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_CATEGORY_COLOR_THICKNESS}" />
                     </div>
                 </div>
 
@@ -291,10 +304,10 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 <div class="settings-vscode-item">
                     <div class="settings-vscode-item-info">
                         <label class="settings-vscode-item-label" for="sidebar-environment-color-thickness">Environment Color Thickness</label>
-                        <p class="settings-vscode-item-description">Thickness in pixels of the environment color border displayed around the tool panel (1–10 px).</p>
+                        <p class="settings-vscode-item-description">Thickness in pixels of the environment color border displayed around the tool panel (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
                     </div>
                     <div class="settings-vscode-item-control">
-                        <input type="number" id="sidebar-environment-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="1" max="10" step="1" value="5" />
+                        <input type="number" id="sidebar-environment-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_ENVIRONMENT_COLOR_THICKNESS}" />
                     </div>
                 </div>
             </section>

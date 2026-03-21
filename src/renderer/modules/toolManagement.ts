@@ -7,6 +7,14 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
+import {
+    DEFAULT_CATEGORY_COLOR_THICKNESS,
+    DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    DEFAULT_SHOW_CATEGORY_COLOR,
+    DEFAULT_SHOW_ENVIRONMENT_COLOR,
+    MAX_COLOR_BORDER_THICKNESS,
+    MIN_COLOR_BORDER_THICKNESS,
+} from "../constants";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
@@ -30,13 +38,13 @@ let draggedTab: HTMLElement | null = null;
 let hasWarnedAboutMissingContextMenuHandler = false;
 
 // Appearance settings - cached values used when rendering borders
-let _showCategoryColor = true;
-let _showEnvironmentColor = true;
-let _categoryColorThickness = 5;
-let _environmentColorThickness = 5;
+let _showCategoryColor = DEFAULT_SHOW_CATEGORY_COLOR;
+let _showEnvironmentColor = DEFAULT_SHOW_ENVIRONMENT_COLOR;
+let _categoryColorThickness = DEFAULT_CATEGORY_COLOR_THICKNESS;
+let _environmentColorThickness = DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
 
 function clampThickness(value: number): number {
-    return Math.min(10, Math.max(1, value));
+    return Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, value));
 }
 
 /**
