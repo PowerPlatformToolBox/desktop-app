@@ -46,6 +46,7 @@ export const CONNECTION_CHANNELS = {
     DELETE_CONNECTION: "delete-connection",
     GET_CONNECTIONS: "get-connections",
     GET_CONNECTION_BY_ID: "get-connection-by-id",
+    GET_CATEGORIES: "get-connection-categories",
     SET_ACTIVE_CONNECTION: "set-active-connection",
     TEST_CONNECTION: "test-connection",
     IS_TOKEN_EXPIRED: "is-connection-token-expired",

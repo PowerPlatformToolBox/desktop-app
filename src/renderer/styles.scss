@@ -5593,6 +5593,35 @@ body.dark-theme .global-search-item-badge.badge-settings {
     opacity: 0.7;
 }
 
+/* Color picker swatch on category group header */
+.connection-group-color-picker {
+    width: 18px;
+    height: 18px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    overflow: hidden;
+    background: transparent;
+    flex-shrink: 0;
+    outline: 1px solid rgba(0, 0, 0, 0.2);
+    outline-offset: 1px;
+    transition: outline-color 0.15s ease;
+
+    &:hover {
+        outline-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .dark-theme & {
+        outline-color: rgba(255, 255, 255, 0.25);
+
+        &:hover {
+            outline-color: rgba(255, 255, 255, 0.6);
+        }
+    }
+}
+
+
 /* Export button on category group header */
 .connection-group-export-btn {
     background: none;

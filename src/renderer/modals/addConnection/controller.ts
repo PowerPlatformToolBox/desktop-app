@@ -13,7 +13,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const serializedChannels = JSON.stringify(channels);
     return `
 <script>
-(() => {
+(async () => {
     const CHANNELS = ${serializedChannels};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
@@ -150,20 +150,24 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
-        category: getInputValue("connection-category"),
+        category: (() => {
+            const sel = document.getElementById("connection-category-select");
+            if (!(sel instanceof HTMLSelectElement)) return "";
+            if (sel.value === "__new__") {
+                const newInput = document.getElementById("connection-category-new");
+                return newInput instanceof HTMLInputElement ? newInput.value.trim() : "";
+            }
+            return sel.value;
+        })(),
         environmentColor: (() => {
             const colorInput = document.getElementById("connection-environment-color");
-            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
-                return colorInput.value;
-            }
-            return "";
+            return colorInput instanceof HTMLInputElement ? colorInput.value : "";
         })(),
         categoryColor: (() => {
+            const sel = document.getElementById("connection-category-select");
+            if (!(sel instanceof HTMLSelectElement) || !sel.value) return "";
             const colorInput = document.getElementById("connection-category-color");
-            if (colorInput instanceof HTMLInputElement && colorInput.dataset.customSet === "true") {
-                return colorInput.value;
-            }
-            return "";
+            return colorInput instanceof HTMLInputElement ? colorInput.value : "";
         })(),
         ...(() => {
             const selection = getBrowserProfileSelection();
@@ -201,30 +205,122 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
 
-    // Color picker setup
+    // Environment default colors per env type
+    const ENV_COLORS = { Dev: "#2e7d32", Test: "#0288d1", UAT: "#f57c00", Production: "#c62828" };
+    const getDefaultEnvColor = (env) => ENV_COLORS[env] || "#2e7d32";
+
+    // Environment color picker setup
+    const envSelectEl = document.getElementById("connection-environment");
     const colorInput = document.getElementById("connection-environment-color");
     const colorLabel = document.getElementById("connection-environment-color-label");
     const clearColorBtn = document.getElementById("clear-environment-color");
+
+    const updateEnvColorResetState = () => {
+        if (!(clearColorBtn instanceof HTMLButtonElement) || !(colorInput instanceof HTMLInputElement) || !(envSelectEl instanceof HTMLSelectElement)) return;
+        clearColorBtn.disabled = colorInput.value === getDefaultEnvColor(envSelectEl.value || "Dev");
+    };
+
+    const applyEnvDefaultColor = (env, force) => {
+        if (!(colorInput instanceof HTMLInputElement)) return;
+        if (force || colorInput.dataset.customSet !== "true") {
+            const defaultColor = getDefaultEnvColor(env);
+            colorInput.value = defaultColor;
+            colorInput.dataset.customSet = "false";
+            if (colorLabel) colorLabel.textContent = defaultColor;
+        }
+        updateEnvColorResetState();
+    };
+
+    // Initialize env color from current selection
+    applyEnvDefaultColor(envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev", true);
+
+    envSelectEl?.addEventListener("change", () => {
+        applyEnvDefaultColor((envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev"), false);
+    });
+
     if (colorInput instanceof HTMLInputElement) {
-        // Initialize with no custom color
         colorInput.dataset.customSet = "false";
         colorInput.addEventListener("input", () => {
             colorInput.dataset.customSet = "true";
             if (colorLabel) colorLabel.textContent = colorInput.value;
+            updateEnvColorResetState();
         });
     }
     clearColorBtn?.addEventListener("click", () => {
-        if (colorInput instanceof HTMLInputElement) {
-            colorInput.dataset.customSet = "false";
-            colorInput.value = "#0288d1";
-            if (colorLabel) colorLabel.textContent = "Pick a custom color for the environment badge";
-        }
+        applyEnvDefaultColor(envSelectEl instanceof HTMLSelectElement ? envSelectEl.value : "Dev", true);
     });
 
-    // Category color picker setup
+    // Category select + new-category input setup
+    const categorySelect = document.getElementById("connection-category-select");
+    const categoryNewInput = document.getElementById("connection-category-new");
     const categoryColorInput = document.getElementById("connection-category-color");
     const categoryColorLabel = document.getElementById("connection-category-color-label");
     const clearCategoryColorBtn = document.getElementById("clear-category-color");
+
+    const resetCategoryColor = () => {
+        if (categoryColorInput instanceof HTMLInputElement) {
+            categoryColorInput.dataset.customSet = "false";
+            categoryColorInput.value = "#2e7d32";
+            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
+        }
+    };
+
+    const applyCategoryColor = (color) => {
+        if (categoryColorInput instanceof HTMLInputElement && /^#[0-9A-Fa-f]{6}$/.test(color)) {
+            categoryColorInput.value = color;
+            if (categoryColorLabel) categoryColorLabel.textContent = color;
+        }
+    };
+
+    // Load existing categories and populate the select
+    let existingCategories = [];
+    try {
+        existingCategories = await window.toolboxAPI.connections.getCategories() || [];
+        if (Array.isArray(existingCategories) && existingCategories.length > 0 && categorySelect instanceof HTMLSelectElement) {
+            // Insert existing category options before the "+ New category..." option
+            const newCatOption = categorySelect.querySelector('option[value="__new__"]');
+            for (const cat of existingCategories) {
+                const opt = document.createElement("option");
+                opt.value = cat.name;
+                opt.textContent = cat.name;
+                categorySelect.insertBefore(opt, newCatOption);
+            }
+        }
+    } catch (_) {
+        // categories not critical — proceed without them
+    }
+
+    const onCategorySelectChange = () => {
+        if (!(categorySelect instanceof HTMLSelectElement)) return;
+        const val = categorySelect.value;
+        if (categoryNewInput instanceof HTMLInputElement) {
+            categoryNewInput.style.display = val === "__new__" ? "block" : "none";
+            if (val !== "__new__") categoryNewInput.value = "";
+        }
+        // Show category color section only when a category is selected (not default/none)
+        const catColorGroup = document.getElementById("category-color-group");
+        if (catColorGroup) catColorGroup.style.display = val ? "" : "none";
+        // Show Reset only when creating a new category
+        if (clearCategoryColorBtn instanceof HTMLButtonElement) {
+            clearCategoryColorBtn.style.display = val === "__new__" ? "" : "none";
+        }
+        // Auto-fill color for existing categories (don't override a manually set color)
+        if (categoryColorInput instanceof HTMLInputElement && categoryColorInput.dataset.customSet !== "true") {
+            if (!val || val === "__new__") {
+                resetCategoryColor();
+            } else {
+                const match = existingCategories.find(c => c.name === val);
+                if (match && match.color) {
+                    applyCategoryColor(match.color);
+                } else {
+                    resetCategoryColor();
+                }
+            }
+        }
+    };
+
+    categorySelect?.addEventListener("change", onCategorySelectChange);
+
     if (categoryColorInput instanceof HTMLInputElement) {
         categoryColorInput.dataset.customSet = "false";
         categoryColorInput.addEventListener("input", () => {
@@ -232,13 +328,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             if (categoryColorLabel) categoryColorLabel.textContent = categoryColorInput.value;
         });
     }
-    clearCategoryColorBtn?.addEventListener("click", () => {
-        if (categoryColorInput instanceof HTMLInputElement) {
-            categoryColorInput.dataset.customSet = "false";
-            categoryColorInput.value = "#2e7d32";
-            if (categoryColorLabel) categoryColorLabel.textContent = "Pick a color for the category";
-        }
-    });
+    clearCategoryColorBtn?.addEventListener("click", resetCategoryColor);
 
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {

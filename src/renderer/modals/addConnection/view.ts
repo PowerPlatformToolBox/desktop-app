@@ -53,23 +53,27 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
             <div class="form-group">
                 <label for="connection-environment-color">Environment Color (Optional)</label>
                 <div class="color-picker-row">
-                    <input type="color" id="connection-environment-color" class="modal-color-input" value="#0288d1" />
-                    <span class="color-picker-label" id="connection-environment-color-label">Pick a custom color for the environment badge</span>
-                    <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+                    <input type="color" id="connection-environment-color" class="modal-color-input" value="#2e7d32" />
+                    <span class="color-picker-label" id="connection-environment-color-label">#2e7d32</span>
+                    <button type="button" id="clear-environment-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default" disabled>Reset</button>
                 </div>
             </div>
         </div>
         <div class="form-row-two-col">
             <div class="form-group">
-                <label for="connection-category">Category (Optional)</label>
-                <input type="text" id="connection-category" class="modal-input" placeholder="e.g. Client Name" />
+                <label for="connection-category-select">Category (Optional)</label>
+                <select id="connection-category-select" class="modal-input">
+                    <option value="">--</option>
+                    <option value="__new__">+ New category...</option>
+                </select>
+                <input type="text" id="connection-category-new" class="modal-input" placeholder="e.g. Client Name" style="display: none; margin-top: 6px;" />
             </div>
-            <div class="form-group">
+            <div class="form-group" id="category-color-group" style="display: none;">
                 <label for="connection-category-color">Category Color (Optional)</label>
                 <div class="color-picker-row">
                     <input type="color" id="connection-category-color" class="modal-color-input" value="#2e7d32" />
                     <span class="color-picker-label" id="connection-category-color-label">Pick a color for the category</span>
-                    <button type="button" id="clear-category-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default">Reset</button>
+                    <button type="button" id="clear-category-color" class="fluent-button fluent-button-secondary color-clear-btn" title="Reset to default" style="display: none;">Reset</button>
                 </div>
             </div>
         </div>
