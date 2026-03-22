@@ -18,7 +18,7 @@ import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, openToolDetailTab } from "./toolManagement";
+import { applyAppearanceSettings, openToolDetailTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
@@ -247,6 +247,57 @@ export async function saveSettings(): Promise<void> {
  */
 export function getOriginalSettings(): SettingsState {
     return originalSettings;
+}
+
+/**
+ * Check whether the settings UI currently differs from the last saved state.
+ * Returns true if there are unsaved changes.
+ */
+function hasUnsavedChanges(): boolean {
+    const themeSelect = document.getElementById("sidebar-theme-select") as any;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any;
+    const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any;
+    const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any;
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any;
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any;
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement | null;
+    const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
+    const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
+    const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
+    const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
+    const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+
+    // If the DOM elements aren't present the settings panel isn't rendered — no unsaved changes
+    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) {
+        return false;
+    }
+
+    let terminalFont = terminalFontSelect.value;
+    if (terminalFont === "custom" && customFontInput) {
+        terminalFont = customFontInput.value.trim() || DEFAULT_TERMINAL_FONT;
+    }
+
+    if (themeSelect.value !== originalSettings.theme) return true;
+    if (autoUpdateCheck.checked !== originalSettings.autoUpdate) return true;
+    if (showDebugMenuCheck.checked !== (originalSettings.showDebugMenu ?? false)) return true;
+    if (deprecatedToolsSelect.value !== (originalSettings.deprecatedToolsVisibility ?? "hide-all")) return true;
+    if (toolDisplayModeSelect.value !== (originalSettings.toolDisplayMode ?? "standard")) return true;
+    if (terminalFont !== (originalSettings.terminalFont || DEFAULT_TERMINAL_FONT)) return true;
+    if (notificationDurationSelect && Number(notificationDurationSelect.value) !== (originalSettings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION)) return true;
+    if (restoreSessionCheck && restoreSessionCheck.checked !== (originalSettings.restoreSessionOnStartup ?? true)) return true;
+    if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
+    if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
+    if (categoryColorThicknessInput) {
+        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS));
+        if (val !== (originalSettings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS)) return true;
+    }
+    if (environmentColorThicknessInput) {
+        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
+        if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
+    }
+
+    return false;
 }
 
 /**
@@ -570,5 +621,9 @@ export function renderSettingsContent(panel: HTMLElement): void {
  * Open settings as a tab in the main content area
  */
 export async function openSettingsTab(): Promise<void> {
+    registerCloseGuard("app-settings", async () => {
+        if (!hasUnsavedChanges()) return true;
+        return window.confirm("You have unsaved settings changes. Close anyway and discard them?");
+    });
     await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
 }

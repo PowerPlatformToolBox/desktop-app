@@ -66,6 +66,24 @@ export function applyAppearanceSettings(showCategoryColor: boolean, showEnvironm
 // Detail tab state - maps tabId to render callback for tool detail tabs
 const detailTabs = new Map<string, (panel: HTMLElement) => void>();
 
+// Close guards - async callbacks that can cancel a tab close (return false to prevent)
+const closeGuards = new Map<string, () => Promise<boolean>>();
+
+/**
+ * Register a close guard for a tab. The guard is called before the tab closes;
+ * returning false cancels the close (e.g., to prompt about unsaved changes).
+ */
+export function registerCloseGuard(instanceId: string, guard: () => Promise<boolean>): void {
+    closeGuards.set(instanceId, guard);
+}
+
+/**
+ * Remove a previously registered close guard.
+ */
+export function unregisterCloseGuard(instanceId: string): void {
+    closeGuards.delete(instanceId);
+}
+
 function canCloseTab(instanceId: string): boolean {
     const openTool = openTools.get(instanceId);
     if (!openTool) {
@@ -79,15 +97,15 @@ function getClosableTabIds(excludedInstanceId?: string): string[] {
     return Array.from(openTools.keys()).filter((instanceId) => instanceId !== excludedInstanceId && canCloseTab(instanceId));
 }
 
-function closeTabs(instanceIds: string[]): void {
-    instanceIds.forEach((instanceId) => {
+async function closeTabs(instanceIds: string[]): Promise<void> {
+    for (const instanceId of instanceIds) {
         if (openTools.has(instanceId)) {
-            closeTool(instanceId);
+            await closeTool(instanceId);
         }
-    });
+    }
 }
 
-function closeOtherTabs(instanceId: string): void {
+async function closeOtherTabs(instanceId: string): Promise<void> {
     closeTabs(getClosableTabIds(instanceId));
 }
 
@@ -217,17 +235,17 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     }
 
     if (action === "close-current") {
-        closeTool(instanceId);
+        await closeTool(instanceId);
         return;
     }
 
     if (action === "close-others") {
-        closeOtherTabs(instanceId);
+        await closeOtherTabs(instanceId);
         return;
     }
 
     if (action === "close-all") {
-        closeTabs(getClosableTabIds());
+        await closeTabs(getClosableTabIds());
     }
 }
 
@@ -571,7 +589,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
 
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        closeTool(instanceId);
+        void closeTool(instanceId);
     });
 
     tab.addEventListener("click", () => {
@@ -595,7 +613,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
                 return;
             }
 
-            closeTool(instanceId);
+            void closeTool(instanceId);
         }
     });
 
@@ -709,7 +727,7 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
     closeBtn.title = "Close";
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        closeTool(tabId);
+        void closeTool(tabId);
     });
     tab.appendChild(closeBtn);
 
@@ -722,7 +740,7 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
         if (e.button === MIDDLE_MOUSE_BUTTON) {
             e.preventDefault();
             e.stopPropagation();
-            closeTool(tabId);
+            void closeTool(tabId);
         }
     });
 
@@ -841,9 +859,16 @@ export async function switchToTool(instanceId: string): Promise<void> {
 /**
  * Close a tool
  */
-export function closeTool(instanceId: string): void {
+export async function closeTool(instanceId: string): Promise<void> {
     const openTool = openTools.get(instanceId);
     if (!openTool) return;
+
+    // Run close guard if registered for this tab
+    const guard = closeGuards.get(instanceId);
+    if (guard) {
+        const canClose = await guard();
+        if (!canClose) return;
+    }
 
     // Check if tab is pinned (only for real tool instances, not detail tabs)
     if (!openTool.isDetailTab && openTool.isPinned) {
@@ -860,6 +885,9 @@ export function closeTool(instanceId: string): void {
     if (tab) {
         tab.remove();
     }
+
+    // Clean up close guard
+    closeGuards.delete(instanceId);
 
     if (openTool.isDetailTab) {
         // Detail tab: clean up render callback and hide detail panel if active
@@ -920,12 +948,12 @@ export function closeTool(instanceId: string): void {
 /**
  * Close all tools
  */
-export function closeAllTools(): void {
+export async function closeAllTools(): Promise<void> {
     // Close all tools
     const toolIds = Array.from(openTools.keys());
-    toolIds.forEach((toolId) => {
-        closeTool(toolId);
-    });
+    for (const toolId of toolIds) {
+        await closeTool(toolId);
+    }
 }
 
 /**
@@ -1155,7 +1183,7 @@ export function setupKeyboardShortcuts(): void {
         if (e.ctrlKey && e.key === "w") {
             e.preventDefault();
             if (activeToolId) {
-                closeTool(activeToolId);
+                void closeTool(activeToolId);
             }
         }
 
