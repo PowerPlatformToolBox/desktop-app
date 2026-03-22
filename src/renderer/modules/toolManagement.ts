@@ -1047,11 +1047,44 @@ export async function restoreSession(): Promise<void> {
         if (session.openTools && Array.isArray(session.openTools)) {
             // Note: We can't restore exact instanceIds since they're timestamp-based
             // Instead, we launch the tools fresh, which creates new instances.
-            // Saved connection IDs are passed so the tool opens without prompting.
+            // Saved connection IDs are passed so the tool opens without prompting
+            // when authentication can be restored silently.
             for (const toolInfo of session.openTools) {
+                // Attempt silent re-authentication for each saved connection.
+                // If the token is still valid it will be reused directly.
+                // If it can be refreshed (client-secret, username/password, stored
+                // refresh token) that will happen automatically.
+                // If silent auth fails (e.g. MSAL in-memory cache cleared after
+                // restart and token expired), pass null so launchTool shows the
+                // appropriate connection modal (single or multi, with tool name).
+                let primaryConnectionId: string | null = toolInfo.connectionId ?? null;
+                let secondaryConnectionId: string | null = toolInfo.secondaryConnectionId ?? null;
+
+                if (primaryConnectionId) {
+                    try {
+                        await window.toolboxAPI.connections.authenticate(primaryConnectionId);
+                    } catch (authError) {
+                        logWarn(`Silent auth failed for primary connection ${primaryConnectionId} on session restore – connection modal will be shown`, {
+                            error: authError instanceof Error ? authError.message : String(authError),
+                        });
+                        primaryConnectionId = null;
+                    }
+                }
+
+                if (secondaryConnectionId) {
+                    try {
+                        await window.toolboxAPI.connections.authenticate(secondaryConnectionId);
+                    } catch (authError) {
+                        logWarn(`Silent auth failed for secondary connection ${secondaryConnectionId} on session restore – connection modal will be shown`, {
+                            error: authError instanceof Error ? authError.message : String(authError),
+                        });
+                        secondaryConnectionId = null;
+                    }
+                }
+
                 await launchTool(toolInfo.toolId, {
-                    primaryConnectionId: toolInfo.connectionId,
-                    secondaryConnectionId: toolInfo.secondaryConnectionId,
+                    primaryConnectionId,
+                    secondaryConnectionId,
                 });
             }
             // Note: activeToolId won't match since we have new instanceIds
