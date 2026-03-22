@@ -28,6 +28,7 @@ export class SettingsManager {
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
+                restoreSessionOnStartup: true, // Reopen previously open tools on app start
             },
         });
 

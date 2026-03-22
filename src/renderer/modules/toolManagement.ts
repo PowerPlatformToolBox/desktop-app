@@ -976,6 +976,12 @@ export function saveSession(): void {
  * Restore session from local storage
  */
 export async function restoreSession(): Promise<void> {
+    // Check if the user has disabled session restore
+    const settings = await window.toolboxAPI.getUserSettings();
+    if (settings.restoreSessionOnStartup === false) {
+        return;
+    }
+
     const sessionData = localStorage.getItem("toolbox-session");
     if (!sessionData) return;
 

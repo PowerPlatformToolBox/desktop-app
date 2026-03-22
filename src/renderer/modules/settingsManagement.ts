@@ -28,6 +28,7 @@ export async function loadSettings(): Promise<void> {
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -41,6 +42,7 @@ export async function loadSettings(): Promise<void> {
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
+            restoreSessionOnStartup: settings.restoreSessionOnStartup ?? true,
         };
 
         themeSelect.value = settings.theme;
@@ -51,6 +53,10 @@ export async function loadSettings(): Promise<void> {
 
         if (notificationDurationSelect) {
             notificationDurationSelect.value = String(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
+        }
+
+        if (restoreSessionCheck) {
+            restoreSessionCheck.checked = settings.restoreSessionOnStartup ?? true;
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
@@ -92,6 +98,7 @@ export async function saveSettings(): Promise<void> {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -112,6 +119,7 @@ export async function saveSettings(): Promise<void> {
         toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
         notificationDuration,
+        restoreSessionOnStartup: restoreSessionCheck ? restoreSessionCheck.checked : true,
     };
 
     // Only include changed settings in the update
@@ -137,6 +145,9 @@ export async function saveSettings(): Promise<void> {
     }
     if (currentSettings.notificationDuration !== originalSettings.notificationDuration) {
         changedSettings.notificationDuration = currentSettings.notificationDuration;
+    }
+    if (currentSettings.restoreSessionOnStartup !== originalSettings.restoreSessionOnStartup) {
+        changedSettings.restoreSessionOnStartup = currentSettings.restoreSessionOnStartup;
     }
 
     // Only save and emit event if something changed
@@ -218,6 +229,19 @@ export function renderSettingsContent(panel: HTMLElement): void {
                     <div class="settings-vscode-item-control">
                         <label class="settings-vscode-checkbox-label">
                             <input type="checkbox" id="sidebar-show-debug-menu-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-restore-session-check">Restore Session on Startup</label>
+                        <p class="settings-vscode-item-description">Automatically reopen the tools that were open when the app was last closed. If a saved connection is no longer valid, you will be prompted to select a new one.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-restore-session-check" class="settings-vscode-checkbox" />
                             <span>Enable</span>
                         </label>
                     </div>

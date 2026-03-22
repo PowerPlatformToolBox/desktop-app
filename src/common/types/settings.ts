@@ -84,6 +84,7 @@ export interface UserSettings {
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
+    restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;
