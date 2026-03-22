@@ -7,6 +7,14 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { DataverseConnection } from "../../common/types/connection";
 import type { OpenTool, SessionData } from "../types/index";
+import {
+    DEFAULT_CATEGORY_COLOR_THICKNESS,
+    DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    DEFAULT_SHOW_CATEGORY_COLOR,
+    DEFAULT_SHOW_ENVIRONMENT_COLOR,
+    MAX_COLOR_BORDER_THICKNESS,
+    MIN_COLOR_BORDER_THICKNESS,
+} from "../constants";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
@@ -28,6 +36,32 @@ const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
 let draggedTab: HTMLElement | null = null;
 let hasWarnedAboutMissingContextMenuHandler = false;
+
+// Appearance settings - cached values used when rendering borders
+let _showCategoryColor = DEFAULT_SHOW_CATEGORY_COLOR;
+let _showEnvironmentColor = DEFAULT_SHOW_ENVIRONMENT_COLOR;
+let _categoryColorThickness = DEFAULT_CATEGORY_COLOR_THICKNESS;
+let _environmentColorThickness = DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
+
+function clampThickness(value: number): number {
+    return Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, value));
+}
+
+/**
+ * Apply appearance settings for color indicators.
+ * Caches the values and immediately refreshes any visible borders.
+ */
+export function applyAppearanceSettings(showCategoryColor: boolean, showEnvironmentColor: boolean, categoryColorThickness: number, environmentColorThickness: number): void {
+    _showCategoryColor = showCategoryColor;
+    _showEnvironmentColor = showEnvironmentColor;
+    _categoryColorThickness = clampThickness(categoryColorThickness);
+    _environmentColorThickness = clampThickness(environmentColorThickness);
+
+    // Refresh the active tool's borders to reflect new settings immediately
+    updateActiveToolConnectionStatus().catch((err) => {
+        logError(err instanceof Error ? err : new Error(String(err)));
+    });
+}
 
 // Detail tab state - maps tabId to render callback for tool detail tabs
 const detailTabs = new Map<string, (panel: HTMLElement) => void>();
@@ -1262,6 +1296,9 @@ function updateToolPanelBorder(
     categoryColor?: string | null,
     secondaryCategoryColor?: string | null,
 ): void {
+    const envThickness = _environmentColorThickness;
+    const catThickness = _categoryColorThickness;
+
     const toolPanelWrapper = document.getElementById("tool-panel-content-wrapper");
     if (toolPanelWrapper) {
         // Remove all environment classes from panel
@@ -1271,32 +1308,36 @@ function updateToolPanelBorder(
         toolPanelWrapper.style.border = "";
         toolPanelWrapper.style.borderImage = "";
 
-        // Add the appropriate class or inline style based on environment(s)
-        if (environment && secondaryEnvironment) {
-            const primaryColor = environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor) ? environmentColor : null;
-            const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : null;
-            if (primaryColor || secColor) {
-                // At least one connection has a custom color — use inline gradient border
-                const leftColor = primaryColor || getEnvBorderColor(environment);
-                const rightColor = secColor || getEnvBorderColor(secondaryEnvironment);
-                toolPanelWrapper.style.border = "5px solid transparent";
-                toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${leftColor} 50%, ${rightColor} 50%) 1`;
-            } else {
-                const primaryEnvClass = environment.toLowerCase();
-                const secondaryEnvClass = secondaryEnvironment.toLowerCase();
-                if (primaryEnvClass === secondaryEnvClass) {
-                    toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+        if (_showEnvironmentColor) {
+            // Add the appropriate class or inline style based on environment(s)
+            if (environment && secondaryEnvironment) {
+                const primaryColor = environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor) ? environmentColor : null;
+                const secColor = secondaryEnvironmentColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryEnvironmentColor) ? secondaryEnvironmentColor : null;
+                if (primaryColor || secColor) {
+                    // At least one connection has a custom color — use inline gradient border
+                    const leftColor = primaryColor || getEnvBorderColor(environment);
+                    const rightColor = secColor || getEnvBorderColor(secondaryEnvironment);
+                    toolPanelWrapper.style.border = `${envThickness}px solid transparent`;
+                    toolPanelWrapper.style.borderImage = `linear-gradient(to right, ${leftColor} 50%, ${rightColor} 50%) 1`;
                 } else {
-                    const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
-                    toolPanelWrapper.classList.add(multiEnvClass);
+                    const primaryEnvClass = environment.toLowerCase();
+                    const secondaryEnvClass = secondaryEnvironment.toLowerCase();
+                    if (primaryEnvClass === secondaryEnvClass) {
+                        toolPanelWrapper.classList.add(`env-${primaryEnvClass}`);
+                    } else {
+                        const multiEnvClass = `multi-env-${primaryEnvClass}-${secondaryEnvClass}`;
+                        toolPanelWrapper.classList.add(multiEnvClass);
+                    }
+                    toolPanelWrapper.style.setProperty("--env-border-thickness", `${envThickness}px`);
                 }
-            }
-        } else if (environment) {
-            if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
-                toolPanelWrapper.style.border = `5px solid ${environmentColor}`;
-            } else {
-                const envClass = `env-${environment.toLowerCase()}`;
-                toolPanelWrapper.classList.add(envClass);
+            } else if (environment) {
+                if (environmentColor && /^#[0-9A-Fa-f]{6}$/.test(environmentColor)) {
+                    toolPanelWrapper.style.border = `${envThickness}px solid ${environmentColor}`;
+                } else {
+                    const envClass = `env-${environment.toLowerCase()}`;
+                    toolPanelWrapper.classList.add(envClass);
+                    toolPanelWrapper.style.setProperty("--env-border-thickness", `${envThickness}px`);
+                }
             }
         }
     }
@@ -1312,19 +1353,21 @@ function updateToolPanelBorder(
             activeTab.style.borderBottom = "";
             activeTab.style.removeProperty("border-image");
 
-            const primaryCatColor = categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor) ? categoryColor : null;
-            const secondaryCatColor = secondaryCategoryColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryCategoryColor) ? secondaryCategoryColor : null;
+            if (_showCategoryColor) {
+                const primaryCatColor = categoryColor && /^#[0-9A-Fa-f]{6}$/.test(categoryColor) ? categoryColor : null;
+                const secondaryCatColor = secondaryCategoryColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryCategoryColor) ? secondaryCategoryColor : null;
 
-            if (primaryCatColor && secondaryCatColor && primaryCatColor !== secondaryCatColor) {
-                // Dual connection with two different category colors — split gradient on bottom border
-                activeTab.style.borderBottom = "5px solid transparent";
-                activeTab.style.setProperty("border-image", `linear-gradient(to right, ${primaryCatColor} 50%, ${secondaryCatColor} 50%) 0 0 1 0 / 0 0 5px 0`);
-            } else {
-                const singleColor = primaryCatColor || secondaryCatColor;
-                if (singleColor) {
-                    activeTab.style.borderBottom = `5px solid ${singleColor}`;
+                if (primaryCatColor && secondaryCatColor && primaryCatColor !== secondaryCatColor) {
+                    // Dual connection with two different category colors — split gradient on bottom border
+                    activeTab.style.borderBottom = `${catThickness}px solid transparent`;
+                    activeTab.style.setProperty("border-image", `linear-gradient(to right, ${primaryCatColor} 50%, ${secondaryCatColor} 50%) 0 0 1 0 / 0 0 ${catThickness}px 0`);
+                } else {
+                    const singleColor = primaryCatColor || secondaryCatColor;
+                    if (singleColor) {
+                        activeTab.style.borderBottom = `${catThickness}px solid ${singleColor}`;
+                    }
+                    // If no category color is present, leave the tab with no color indicator
                 }
-                // If no category color is present, leave the tab with no color indicator
             }
         }
     }
