@@ -319,7 +319,6 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
-        ipcMain.removeHandler(UTIL_CHANNELS.GET_ABOUT_INFO);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -1351,20 +1350,6 @@ class ToolBoxApp {
 
         ipcMain.handle(UPDATE_CHANNELS.GET_APP_VERSION, () => {
             return this.autoUpdateManager.getCurrentVersion();
-        });
-
-        ipcMain.handle(UTIL_CHANNELS.GET_ABOUT_INFO, () => {
-            return {
-                appVersion: app.getVersion(),
-                installId: this.installIdManager.getInstallId(),
-                locale: app.getLocale(),
-                electronVersion: process.versions.electron,
-                nodeVersion: process.versions.node,
-                chromeVersion: process.versions.chrome,
-                platform: process.platform,
-                arch: process.arch,
-                osVersion: process.getSystemVersion(),
-            };
         });
 
         ipcMain.handle(UPDATE_CHANNELS.GET_VERSION_COMPATIBILITY_INFO, () => {
@@ -2536,22 +2521,37 @@ class ToolBoxApp {
      * Includes install ID and other important information for diagnostics
      */
     private showAboutDialog(): void {
-        if (this.mainWindow) {
-            const appVersion = app.getVersion();
-            const installId = this.installIdManager.getInstallId();
-            const locale = app.getLocale();
+        if (!this.mainWindow) {
+            return;
+        }
 
-            this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_ABOUT, {
-                appVersion,
-                installId,
-                locale,
-                electronVersion: process.versions.electron,
-                nodeVersion: process.versions.node,
-                chromeVersion: process.versions.chrome,
-                platform: process.platform,
-                arch: process.arch,
-                osVersion: process.getSystemVersion(),
-            });
+        const appVersion = app.getVersion();
+        const installId = this.installIdManager.getInstallId();
+        const locale = app.getLocale();
+
+        const payload = {
+            appVersion,
+            installId,
+            locale,
+            electronVersion: process.versions.electron,
+            nodeVersion: process.versions.node,
+            chromeVersion: process.versions.chrome,
+            platform: process.platform,
+            arch: process.arch,
+            osVersion: process.getSystemVersion(),
+        };
+
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.SHOW_ABOUT, payload);
+            }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
         }
     }
 
