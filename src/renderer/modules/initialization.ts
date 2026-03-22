@@ -3,8 +3,8 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
+import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -16,7 +16,15 @@ import {
 } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
-import { handleReauthentication, initializeAddConnectionModalBridge, importConnections, exportConnections, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
+import {
+    exportConnections,
+    handleReauthentication,
+    importConnections,
+    initializeAddConnectionModalBridge,
+    loadSidebarConnections,
+    openAddConnectionModal,
+    updateFooterConnection,
+} from "./connectionManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -232,8 +240,8 @@ function setupActivityBar(): void {
 function setupToolbarButtons(): void {
     const closeAllToolsBtn = document.getElementById("close-all-tools");
     if (closeAllToolsBtn) {
-        closeAllToolsBtn.addEventListener("click", () => {
-            closeAllTools();
+        closeAllToolsBtn.addEventListener("click", async () => {
+            await closeAllTools();
         });
     }
 
@@ -601,7 +609,12 @@ async function loadInitialSettings(): Promise<void> {
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
     setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
-    applyAppearanceSettings(settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR, settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR, settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS, settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
+    applyAppearanceSettings(
+        settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
+        settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
+        settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
+        settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    );
 }
 
 /**

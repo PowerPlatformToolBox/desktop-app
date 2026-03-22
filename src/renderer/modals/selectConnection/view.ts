@@ -1,4 +1,5 @@
 import { getModalStyles } from "../sharedStyles";
+import { escapeHtml } from "../../utils/toolIconResolver";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -8,14 +9,17 @@ export interface ModalViewTemplate {
 /**
  * Returns the view markup (styles + body) for the select connection modal BrowserWindow.
  */
-export function getSelectConnectionModalView(isDarkTheme: boolean): ModalViewTemplate {
+export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string): ModalViewTemplate {
     const styles = getModalStyles(isDarkTheme);
+    const toolNameHtml = toolName
+        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
+        : `<p class="modal-eyebrow">Connections</p>`;
 
     const body = `
 <div class="modal-panel">
     <div class="modal-header">
         <div>
-            <p class="modal-eyebrow">Connections</p>
+            ${toolNameHtml}
             <h3>Select Connection</h3>
         </div>
         <button id="close-select-connection-modal" class="icon-button" aria-label="Close">&times;</button>

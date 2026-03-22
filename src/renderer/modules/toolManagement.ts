@@ -66,6 +66,24 @@ export function applyAppearanceSettings(showCategoryColor: boolean, showEnvironm
 // Detail tab state - maps tabId to render callback for tool detail tabs
 const detailTabs = new Map<string, (panel: HTMLElement) => void>();
 
+// Close guards - async callbacks that can cancel a tab close (return false to prevent)
+const closeGuards = new Map<string, () => Promise<boolean>>();
+
+/**
+ * Register a close guard for a tab. The guard is called before the tab closes;
+ * returning false cancels the close (e.g., to prompt about unsaved changes).
+ */
+export function registerCloseGuard(instanceId: string, guard: () => Promise<boolean>): void {
+    closeGuards.set(instanceId, guard);
+}
+
+/**
+ * Remove a previously registered close guard.
+ */
+export function unregisterCloseGuard(instanceId: string): void {
+    closeGuards.delete(instanceId);
+}
+
 function canCloseTab(instanceId: string): boolean {
     const openTool = openTools.get(instanceId);
     if (!openTool) {
@@ -79,16 +97,16 @@ function getClosableTabIds(excludedInstanceId?: string): string[] {
     return Array.from(openTools.keys()).filter((instanceId) => instanceId !== excludedInstanceId && canCloseTab(instanceId));
 }
 
-function closeTabs(instanceIds: string[]): void {
-    instanceIds.forEach((instanceId) => {
+async function closeTabs(instanceIds: string[]): Promise<void> {
+    for (const instanceId of instanceIds) {
         if (openTools.has(instanceId)) {
-            closeTool(instanceId);
+            await closeTool(instanceId);
         }
-    });
+    }
 }
 
-function closeOtherTabs(instanceId: string): void {
-    closeTabs(getClosableTabIds(instanceId));
+async function closeOtherTabs(instanceId: string): Promise<void> {
+    await closeTabs(getClosableTabIds(instanceId));
 }
 
 function canManageToolTab(instanceId: string): boolean {
@@ -217,17 +235,17 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     }
 
     if (action === "close-current") {
-        closeTool(instanceId);
+        await closeTool(instanceId);
         return;
     }
 
     if (action === "close-others") {
-        closeOtherTabs(instanceId);
+        await closeOtherTabs(instanceId);
         return;
     }
 
     if (action === "close-all") {
-        closeTabs(getClosableTabIds());
+        await closeTabs(getClosableTabIds());
     }
 }
 
@@ -368,7 +386,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (missingPrimary || missingSecondary) {
                 try {
-                    const result = await openSelectMultiConnectionModal(isSecondaryRequired);
+                    const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
                     logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
@@ -394,7 +412,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 // Regular single-connection flow - prompt if no stored connection
                 logInfo("Showing connection selection modal for new instance...");
                 try {
-                    const selectedConnectionId = await openSelectConnectionModal();
+                    const selectedConnectionId = await openSelectConnectionModal(null, tool.name);
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
@@ -571,7 +589,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
 
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        closeTool(instanceId);
+        void closeTool(instanceId);
     });
 
     tab.addEventListener("click", () => {
@@ -595,7 +613,7 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
                 return;
             }
 
-            closeTool(instanceId);
+            void closeTool(instanceId);
         }
     });
 
@@ -709,7 +727,7 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
     closeBtn.title = "Close";
     closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        closeTool(tabId);
+        void closeTool(tabId);
     });
     tab.appendChild(closeBtn);
 
@@ -722,7 +740,7 @@ export async function openToolDetailTab(tabId: string, displayName: string, rend
         if (e.button === MIDDLE_MOUSE_BUTTON) {
             e.preventDefault();
             e.stopPropagation();
-            closeTool(tabId);
+            void closeTool(tabId);
         }
     });
 
@@ -841,9 +859,16 @@ export async function switchToTool(instanceId: string): Promise<void> {
 /**
  * Close a tool
  */
-export function closeTool(instanceId: string): void {
+export async function closeTool(instanceId: string): Promise<void> {
     const openTool = openTools.get(instanceId);
     if (!openTool) return;
+
+    // Run close guard if registered for this tab
+    const guard = closeGuards.get(instanceId);
+    if (guard) {
+        const canClose = await guard();
+        if (!canClose) return;
+    }
 
     // Check if tab is pinned (only for real tool instances, not detail tabs)
     if (!openTool.isDetailTab && openTool.isPinned) {
@@ -860,6 +885,9 @@ export function closeTool(instanceId: string): void {
     if (tab) {
         tab.remove();
     }
+
+    // Clean up close guard
+    closeGuards.delete(instanceId);
 
     if (openTool.isDetailTab) {
         // Detail tab: clean up render callback and hide detail panel if active
@@ -920,12 +948,12 @@ export function closeTool(instanceId: string): void {
 /**
  * Close all tools
  */
-export function closeAllTools(): void {
+export async function closeAllTools(): Promise<void> {
     // Close all tools
     const toolIds = Array.from(openTools.keys());
-    toolIds.forEach((toolId) => {
-        closeTool(toolId);
-    });
+    for (const toolId of toolIds) {
+        await closeTool(toolId);
+    }
 }
 
 /**
@@ -1033,6 +1061,12 @@ export function saveSession(): void {
  * Restore session from local storage
  */
 export async function restoreSession(): Promise<void> {
+    // Check if the user has disabled session restore
+    const settings = await window.toolboxAPI.getUserSettings();
+    if (settings.restoreSessionOnStartup === false) {
+        return;
+    }
+
     const sessionData = localStorage.getItem("toolbox-session");
     if (!sessionData) return;
 
@@ -1041,11 +1075,44 @@ export async function restoreSession(): Promise<void> {
         if (session.openTools && Array.isArray(session.openTools)) {
             // Note: We can't restore exact instanceIds since they're timestamp-based
             // Instead, we launch the tools fresh, which creates new instances.
-            // Saved connection IDs are passed so the tool opens without prompting.
+            // Saved connection IDs are passed so the tool opens without prompting
+            // when authentication can be restored silently.
             for (const toolInfo of session.openTools) {
+                // Attempt silent re-authentication for each saved connection.
+                // If the token is still valid it will be reused directly.
+                // If it can be refreshed (client-secret, username/password, stored
+                // refresh token) that will happen automatically.
+                // If silent auth fails (e.g. MSAL in-memory cache cleared after
+                // restart and token expired), pass null so launchTool shows the
+                // appropriate connection modal (single or multi, with tool name).
+                let primaryConnectionId: string | null = toolInfo.connectionId ?? null;
+                let secondaryConnectionId: string | null = toolInfo.secondaryConnectionId ?? null;
+
+                if (primaryConnectionId) {
+                    try {
+                        await window.toolboxAPI.connections.authenticate(primaryConnectionId);
+                    } catch (authError) {
+                        logWarn(`Silent auth failed for primary connection ${primaryConnectionId} on session restore – connection modal will be shown`, {
+                            error: authError instanceof Error ? authError.message : String(authError),
+                        });
+                        primaryConnectionId = null;
+                    }
+                }
+
+                if (secondaryConnectionId) {
+                    try {
+                        await window.toolboxAPI.connections.authenticate(secondaryConnectionId);
+                    } catch (authError) {
+                        logWarn(`Silent auth failed for secondary connection ${secondaryConnectionId} on session restore – connection modal will be shown`, {
+                            error: authError instanceof Error ? authError.message : String(authError),
+                        });
+                        secondaryConnectionId = null;
+                    }
+                }
+
                 await launchTool(toolInfo.toolId, {
-                    primaryConnectionId: toolInfo.connectionId,
-                    secondaryConnectionId: toolInfo.secondaryConnectionId,
+                    primaryConnectionId,
+                    secondaryConnectionId,
                 });
             }
             // Note: activeToolId won't match since we have new instanceIds
@@ -1116,7 +1183,7 @@ export function setupKeyboardShortcuts(): void {
         if (e.ctrlKey && e.key === "w") {
             e.preventDefault();
             if (activeToolId) {
-                closeTool(activeToolId);
+                void closeTool(activeToolId);
             }
         }
 
@@ -1562,7 +1629,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
 
         // Open the modal and pass the tool's current secondary connection ID to highlight it
-        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId);
+        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name);
 
         // After modal closes with a successful connection, update the tool's secondary connection
         if (selectedConnectionId && activeToolId) {

@@ -2181,6 +2181,10 @@ body.dark-theme .settings-vscode-item:hover {
     gap: 16px;
     padding: 20px 24px;
     border-top: 1px solid var(--border-color);
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-color);
+    z-index: 10;
 }
 
 .tool-detail-tab-header {

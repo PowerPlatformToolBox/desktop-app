@@ -18,7 +18,7 @@ import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, openToolDetailTab } from "./toolManagement";
+import { applyAppearanceSettings, openToolDetailTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
@@ -37,6 +37,7 @@ export async function loadSettings(): Promise<void> {
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const customFontContainer = document.getElementById("custom-font-input-container");
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
@@ -54,6 +55,7 @@ export async function loadSettings(): Promise<void> {
             toolDisplayMode: settings.toolDisplayMode ?? "standard",
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
+            restoreSessionOnStartup: settings.restoreSessionOnStartup ?? true,
             showCategoryColor: settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
             showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
             categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -70,6 +72,9 @@ export async function loadSettings(): Promise<void> {
             notificationDurationSelect.value = String(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
         }
 
+        if (restoreSessionCheck) {
+            restoreSessionCheck.checked = settings.restoreSessionOnStartup ?? true;
+        }
         if (showCategoryColorCheck) {
             showCategoryColorCheck.checked = settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR;
         }
@@ -122,6 +127,7 @@ export async function saveSettings(): Promise<void> {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any; // Fluent UI select element
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
@@ -154,6 +160,7 @@ export async function saveSettings(): Promise<void> {
         toolDisplayMode: toolDisplayModeSelect.value,
         terminalFont: terminalFont,
         notificationDuration,
+        restoreSessionOnStartup: restoreSessionCheck ? restoreSessionCheck.checked : true,
         showCategoryColor,
         showEnvironmentColor,
         categoryColorThickness,
@@ -183,6 +190,9 @@ export async function saveSettings(): Promise<void> {
     }
     if (currentSettings.notificationDuration !== originalSettings.notificationDuration) {
         changedSettings.notificationDuration = currentSettings.notificationDuration;
+    }
+    if (currentSettings.restoreSessionOnStartup !== originalSettings.restoreSessionOnStartup) {
+        changedSettings.restoreSessionOnStartup = currentSettings.restoreSessionOnStartup;
     }
     if (currentSettings.showCategoryColor !== originalSettings.showCategoryColor) {
         changedSettings.showCategoryColor = currentSettings.showCategoryColor;
@@ -237,6 +247,57 @@ export async function saveSettings(): Promise<void> {
  */
 export function getOriginalSettings(): SettingsState {
     return originalSettings;
+}
+
+/**
+ * Check whether the settings UI currently differs from the last saved state.
+ * Returns true if there are unsaved changes.
+ */
+function hasUnsavedChanges(): boolean {
+    const themeSelect = document.getElementById("sidebar-theme-select") as any;
+    const autoUpdateCheck = document.getElementById("sidebar-auto-update-check") as any;
+    const showDebugMenuCheck = document.getElementById("sidebar-show-debug-menu-check") as any;
+    const deprecatedToolsSelect = document.getElementById("sidebar-deprecated-tools-select") as any;
+    const toolDisplayModeSelect = document.getElementById("sidebar-tool-display-mode-select") as any;
+    const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any;
+    const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement | null;
+    const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
+    const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
+    const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
+    const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
+    const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+
+    // If the DOM elements aren't present the settings panel isn't rendered — no unsaved changes
+    if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) {
+        return false;
+    }
+
+    let terminalFont = terminalFontSelect.value;
+    if (terminalFont === "custom" && customFontInput) {
+        terminalFont = customFontInput.value.trim() || DEFAULT_TERMINAL_FONT;
+    }
+
+    if (themeSelect.value !== originalSettings.theme) return true;
+    if (autoUpdateCheck.checked !== originalSettings.autoUpdate) return true;
+    if (showDebugMenuCheck.checked !== (originalSettings.showDebugMenu ?? false)) return true;
+    if (deprecatedToolsSelect.value !== (originalSettings.deprecatedToolsVisibility ?? "hide-all")) return true;
+    if (toolDisplayModeSelect.value !== (originalSettings.toolDisplayMode ?? "standard")) return true;
+    if (terminalFont !== (originalSettings.terminalFont || DEFAULT_TERMINAL_FONT)) return true;
+    if (notificationDurationSelect && Number(notificationDurationSelect.value) !== (originalSettings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION)) return true;
+    if (restoreSessionCheck && restoreSessionCheck.checked !== (originalSettings.restoreSessionOnStartup ?? true)) return true;
+    if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
+    if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
+    if (categoryColorThicknessInput) {
+        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS));
+        if (val !== (originalSettings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS)) return true;
+    }
+    if (environmentColorThicknessInput) {
+        const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
+        if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
+    }
+
+    return false;
 }
 
 /**
@@ -323,6 +384,19 @@ export function renderSettingsContent(panel: HTMLElement): void {
                     <div class="settings-vscode-item-control">
                         <label class="settings-vscode-checkbox-label">
                             <input type="checkbox" id="sidebar-show-debug-menu-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-restore-session-check">Restore Session on Startup</label>
+                        <p class="settings-vscode-item-description">Automatically reopen the tools that were open when the app was last closed. If a saved connection is no longer valid, you will be prompted to select a new one.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-restore-session-check" class="settings-vscode-checkbox" />
                             <span>Enable</span>
                         </label>
                     </div>
@@ -547,5 +621,9 @@ export function renderSettingsContent(panel: HTMLElement): void {
  * Open settings as a tab in the main content area
  */
 export async function openSettingsTab(): Promise<void> {
+    registerCloseGuard("app-settings", async () => {
+        if (!hasUnsavedChanges()) return true;
+        return window.confirm("You have unsaved settings changes. Close anyway and discard them?");
+    });
     await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
 }
