@@ -6,7 +6,6 @@
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { DataverseConnection } from "../../common/types/connection";
-import type { OpenTool, SessionData } from "../types/index";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -15,6 +14,7 @@ import {
     MAX_COLOR_BORDER_THICKNESS,
     MIN_COLOR_BORDER_THICKNESS,
 } from "../constants";
+import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
@@ -118,22 +118,45 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
         return;
     }
 
+    const multiConnectionMode = targetTool.tool.features?.multiConnection || "none";
+    const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
+
     try {
-        const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool?.name);
+        if (hasMultiConnection) {
+            const isSecondaryRequired = multiConnectionMode === "required";
+            const result = await openSelectMultiConnectionModal(isSecondaryRequired);
 
-        if (!selectedConnectionId) {
-            return;
+            await setToolConnection(instanceId, result.primaryConnectionId);
+            await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
+
+            const connections = await window.toolboxAPI.connections.getAll();
+            const primaryConnection = connections.find((item: DataverseConnection) => item.id === result.primaryConnectionId);
+            const secondaryConnection = result.secondaryConnectionId ? connections.find((item: DataverseConnection) => item.id === result.secondaryConnectionId) : null;
+
+            const connectionDetails = secondaryConnection ? `${primaryConnection?.name || "Primary"} and ${secondaryConnection.name}` : primaryConnection?.name || "the selected connection";
+
+            window.toolboxAPI.utils.showNotification({
+                title: "Connections Set",
+                body: `${targetTool.tool.name} is now connected to ${connectionDetails}.`,
+                type: "success",
+            });
+        } else {
+            const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId);
+
+            if (!selectedConnectionId) {
+                return;
+            }
+
+            await setToolConnection(instanceId, selectedConnectionId);
+
+            const connections = await window.toolboxAPI.connections.getAll();
+            const connection = connections.find((item: DataverseConnection) => item.id === selectedConnectionId);
+            window.toolboxAPI.utils.showNotification({
+                title: "Connection Set",
+                body: `${targetTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
+                type: "success",
+            });
         }
-
-        await setToolConnection(instanceId, selectedConnectionId);
-
-        const connections = await window.toolboxAPI.connections.getAll();
-        const connection = connections.find((item: DataverseConnection) => item.id === selectedConnectionId);
-        window.toolboxAPI.utils.showNotification({
-            title: "Connection Set",
-            body: `${targetTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
-            type: "success",
-        });
     } catch (error) {
         logError("Connection selection cancelled or failed", error);
     }
