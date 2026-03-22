@@ -58,6 +58,10 @@ export interface SettingsState {
     terminalFont?: string;
     notificationDuration?: number;
     restoreSessionOnStartup?: boolean;
+    showCategoryColor?: boolean;
+    showEnvironmentColor?: boolean;
+    categoryColorThickness?: number;
+    environmentColorThickness?: number;
 }
 
 /**

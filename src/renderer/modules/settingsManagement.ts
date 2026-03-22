@@ -4,12 +4,21 @@
  */
 
 import { logError } from "../../common/logger";
-import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT } from "../constants";
+import {
+    DEFAULT_CATEGORY_COLOR_THICKNESS,
+    DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    DEFAULT_NOTIFICATION_DURATION,
+    DEFAULT_SHOW_CATEGORY_COLOR,
+    DEFAULT_SHOW_ENVIRONMENT_COLOR,
+    DEFAULT_TERMINAL_FONT,
+    MAX_COLOR_BORDER_THICKNESS,
+    MIN_COLOR_BORDER_THICKNESS,
+} from "../constants";
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { openToolDetailTab } from "./toolManagement";
+import { applyAppearanceSettings, openToolDetailTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
@@ -29,6 +38,10 @@ export async function loadSettings(): Promise<void> {
     const customFontContainer = document.getElementById("custom-font-input-container");
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
+    const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
+    const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
+    const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
+    const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -43,6 +56,10 @@ export async function loadSettings(): Promise<void> {
             terminalFont: settings.terminalFont || DEFAULT_TERMINAL_FONT,
             notificationDuration: settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION,
             restoreSessionOnStartup: settings.restoreSessionOnStartup ?? true,
+            showCategoryColor: settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
+            showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
+            categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
+            environmentColorThickness: settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
         };
 
         themeSelect.value = settings.theme;
@@ -57,6 +74,17 @@ export async function loadSettings(): Promise<void> {
 
         if (restoreSessionCheck) {
             restoreSessionCheck.checked = settings.restoreSessionOnStartup ?? true;
+        if (showCategoryColorCheck) {
+            showCategoryColorCheck.checked = settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR;
+        }
+        if (showEnvironmentColorCheck) {
+            showEnvironmentColorCheck.checked = settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR;
+        }
+        if (categoryColorThicknessInput) {
+            categoryColorThicknessInput.value = String(settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS);
+        }
+        if (environmentColorThicknessInput) {
+            environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
@@ -99,6 +127,10 @@ export async function saveSettings(): Promise<void> {
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
+    const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
+    const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
+    const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
+    const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -109,7 +141,15 @@ export async function saveSettings(): Promise<void> {
         terminalFont = customFontInput.value.trim() || DEFAULT_TERMINAL_FONT;
     }
 
-    const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : 5000;
+    const notificationDuration = notificationDurationSelect ? Number(notificationDurationSelect.value) : DEFAULT_NOTIFICATION_DURATION;
+    const showCategoryColor = showCategoryColorCheck ? showCategoryColorCheck.checked : DEFAULT_SHOW_CATEGORY_COLOR;
+    const showEnvironmentColor = showEnvironmentColorCheck ? showEnvironmentColorCheck.checked : DEFAULT_SHOW_ENVIRONMENT_COLOR;
+    const categoryColorThickness = categoryColorThicknessInput
+        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(categoryColorThicknessInput.value) || DEFAULT_CATEGORY_COLOR_THICKNESS))
+        : DEFAULT_CATEGORY_COLOR_THICKNESS;
+    const environmentColorThickness = environmentColorThicknessInput
+        ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS))
+        : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -120,6 +160,10 @@ export async function saveSettings(): Promise<void> {
         terminalFont: terminalFont,
         notificationDuration,
         restoreSessionOnStartup: restoreSessionCheck ? restoreSessionCheck.checked : true,
+        showCategoryColor,
+        showEnvironmentColor,
+        categoryColorThickness,
+        environmentColorThickness,
     };
 
     // Only include changed settings in the update
@@ -148,6 +192,17 @@ export async function saveSettings(): Promise<void> {
     }
     if (currentSettings.restoreSessionOnStartup !== originalSettings.restoreSessionOnStartup) {
         changedSettings.restoreSessionOnStartup = currentSettings.restoreSessionOnStartup;
+    if (currentSettings.showCategoryColor !== originalSettings.showCategoryColor) {
+        changedSettings.showCategoryColor = currentSettings.showCategoryColor;
+    }
+    if (currentSettings.showEnvironmentColor !== originalSettings.showEnvironmentColor) {
+        changedSettings.showEnvironmentColor = currentSettings.showEnvironmentColor;
+    }
+    if (currentSettings.categoryColorThickness !== originalSettings.categoryColorThickness) {
+        changedSettings.categoryColorThickness = currentSettings.categoryColorThickness;
+    }
+    if (currentSettings.environmentColorThickness !== originalSettings.environmentColorThickness) {
+        changedSettings.environmentColorThickness = currentSettings.environmentColorThickness;
     }
 
     // Only save and emit event if something changed
@@ -159,6 +214,7 @@ export async function saveSettings(): Promise<void> {
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
+        applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {
@@ -214,6 +270,52 @@ export function renderSettingsContent(panel: HTMLElement): void {
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-show-category-color-check">Show Category Color</label>
+                        <p class="settings-vscode-item-description">Display the connection's category color as a strip under the active tool tab.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-show-category-color-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-category-color-thickness">Category Color Thickness</label>
+                        <p class="settings-vscode-item-description">Thickness in pixels of the category color border displayed under the tool tab (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <input type="number" id="sidebar-category-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_CATEGORY_COLOR_THICKNESS}" />
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-show-environment-color-check">Show Environment Color</label>
+                        <p class="settings-vscode-item-description">Display the connection's environment color as a border around the active tool panel.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-show-environment-color-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-environment-color-thickness">Environment Color Thickness</label>
+                        <p class="settings-vscode-item-description">Thickness in pixels of the environment color border displayed around the tool panel (${MIN_COLOR_BORDER_THICKNESS}–${MAX_COLOR_BORDER_THICKNESS} px).</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <input type="number" id="sidebar-environment-color-thickness" class="fluent-input settings-vscode-input settings-vscode-number-input" min="${MIN_COLOR_BORDER_THICKNESS}" max="${MAX_COLOR_BORDER_THICKNESS}" step="1" value="${DEFAULT_ENVIRONMENT_COLOR_THICKNESS}" />
                     </div>
                 </div>
             </section>

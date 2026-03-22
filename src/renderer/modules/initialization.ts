@@ -5,7 +5,15 @@
 
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { DEFAULT_NOTIFICATION_DURATION, DEFAULT_TERMINAL_FONT, LOADING_SCREEN_FADE_DURATION } from "../constants";
+import {
+    DEFAULT_CATEGORY_COLOR_THICKNESS,
+    DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+    DEFAULT_NOTIFICATION_DURATION,
+    DEFAULT_SHOW_CATEGORY_COLOR,
+    DEFAULT_SHOW_ENVIRONMENT_COLOR,
+    DEFAULT_TERMINAL_FONT,
+    LOADING_SCREEN_FADE_DURATION,
+} from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import { handleReauthentication, initializeAddConnectionModalBridge, importConnections, exportConnections, loadSidebarConnections, openAddConnectionModal, updateFooterConnection } from "./connectionManagement";
@@ -18,7 +26,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -593,6 +601,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
     setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
+    applyAppearanceSettings(settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR, settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR, settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS, settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
 }
 
 /**
