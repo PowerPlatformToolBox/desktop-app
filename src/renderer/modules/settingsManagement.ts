@@ -74,6 +74,7 @@ export async function loadSettings(): Promise<void> {
 
         if (restoreSessionCheck) {
             restoreSessionCheck.checked = settings.restoreSessionOnStartup ?? true;
+        }
         if (showCategoryColorCheck) {
             showCategoryColorCheck.checked = settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR;
         }
@@ -192,6 +193,7 @@ export async function saveSettings(): Promise<void> {
     }
     if (currentSettings.restoreSessionOnStartup !== originalSettings.restoreSessionOnStartup) {
         changedSettings.restoreSessionOnStartup = currentSettings.restoreSessionOnStartup;
+    }
     if (currentSettings.showCategoryColor !== originalSettings.showCategoryColor) {
         changedSettings.showCategoryColor = currentSettings.showCategoryColor;
     }

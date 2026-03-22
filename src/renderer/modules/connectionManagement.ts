@@ -147,6 +147,9 @@ const selectMultiConnectionModalPromiseHandlers: {
 // Store the connection ID to highlight in the modal (for tool-specific connection selection)
 let highlightConnectionId: string | null = null;
 
+// Store the name of the tool requesting a connection (shown in the modal header)
+let requestingToolName: string | undefined = undefined;
+
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
 
@@ -250,13 +253,17 @@ export function initializeSelectConnectionModalBridge(): void {
  * Open the select connection modal
  * Returns a promise that resolves with the selected connectionId when a connection is selected and connected, or rejects if cancelled
  * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
+ * @param toolName - Optional name of the tool requesting the connection (shown in modal header)
  */
-export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<string> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null, toolName?: string): Promise<string> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
 
         // Store the tool connection ID to highlight in the modal
         highlightConnectionId = toolConnectionId || null;
+
+        // Store the tool name to display in the modal header
+        requestingToolName = toolName;
 
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -270,6 +277,7 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
                 selectConnectionModalPromiseHandlers.resolve = null;
                 selectConnectionModalPromiseHandlers.reject = null;
                 highlightConnectionId = null; // Clear highlight
+                requestingToolName = undefined; // Clear tool name
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -305,7 +313,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
 function buildSelectConnectionModalHtml(): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectConnectionModalView(isDarkTheme);
+    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName);
     const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -338,6 +346,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 
         // Clear highlight connection ID
         highlightConnectionId = null;
+        requestingToolName = undefined;
 
         // Close the modal
         await closeBrowserWindowModal();
@@ -431,10 +440,14 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * Open the select multi-connection modal for tools that require two connections
  * Returns a promise that resolves with both connection IDs, or rejects if cancelled
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
+ * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
  */
-export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
+export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true, toolName?: string): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
+
+        // Store the tool name to display in the modal header
+        requestingToolName = toolName;
 
         // Store resolve/reject handlers for later use
         selectMultiConnectionModalPromiseHandlers.resolve = resolve;
@@ -447,6 +460,7 @@ export async function openSelectMultiConnectionModal(isSecondaryRequired: boolea
                 selectMultiConnectionModalPromiseHandlers.reject(new Error("Multi-connection selection cancelled"));
                 selectMultiConnectionModalPromiseHandlers.resolve = null;
                 selectMultiConnectionModalPromiseHandlers.reject = null;
+                requestingToolName = undefined; // Clear tool name
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -482,7 +496,7 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 
 function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired);
+    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
     const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -526,6 +540,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
             selectMultiConnectionModalPromiseHandlers.resolve = null;
             selectMultiConnectionModalPromiseHandlers.reject = null;
+            requestingToolName = undefined; // Clear tool name
 
             // Close the modal
             await closeBrowserWindowModal();

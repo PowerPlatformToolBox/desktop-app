@@ -119,7 +119,7 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
     }
 
     try {
-        const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId);
+        const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool?.name);
 
         if (!selectedConnectionId) {
             return;
@@ -345,7 +345,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (missingPrimary || missingSecondary) {
                 try {
-                    const result = await openSelectMultiConnectionModal(isSecondaryRequired);
+                    const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
                     logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
@@ -371,7 +371,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 // Regular single-connection flow - prompt if no stored connection
                 logInfo("Showing connection selection modal for new instance...");
                 try {
-                    const selectedConnectionId = await openSelectConnectionModal();
+                    const selectedConnectionId = await openSelectConnectionModal(null, tool.name);
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;
@@ -1545,7 +1545,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
         const { openSelectConnectionModal } = await import("./connectionManagement");
 
         // Open the modal and pass the tool's current secondary connection ID to highlight it
-        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId);
+        const selectedConnectionId = await openSelectConnectionModal(activeTool.secondaryConnectionId, activeTool.tool?.name);
 
         // After modal closes with a successful connection, update the tool's secondary connection
         if (selectedConnectionId && activeToolId) {

@@ -9,8 +9,9 @@ export interface ModalViewTemplate {
  * Returns the view markup (styles + body) for the select multi-connection modal BrowserWindow.
  * @param isDarkTheme - Whether dark theme is enabled
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
+ * @param toolName - Optional name of the tool requesting the connections
  */
-export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecondaryRequired: boolean = true): ModalViewTemplate {
+export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecondaryRequired: boolean = true, toolName?: string): ModalViewTemplate {
     const styles =
         getModalStyles(isDarkTheme) +
         `
@@ -97,11 +98,15 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     }
 </style>`;
 
+    const toolNameHtml = toolName
+        ? `<p class="modal-eyebrow">${toolName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</p>`
+        : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
+
     const body = `
 <div class="modal-panel">
     <div class="modal-header">
         <div>
-            <p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>
+            ${toolNameHtml}
             <h3>Select Connections</h3>
         </div>
         <button id="close-select-multi-connection-modal" class="icon-button" aria-label="Close">&times;</button>
