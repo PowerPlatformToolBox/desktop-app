@@ -553,6 +553,14 @@ function setupApplicationEventListeners(): void {
         await openTroubleshootingModal(isDarkTheme);
     });
 
+    // About dialog listener
+    window.toolboxAPI.onShowAbout(async (info) => {
+        const { openAboutModal } = await import("./aboutManagement");
+        const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
+        const isDarkTheme = currentTheme === "dark";
+        await openAboutModal({ ...info, isDarkTheme });
+    });
+
     // Tool update event listeners
     window.toolboxAPI.onToolUpdateStarted(() => {
         logInfo("Tool update started, reloading tools...");

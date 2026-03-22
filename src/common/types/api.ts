@@ -241,6 +241,9 @@ export interface ToolboxAPI {
     // Protocol deep link events
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => void;
 
+    // About dialog event
+    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => void;
+
     // Dataverse namespace
     dataverse: DataverseAPI;
 }

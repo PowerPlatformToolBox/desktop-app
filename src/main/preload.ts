@@ -249,6 +249,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
     },
 
+    // About dialog event
+    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));
+    },
+
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
         create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>

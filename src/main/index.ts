@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
 import * as http from "http";
@@ -2535,28 +2535,37 @@ class ToolBoxApp {
      * Includes install ID and other important information for diagnostics
      */
     private showAboutDialog(): void {
-        if (this.mainWindow) {
-            const appVersion = app.getVersion();
-            const installId = this.installIdManager.getInstallId();
-            const locale = app.getLocale();
+        if (!this.mainWindow) {
+            return;
+        }
 
-            const message = `Power Platform ToolBox
-            Version: ${appVersion}
-            Install ID: ${installId}
+        const appVersion = app.getVersion();
+        const installId = this.installIdManager.getInstallId();
+        const locale = app.getLocale();
 
-            Environment:
-            Electron: ${process.versions.electron}
-            Node.js: ${process.versions.node}
-            Chromium: ${process.versions.chrome}
+        const payload = {
+            appVersion,
+            installId,
+            locale,
+            electronVersion: process.versions.electron,
+            nodeVersion: process.versions.node,
+            chromeVersion: process.versions.chrome,
+            platform: process.platform,
+            arch: process.arch,
+            osVersion: process.getSystemVersion(),
+        };
 
-            System:
-            OS: ${process.platform} ${process.arch}
-            OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}`;
-
-            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
-                clipboard.writeText(message);
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.SHOW_ABOUT, payload);
             }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
         }
     }
 
