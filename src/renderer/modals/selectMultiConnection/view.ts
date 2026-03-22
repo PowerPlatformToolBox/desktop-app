@@ -1,4 +1,5 @@
 import { getModalStyles } from "../sharedStyles";
+import { escapeHtml } from "../../utils/toolIconResolver";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -99,7 +100,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
 </style>`;
 
     const toolNameHtml = toolName
-        ? `<p class="modal-eyebrow">${toolName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</p>`
+        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
         : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
 
     const body = `

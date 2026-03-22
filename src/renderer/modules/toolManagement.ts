@@ -106,7 +106,7 @@ async function closeTabs(instanceIds: string[]): Promise<void> {
 }
 
 async function closeOtherTabs(instanceId: string): Promise<void> {
-    closeTabs(getClosableTabIds(instanceId));
+    await closeTabs(getClosableTabIds(instanceId));
 }
 
 function canManageToolTab(instanceId: string): boolean {
