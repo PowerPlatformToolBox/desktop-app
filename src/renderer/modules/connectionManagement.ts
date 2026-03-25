@@ -3,6 +3,7 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
+import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
@@ -22,7 +23,6 @@ import {
     sendBrowserWindowModalMessage,
     showBrowserWindowModal,
 } from "./browserWindowModals";
-import { logInfo, logWarn, logError, logDebug } from "../../common/logger";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
@@ -1193,9 +1193,6 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
             case "clientsecret":
                 authenticationType = "clientSecret";
                 break;
-            case "ad":
-            case "office365":
-            case "onlinefederation":
             case "ifd":
                 authenticationType = "usernamePassword";
                 break;
@@ -1204,6 +1201,9 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
                 // These auth types are not supported in PPTB; log a warning here and skip this connection
                 logWarn("[importConnections] Skipping unsupported XTB auth type", { authType: newAuthType, name: getText("ConnectionName") });
                 continue;
+            case "ad":
+            case "office365":
+            case "onlinefederation":
             case "oauth":
             default:
                 authenticationType = "interactive";
@@ -1971,11 +1971,12 @@ export async function loadSidebarConnections(): Promise<void> {
                     const groupConns = groupMap.get(groupKey)!;
                     const displayKey = groupKey === "" ? "Default" : groupKey;
                     const escapedKey = escapeHtml(displayKey);
-                    const catColor = groupKey !== "" ? (groupConns.find((c: DataverseConnection) => c.categoryColor)?.categoryColor || "") : "";
+                    const catColor = groupKey !== "" ? groupConns.find((c: DataverseConnection) => c.categoryColor)?.categoryColor || "" : "";
                     const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
-                    const colorSwatchHtml = groupKey !== ""
-                        ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(groupKey)}" title="Change category color" />`
-                        : "";
+                    const colorSwatchHtml =
+                        groupKey !== ""
+                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(groupKey)}" title="Change category color" />`
+                            : "";
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
