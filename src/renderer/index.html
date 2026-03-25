@@ -716,6 +716,10 @@
         <!-- Global Search Command Palette -->
         <div id="global-search-overlay" class="global-search-overlay" style="display: none" role="dialog" aria-modal="true" aria-label="Global Search">
             <div class="global-search-container">
+                <div class="global-search-header">
+                    <p class="global-search-eyebrow">GLOBAL SEARCH</p>
+                    <button class="global-search-close-btn" id="global-search-close-btn" aria-label="Close">&times;</button>
+                </div>
                 <div class="global-search-input-wrapper">
                     <img src="icons/dark/search.svg" alt="" class="global-search-input-icon" id="global-search-input-icon" />
                     <input
@@ -727,7 +731,6 @@
                         spellcheck="false"
                         aria-label="Search tools, connections, and settings"
                     />
-                    <kbd class="global-search-kbd">ESC</kbd>
                 </div>
                 <div class="global-search-results" id="global-search-results" role="listbox">
                     <!-- Results populated dynamically -->
@@ -735,7 +738,6 @@
                 <div class="global-search-footer">
                     <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
                     <span><kbd>↵</kbd> select</span>
-                    <span><kbd>ESC</kbd> close</span>
                 </div>
             </div>
         </div>

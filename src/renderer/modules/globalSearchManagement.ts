@@ -474,6 +474,13 @@ export function initializeGlobalSearch(): void {
         searchBtn.addEventListener("click", () => openGlobalSearch());
     }
 
+    // Close button inside the container header
+    const closeBtn = document.getElementById("global-search-close-btn");
+    if (closeBtn && !(closeBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
+        (closeBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound = true;
+        closeBtn.addEventListener("click", () => closeGlobalSearch());
+    }
+
     // Overlay backdrop click → close
     const overlay = getOverlay();
     if (overlay && !(overlay as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
