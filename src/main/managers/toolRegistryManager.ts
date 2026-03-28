@@ -6,7 +6,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { CspExceptions, ToolManifest, ToolRegistryEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 import { logInfo, logWarn, logError } from "../../common/logger";
@@ -78,6 +78,20 @@ interface SupabaseTool {
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
+}
+
+/**
+ * Supabase community_links table row
+ */
+interface SupabaseCommunityLink {
+    id: string;
+    group_id: string;
+    group_title: string;
+    group_sort_order: number;
+    label: string;
+    url: string;
+    sort_order: number;
+    is_active: boolean;
 }
 
 /**
@@ -1001,6 +1015,71 @@ export class ToolRegistryManager extends EventEmitter {
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
+        }
+    }
+
+    /**
+     * Fetch community resource links from the Supabase community_links table.
+     * Returns null when Supabase is not configured or the query fails, so the caller
+     * can fall back to bundled static data.
+     */
+    async fetchCommunityLinks(): Promise<CommunityLinksCollection | null> {
+        if (!this.supabase || this.useLocalFallback) {
+            return null;
+        }
+
+        try {
+            logInfo("[ToolRegistry] Fetching community links from Supabase");
+
+            const { data, error } = await this.supabase
+                .from("community_links")
+                .select("id, group_id, group_title, group_sort_order, label, url, sort_order")
+                .eq("is_active", true)
+                .order("group_sort_order", { ascending: true })
+                .order("sort_order", { ascending: true });
+
+            if (error) {
+                throw new Error(`Supabase community_links query failed: ${error.message}`);
+            }
+
+            if (!data || data.length === 0) {
+                logInfo("[ToolRegistry] No community links found in Supabase");
+                return null;
+            }
+
+            // Transform flat rows into grouped structure
+            const groupMap = new Map<string, CommunityLinksGroup>();
+            for (const row of data as unknown as SupabaseCommunityLink[]) {
+                if (typeof row.url !== "string" || !row.url.startsWith("https://")) {
+                    logWarn("[ToolRegistry] Skipping community link with non-https URL", { id: row.id, url: row.url });
+                    continue;
+                }
+
+                if (!groupMap.has(row.group_id)) {
+                    groupMap.set(row.group_id, {
+                        id: row.group_id,
+                        title: row.group_title,
+                        links: [],
+                    });
+                }
+
+                const item: CommunityLinksItem = {
+                    id: row.id,
+                    label: row.label,
+                    url: row.url,
+                };
+                groupMap.get(row.group_id)!.links.push(item);
+            }
+
+            const collection: CommunityLinksCollection = {
+                groups: Array.from(groupMap.values()),
+            };
+
+            logInfo(`[ToolRegistry] Fetched ${data.length} community links in ${collection.groups.length} groups`);
+            return collection;
+        } catch (error) {
+            logWarn("[ToolRegistry] Failed to fetch community links from Supabase, caller should use local fallback", { error: (error as Error).message });
+            return null;
         }
     }
 }

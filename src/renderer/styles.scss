@@ -529,6 +529,13 @@ body {
     margin: 0;
 }
 
+.links-hub-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px 0;
+}
+
 /* Group section */
 .links-group {
     display: flex;
