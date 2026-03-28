@@ -87,7 +87,7 @@ export class AutoUpdateManager extends EventEmitter {
      * Send update events to renderer process
      */
     private sendToRenderer(channel: string, data?: unknown): void {
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.webContents.isDestroyed()) {
             this.mainWindow.webContents.send(channel, data);
         }
     }

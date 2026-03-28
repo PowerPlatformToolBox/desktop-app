@@ -50,7 +50,9 @@ export class ModalWindowManager {
                     }
                     modalWindow.moveTop();
                     modalWindow.focus();
-                    this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
+                    if (!this.mainWindow.isDestroyed() && !this.mainWindow.webContents.isDestroyed()) {
+                        this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
+                    }
                 }
             })
             .catch((error) => {
@@ -186,7 +188,7 @@ ${content}
     }
 
     private emitModalClosed(): void {
-        if (!this.currentOptions || this.mainWindow.isDestroyed()) {
+        if (!this.currentOptions || this.mainWindow.isDestroyed() || this.mainWindow.webContents.isDestroyed()) {
             return;
         }
 
