@@ -1042,7 +1042,10 @@ export class ToolRegistryManager extends EventEmitter {
 
             if (!data || data.length === 0) {
                 logInfo("[ToolRegistry] No community links found in Supabase");
-                return null;
+                const emptyCollection: CommunityLinksCollection = {
+                    groups: [],
+                };
+                return emptyCollection;
             }
 
             // Transform flat rows into grouped structure
