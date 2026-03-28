@@ -87,7 +87,6 @@ interface SupabaseCommunityLink {
     id: string;
     group_id: string;
     group_title: string;
-    group_sort_order: number;
     label: string;
     url: string;
     sort_order: number;
@@ -1033,9 +1032,8 @@ export class ToolRegistryManager extends EventEmitter {
 
             const { data, error } = await this.supabase
                 .from("community_links")
-                .select("id, group_id, group_title, group_sort_order, label, url, sort_order")
+                .select("id, group_id, group_title, label, url, sort_order")
                 .eq("is_active", true)
-                .order("group_sort_order", { ascending: true })
                 .order("sort_order", { ascending: true });
 
             if (error) {

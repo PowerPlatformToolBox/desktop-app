@@ -12,7 +12,6 @@ CREATE TABLE public.community_links (
     id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id         TEXT         NOT NULL,
     group_title      TEXT         NOT NULL,
-    group_sort_order INT          NOT NULL DEFAULT 0,
     label            TEXT         NOT NULL,
     url              TEXT         NOT NULL,
     sort_order       INT          NOT NULL DEFAULT 0,
@@ -29,11 +28,10 @@ CREATE TABLE public.community_links (
 | `id` | `uuid` | Primary key, auto-generated. |
 | `group_id` | `text` | Stable slug that identifies the category group (e.g. `"newsletters"`). Rows that share a `group_id` are rendered as a single collapsible section. |
 | `group_title` | `text` | Human-readable title displayed as the group header (e.g. `"Newsletters"`). |
-| `group_sort_order` | `int` | Controls the order in which groups appear in the sidebar. Lower values appear first. |
 | `label` | `text` | Display label for the individual link (e.g. `"PP Weekly"`). |
 | `url` | `text` | Full HTTPS URL of the link. Non-HTTPS URLs are rejected by the app. |
-| `sort_order` | `int` | Controls the order of links within a group. Lower values appear first. |
-| `is_active` | `boolean` | When `false` the link is hidden from the app without deleting the row. |
+| `sort_order` | `int` | Controls the order of links within a group. Lower values appear first. Group ordering is handled by the app. |
+| `is_active` | `boolean` | When `false` the link is excluded from the app without deleting the row. |
 | `created_at` | `timestamptz` | Row creation timestamp (auto-set). |
 | `updated_at` | `timestamptz` | Row last-updated timestamp. Update via trigger (see below). |
 
@@ -79,19 +77,19 @@ CREATE TRIGGER trg_community_links_updated_at
 
 ```sql
 INSERT INTO public.community_links
-    (group_id, group_title, group_sort_order, label, url, sort_order)
+    (group_id, group_title, label, url, sort_order)
 VALUES
     -- Newsletters
-    ('newsletters', 'Newsletters', 10, 'PP Weekly',     'https://www.ppweekly.com/',    10),
-    ('newsletters', 'Newsletters', 10, 'PP Dev Weekly', 'https://www.ppdevweekly.com/', 20),
+    ('newsletters', 'Newsletters', 'PP Weekly',     'https://www.ppweekly.com/',    10),
+    ('newsletters', 'Newsletters', 'PP Dev Weekly', 'https://www.ppdevweekly.com/', 20),
 
     -- Release plans
-    ('release-plans', 'Release plans', 20, 'Release Plans Visualized', 'https://releaseplans.net/', 10),
+    ('release-plans', 'Release plans', 'Release Plans Visualized', 'https://releaseplans.net/', 10),
 
     -- Calculators / estimators
-    ('calculators-estimators', 'Calculators / estimators', 30, 'Dataverse Capacity Calculator',           'https://dataverse.licensing.guide/',                                               10),
-    ('calculators-estimators', 'Calculators / estimators', 30, 'Power Pages Licensing Cost Calculator',  'https://powerportals.de/tools/power-pages-pricing-calculator.html',               20),
-    ('calculators-estimators', 'Calculators / estimators', 30, 'Microsoft agent usage estimator',        'https://microsoft.github.io/copilot-studio-estimator/',                           30);
+    ('calculators-estimators', 'Calculators / estimators', 'Dataverse Capacity Calculator',           'https://dataverse.licensing.guide/',                                               10),
+    ('calculators-estimators', 'Calculators / estimators', 'Power Pages Licensing Cost Calculator',  'https://powerportals.de/tools/power-pages-pricing-calculator.html',               20),
+    ('calculators-estimators', 'Calculators / estimators', 'Microsoft agent usage estimator',        'https://microsoft.github.io/copilot-studio-estimator/',                           30);
 ```
 
 ---
@@ -100,8 +98,9 @@ VALUES
 
 1. When the **Community Resources** sidebar is opened the app calls the `FETCH_COMMUNITY_LINKS`
    IPC channel, which queries Supabase for all rows where `is_active = true`, ordered by
-   `group_sort_order ASC, sort_order ASC`.
+   `sort_order ASC`.
 2. Rows are grouped by `group_id` / `group_title` and rendered as collapsible sections.
+   Group ordering follows the natural insertion order returned by the query.
 3. Only `https://` URLs are accepted; any row with a non-HTTPS URL is silently skipped.
 4. If Supabase is unreachable or not configured the app falls back to the bundled static
    data in `src/renderer/data/importantLinks.json`.
