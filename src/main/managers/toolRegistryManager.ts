@@ -1049,7 +1049,8 @@ export class ToolRegistryManager extends EventEmitter {
 
             // Transform flat rows into grouped structure
             const groupMap = new Map<string, CommunityLinksGroup>();
-            for (const row of data as unknown as SupabaseCommunityLink[]) {
+            const rows = data as SupabaseCommunityLink[];
+            for (const row of rows) {
                 if (typeof row.url !== "string" || !row.url.startsWith("https://")) {
                     logWarn("[ToolRegistry] Skipping community link with non-https URL", { id: row.id, url: row.url });
                     continue;

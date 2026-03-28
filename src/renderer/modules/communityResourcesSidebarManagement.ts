@@ -251,7 +251,7 @@ export async function loadSidebarCommunityResources(): Promise<void> {
     let collection: CommunityLinksCollection | null = null;
 
     try {
-        collection = (await window.toolboxAPI.fetchCommunityLinks()) as CommunityLinksCollection | null;
+        collection = await window.toolboxAPI.fetchCommunityLinks();
         if (collection) {
             logInfo("Community Resources: loaded from Supabase");
         } else {
