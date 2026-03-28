@@ -1077,7 +1077,8 @@ export class ToolRegistryManager extends EventEmitter {
             logInfo(`[ToolRegistry] Fetched ${data.length} community links in ${collection.groups.length} groups`);
             return collection;
         } catch (error) {
-            logWarn("[ToolRegistry] Failed to fetch community links from Supabase, caller should use local fallback", { error: (error as Error).message });
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logWarn("[ToolRegistry] Failed to fetch community links from Supabase, caller should use local fallback", { error: errorMessage });
             return null;
         }
     }
