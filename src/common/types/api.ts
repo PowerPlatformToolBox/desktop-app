@@ -4,6 +4,7 @@
  */
 
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
+import { CommunityLinksCollection } from "./communityLinks";
 import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
@@ -189,6 +190,7 @@ export interface ToolboxAPI {
 
     // Registry-based tools
     fetchRegistryTools: () => Promise<Tool[]>;
+    fetchCommunityLinks: () => Promise<CommunityLinksCollection | null>;
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;

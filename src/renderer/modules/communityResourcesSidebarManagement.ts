@@ -1,30 +1,16 @@
 /**
- * Important links sidebar module
- * Renders the curated allowlisted external links into the Links sidebar panel.
+ * Community Resources sidebar module
+ * Fetches curated Power Platform community links from the Supabase community_links
+ * table and renders them into the Community Resources sidebar panel.
+ * Falls back to the bundled static importantLinks.json when Supabase is unavailable.
  */
 
-import { logError, logWarn } from "../../common/logger";
+import { logError, logInfo, logWarn } from "../../common/logger";
+import type { CommunityLinksCollection, CommunityLinksGroup } from "../../common/types";
 import importantLinksCollectionJson from "../data/importantLinks.json";
 
-interface ImportantLinksCollection {
-    version: number;
-    groups: ImportantLinksGroup[];
-}
-
-interface ImportantLinksGroup {
-    id: string;
-    title: string;
-    description?: string;
-    links: ImportantLinksItem[];
-}
-
-interface ImportantLinksItem {
-    id: string;
-    label: string;
-    url: string;
-}
-
-const importantLinksCollection = importantLinksCollectionJson as unknown as ImportantLinksCollection;
+// Static fallback collection (bundled with the app)
+const staticFallbackCollection = importantLinksCollectionJson as unknown as CommunityLinksCollection;
 
 function tryNormalizeHttpsUrl(value: string): string | null {
     let parsed: URL;
@@ -56,7 +42,7 @@ function tryGetDisplayHost(value: string): string | null {
     }
 }
 
-function buildAllowlist(collection: ImportantLinksCollection): ReadonlySet<string> {
+function buildAllowlist(collection: CommunityLinksCollection): ReadonlySet<string> {
     const allowlist = new Set<string>();
 
     for (const group of collection.groups ?? []) {
@@ -75,17 +61,15 @@ function buildAllowlist(collection: ImportantLinksCollection): ReadonlySet<strin
     return allowlist;
 }
 
-const IMPORTANT_LINK_ALLOWLIST: ReadonlySet<string> = buildAllowlist(importantLinksCollection);
-
-function openAllowlistedImportantLink(candidateUrl: string): void {
+function openAllowlistedLink(candidateUrl: string, allowlist: ReadonlySet<string>): void {
     const normalized = tryNormalizeHttpsUrl(candidateUrl);
     if (!normalized) {
-        logWarn("Blocked attempt to open non-https or invalid Important link", { url: candidateUrl });
+        logWarn("Blocked attempt to open non-https or invalid community link", { url: candidateUrl });
         return;
     }
 
-    if (!IMPORTANT_LINK_ALLOWLIST.has(normalized)) {
-        logWarn("Blocked attempt to open non-allowlisted Important link", { url: normalized });
+    if (!allowlist.has(normalized)) {
+        logWarn("Blocked attempt to open non-allowlisted community link", { url: normalized });
         return;
     }
 
@@ -112,7 +96,7 @@ function createHubIntro(): HTMLElement {
     return intro;
 }
 
-function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number): HTMLElement {
+function createGroupSection(group: CommunityLinksGroup, iconColorOffset: number, allowlist: ReadonlySet<string>): HTMLElement {
     const section = document.createElement("section");
     section.className = "links-group";
 
@@ -204,7 +188,7 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
 
         button.addEventListener("click", (e) => {
             e.preventDefault();
-            openAllowlistedImportantLink(link.url);
+            openAllowlistedLink(link.url, allowlist);
         });
 
         li.appendChild(button);
@@ -215,10 +199,40 @@ function createGroupSection(group: ImportantLinksGroup, iconColorOffset: number)
     return section;
 }
 
+function renderCollection(container: HTMLElement, collection: CommunityLinksCollection): void {
+    if (!collection || !Array.isArray(collection.groups)) {
+        throw new Error("Community links collection is missing groups");
+    }
+
+    const allowlist = buildAllowlist(collection);
+
+    container.appendChild(createHubIntro());
+
+    let iconColorOffset = 0;
+    for (const group of collection.groups) {
+        if (!group || typeof group.title !== "string" || !Array.isArray(group.links)) {
+            continue;
+        }
+
+        container.appendChild(createGroupSection(group, iconColorOffset, allowlist));
+        iconColorOffset += group.links.length;
+    }
+
+    if (collection.groups.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        const message = document.createElement("p");
+        message.textContent = "No links configured";
+        empty.appendChild(message);
+        container.appendChild(empty);
+    }
+}
+
 /**
- * Render the Important links panel in the sidebar.
+ * Render the Community Resources panel in the sidebar.
+ * Fetches links dynamically from Supabase; falls back to bundled static data when unavailable.
  */
-export function loadSidebarImportantLinks(): void {
+export async function loadSidebarCommunityResources(): Promise<void> {
     const container = document.getElementById("sidebar-important-links-container");
     if (!container) {
         return;
@@ -226,33 +240,41 @@ export function loadSidebarImportantLinks(): void {
 
     container.innerHTML = "";
 
+    // Show a loading indicator while fetching from Supabase
+    const loadingEl = document.createElement("div");
+    loadingEl.className = "links-hub-loading";
+    const loadingSpinner = document.createElement("fluent-progress-ring");
+    loadingSpinner.setAttribute("size", "small");
+    loadingEl.appendChild(loadingSpinner);
+    container.appendChild(loadingEl);
+
+    let collection: CommunityLinksCollection | null = null;
+
     try {
-        if (!importantLinksCollection || !Array.isArray(importantLinksCollection.groups)) {
-            throw new Error("Important links JSON is missing groups");
-        }
-
-        container.appendChild(createHubIntro());
-
-        let iconColorOffset = 0;
-        for (const group of importantLinksCollection.groups) {
-            if (!group || typeof group.title !== "string" || !Array.isArray(group.links)) {
-                continue;
-            }
-
-            container.appendChild(createGroupSection(group, iconColorOffset));
-            iconColorOffset += group.links.length;
-        }
-
-        if (importantLinksCollection.groups.length === 0) {
-            const empty = document.createElement("div");
-            empty.className = "empty-state";
-            const message = document.createElement("p");
-            message.textContent = "No links configured";
-            empty.appendChild(message);
-            container.appendChild(empty);
+        collection = await window.toolboxAPI.fetchCommunityLinks();
+        if (collection) {
+            logInfo("Community Resources: loaded from Supabase");
+        } else {
+            logInfo("Community Resources: Supabase unavailable, using bundled fallback");
         }
     } catch (error) {
-        logError("Failed to render Important links sidebar", error);
+        logWarn("Community Resources: fetch failed, using bundled fallback", { error: (error as Error).message });
+        collection = null;
+    }
+
+    // Fall back to bundled static data when Supabase is unavailable or returns nothing
+    if (!collection) {
+        collection = staticFallbackCollection;
+    }
+
+    container.innerHTML = "";
+
+    try {
+        renderCollection(container, collection);
+    } catch (error) {
+        logError("Failed to render Community Resources sidebar", error);
+
+        container.innerHTML = "";
 
         const empty = document.createElement("div");
         empty.className = "empty-state";
@@ -266,8 +288,6 @@ export function loadSidebarImportantLinks(): void {
 
         empty.appendChild(errorTitle);
         empty.appendChild(errorHint);
-
-        container.innerHTML = "";
         container.appendChild(empty);
     }
 }

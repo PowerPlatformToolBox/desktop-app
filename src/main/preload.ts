@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Registry-based tools (new primary method)
     fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
+    fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
     updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
