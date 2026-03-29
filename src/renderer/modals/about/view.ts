@@ -23,28 +23,15 @@ export function getAboutModalView(model: AboutModalViewModel): AboutModalViewTem
         getModalStyles(model.isDarkTheme) +
         `
 <style>
-    .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        backdrop-filter: blur(4px);
-    }
-
     .about-modal-panel {
-        width: var(--modal-panel-width, 480px);
-        height: var(--modal-panel-height, 480px);
-        max-width: calc(100vw - 48px);
-        max-height: calc(100vh - 48px);
+        width: 100%;
+        height: 100%;
         display: flex;
         flex-direction: column;
         background: ${model.isDarkTheme ? "rgba(20, 20, 24, 0.97)" : "rgba(255, 255, 255, 0.97)"};
         border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         box-shadow: 0 40px 90px rgba(0, 0, 0, ${model.isDarkTheme ? "0.65" : "0.25"});
         overflow: hidden;
-        border-radius: 8px;
     }
 
     .about-modal-hero {
@@ -193,7 +180,6 @@ export function getAboutModalView(model: AboutModalViewModel): AboutModalViewTem
     </svg>`;
 
     const body = `
-<div class="modal-overlay">
 <div class="about-modal-panel">
     <div class="about-modal-hero">
         <div class="about-modal-app-icon">${appIcon}</div>

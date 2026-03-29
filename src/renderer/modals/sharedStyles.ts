@@ -30,21 +30,9 @@ export function getModalStyles(isDarkTheme: boolean): string {
         color: ${isDarkTheme ? "#f3f3f3" : "#1f1f1f"};
     }
 
-    .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        backdrop-filter: blur(4px);
-    }
-
     .modal-panel {
-        width: var(--modal-panel-width, 400px);
-        height: var(--modal-panel-height, 600px);
-        max-width: calc(100vw - 48px);
-        max-height: calc(100vh - 48px);
+        width: 100%;
+        height: 100%;
         display: flex;
         flex-direction: column;
         gap: 16px;
@@ -52,8 +40,6 @@ export function getModalStyles(isDarkTheme: boolean): string {
         background: ${isDarkTheme ? "#1f1f23" : "#ffffff"};
         border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         box-shadow: 0 30px 80px rgba(0, 0, 0, ${isDarkTheme ? "0.6" : "0.15"});
-        border-radius: 8px;
-        overflow: hidden;
     }
 
     .modal-header {

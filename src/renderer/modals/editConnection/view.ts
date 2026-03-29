@@ -12,7 +12,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
     const styles = getModalStyles(isDarkTheme);
 
     const body = `
-<div class="modal-overlay">
+
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -154,7 +154,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save Changes</button>
     </div>
-</div>
+
 </div>`;
 
     return { styles, body };
