@@ -2523,7 +2523,7 @@ class ToolBoxApp {
 
         // Open DevTools in development
         if (process.env.NODE_ENV === "development") {
-            this.mainWindow.webContents.openDevTools();
+            this.mainWindow.webContents.openDevTools({ mode: "detach" });
         }
 
         this.mainWindow.on("closed", () => {

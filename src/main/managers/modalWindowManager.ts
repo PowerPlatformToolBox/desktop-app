@@ -58,9 +58,6 @@ export class ModalWindowManager {
             .catch((error) => {
                 logError("Failed to load modal content", error);
             });
-
-        // DEBUG: Open DevTools for modal window
-        modalWindow.webContents.openDevTools({ mode: "detach" });
     }
 
     hideModal(): void {

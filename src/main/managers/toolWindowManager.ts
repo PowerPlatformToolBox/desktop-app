@@ -1,6 +1,7 @@
 import { BrowserView, BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
@@ -9,7 +10,6 @@ import { SettingsManager } from "./settingsManager";
 import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * ToolWindowManager
@@ -776,7 +776,7 @@ export class ToolWindowManager {
         }
 
         try {
-            toolView.webContents.openDevTools();
+            toolView.webContents.openDevTools({ mode: "detach" });
             logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
             return true;
         } catch (error) {
