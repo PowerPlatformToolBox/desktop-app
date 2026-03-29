@@ -10,6 +10,8 @@ import { getAddConnectionModalControllerScript } from "../modals/addConnection/c
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
 import { getEditConnectionModalView } from "../modals/editConnection/view";
+import { getImportConnectionSourceModalControllerScript } from "../modals/importConnectionSource/controller";
+import { getImportConnectionSourceModalView } from "../modals/importConnectionSource/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
@@ -121,10 +123,20 @@ const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
     height: 700,
 };
 
+const IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS = {
+    select: "import-connection-source:select",
+} as const;
+
+const IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS = {
+    width: 520,
+    height: 600,
+};
+
 let addConnectionModalHandlersRegistered = false;
 let editConnectionModalHandlersRegistered = false;
 let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
+let importConnectionSourceModalHandlersRegistered = false;
 
 // Store promise handlers for select connection modal - now returns connectionId
 const selectConnectionModalPromiseHandlers: {
@@ -138,6 +150,15 @@ const selectConnectionModalPromiseHandlers: {
 // Store promise handlers for select multi-connection modal
 const selectMultiConnectionModalPromiseHandlers: {
     resolve: ((result: { primaryConnectionId: string; secondaryConnectionId: string | null }) => void) | null;
+    reject: ((error: Error) => void) | null;
+} = {
+    resolve: null,
+    reject: null,
+};
+
+// Store promise handlers for import connection source modal
+const importConnectionSourceModalPromiseHandlers: {
+    resolve: ((value: "xtb" | "pptb" | null) => void) | null;
     reject: ((error: Error) => void) | null;
 } = {
     resolve: null,
@@ -625,6 +646,77 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
 
 async function signalSelectMultiConnectionReady(): Promise<void> {
     await sendBrowserWindowModalMessage({ channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady });
+}
+
+/**
+ * Initialize import connection source modal bridge
+ */
+function initializeImportConnectionSourceModalBridge(): void {
+    if (importConnectionSourceModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleImportConnectionSourceModalMessage);
+    importConnectionSourceModalHandlersRegistered = true;
+}
+
+/**
+ * Open the import connection source selection modal.
+ * Returns a promise that resolves with "xtb" or "pptb" when a source is chosen, or null if cancelled.
+ */
+function openImportConnectionSourceModal(): Promise<"xtb" | "pptb" | null> {
+    return new Promise((resolve) => {
+        initializeImportConnectionSourceModalBridge();
+
+        importConnectionSourceModalPromiseHandlers.resolve = resolve;
+        importConnectionSourceModalPromiseHandlers.reject = null;
+
+        const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
+            if (payload?.id === "import-connection-source-browser-modal") {
+                offBrowserWindowModalClosed(modalClosedHandler);
+                if (importConnectionSourceModalPromiseHandlers.resolve) {
+                    importConnectionSourceModalPromiseHandlers.resolve(null);
+                    importConnectionSourceModalPromiseHandlers.resolve = null;
+                }
+            }
+        };
+
+        onBrowserWindowModalClosed(modalClosedHandler);
+
+        void showBrowserWindowModal({
+            id: "import-connection-source-browser-modal",
+            html: buildImportConnectionSourceModalHtml(),
+            width: IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS.width,
+            height: IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS.height,
+        });
+    });
+}
+
+function buildImportConnectionSourceModalHtml(): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
+    const { styles, body } = getImportConnectionSourceModalView(isDarkTheme);
+    const script = getImportConnectionSourceModalControllerScript(IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS);
+    const bodyWithTheme = body.replace("<body>", `<body class="${themeClass}">`);
+    return `${styles}\n${bodyWithTheme}\n${script}`.trim();
+}
+
+function handleImportConnectionSourceModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    if (payload.channel === IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS.select) {
+        const data = payload.data as { source?: string } | undefined;
+        const source = data?.source === "xtb" ? "xtb" : data?.source === "pptb" ? "pptb" : null;
+
+        const resolveHandler = importConnectionSourceModalPromiseHandlers.resolve;
+        importConnectionSourceModalPromiseHandlers.resolve = null;
+        importConnectionSourceModalPromiseHandlers.reject = null;
+
+        void closeBrowserWindowModal().then(() => {
+            if (resolveHandler) {
+                resolveHandler(source);
+            }
+        });
+    }
 }
 
 /**
@@ -1268,22 +1360,27 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
 
 /**
  * Import connections from a file selected by the user.
- * Supports both PPTB JSON export files and XrmToolBox XML connection files.
+ * Shows a source selection modal first, then opens a file picker filtered to the chosen format.
+ * Supports XrmToolBox XML connection files and PPTB JSON export files.
  */
 export async function importConnections(): Promise<void> {
     try {
-        // Ask user to select a file – accept both PPTB JSON and XTB XML formats
+        // Show source selection modal to let user pick XTB or PPTB
+        const source = await openImportConnectionSourceModal();
+        if (!source) {
+            return; // User cancelled
+        }
+
+        const isXml = source === "xtb";
+
+        // Ask user to select a file – filter by source format
         const filePath = await window.toolboxAPI.fileSystem.selectPath({
             type: "file",
-            filters: [
-                { name: "Connection Files (PPTB JSON or XrmToolBox XML)", extensions: ["json", "xml"] },
-                { name: "PPTB JSON Files", extensions: ["json"] },
-                { name: "XrmToolBox XML Files", extensions: ["xml"] },
-            ],
+            filters: isXml ? [{ name: "XrmToolBox Connection Files", extensions: ["xml"] }] : [{ name: "PPTB Connection Files", extensions: ["json"] }],
         });
 
         if (!filePath) {
-            return; // User cancelled
+            return; // User cancelled file picker
         }
 
         // Read the file content
@@ -1298,9 +1395,6 @@ export async function importConnections(): Promise<void> {
             });
             return;
         }
-
-        // Detect format: XML files (XrmToolBox) vs JSON files (PPTB)
-        const isXml = filePath.toLowerCase().endsWith(".xml") || fileContent.trimStart().startsWith("<?xml") || fileContent.trimStart().startsWith("<CrmConnections");
 
         let parsedData: unknown;
         if (isXml) {
