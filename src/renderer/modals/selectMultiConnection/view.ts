@@ -104,6 +104,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
         : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
 
     const body = `
+<div class="modal-overlay">
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -198,6 +199,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
         <button id="cancel-select-multi-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="confirm-multi-connection-btn" class="fluent-button fluent-button-primary" disabled>Confirm</button>
     </div>
+</div>
 </div>`;
 
     return { styles, body };

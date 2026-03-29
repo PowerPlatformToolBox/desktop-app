@@ -29,9 +29,21 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
 <style>
     /* Tool detail specific styles */
 
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+
     .tool-detail-modal-panel {
-        width: 100%;
-        height: 100%;
+        width: var(--modal-panel-width, 1200px);
+        height: var(--modal-panel-height, 800px);
+        max-width: calc(100vw - 48px);
+        max-height: calc(100vh - 48px);
         display: flex;
         flex-direction: column;
         gap: 16px;
@@ -39,6 +51,8 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
         background: ${model.isDarkTheme ? "rgba(20, 20, 24, 0.95)" : "rgba(255, 255, 255, 0.95)"};
         border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         box-shadow: 0 40px 90px rgba(0, 0, 0, ${model.isDarkTheme ? "0.65" : "0.25"});
+        border-radius: 8px;
+        overflow: hidden;
     }
 
     .tool-detail-modal-header {
@@ -272,6 +286,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
     const linksMarkup = linkItems.length ? `<div class="tool-detail-links">${linkItems.join("<span>•</span>")}</div>` : "";
 
     const body = `
+<div class="modal-overlay">
 <div class="tool-detail-modal-panel" data-tool-id="${model.toolId}">
     <div class="tool-detail-modal-header">
         <div class="tool-detail-modal-header-left">
@@ -299,6 +314,7 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
             <div id="tool-detail-readme-content" class="markdown-content">${readmePlaceholder}</div>
         </div>
     </div>
+</div>
 </div>`;
 
     return { styles, body };

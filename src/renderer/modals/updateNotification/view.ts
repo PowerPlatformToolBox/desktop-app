@@ -22,9 +22,21 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         getModalStyles(model.isDarkTheme) +
         `
 <style>
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+
     .update-modal-panel {
-        width: 100%;
-        height: 100%;
+        width: var(--modal-panel-width, 560px);
+        height: var(--modal-panel-height, 540px);
+        max-width: calc(100vw - 48px);
+        max-height: calc(100vh - 48px);
         display: flex;
         flex-direction: column;
         gap: 0;
@@ -32,6 +44,7 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         border: 1px solid ${model.isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         box-shadow: 0 40px 90px rgba(0, 0, 0, ${model.isDarkTheme ? "0.65" : "0.25"});
         overflow: hidden;
+        border-radius: 8px;
     }
 
     .update-modal-hero {
@@ -311,6 +324,7 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
         <button id="update-action-btn" class="fluent-button fluent-button-primary">Close &amp; Install Now</button>`;
 
     const body = `
+<div class="modal-overlay">
 <div class="update-modal-panel">
     <div class="update-modal-hero">
         <div class="update-modal-icon">${heroIcon}</div>
@@ -341,6 +355,7 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
     <div class="update-modal-footer">
         ${footerButtons}
     </div>
+</div>
 </div>`;
 
     return { styles, body };

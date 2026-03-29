@@ -196,6 +196,7 @@ export function getImportConnectionSourceModalView(isDarkTheme: boolean): ModalV
 
     const body = `
 <body>
+<div class="modal-overlay">
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -249,6 +250,7 @@ export function getImportConnectionSourceModalView(isDarkTheme: boolean): ModalV
         <button id="cancel-import-source-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="confirm-import-source-btn" class="fluent-button fluent-button-primary">Next</button>
     </div>
+</div>
 </div>
 </body>`;
 

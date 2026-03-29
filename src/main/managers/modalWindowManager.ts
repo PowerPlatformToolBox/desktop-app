@@ -133,23 +133,23 @@ export class ModalWindowManager {
 
     private updateWindowBounds(): void {
         if (!this.modalWindow || !this.currentOptions) return;
-
         const bounds = this.mainWindow.getBounds();
-        const width = this.currentOptions.width;
-        const height = this.currentOptions.height;
-        const x = Math.round(bounds.x + (bounds.width - width) / 2);
-        const y = Math.round(bounds.y + (bounds.height - height) / 2);
-
-        this.modalWindow.setBounds({ x, y, width, height });
+        this.modalWindow.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
     }
 
     private composeDocumentHtml(content: string): string {
+        const panelWidth = this.currentOptions?.width ?? 400;
+        const panelHeight = this.currentOptions?.height ?? 600;
         return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src data: https://*.blob.core.windows.net/ https://github.com/PowerPlatformToolBox/pptb-web/releases/download/ https://release-assets.githubusercontent.com/; font-src data:; connect-src https:;" />
     <style>
+        :root {
+            --modal-panel-width: ${panelWidth}px;
+            --modal-panel-height: ${panelHeight}px;
+        }
         html, body {
             margin: 0;
             padding: 0;
