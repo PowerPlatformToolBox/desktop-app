@@ -138,13 +138,59 @@ export function getImportConnectionSourceModalView(isDarkTheme: boolean): ModalV
 
     .xtb-hint .xtb-path {
         display: inline-block;
-        margin-top: 8px;
         font-family: "Consolas", "Courier New", monospace;
         font-size: 11px;
         background: ${isDarkTheme ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.07)"};
         padding: 3px 7px;
         border-radius: 4px;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.75)" : "rgba(0, 0, 0, 0.65)"};
+    }
+
+    .xtb-path-col {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .xtb-path-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .copy-path-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.18)"};
+        border-radius: 4px;
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.05)"};
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.65)" : "rgba(0, 0, 0, 0.55)"};
+        cursor: pointer;
+        transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .copy-path-btn:hover {
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)"};
+        border-color: ${isDarkTheme ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.3)"};
+        color: ${isDarkTheme ? "#fff" : "#000"};
+    }
+
+    .copy-path-btn.copied {
+        color: #4caf50;
+        border-color: #4caf50;
+        background: ${isDarkTheme ? "rgba(76, 175, 80, 0.15)" : "rgba(76, 175, 80, 0.1)"};
+    }
+
+    .copy-path-btn svg {
+        width: 13px;
+        height: 13px;
+        pointer-events: none;
     }
 </style>`;
 
@@ -181,16 +227,27 @@ export function getImportConnectionSourceModalView(isDarkTheme: boolean): ModalV
         <div class="xtb-hint visible" id="xtb-hint">
             <strong>💡 How to export connections from XrmToolBox:</strong>
             <ol>
-                <li>Open <strong>XrmToolBox</strong> and click the <strong>Connect</strong> button to open the Connection Manager.</li>
-                <li>In the Connection Manager, right-click a connection and choose <strong>Export to XML</strong> or export all connections via the toolbar.</li>
-                <li>Save the file and select it here. The file is typically named <code>ConnectionsList.xml</code>.</li>
+                <li><span>Open <b>XrmToolBox</b> and click the <b>Connect</b> button to open the Connection Manager.</span></li>
+                <li><span>In the Connection Manager, right-click a connection and choose <b>Export to XML</b> or export all connections via the toolbar.</span></li>
+                <li><span>Save the file and select it here. The file is typically named <code>ConnectionsList.xml</code>.</span></li>
             </ol>
-            <span class="xtb-path">Default location: %AppData%\\MscrmTools\\XrmToolBox\\Connections\\ConnectionsList.xml</span>
+            <div class="xtb-path-col">
+                <span style="font-size: 11px; color: ${isDarkTheme ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)"};">Default location:</span>
+                <div class="xtb-path-row">
+                    <span class="xtb-path" id="xtb-path-text">%AppData%\\MscrmTools\\XrmToolBox\\Connections\\ConnectionsList.xml</span>
+                    <button class="copy-path-btn" id="copy-path-btn" title="Copy path" aria-label="Copy path"
+                        data-path="%AppData%\\MscrmTools\\XrmToolBox\\Connections\\ConnectionsList.xml">
+                        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" id="copy-path-icon">
+                            <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h6A1.5 1.5 0 0 1 13 4.5v8a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 4 12.5v-8ZM5.5 4a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h6a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-6ZM2 6.5A1.5 1.5 0 0 1 3.5 5H4v1h-.5a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h6a.5.5 0 0 0 .5-.5V14h1v.5A1.5 1.5 0 0 1 10 16H4a1.5 1.5 0 0 1-1.5-1.5v-8Z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="modal-footer">
         <button id="cancel-import-source-btn" class="fluent-button fluent-button-secondary">Cancel</button>
-        <button id="confirm-import-source-btn" class="fluent-button fluent-button-primary">Next →</button>
+        <button id="confirm-import-source-btn" class="fluent-button fluent-button-primary">Next</button>
     </div>
 </div>
 </body>`;

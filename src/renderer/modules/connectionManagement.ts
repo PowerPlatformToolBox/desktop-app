@@ -128,8 +128,8 @@ const IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS = {
 } as const;
 
 const IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS = {
-    width: 480,
-    height: 420,
+    width: 520,
+    height: 600,
 };
 
 let addConnectionModalHandlersRegistered = false;
@@ -1376,9 +1376,7 @@ export async function importConnections(): Promise<void> {
         // Ask user to select a file – filter by source format
         const filePath = await window.toolboxAPI.fileSystem.selectPath({
             type: "file",
-            filters: isXml
-                ? [{ name: "XrmToolBox Connection Files", extensions: ["xml"] }]
-                : [{ name: "PPTB Connection Files", extensions: ["json"] }],
+            filters: isXml ? [{ name: "XrmToolBox Connection Files", extensions: ["xml"] }] : [{ name: "PPTB Connection Files", extensions: ["json"] }],
         });
 
         if (!filePath) {

@@ -1,8 +1,8 @@
 import { BrowserWindow } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, MODAL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { ModalWindowClosedPayload, ModalWindowMessagePayload, ModalWindowOptions } from "../../common/types";
 import { logError } from "../../common/logger";
+import { ModalWindowClosedPayload, ModalWindowMessagePayload, ModalWindowOptions } from "../../common/types";
 
 const MIN_MODAL_WIDTH = 280;
 const MIN_MODAL_HEIGHT = 180;
@@ -56,6 +56,9 @@ export class ModalWindowManager {
             .catch((error) => {
                 logError("Failed to load modal content", error);
             });
+
+        // DEBUG: Open DevTools for modal window
+        modalWindow.webContents.openDevTools({ mode: "detach" });
     }
 
     hideModal(): void {
