@@ -11,12 +11,19 @@ let listenersInitialized = false;
 function initializeIpcListeners(): void {
     if (listenersInitialized) return;
 
-    window.api.on(EVENT_CHANNELS.MODAL_WINDOW_MESSAGE, (_, payload) => {
-        messageHandlers.forEach((handler) => handler((payload as ModalWindowMessagePayload) ?? { channel: "" }));
+    window.api.on(EVENT_CHANNELS.MODAL_WINDOW_OPENED, () => {
+        const backdrop = document.getElementById("modal-backdrop");
+        if (backdrop) backdrop.style.display = "block";
     });
 
     window.api.on(EVENT_CHANNELS.MODAL_WINDOW_CLOSED, (_, payload) => {
+        const backdrop = document.getElementById("modal-backdrop");
+        if (backdrop) backdrop.style.display = "none";
         closedHandlers.forEach((handler) => handler((payload as ModalWindowClosedPayload) ?? { id: null }));
+    });
+
+    window.api.on(EVENT_CHANNELS.MODAL_WINDOW_MESSAGE, (_, payload) => {
+        messageHandlers.forEach((handler) => handler((payload as ModalWindowMessagePayload) ?? { channel: "" }));
     });
 
     listenersInitialized = true;
