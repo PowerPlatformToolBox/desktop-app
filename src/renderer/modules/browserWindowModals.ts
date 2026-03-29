@@ -13,7 +13,7 @@ function initializeIpcListeners(): void {
 
     window.api.on(EVENT_CHANNELS.MODAL_WINDOW_OPENED, () => {
         const backdrop = document.getElementById("modal-backdrop");
-        if (backdrop) backdrop.style.display = "block";
+        if (backdrop) backdrop.style.display = "flex";
     });
 
     window.api.on(EVENT_CHANNELS.MODAL_WINDOW_CLOSED, (_, payload) => {
@@ -43,6 +43,11 @@ export async function showBrowserWindowModal(options: ModalWindowOptions): Promi
     }
 
     initializeIpcListeners();
+
+    // Show backdrop immediately (before awaiting modal window) so it appears in sync with the modal
+    const backdrop = document.getElementById("modal-backdrop");
+    if (backdrop) backdrop.style.display = "flex";
+
     await window.toolboxAPI.utils.showModalWindow(options);
 }
 
