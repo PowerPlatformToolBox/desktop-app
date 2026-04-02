@@ -1,44 +1,42 @@
-# Power Platform ToolBox 1.2.0
+# Power Platform ToolBox 1.2.1
 
 ## Highlights
 
-- Global search command palette in the activity bar for faster navigation and commands
-- Tool details open as a tab (instead of a modal) for smoother browsing and install decisions
-- Tool version compatibility checking to prevent running incompatible tools
-- Marketplace content moved to Azure Blob storage for improved reliability and load performance
-- `pptb://` protocol handler to install tools directly from links
-- Connections: category filter/grouping plus environment color and browser-profile badges in selection modals
-- CSP exceptions: toolmakers can explain why an exception is needed with optional per-domain user consent
-- Update UX uses a themed in-app modal instead of native OS dialogs
+- Import connections from XrmToolBox XML with a source selection step (XTB vs PPTB)
+- Share and move connections via import/export connection files
+- Review "What's New" after updates via in-app auto-update notifications
+- Manage Settings as a dedicated tab, plus a Settings entry in the View menu
+- Browse Community Resources with dynamic, Supabase-backed links
+- Connect to US Government Dataverse environments (GCC High / DoD URL support)
+- Customize connection list visuals with category/environment color border appearance settings
+- Control startup behavior with an option to disable session restore
 
 ## Fixes
 
-- Auto-update: "Restart & Install Now" now triggers the update correctly
-- Auto-update: update notification always-on-top behavior respects the configured option
-- Tools: tool tabs and launch logic correctly handle environment names in tab titles
-- Dataverse: entity collection bound actions/functions are handled correctly
-- Dataverse: date values in function parameters are formatted correctly
-- Notifications: toast behavior no longer forces always-on-top
+- Auto-update: fixed force-close TypeError ("Object has been destroyed") during modal teardown
+- Global search: fixed command palette rendering behind active tool BrowserViews
+- Tools: improved dual-connection handling and corrected dual-connection tab color split
+- UI: fixed BrowserView sizing and spurious connection prompts after force-reload
+- Auto-update: loading overlay no longer blocks system dialogs (always-on-top conflicts removed)
+- Protocol handler: fixed `pptb://` handling in development mode when explicitly enabled
 
 ## Developer & Build
 
-- Added `pptb-validate` CLI for pre-publish tool validation (`packages/bin/pptb-validate.js`)
-- Added CI workflow to publish `@pptb/types` with improved npm auth and environment isolation
-- Added build preflight checks to validate app version and ensure release notes are updated
-- Release workflows: refined versioning scheme and improved cross-platform artifact merge scripts
-- Telemetry: removed Sentry monitoring in favor of the centralized logger
+- toolboxAPI: deprecated `showLoading`/`hideLoading` to reduce API surface and clarify usage
+- DevTools: open in detached mode for main and tool windows
+- Release automation: avoid draft release creation and switch nightly versioning to `dev` tags
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-1.2.0-Setup.exe
-- macOS: Power-Platform-ToolBox-1.2.0.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-1.2.0.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-1.2.1-Setup.exe
+- macOS: Power-Platform-ToolBox-1.2.1.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-1.2.1.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed; existing settings and connections continue to work.
-- Tool developers: run `pptb-validate` before publishing, and include clear CSP exception rationale for any requested domains.
+- Tool developers: plan to remove `showLoading`/`hideLoading` usage and move to the newer loading UX patterns.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.1.3...v1.2.0
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.0...v1.2.1
