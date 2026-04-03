@@ -6,21 +6,31 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 
-// Fix PATH for macOS/Linux: GUI-launched Electron apps don't inherit the user's shell PATH.
+// Fix PATH for macOS: GUI-launched Electron apps (Finder/Dock) don't inherit the user's shell PATH.
 // This reads the actual PATH from a login shell so tools like npm/pnpm can be found.
 // Uses unique delimiters to extract PATH cleanly, ignoring any shell startup noise (banners, motd, etc.).
-if (process.platform !== "win32") {
+if (process.platform === "darwin") {
+    const defaultPath = process.env.PATH;
     try {
         const userShell = process.env.SHELL || "/bin/zsh";
-        const output = execFileSync(userShell, ["-ilc", "echo __PPTB_PATH_START__$PATH__PPTB_PATH_END__"], {
+        const output = execFileSync(userShell, ["-ilc", 'printf "__PPTB_PATH_START__"; printenv PATH; printf "__PPTB_PATH_END__"'], {
             encoding: "utf8",
+            timeout: 3000,
+            maxBuffer: 1024 * 1024,
         });
-        const match = output.match(/__PPTB_PATH_START__(.+)__PPTB_PATH_END__/);
-        if (match?.[1]) {
-            process.env.PATH = match[1];
+        const startDelimiter = "__PPTB_PATH_START__";
+        const endDelimiter = "__PPTB_PATH_END__";
+        const startIndex = output.indexOf(startDelimiter);
+        const endIndex = output.indexOf(endDelimiter, startIndex + startDelimiter.length);
+        if (startIndex !== -1 && endIndex !== -1) {
+            const extractedPath = output.slice(startIndex + startDelimiter.length, endIndex).trim();
+            if (extractedPath) {
+                process.env.PATH = extractedPath;
+            }
         }
     } catch {
-        // Silently ignore — keeps the default system PATH
+        // Restore default PATH on failure (timeout, shell error, etc.)
+        process.env.PATH = defaultPath;
     }
 }
 import {
