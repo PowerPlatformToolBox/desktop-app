@@ -1948,6 +1948,17 @@ export async function loadSidebarConnections(): Promise<void> {
         // Category filter
         const selectedCategory = categoryFilter?.value || "";
 
+        // Update filter button indicator and one-click clear button visibility
+        const hasDropdownFilters = !!(selectedEnvironment || selectedAuthType || selectedCategory);
+        const connectionsFilterBtn = document.getElementById("connections-filter-btn");
+        if (connectionsFilterBtn) {
+            connectionsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
+        }
+        const connectionsFilterClearBtn = document.getElementById("connections-filter-clear-btn") as HTMLButtonElement | null;
+        if (connectionsFilterClearBtn) {
+            connectionsFilterClearBtn.style.display = hasDropdownFilters ? "flex" : "none";
+        }
+
         // Apply filters
         const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)
@@ -2240,4 +2251,31 @@ export async function loadSidebarConnections(): Promise<void> {
     } catch (error) {
         logError("Failed to load connections", error);
     }
+}
+
+/**
+ * Clear only the dropdown filter selections (environment, auth type, category) for connections.
+ * Leaves the search input unchanged.
+ */
+export function clearConnectionDropdownFilters(): void {
+    // Reset environment filter
+    const environmentFilter = document.getElementById("connections-environment-filter") as HTMLSelectElement | null;
+    if (environmentFilter) {
+        environmentFilter.value = "";
+    }
+
+    // Reset auth type filter
+    const authFilter = document.getElementById("connections-auth-filter") as HTMLSelectElement | null;
+    if (authFilter) {
+        authFilter.value = "";
+    }
+
+    // Reset category filter
+    const categoryFilter = document.getElementById("connections-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reload the connections list to reflect the cleared filters
+    loadSidebarConnections();
 }

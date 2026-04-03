@@ -110,6 +110,17 @@ export async function loadMarketplace(): Promise<void> {
     const showNewOnly = newFilter?.checked || false;
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
+    // Update filter button indicator and one-click clear button visibility
+    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly);
+    const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
+    if (marketplaceFilterBtn) {
+        marketplaceFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
+    }
+    const marketplaceFilterClearBtn = document.getElementById("marketplace-filter-clear-btn") as HTMLButtonElement | null;
+    if (marketplaceFilterClearBtn) {
+        marketplaceFilterClearBtn.style.display = hasDropdownFilters ? "flex" : "none";
+    }
+
     // Get saved sort preference or default
     const savedSort = await window.toolboxAPI.getSetting("marketplaceSort");
     const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
@@ -634,6 +645,33 @@ function clearMarketplaceFilters(): void {
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
     if (authorFilter) {
         authorFilter.value = "";
+    }
+
+    // Reload the marketplace to reflect the cleared filters
+    loadMarketplace();
+}
+
+/**
+ * Clear only the dropdown filter selections (category, author, new) for the marketplace.
+ * Leaves the search input unchanged.
+ */
+export function clearMarketplaceDropdownFilters(): void {
+    // Reset category filter
+    const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reset author filter
+    const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
+    if (authorFilter) {
+        authorFilter.value = "";
+    }
+
+    // Reset "new only" checkbox
+    const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
+    if (newFilter) {
+        newFilter.checked = false;
     }
 
     // Reload the marketplace to reflect the cleared filters
