@@ -3,6 +3,7 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
+import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -10,7 +11,6 @@ import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
-import { logInfo, logError } from "../../common/logger";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
 
@@ -145,11 +145,16 @@ export async function loadSidebarTools(): Promise<void> {
             toolsList.innerHTML = `
                 <div class="empty-state">
                     <p>No matching tools</p>
-                    <p class="empty-state-hint">${emptyMessage}</p>
+                    <p class="empty-state-hint" id="empty-state-hint"></p>
                     <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
                     ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="clear-filters-link">Clear all filters</a>' : ""}
                 </div>
             `;
+
+            const emptyStateHint = document.getElementById("empty-state-hint");
+            if (emptyStateHint) {
+                emptyStateHint.textContent = emptyMessage;
+            }
 
             // Add event listener for the marketplace search button
             attachMarketplaceNavigationButton("search-marketplace-btn", searchTerm);
