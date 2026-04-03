@@ -187,7 +187,7 @@ export async function loadMarketplace(): Promise<void> {
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         const hasSearchTerm = searchTerm.length > 0;
-        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
@@ -653,7 +653,25 @@ function clearMarketplaceFilters(): void {
         authorFilter.value = "";
     }
 
+    // Reset new tools filter
+    const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
+    if (newFilter) {
+        newFilter.checked = false;
+    }
+
     // Reload the marketplace to reflect the cleared filters
+    loadMarketplace();
+}
+
+/**
+ * Apply the "new tools only" filter to the marketplace and reload it.
+ * Used when navigating to the marketplace from the new-tools notification banner.
+ */
+export function filterMarketplaceByNew(): void {
+    const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
+    if (newFilter) {
+        newFilter.checked = true;
+    }
     loadMarketplace();
 }
 
