@@ -1,9 +1,28 @@
+import { execFileSync } from "child_process";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
 import * as http from "http";
 import * as https from "https";
 import * as path from "path";
+
+// Fix PATH for macOS/Linux: GUI-launched Electron apps don't inherit the user's shell PATH.
+// This reads the actual PATH from a login shell so tools like npm/pnpm can be found.
+// Uses unique delimiters to extract PATH cleanly, ignoring any shell startup noise (banners, motd, etc.).
+if (process.platform !== "win32") {
+    try {
+        const userShell = process.env.SHELL || "/bin/zsh";
+        const output = execFileSync(userShell, ["-ilc", "echo __PPTB_PATH_START__$PATH__PPTB_PATH_END__"], {
+            encoding: "utf8",
+        });
+        const match = output.match(/__PPTB_PATH_START__(.+)__PPTB_PATH_END__/);
+        if (match?.[1]) {
+            process.env.PATH = match[1];
+        }
+    } catch {
+        // Silently ignore — keeps the default system PATH
+    }
+}
 import {
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
