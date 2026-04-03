@@ -112,6 +112,12 @@ export async function loadMarketplace(): Promise<void> {
     const showNewOnly = newFilter?.checked || false;
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
+    // Update filter button indicator to reflect whether any filters are active
+    const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
+    if (marketplaceFilterBtn) {
+        marketplaceFilterBtn.classList.toggle("has-active-filters", !!(selectedCategory || selectedAuthor || showNewOnly));
+    }
+
     // Get saved sort preference or default
     const savedSort = await window.toolboxAPI.getSetting("marketplaceSort");
     const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";

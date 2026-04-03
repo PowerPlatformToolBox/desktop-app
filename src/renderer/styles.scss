@@ -2518,6 +2518,32 @@ body.dark-theme .search-filter-btn.active img {
     filter: none;
 }
 
+/* Filter button active-filters indicator dot */
+.search-filter-btn.has-active-filters {
+    position: relative;
+    border-color: var(--accent-color);
+}
+
+.search-filter-btn.has-active-filters::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--accent-color);
+    /* 1.5px outline gap separates the dot from the button border */
+    box-shadow: 0 0 0 1.5px var(--sidebar-bg);
+    pointer-events: none;
+}
+
+/* When dropdown is open and filters are active, show a contrasting dot */
+.search-filter-btn.has-active-filters.active::after {
+    background-color: var(--filter-btn-active-color);
+    box-shadow: 0 0 0 1.5px var(--filter-btn-active-bg);
+}
+
 /* Filter dropdown - VSCode style */
 .filter-dropdown {
     position: absolute;

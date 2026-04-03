@@ -1948,6 +1948,12 @@ export async function loadSidebarConnections(): Promise<void> {
         // Category filter
         const selectedCategory = categoryFilter?.value || "";
 
+        // Update filter button indicator to reflect whether any filters are active
+        const connectionsFilterBtn = document.getElementById("connections-filter-btn");
+        if (connectionsFilterBtn) {
+            connectionsFilterBtn.classList.toggle("has-active-filters", !!(selectedEnvironment || selectedAuthType || selectedCategory));
+        }
+
         // Apply filters
         const filteredConnections = connections.filter((conn: DataverseConnection) => {
             // Search filter (name or URL)

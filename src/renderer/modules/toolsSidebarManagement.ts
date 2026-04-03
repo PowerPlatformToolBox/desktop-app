@@ -67,6 +67,12 @@ export async function loadSidebarTools(): Promise<void> {
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
 
+        // Update filter button indicator to reflect whether any filters are active
+        const toolsFilterBtn = document.getElementById("tools-filter-btn");
+        if (toolsFilterBtn) {
+            toolsFilterBtn.classList.toggle("has-active-filters", !!(selectedCategory || selectedAuthor));
+        }
+
         // Get saved sort preference or default
         const savedSort = await window.toolboxAPI.getSetting("installedToolsSort");
         const sortOption = (sortSelect?.value as any) || savedSort || "name-asc";
