@@ -2483,6 +2483,36 @@ body.dark-theme .settings-vscode-item:hover {
     box-shadow: 0 0 0 1px var(--accent-color);
 }
 
+/* Filter button group: filter icon + clear button side-by-side */
+.filter-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* One-click clear button that appears when filters are active */
+.filter-clear-btn {
+    padding: 4px 6px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.filter-clear-btn:hover {
+    background-color: var(--card-background);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
 .search-filter-btn {
     padding: 6px 8px;
     background: none;

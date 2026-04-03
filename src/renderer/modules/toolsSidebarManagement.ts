@@ -67,10 +67,15 @@ export async function loadSidebarTools(): Promise<void> {
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
 
-        // Update filter button indicator to reflect whether any filters are active
+        // Update filter button indicator and one-click clear button visibility
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor);
         const toolsFilterBtn = document.getElementById("tools-filter-btn");
         if (toolsFilterBtn) {
-            toolsFilterBtn.classList.toggle("has-active-filters", !!(selectedCategory || selectedAuthor));
+            toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
+        }
+        const toolsFilterClearBtn = document.getElementById("tools-filter-clear-btn") as HTMLButtonElement | null;
+        if (toolsFilterClearBtn) {
+            toolsFilterClearBtn.style.display = hasDropdownFilters ? "flex" : "none";
         }
 
         // Get saved sort preference or default
@@ -702,6 +707,27 @@ function clearAllFilters(): void {
         searchInput.value = "";
     }
 
+    // Reset category filter
+    const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reset author filter
+    const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+    if (authorFilter) {
+        authorFilter.value = "";
+    }
+
+    // Reload the sidebar tools to reflect the cleared filters
+    loadSidebarTools();
+}
+
+/**
+ * Clear only the dropdown filter selections (category, author) for installed tools.
+ * Leaves the search input unchanged.
+ */
+export function clearInstalledToolsDropdownFilters(): void {
     // Reset category filter
     const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
     if (categoryFilter) {
