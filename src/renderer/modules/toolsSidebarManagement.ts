@@ -145,11 +145,16 @@ export async function loadSidebarTools(): Promise<void> {
             toolsList.innerHTML = `
                 <div class="empty-state">
                     <p>No matching tools</p>
-                    <p class="empty-state-hint">${emptyMessage}</p>
+                    <p class="empty-state-hint" id="empty-state-hint"></p>
                     <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
                     ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="clear-filters-link">Clear all filters</a>' : ""}
                 </div>
             `;
+
+            const emptyStateHint = document.getElementById("empty-state-hint");
+            if (emptyStateHint) {
+                emptyStateHint.textContent = emptyMessage;
+            }
 
             // Add event listener for the marketplace search button
             attachMarketplaceNavigationButton("search-marketplace-btn", searchTerm);
