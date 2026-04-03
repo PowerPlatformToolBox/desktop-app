@@ -2491,27 +2491,6 @@ body.dark-theme .settings-vscode-item:hover {
     flex-shrink: 0;
 }
 
-/* One-click clear button that appears when filters are active */
-.filter-clear-btn {
-    padding: 4px 6px;
-    background: none;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-}
-
-.filter-clear-btn:hover {
-    background-color: var(--card-background);
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-}
 
 .search-filter-btn {
     padding: 6px 8px;
