@@ -5,6 +5,7 @@
 
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
+import { filterMarketplaceByNew } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
 import { logError } from "../../common/logger";
@@ -113,6 +114,7 @@ async function loadNewToolsNotification(): Promise<void> {
             notificationBar.style.cursor = "pointer";
             notificationBar.onclick = () => {
                 switchSidebar("marketplace");
+                filterMarketplaceByNew();
             };
         } else if (notificationBar) {
             notificationBar.style.display = "none";

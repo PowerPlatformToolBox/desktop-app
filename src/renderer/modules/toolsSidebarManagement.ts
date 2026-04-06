@@ -3,6 +3,7 @@
  * Handles the display and management of installed tools in the sidebar
  */
 
+import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -10,7 +11,6 @@ import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
-import { logInfo, logError } from "../../common/logger";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
 
@@ -66,6 +66,17 @@ export async function loadSidebarTools(): Promise<void> {
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
+
+        // Update filter button indicator and one-click clear button visibility
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor);
+        const toolsFilterBtn = document.getElementById("tools-filter-btn");
+        if (toolsFilterBtn) {
+            toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
+        }
+        const toolsFilterClearBtn = document.getElementById("tools-filter-clear-btn") as HTMLButtonElement | null;
+        if (toolsFilterClearBtn) {
+            toolsFilterClearBtn.style.display = hasDropdownFilters ? "flex" : "none";
+        }
 
         // Get saved sort preference or default
         const savedSort = await window.toolboxAPI.getSetting("installedToolsSort");
@@ -145,11 +156,16 @@ export async function loadSidebarTools(): Promise<void> {
             toolsList.innerHTML = `
                 <div class="empty-state">
                     <p>No matching tools</p>
-                    <p class="empty-state-hint">${emptyMessage}</p>
+                    <p class="empty-state-hint" id="empty-state-hint"></p>
                     <button class="fluent-button fluent-button-primary" id="search-marketplace-btn">Search in Marketplace</button>
                     ${hasActiveFilters ? '<a href="#" class="empty-state-link" id="clear-filters-link">Clear all filters</a>' : ""}
                 </div>
             `;
+
+            const emptyStateHint = document.getElementById("empty-state-hint");
+            if (emptyStateHint) {
+                emptyStateHint.textContent = emptyMessage;
+            }
 
             // Add event listener for the marketplace search button
             attachMarketplaceNavigationButton("search-marketplace-btn", searchTerm);
@@ -696,6 +712,27 @@ function clearAllFilters(): void {
         searchInput.value = "";
     }
 
+    // Reset category filter
+    const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
+    if (categoryFilter) {
+        categoryFilter.value = "";
+    }
+
+    // Reset author filter
+    const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+    if (authorFilter) {
+        authorFilter.value = "";
+    }
+
+    // Reload the sidebar tools to reflect the cleared filters
+    loadSidebarTools();
+}
+
+/**
+ * Clear only the dropdown filter selections (category, author) for installed tools.
+ * Leaves the search input unchanged.
+ */
+export function clearInstalledToolsDropdownFilters(): void {
     // Reset category filter
     const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
     if (categoryFilter) {
