@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co https://*.blob.core.windows.net; frame-src 'self' pptb-webview:"
+            content="default-src 'self'; img-src 'self' data: pptb-webview: https://github.com https://*.githubusercontent.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://*.crm.dynamics.com https://*.supabase.co https://*.blob.core.windows.net __PPTB_UPDATES_ORIGIN__; frame-src 'self' pptb-webview:"
         />
         <title>Power Platform ToolBox</title>
         <link rel="stylesheet" href="styles.scss" />
@@ -32,12 +32,15 @@
                     <button class="activity-item" id="global-search-btn" title="Global Search (Ctrl+Shift+P)">
                         <img id="search-icon" src="icons/dark/search.svg" alt="Search Icon" class="activity-icon" />
                     </button>
+                    <button class="activity-item" data-sidebar="links" title="Community Resources">
+                        <img id="links-icon" src="icons/dark/bookmark.svg" alt="Links Icon" class="activity-icon" />
+                    </button>
                     <button class="activity-item" data-sidebar="debug" title="Debug / Install by Package">
                         <img id="debug-icon" src="icons/dark/debug.svg" alt="Debug Icon" class="activity-icon" />
                     </button>
                 </nav>
                 <nav class="activity-bar-footer">
-                    <button class="activity-item" data-sidebar="settings" title="Settings">
+                    <button class="activity-item" id="settings-activity-btn" title="Settings">
                         <img id="settings-icon" src="icons/dark/settings.svg" alt="Settings Icon" class="activity-icon" />
                     </button>
                 </nav>
@@ -51,7 +54,10 @@
                         <h2 class="sidebar-title">INSTALLED</h2>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="tools-search-input" class="search-input" placeholder="Search installed tools..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="tools-search-input" aria-label="Clear installed tools search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="tools-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -94,10 +100,21 @@
                 <div class="sidebar-content" id="sidebar-connections">
                     <div class="sidebar-header">
                         <h2 class="sidebar-title">CONNECTIONS</h2>
-                        <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
+                        <div class="sidebar-header-actions">
+                            <button id="sidebar-add-connection-btn" class="fluent-button fluent-button-primary">+ Add</button>
+                            <button id="sidebar-import-connections-btn" class="sidebar-icon-btn" title="Import connections (PPTB JSON or XrmToolBox XML)" aria-label="Import connections">
+                                <img id="import-icon" width="16" height="16" alt="" aria-hidden="true" />
+                            </button>
+                            <button id="sidebar-export-connections-btn" class="sidebar-icon-btn" title="Export all connections to JSON file" aria-label="Export connections">
+                                <img id="export-icon" width="16" height="16" alt="" aria-hidden="true" />
+                            </button>
+                        </div>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="connections-search-input" class="search-input" placeholder="Search connections..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="connections-search-input" class="search-input" placeholder="Search connections..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="connections-search-input" aria-label="Clear connections search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="connections-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -154,7 +171,10 @@
                         <h2 class="sidebar-title">MARKETPLACE</h2>
                     </div>
                     <div class="sidebar-search-bar">
-                        <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                        <div class="sidebar-search-input-wrapper">
+                            <input type="text" id="marketplace-search-input" class="search-input" placeholder="Search tools..." />
+                            <button type="button" class="search-clear-btn" data-clear-target="marketplace-search-input" aria-label="Clear marketplace search" title="Clear search">&times;</button>
+                        </div>
                         <button class="search-filter-btn" id="marketplace-filter-btn" title="Filters and Sort">
                             <img width="16" height="16" alt="Filter Icon" />
                         </button>
@@ -196,6 +216,16 @@
                         <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
                             <!-- Marketplace tools will be populated here -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- Links Sidebar -->
+                <div class="sidebar-content" id="sidebar-links">
+                    <div class="sidebar-header">
+                        <h2 class="sidebar-title">COMMUNITY RESOURCES</h2>
+                    </div>
+                    <div class="sidebar-body">
+                        <div class="settings-container-sidebar" id="sidebar-important-links-container"></div>
                     </div>
                 </div>
 
@@ -260,148 +290,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Settings Sidebar -->
-                <div class="sidebar-content" id="sidebar-settings">
-                    <div class="sidebar-header">
-                        <h2 class="sidebar-title">SETTINGS</h2>
-                    </div>
-                    <div class="sidebar-body">
-                        <div class="settings-container-sidebar">
-                            <section class="settings-section-card">
-                                <div class="settings-section-header">
-                                    <p class="settings-section-eyebrow">Appearance</p>
-                                    <p class="settings-section-description">Choose how ToolBox matches your OS or lock it to a specific look.</p>
-                                </div>
-                                <div class="settings-section-body">
-                                    <div class="settings-field">
-                                        <label class="setting-label" for="sidebar-theme-select">Theme</label>
-                                        <select id="sidebar-theme-select" class="fluent-select">
-                                            <option value="system">System</option>
-                                            <option value="light">Light</option>
-                                            <option value="dark">Dark</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section class="settings-section-card">
-                                <div class="settings-section-header">
-                                    <p class="settings-section-eyebrow">Behavior</p>
-                                    <p class="settings-section-description">Fine-tune how ToolBox surfaces menus and deprecated tools.</p>
-                                </div>
-                                <div class="settings-section-body">
-                                    <div class="settings-field">
-                                        <div class="settings-field-header">
-                                            <div>
-                                                <label class="setting-label" for="sidebar-show-debug-menu-check">Show Debug Menu</label>
-                                                <span class="setting-hint">Expose the Debug activity to quickly test tools</span>
-                                            </div>
-                                            <div class="setting-checkbox-group">
-                                                <input type="checkbox" id="sidebar-show-debug-menu-check" class="fluent-checkbox" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-field">
-                                        <label class="setting-label" for="sidebar-deprecated-tools-select">Deprecated Tools</label>
-                                        <select id="sidebar-deprecated-tools-select" class="fluent-select">
-                                            <option value="hide-all">Hide from All</option>
-                                            <option value="show-all">Show in All</option>
-                                            <option value="show-installed">Show in Installed Tools Only</option>
-                                            <option value="show-marketplace">Show in Marketplace Only</option>
-                                        </select>
-                                        <span class="setting-hint">Control when deprecated tools appear across the experience.</span>
-                                    </div>
-                                    <div class="settings-field">
-                                        <label class="setting-label" for="sidebar-tool-display-mode-select">Tool Display Mode</label>
-                                        <select id="sidebar-tool-display-mode-select" class="fluent-select">
-                                            <option value="standard">Standard</option>
-                                            <option value="compact">Compact</option>
-                                        </select>
-                                        <span class="setting-hint">Choose how tools are displayed in Installed Tools and Marketplace.</span>
-                                    </div>
-                                    <div class="settings-field">
-                                        <label class="setting-label" for="sidebar-notification-duration-select">Notification Duration</label>
-                                        <select id="sidebar-notification-duration-select" class="fluent-select">
-                                            <option value="3000">3 seconds</option>
-                                            <option value="5000">5 seconds (Default)</option>
-                                            <option value="8000">8 seconds</option>
-                                            <option value="10000">10 seconds</option>
-                                            <option value="15000">15 seconds</option>
-                                            <option value="0">Never (persistent)</option>
-                                        </select>
-                                        <span class="setting-hint">How long toast notifications stay visible before auto-dismissing.</span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section class="settings-section-card">
-                                <div class="settings-section-header">
-                                    <p class="settings-section-eyebrow">Terminal</p>
-                                    <p class="settings-section-description">Pick a monospace font that keeps long log output readable.</p>
-                                </div>
-                                <div class="settings-section-body">
-                                    <div class="settings-field">
-                                        <label class="setting-label" for="sidebar-terminal-font-select">Terminal Font</label>
-                                        <select id="sidebar-terminal-font-select" class="fluent-select">
-                                            <option value="'Consolas', 'Monaco', 'Courier New', monospace">Consolas / Monaco (Default)</option>
-                                            <option value="'MesloLGS NF', 'MesloLGS Nerd Font', 'Menlo', 'DejaVu Sans Mono', 'Consolas', monospace">MesloLGS Nerd Font (Recommended)</option>
-                                            <option value="'FiraCode Nerd Font', 'FiraCode NF', 'Fira Code', 'Consolas', monospace">FiraCode Nerd Font</option>
-                                            <option value="'JetBrainsMono Nerd Font', 'JetBrainsMono NF', 'JetBrains Mono', 'Consolas', monospace">JetBrains Mono Nerd Font</option>
-                                            <option value="'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code', 'Consolas', monospace">CaskaydiaCove Nerd Font (Cascadia)</option>
-                                            <option value="'Hack Nerd Font', 'Hack NF', 'Hack', 'Consolas', monospace">Hack Nerd Font</option>
-                                            <option value="'UbuntuMono Nerd Font', 'UbuntuMono NF', 'Ubuntu Mono', 'Consolas', monospace">Ubuntu Mono Nerd Font</option>
-                                            <option value="'SourceCodePro Nerd Font', 'SauceCodePro NF', 'Source Code Pro', 'Consolas', monospace">Source Code Pro Nerd Font</option>
-                                            <option value="'JetBrains Mono', 'Consolas', monospace">JetBrains Mono</option>
-                                            <option value="'Fira Code', 'Consolas', monospace">Fira Code</option>
-                                            <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code</option>
-                                            <option value="custom">Custom Font...</option>
-                                        </select>
-                                    </div>
-                                    <div id="custom-font-input-container" class="settings-field" style="display: none">
-                                        <label class="setting-label" for="sidebar-terminal-font-custom">Custom Font</label>
-                                        <input type="text" id="sidebar-terminal-font-custom" class="fluent-input" placeholder="e.g., 'My Font', monospace" />
-                                        <span class="setting-hint">Enter font family CSS value (e.g., 'Font Name', 'Fallback', monospace)</span>
-                                    </div>
-                                    <span class="setting-hint settings-inline-hint"
-                                        >Install fonts locally before selecting them. <a href="#" class="font-help-link" id="font-help-link">Need help installing fonts?</a></span
-                                    >
-                                </div>
-                            </section>
-
-                            <section class="settings-section-card">
-                                <div class="settings-section-header">
-                                    <p class="settings-section-eyebrow">Updates</p>
-                                    <p class="settings-section-description">Check for the latest version of Power Platform ToolBox.</p>
-                                </div>
-                                <div class="settings-section-body">
-                                    <div class="settings-field">
-                                        <div class="settings-field-header">
-                                            <div>
-                                                <label class="setting-label" for="sidebar-auto-update-check">Auto Update</label>
-                                                <span class="setting-hint">Automatically check for new builds</span>
-                                            </div>
-                                            <div class="setting-checkbox-group">
-                                                <input type="checkbox" id="sidebar-auto-update-check" class="fluent-checkbox" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="settings-field">
-                                        <button id="sidebar-check-for-updates-btn" class="fluent-button fluent-button-secondary">
-                                            <span id="check-updates-btn-text">Check for Updates</span>
-                                        </button>
-                                        <div id="update-status-message" class="setting-hint" style="display: none; margin-top: 8px"></div>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <div class="settings-actions-row">
-                                <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
-                                <span class="setting-hint">Changes apply instantly after saving.</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </aside>
 
             <!-- Main Content -->
@@ -433,7 +321,7 @@
                             <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
                         </div>
                         <!-- Tool detail tab content panel (rendered inline, shown when a detail tab is active) -->
-                        <div id="tool-detail-content-panel" style="display:none"></div>
+                        <div id="tool-detail-content-panel" style="display: none"></div>
                     </div>
                     <!-- Terminal Panel -->
                     <div class="terminal-panel" id="terminal-panel" style="display: none">
@@ -828,6 +716,10 @@
         <!-- Global Search Command Palette -->
         <div id="global-search-overlay" class="global-search-overlay" style="display: none" role="dialog" aria-modal="true" aria-label="Global Search">
             <div class="global-search-container">
+                <div class="global-search-header">
+                    <p class="global-search-eyebrow">GLOBAL SEARCH</p>
+                    <button class="global-search-close-btn" id="global-search-close-btn" aria-label="Close">&times;</button>
+                </div>
                 <div class="global-search-input-wrapper">
                     <img src="icons/dark/search.svg" alt="" class="global-search-input-icon" id="global-search-input-icon" />
                     <input
@@ -839,7 +731,6 @@
                         spellcheck="false"
                         aria-label="Search tools, connections, and settings"
                     />
-                    <kbd class="global-search-kbd">ESC</kbd>
                 </div>
                 <div class="global-search-results" id="global-search-results" role="listbox">
                     <!-- Results populated dynamically -->
@@ -847,7 +738,6 @@
                 <div class="global-search-footer">
                     <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
                     <span><kbd>↵</kbd> select</span>
-                    <span><kbd>ESC</kbd> close</span>
                 </div>
             </div>
         </div>

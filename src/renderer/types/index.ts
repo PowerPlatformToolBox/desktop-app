@@ -57,6 +57,11 @@ export interface SettingsState {
     toolDisplayMode?: string;
     terminalFont?: string;
     notificationDuration?: number;
+    restoreSessionOnStartup?: boolean;
+    showCategoryColor?: boolean;
+    showEnvironmentColor?: boolean;
+    categoryColorThickness?: number;
+    environmentColorThickness?: number;
 }
 
 /**

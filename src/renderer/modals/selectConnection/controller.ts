@@ -34,6 +34,7 @@ export function getSelectConnectionModalControllerScript(channels: SelectConnect
     const cancelButton = document.getElementById("cancel-select-connection-btn");
     const closeButton = document.getElementById("close-select-connection-modal");
     const searchInput = document.getElementById("select-connection-search");
+    const searchClearButton = document.getElementById("select-connection-search-clear");
     const envFilter = document.getElementById("select-connection-env-filter");
     const authFilter = document.getElementById("select-connection-auth-filter");
     const categoryFilter = document.getElementById("select-connection-category-filter");
@@ -371,12 +372,29 @@ ${sortingUtilities}
         });
     }
 
+    const handleSearchClearClick = () => {
+        if (!(searchInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (!searchInput.value) {
+            searchInput.focus();
+            return;
+        }
+
+        searchInput.value = "";
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+        searchInput.focus();
+    };
+
+    searchClearButton?.addEventListener("click", handleSearchClearClick);
+
     // Setup filter event listeners
-    searchInput?.addEventListener('input', () => renderConnections(allConnections));
-    envFilter?.addEventListener('change', () => renderConnections(allConnections));
-    authFilter?.addEventListener('change', () => renderConnections(allConnections));
-    categoryFilter?.addEventListener('change', () => renderConnections(allConnections));
-    sortSelect?.addEventListener('change', () => {
+    searchInput?.addEventListener("input", () => renderConnections(allConnections));
+    envFilter?.addEventListener("change", () => renderConnections(allConnections));
+    authFilter?.addEventListener("change", () => renderConnections(allConnections));
+    categoryFilter?.addEventListener("change", () => renderConnections(allConnections));
+    sortSelect?.addEventListener("change", () => {
         injectedSortOption = sanitizeSortOption(sortSelect.value);
         renderConnections(allConnections);
     });

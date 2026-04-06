@@ -3,25 +3,14 @@
  * Handles tool library, marketplace UI, and tool installation
  */
 
-import { marked } from "marked";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
+import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml, resolveToolIconUrl } from "../utils/toolIconResolver";
-import { loadSidebarTools } from "./toolsSidebarManagement";
 import { openToolDetailTab } from "./toolManagement";
-import { logInfo, logWarn, logError } from "../../common/logger";
-
-// Disable raw HTML pass-through in markdown rendering to prevent XSS via inline event handlers.
-// marked's html() renderer is invoked for both block HTML (Tokens.HTML) and inline HTML (Tokens.Tag),
-// so escaping here covers all raw HTML in README content.
-marked.use({
-    renderer: {
-        html({ text }: { text: string }): string {
-            return escapeHtml(text);
-        },
-    },
-});
+import { loadSidebarTools } from "./toolsSidebarManagement";
 
 interface InstalledTool {
     id: string;
@@ -598,20 +587,9 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
         const detailPanel = document.getElementById("tool-detail-content-panel");
         if (!detailPanel || detailPanel.getAttribute("data-tab-id") !== tabId) return;
 
-        // Note: marked renders markdown to HTML with raw HTML blocks escaped (see marked.use configuration above).
-        readmeContainer.innerHTML = marked.parse(markdown) as string;
-        // Open all links in the README via the external browser
-        readmeContainer.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
-            a.addEventListener("click", (e) => {
-                e.preventDefault();
-                const href = a.getAttribute("href");
-                if (href && (href.startsWith("https://") || href.startsWith("http://"))) {
-                    window.toolboxAPI.openExternal(href).catch((error) => {
-                        logError("Failed to open README link", error);
-                    });
-                }
-            });
-        });
+        // Render remote markdown safely (raw HTML blocks are escaped in the shared renderer).
+        readmeContainer.innerHTML = renderMarkdownToSafeHtml(markdown);
+        wireExternalLinks(readmeContainer, (href) => window.toolboxAPI.openExternal(href));
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
         // Only write the error message if this tab is still active

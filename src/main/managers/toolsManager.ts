@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import { CspExceptions, Tool, ToolFeatures, ToolManifest, CommunityLinksCollection } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
@@ -281,6 +281,14 @@ export class ToolManager extends EventEmitter {
             };
             return tool;
         });
+    }
+
+    /**
+     * Fetch community resource links from Supabase.
+     * Returns null when Supabase is not configured or the query fails.
+     */
+    async fetchCommunityLinks(): Promise<CommunityLinksCollection | null> {
+        return this.registryManager.fetchCommunityLinks();
     }
 
     /**

@@ -46,12 +46,15 @@ export const CONNECTION_CHANNELS = {
     DELETE_CONNECTION: "delete-connection",
     GET_CONNECTIONS: "get-connections",
     GET_CONNECTION_BY_ID: "get-connection-by-id",
+    GET_CATEGORIES: "get-connection-categories",
     SET_ACTIVE_CONNECTION: "set-active-connection",
     TEST_CONNECTION: "test-connection",
     IS_TOKEN_EXPIRED: "is-connection-token-expired",
     REFRESH_TOKEN: "refresh-connection-token",
     CHECK_BROWSER_INSTALLED: "check-browser-installed",
     GET_BROWSER_PROFILES: "get-browser-profiles",
+    EXPORT_CONNECTIONS: "export-connections",
+    IMPORT_CONNECTIONS: "import-connections",
 } as const;
 
 // Tool-related IPC channels
@@ -69,6 +72,7 @@ export const TOOL_CHANNELS = {
     GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
     OPEN_DIRECTORY_PICKER: "open-directory-picker",
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
+    FETCH_COMMUNITY_LINKS: "fetch-community-links",
     INSTALL_TOOL_FROM_REGISTRY: "install-tool-from-registry",
     CHECK_TOOL_UPDATES: "check-tool-updates",
     UPDATE_TOOL: "update-tool",
@@ -84,6 +88,7 @@ export const TOOL_WINDOW_CHANNELS = {
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
     HIDE_ALL: "tool-window:hide-all",
+    RENDERER_INITIALIZED: "tool-window:renderer-initialized",
 } as const;
 
 // Terminal-related IPC channels
@@ -100,6 +105,7 @@ export const TERMINAL_CHANNELS = {
 // Utility-related IPC channels
 export const UTIL_CHANNELS = {
     SHOW_NOTIFICATION: "show-notification",
+    SHOW_CONTEXT_MENU: "show-context-menu",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     GET_CURRENT_THEME: "get-current-theme",
     SHOW_LOADING: "show-loading",
@@ -116,6 +122,7 @@ export const UTIL_CHANNELS = {
     CHECK_CONNECTIONS: "check-connections",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
+    FETCH_FAVICON: "fetch-favicon",
 } as const;
 
 // Filesystem-related IPC channels
@@ -205,6 +212,7 @@ export const EVENT_CHANNELS = {
     UPDATE_DOWNLOADED: "update-downloaded",
     UPDATE_ERROR: "update-error",
     SHOW_HOME_PAGE: "show-home-page",
+    OPEN_SETTINGS: "open-settings",
     SHOW_DEVICE_CODE_DIALOG: "show-device-code-dialog",
     CLOSE_DEVICE_CODE_DIALOG: "close-device-code-dialog",
     SHOW_AUTH_ERROR_DIALOG: "show-auth-error-dialog",
@@ -217,6 +225,7 @@ export const EVENT_CHANNELS = {
     TOOL_UPDATE_STARTED: "tool:update-started",
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
     PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
+    SHOW_ABOUT: "show-about",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

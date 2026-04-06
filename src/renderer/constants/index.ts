@@ -36,6 +36,7 @@ export const ACTIVITY_BAR_ICONS = [
     { id: "connections-icon", file: "connections.svg" },
     { id: "marketplace-icon", file: "marketplace.svg" },
     { id: "search-icon", file: "search.svg" },
+    { id: "links-icon", file: "bookmark.svg" },
     { id: "debug-icon", file: "debug.svg" },
     { id: "settings-icon", file: "settings.svg" },
 ] as const;
@@ -57,3 +58,13 @@ export const TERMINAL_RESIZE_CONFIG = {
     MIN_HEIGHT: 100,
     MAX_HEIGHT_RATIO: 0.8,
 } as const;
+
+/**
+ * Appearance defaults – color indicator visibility and border thickness
+ */
+export const DEFAULT_SHOW_CATEGORY_COLOR = true;
+export const DEFAULT_SHOW_ENVIRONMENT_COLOR = true;
+export const DEFAULT_CATEGORY_COLOR_THICKNESS = 5;
+export const DEFAULT_ENVIRONMENT_COLOR_THICKNESS = 5;
+export const MIN_COLOR_BORDER_THICKNESS = 1;
+export const MAX_COLOR_BORDER_THICKNESS = 10;

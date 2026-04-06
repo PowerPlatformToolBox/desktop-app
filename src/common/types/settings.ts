@@ -83,8 +83,15 @@ export interface UserSettings {
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
+    pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
+    restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;
     marketplaceSort?: MarketplaceSortOption;
+    // Appearance - color indicators
+    showCategoryColor?: boolean; // Show/hide the category color strip under the tool tab
+    showEnvironmentColor?: boolean; // Show/hide the environment color border around the tool panel
+    categoryColorThickness?: number; // Thickness in pixels of the category color border under the tab
+    environmentColorThickness?: number; // Thickness in pixels of the environment color border around the tool panel
 }

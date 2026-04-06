@@ -19,10 +19,11 @@ contextBridge.exposeInMainWorld("modalBridge", {
     },
 });
 
-// Expose browser detection APIs for connection modals
+// Expose browser detection and category lookup APIs for connection modals
 contextBridge.exposeInMainWorld("toolboxAPI", {
     connections: {
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
+        getCategories: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CATEGORIES),
     },
 });

@@ -3,8 +3,9 @@
  * Handles sidebar switching and activity bar navigation
  */
 
-import { loadSidebarSettings } from "./settingsManagement";
 import { logError } from "../../common/logger";
+import { loadSidebarCommunityResources } from "./communityResourcesSidebarManagement";
+import { loadSettings } from "./settingsManagement";
 
 // Track current sidebar
 let currentSidebarId: string | null = "tools";
@@ -42,7 +43,14 @@ export function switchSidebar(sidebarId: string): void {
 
             // Load settings when re-expanding settings sidebar
             if (sidebarId === "settings") {
-                loadSidebarSettings().catch((err) => {
+                loadSettings().catch((err) => {
+                    logError(err instanceof Error ? err : new Error(String(err)));
+                });
+            }
+
+            // Load links when re-expanding links sidebar
+            if (sidebarId === "links") {
+                loadSidebarCommunityResources().catch((err) => {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
@@ -75,7 +83,14 @@ export function switchSidebar(sidebarId: string): void {
 
     // Load settings when switching to settings sidebar
     if (sidebarId === "settings") {
-        loadSidebarSettings().catch((err) => {
+        loadSettings().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    }
+
+    // Load links when switching to links sidebar
+    if (sidebarId === "links") {
+        loadSidebarCommunityResources().catch((err) => {
             logError(err instanceof Error ? err : new Error(String(err)));
         });
     }

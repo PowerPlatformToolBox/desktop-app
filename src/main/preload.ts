@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         authenticate: (connectionId: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, connectionId),
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
+        exportConnections: (ids?: string[]) => ipcRenderer.invoke(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, ids),
+        importConnections: (data: unknown) => ipcRenderer.invoke(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, data),
     },
 
     // Tools - Only for PPTB UI
@@ -74,6 +76,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Registry-based tools (new primary method)
     fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
+    fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
     updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
@@ -85,7 +88,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
@@ -112,6 +116,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Utils namespace - organized like in the iframe
     utils: {
         showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
+        showContextMenu: (request: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_CONTEXT_MENU, request),
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcRenderer.invoke(UTIL_CHANNELS.GET_CURRENT_THEME),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
@@ -119,7 +124,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);
         },
+        // TODO: Remove showLoading and hideLoading - deprecated
+        /** @deprecated */
         showLoading: (message?: string) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_LOADING, message),
+        /** @deprecated */
         hideLoading: () => ipcRenderer.invoke(UTIL_CHANNELS.HIDE_LOADING),
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
@@ -152,6 +160,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // External URL - Only for PPTB UI
     openExternal: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
+
+    // Favicon proxy - fetches a favicon URL via main process to bypass renderer CSP
+    fetchFavicon: (url: string) => ipcRenderer.invoke(UTIL_CHANNELS.FETCH_FAVICON, url) as Promise<string | null>,
 
     // Terminal namespace - organized like in the iframe
     terminal: {
@@ -205,6 +216,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_HOME_PAGE, callback);
     },
 
+    // Settings tab - Only for PPTB UI
+    onOpenSettings: (callback: () => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.OPEN_SETTINGS, callback);
+    },
+
     // Authentication dialogs - Only for PPTB UI
     onShowDeviceCodeDialog: (callback: (message: string) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_DEVICE_CODE_DIALOG, (_, message) => callback(message));
@@ -232,6 +248,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Protocol deep link events
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
+    },
+
+    // About dialog event
+    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));
     },
 
     // Dataverse API - Can be called by tools via message routing

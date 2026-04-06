@@ -3,12 +3,15 @@
  * Handles connection UI, CRUD operations, and authentication
  */
 
+import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
 import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
 import { getEditConnectionModalControllerScript } from "../modals/editConnection/controller";
 import { getEditConnectionModalView } from "../modals/editConnection/view";
+import { getImportConnectionSourceModalControllerScript } from "../modals/importConnectionSource/controller";
+import { getImportConnectionSourceModalView } from "../modals/importConnectionSource/view";
 import { getSelectConnectionModalControllerScript } from "../modals/selectConnection/controller";
 import { getSelectConnectionModalView } from "../modals/selectConnection/view";
 import { getSelectMultiConnectionModalControllerScript } from "../modals/selectMultiConnection/controller";
@@ -22,7 +25,6 @@ import {
     sendBrowserWindowModalMessage,
     showBrowserWindowModal,
 } from "./browserWindowModals";
-import { logInfo, logWarn, logError, logDebug } from "../../common/logger";
 
 type ConnectionEnvironment = "Dev" | "Test" | "UAT" | "Production";
 type ConnectionAuthenticationType = "interactive" | "clientSecret" | "usernamePassword" | "connectionString";
@@ -121,10 +123,20 @@ const SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS = {
     height: 700,
 };
 
+const IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS = {
+    select: "import-connection-source:select",
+} as const;
+
+const IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS = {
+    width: 520,
+    height: 600,
+};
+
 let addConnectionModalHandlersRegistered = false;
 let editConnectionModalHandlersRegistered = false;
 let selectConnectionModalHandlersRegistered = false;
 let selectMultiConnectionModalHandlersRegistered = false;
+let importConnectionSourceModalHandlersRegistered = false;
 
 // Store promise handlers for select connection modal - now returns connectionId
 const selectConnectionModalPromiseHandlers: {
@@ -144,8 +156,20 @@ const selectMultiConnectionModalPromiseHandlers: {
     reject: null,
 };
 
+// Store promise handlers for import connection source modal
+const importConnectionSourceModalPromiseHandlers: {
+    resolve: ((value: "xtb" | "pptb" | null) => void) | null;
+    reject: ((error: Error) => void) | null;
+} = {
+    resolve: null,
+    reject: null,
+};
+
 // Store the connection ID to highlight in the modal (for tool-specific connection selection)
 let highlightConnectionId: string | null = null;
+
+// Store the name of the tool requesting a connection (shown in the modal header)
+let requestingToolName: string | undefined = undefined;
 
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
@@ -250,13 +274,17 @@ export function initializeSelectConnectionModalBridge(): void {
  * Open the select connection modal
  * Returns a promise that resolves with the selected connectionId when a connection is selected and connected, or rejects if cancelled
  * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
+ * @param toolName - Optional name of the tool requesting the connection (shown in modal header)
  */
-export async function openSelectConnectionModal(toolConnectionId?: string | null): Promise<string> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null, toolName?: string): Promise<string> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
 
         // Store the tool connection ID to highlight in the modal
         highlightConnectionId = toolConnectionId || null;
+
+        // Store the tool name to display in the modal header
+        requestingToolName = toolName;
 
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -270,6 +298,7 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
                 selectConnectionModalPromiseHandlers.resolve = null;
                 selectConnectionModalPromiseHandlers.reject = null;
                 highlightConnectionId = null; // Clear highlight
+                requestingToolName = undefined; // Clear tool name
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -305,7 +334,7 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
 
 function buildSelectConnectionModalHtml(): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectConnectionModalView(isDarkTheme);
+    const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName);
     const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -338,6 +367,7 @@ async function handleSelectConnectionRequest(data?: { connectionId?: string }): 
 
         // Clear highlight connection ID
         highlightConnectionId = null;
+        requestingToolName = undefined;
 
         // Close the modal
         await closeBrowserWindowModal();
@@ -373,7 +403,9 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -429,10 +461,14 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * Open the select multi-connection modal for tools that require two connections
  * Returns a promise that resolves with both connection IDs, or rejects if cancelled
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
+ * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
  */
-export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
+export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true, toolName?: string): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
+
+        // Store the tool name to display in the modal header
+        requestingToolName = toolName;
 
         // Store resolve/reject handlers for later use
         selectMultiConnectionModalPromiseHandlers.resolve = resolve;
@@ -445,6 +481,7 @@ export async function openSelectMultiConnectionModal(isSecondaryRequired: boolea
                 selectMultiConnectionModalPromiseHandlers.reject(new Error("Multi-connection selection cancelled"));
                 selectMultiConnectionModalPromiseHandlers.resolve = null;
                 selectMultiConnectionModalPromiseHandlers.reject = null;
+                requestingToolName = undefined; // Clear tool name
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -480,7 +517,7 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
 
 function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired);
+    const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
     const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired);
     return `${styles}\n${body}\n${script}`.trim();
 }
@@ -524,6 +561,7 @@ async function handleSelectMultiConnectionsRequest(data?: SelectMultiConnectionP
             const resolveHandler = selectMultiConnectionModalPromiseHandlers.resolve;
             selectMultiConnectionModalPromiseHandlers.resolve = null;
             selectMultiConnectionModalPromiseHandlers.reject = null;
+            requestingToolName = undefined; // Clear tool name
 
             // Close the modal
             await closeBrowserWindowModal();
@@ -570,7 +608,9 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
     try {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
-        const sortedConnections = sortConnections(connections, sortOption);
+        // Exclude connections with incomplete credentials from selection
+        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
         await sendBrowserWindowModalMessage({
@@ -606,6 +646,77 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
 
 async function signalSelectMultiConnectionReady(): Promise<void> {
     await sendBrowserWindowModalMessage({ channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.connectReady });
+}
+
+/**
+ * Initialize import connection source modal bridge
+ */
+function initializeImportConnectionSourceModalBridge(): void {
+    if (importConnectionSourceModalHandlersRegistered) return;
+    onBrowserWindowModalMessage(handleImportConnectionSourceModalMessage);
+    importConnectionSourceModalHandlersRegistered = true;
+}
+
+/**
+ * Open the import connection source selection modal.
+ * Returns a promise that resolves with "xtb" or "pptb" when a source is chosen, or null if cancelled.
+ */
+function openImportConnectionSourceModal(): Promise<"xtb" | "pptb" | null> {
+    return new Promise((resolve) => {
+        initializeImportConnectionSourceModalBridge();
+
+        importConnectionSourceModalPromiseHandlers.resolve = resolve;
+        importConnectionSourceModalPromiseHandlers.reject = null;
+
+        const modalClosedHandler = (payload: ModalWindowClosedPayload) => {
+            if (payload?.id === "import-connection-source-browser-modal") {
+                offBrowserWindowModalClosed(modalClosedHandler);
+                if (importConnectionSourceModalPromiseHandlers.resolve) {
+                    importConnectionSourceModalPromiseHandlers.resolve(null);
+                    importConnectionSourceModalPromiseHandlers.resolve = null;
+                }
+            }
+        };
+
+        onBrowserWindowModalClosed(modalClosedHandler);
+
+        void showBrowserWindowModal({
+            id: "import-connection-source-browser-modal",
+            html: buildImportConnectionSourceModalHtml(),
+            width: IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS.width,
+            height: IMPORT_CONNECTION_SOURCE_MODAL_DIMENSIONS.height,
+        });
+    });
+}
+
+function buildImportConnectionSourceModalHtml(): string {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const themeClass = isDarkTheme ? "dark-theme" : "light-theme";
+    const { styles, body } = getImportConnectionSourceModalView(isDarkTheme);
+    const script = getImportConnectionSourceModalControllerScript(IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS);
+    const bodyWithTheme = body.replace("<body>", `<body class="${themeClass}">`);
+    return `${styles}\n${bodyWithTheme}\n${script}`.trim();
+}
+
+function handleImportConnectionSourceModalMessage(payload: ModalWindowMessagePayload): void {
+    if (!payload || typeof payload !== "object" || typeof payload.channel !== "string") {
+        return;
+    }
+
+    if (payload.channel === IMPORT_CONNECTION_SOURCE_MODAL_CHANNELS.select) {
+        const data = payload.data as { source?: string } | undefined;
+        const source = data?.source === "xtb" ? "xtb" : data?.source === "pptb" ? "pptb" : null;
+
+        const resolveHandler = importConnectionSourceModalPromiseHandlers.resolve;
+        importConnectionSourceModalPromiseHandlers.resolve = null;
+        importConnectionSourceModalPromiseHandlers.reject = null;
+
+        void closeBrowserWindowModal().then(() => {
+            if (resolveHandler) {
+                resolveHandler(source);
+            }
+        });
+    }
 }
 
 /**
@@ -1088,6 +1199,296 @@ export async function deleteConnection(id: string): Promise<void> {
     }
 }
 
+/**
+ * Export connections to a JSON file.
+ * @param ids Optional array of connection IDs to export. If omitted, all connections are exported.
+ */
+export async function exportConnections(ids?: string[]): Promise<void> {
+    try {
+        const exportData = await window.toolboxAPI.connections.exportConnections(ids);
+
+        if (exportData.connections.length === 0) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Nothing to Export",
+                body: "No connections found to export.",
+                type: "info",
+            });
+            return;
+        }
+
+        const json = JSON.stringify(exportData, null, 2);
+        const defaultFileName = `pptb-connections-${new Date().toISOString().split("T")[0]}.json`;
+
+        const savedPath = await window.toolboxAPI.fileSystem.saveFile(defaultFileName, json, [{ name: "JSON Files", extensions: ["json"] }]);
+
+        if (savedPath) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Export Successful",
+                body: `Exported ${exportData.connections.length} connection(s) to file.`,
+                type: "success",
+            });
+        }
+    } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logError(err);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Export Failed",
+            body: err.message,
+            type: "error",
+        });
+    }
+}
+
+/**
+ * Parse an XrmToolBox connections XML file and convert it to the PPTB import payload format.
+ * @param xmlContent Raw XML string from the XrmToolBox ConnectionsList file.
+ * @returns A PPTB-compatible import payload ready to pass to `importConnections`.
+ */
+function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+
+    // Check for XML parse errors
+    const parseError = xmlDoc.querySelector("parsererror");
+    if (parseError) {
+        throw new Error("Invalid XML: the selected file could not be parsed as valid XML.");
+    }
+
+    // Validate root element
+    const root = xmlDoc.documentElement;
+    if (root.tagName !== "CrmConnections") {
+        throw new Error("The selected XML file is not a valid XrmToolBox connection file. Expected a <CrmConnections> root element.");
+    }
+
+    const connectionNodes = Array.from(xmlDoc.querySelectorAll("ConnectionDetail"));
+    if (connectionNodes.length === 0) {
+        throw new Error("No connections found in the XrmToolBox connection file.");
+    }
+
+    const now = new Date().toISOString();
+    const connections: Partial<DataverseConnection>[] = [];
+
+    for (const node of connectionNodes) {
+        const getText = (tagName: string, parent: Element = node): string => parent.querySelector(tagName)?.textContent?.trim() ?? "";
+
+        // Prefer WebApplicationUrl, fall back to OriginalUrl – strip trailing slash
+        const url = getText("WebApplicationUrl").replace(/\/$/, "") || getText("OriginalUrl").replace(/\/$/, "");
+        if (!url) {
+            logWarn("[importConnections] Skipping XTB connection with no URL", { name: getText("ConnectionName") });
+            continue;
+        }
+
+        // Map XTB NewAuthType → PPTB authenticationType
+        const newAuthType = getText("NewAuthType").toLowerCase();
+        let authenticationType: ConnectionAuthenticationType;
+        switch (newAuthType) {
+            case "clientsecret":
+                authenticationType = "clientSecret";
+                break;
+            case "ifd":
+                authenticationType = "usernamePassword";
+                break;
+            case "certificate":
+            case "managedidentity":
+                // These auth types are not supported in PPTB; log a warning here and skip this connection
+                logWarn("[importConnections] Skipping unsupported XTB auth type", { authType: newAuthType, name: getText("ConnectionName") });
+                continue;
+            case "ad":
+            case "office365":
+            case "onlinefederation":
+            case "oauth":
+            default:
+                authenticationType = "interactive";
+                break;
+        }
+
+        // Map environment from EnvironmentHighlightingInfo > Text
+        const envInfoEl = node.querySelector("EnvironmentHighlightingInfo");
+        const envText = envInfoEl ? getText("Text", envInfoEl).toUpperCase() : "";
+        let environment: ConnectionEnvironment = "Dev";
+        if (envText === "PROD" || envText === "PRODUCTION" || envText === "P") {
+            environment = "Production";
+        } else if (envText === "UAT" || envText === "STAGING" || envText === "SIT" || envText === "STAGE") {
+            environment = "UAT";
+        } else if (envText === "TEST" || envText === "TST" || envText === "T") {
+            environment = "Test";
+        }
+
+        const conn: Partial<DataverseConnection> = {
+            name: getText("ConnectionName"),
+            url,
+            environment,
+            authenticationType,
+            createdAt: now,
+        };
+
+        // Optional fields
+        const tenantId = getText("TenantId");
+        if (tenantId) {
+            conn.tenantId = tenantId;
+        }
+
+        const azureAdAppId = getText("AzureAdAppId");
+        if (azureAdAppId) {
+            conn.clientId = azureAdAppId;
+        }
+
+        const username = getText("UserName");
+        if (username) {
+            conn.username = username;
+        }
+
+        // Map environment color from EnvironmentHighlightingInfo > Color
+        const envColor = envInfoEl ? getText("Color", envInfoEl) : "";
+        if (envColor) {
+            conn.environmentColor = envColor;
+        }
+
+        const lastUsedRaw = getText("LastUsedOn");
+        if (lastUsedRaw) {
+            const lastUsedDate = new Date(lastUsedRaw);
+            if (!isNaN(lastUsedDate.getTime())) {
+                conn.lastUsedAt = lastUsedDate.toISOString();
+            }
+        }
+
+        connections.push(conn);
+    }
+
+    return { version: 1, exportedAt: now, connections };
+}
+
+/**
+ * Import connections from a file selected by the user.
+ * Shows a source selection modal first, then opens a file picker filtered to the chosen format.
+ * Supports XrmToolBox XML connection files and PPTB JSON export files.
+ */
+export async function importConnections(): Promise<void> {
+    try {
+        // Show source selection modal to let user pick XTB or PPTB
+        const source = await openImportConnectionSourceModal();
+        if (!source) {
+            return; // User cancelled
+        }
+
+        const isXml = source === "xtb";
+
+        // Ask user to select a file – filter by source format
+        const filePath = await window.toolboxAPI.fileSystem.selectPath({
+            type: "file",
+            filters: isXml ? [{ name: "XrmToolBox Connection Files", extensions: ["xml"] }] : [{ name: "PPTB Connection Files", extensions: ["json"] }],
+        });
+
+        if (!filePath) {
+            return; // User cancelled file picker
+        }
+
+        // Read the file content
+        let fileContent: string;
+        try {
+            fileContent = await window.toolboxAPI.fileSystem.readText(filePath);
+        } catch {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: "Could not read the selected file.",
+                type: "error",
+            });
+            return;
+        }
+
+        let parsedData: unknown;
+        if (isXml) {
+            // Parse XrmToolBox XML and convert to PPTB import payload
+            try {
+                parsedData = parseXtbXmlToImportPayload(fileContent);
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: err.message,
+                    type: "error",
+                });
+                return;
+            }
+        } else {
+            // Parse PPTB JSON
+            try {
+                parsedData = JSON.parse(fileContent);
+            } catch {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "Import Failed",
+                    body: "The selected file is not valid JSON.",
+                    type: "error",
+                });
+                return;
+            }
+        }
+
+        // Perform the import (validation and persistence happen in the main process)
+        let result: { imported: number; skipped: number; warnings: string[] };
+        try {
+            result = await window.toolboxAPI.connections.importConnections(parsedData);
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            await window.toolboxAPI.utils.showNotification({
+                title: "Import Failed",
+                body: err.message.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, ""),
+                type: "error",
+            });
+            return;
+        }
+
+        // Reload connections list
+        await loadSidebarConnections();
+
+        // Show result notification
+        const hasWarnings = result.warnings.length > 0;
+        let body = `Imported ${result.imported} connection(s).`;
+        if (result.skipped > 0) {
+            body += ` Skipped ${result.skipped} invalid entry/entries.`;
+        }
+        if (hasWarnings) {
+            body += " Some connections are missing credentials (shown with ⚠).";
+        }
+
+        await window.toolboxAPI.utils.showNotification({
+            title: result.imported > 0 ? "Import Successful" : "Import Completed",
+            body,
+            type: hasWarnings ? "warning" : "success",
+        });
+    } catch (error) {
+        logError(error instanceof Error ? error : new Error(String(error)));
+        await window.toolboxAPI.utils.showNotification({
+            title: "Import Failed",
+            body: (error as Error).message,
+            type: "error",
+        });
+    }
+}
+
+/**
+ * Hostname pattern for valid Dataverse environments.
+ * Matches: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * The org-name segment follows RFC 1123 (starts and ends with alphanumeric, hyphens allowed in the middle).
+ * \d* is intentionally lenient to accommodate current and future Microsoft region codes (crm, crm4, crm9, crm11, etc.).
+ * End-anchored and case-insensitive; applied against the parsed hostname only.
+ */
+const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)$/i;
+
+/**
+ * Validates that a URL string points to a Dataverse environment hostname.
+ * Accepted domains: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * Validation is performed against the parsed hostname only (not the path/query) and is case-insensitive.
+ */
+function isValidDataverseUrl(rawUrl: string): boolean {
+    try {
+        const { hostname } = new URL(rawUrl);
+        return DATAVERSE_HOST_PATTERN.test(hostname);
+    } catch {
+        return false;
+    }
+}
+
 function validateConnectionPayload(formPayload: ConnectionFormPayload | undefined, mode: "add" | "edit" | "test"): string | null {
     if (!formPayload) {
         return "Connection form data is unavailable.";
@@ -1108,10 +1509,9 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
             return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
         }
 
-        // Validate URL format
-        const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
-        if (!dynamicsUrlPattern.test(parsed.url)) {
-            return "Connection string URL must contain .crm*.dynamics pattern (e.g., https://orgname.crm.dynamics.com).";
+        // Validate URL format (commercial, GCC High, and DoD environments)
+        if (!isValidDataverseUrl(parsed.url)) {
+            return "Connection string URL must contain a valid Dataverse domain (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
         }
 
         // Connection name is still required for add/edit modes even with connection string
@@ -1127,11 +1527,10 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         return "Please provide an environment URL.";
     }
 
-    // Validate URL format matches Dynamics 365/Dataverse pattern
+    // Validate URL format matches Dynamics 365/Dataverse pattern (commercial, GCC High, and DoD environments)
     const url = sanitizeInput(formPayload.url);
-    const dynamicsUrlPattern = /\.crm\d*\.dynamics/;
-    if (!dynamicsUrlPattern.test(url)) {
-        return "Please provide a valid Dynamics 365/Dataverse URL (must contain .crm*.dynamics pattern, e.g., https://orgname.crm.dynamics.com).";
+    if (!isValidDataverseUrl(url)) {
+        return "Please provide a valid Dynamics 365/Dataverse URL (e.g., https://orgname.crm.dynamics.com or https://orgname.crm.microsoftdynamics.us).";
     }
 
     if ((mode === "add" || mode === "edit") && !sanitizeInput(formPayload.name)) {
@@ -1392,6 +1791,7 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const editIconPath = isDarkTheme ? "icons/dark/edit.svg" : "icons/light/edit.svg";
     const deleteIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
 
     const menu = document.createElement("div");
     menu.className = "context-menu";
@@ -1402,6 +1802,10 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
         <div class="context-menu-item" data-menu-action="edit">
             <img src="${editIconPath}" class="context-menu-icon" alt="" />
             <span>Edit Connection</span>
+        </div>
+        <div class="context-menu-item" data-menu-action="export">
+            <img src="${exportIconPath}" class="context-menu-icon" alt="" />
+            <span>Export Connection</span>
         </div>
         <div class="context-menu-item context-menu-item-danger" data-menu-action="delete">
             <img src="${deleteIconPath}" class="context-menu-icon" alt="" />
@@ -1448,6 +1852,8 @@ function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElemen
 
             if (action === "edit") {
                 await editConnection(conn.id);
+            } else if (action === "export") {
+                await exportConnections([conn.id]);
             } else if (action === "delete") {
                 if (confirm(`Are you sure you want to delete the connection "${conn.name}"?`)) {
                     await window.toolboxAPI.connections.delete(conn.id);
@@ -1617,8 +2023,11 @@ export async function loadSidebarConnections(): Promise<void> {
             const envBadgeMarkup = getEnvBadgeMarkup(conn);
             const safeName = escapeHtml(conn.name || "");
             const safeUrl = escapeHtml(conn.url || "");
+            const warningBadge = conn.hasIncompleteCredentials
+                ? `<span class="connection-warning-badge" title="Missing credentials – this connection cannot be used until credentials are added">⚠ Incomplete</span>`
+                : "";
             return `
-                <div class="connection-item-pptb">
+                <div class="connection-item-pptb${conn.hasIncompleteCredentials ? " connection-item-incomplete" : ""}">
                     <div class="connection-item-header-pptb">
                         <div class="connection-item-header-left-pptb">
                             <div class="connection-item-info-pptb">
@@ -1636,6 +2045,7 @@ export async function loadSidebarConnections(): Promise<void> {
                         <div class="connection-item-meta-left">
                             ${envBadgeMarkup}
                             <span class="auth-type-badge">${formatAuthType(conn.authenticationType)}</span>
+                            ${warningBadge}
                         </div>
                         <div class="connection-item-meta-left">
                             ${browserBadgeMarkup}
@@ -1648,18 +2058,30 @@ export async function loadSidebarConnections(): Promise<void> {
         const useGroups = groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== "");
 
         if (useGroups) {
+            const isDarkTheme = document.body.classList.contains("dark-theme");
+            const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
             connectionsList.innerHTML = groupKeys
                 .map((groupKey) => {
                     const groupConns = groupMap.get(groupKey)!;
                     const displayKey = groupKey === "" ? "Default" : groupKey;
                     const escapedKey = escapeHtml(displayKey);
+                    const catColor = groupKey !== "" ? groupConns.find((c: DataverseConnection) => c.categoryColor)?.categoryColor || "" : "";
+                    const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
+                    const colorSwatchHtml =
+                        groupKey !== ""
+                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(groupKey)}" title="Change category color" />`
+                            : "";
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
                     <div class="connection-group" data-category="${escapedKey}">
                         <div class="connection-group-header" data-category="${escapedKey}" role="button" tabindex="0" aria-expanded="true">
                             <span class="connection-group-title">${escapedKey}</span>
+                            ${colorSwatchHtml}
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
+                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                                <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
+                            </button>
                         </div>
                         <div class="connection-group-items" data-category="${escapedKey}">
                             ${items}
@@ -1686,10 +2108,53 @@ export async function loadSidebarConnections(): Promise<void> {
             });
         });
 
+        // Add event listeners for category export buttons
+        connectionsList.querySelectorAll(".connection-group-export-btn").forEach((button) => {
+            button.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLButtonElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                // categoryKey is the raw key (empty string for Default)
+                const categoryConns = groupMap.get(categoryKey ?? "");
+                if (!categoryConns || categoryConns.length === 0) return;
+                const ids = categoryConns.map((c: DataverseConnection) => c.id);
+                await exportConnections(ids);
+            });
+        });
+
+        // Add event listeners for category color pickers (named categories only)
+        connectionsList.querySelectorAll(".connection-group-color-picker").forEach((picker) => {
+            // Prevent click on the color swatch from toggling the group collapse
+            picker.addEventListener("click", (e: Event) => {
+                e.stopPropagation();
+            });
+            picker.addEventListener("change", async (e: Event) => {
+                e.stopPropagation();
+                const target = e.target as HTMLInputElement;
+                const categoryKey = target.getAttribute("data-category-key");
+                const newColor = target.value;
+                if (!categoryKey || !newColor || !/^#[0-9A-Fa-f]{6}$/.test(newColor)) return;
+                try {
+                    const allConns = await window.toolboxAPI.connections.getAll();
+                    await Promise.all(
+                        allConns
+                            .filter((c: DataverseConnection) => (c.category || "") === categoryKey)
+                            .map((c: DataverseConnection) => window.toolboxAPI.connections.update(c.id, { categoryColor: newColor })),
+                    );
+                    await loadConnections();
+                } catch (err) {
+                    logError("Failed to update category color", { err });
+                }
+            });
+        });
+
         // Setup group header collapse toggle
         connectionsList.querySelectorAll(".connection-group-header").forEach((header) => {
             const headerEl = header as HTMLElement;
-            const toggleGroup = () => {
+            const toggleGroup = (event?: Event) => {
+                // Don't toggle if the click originated from the export button or color picker
+                if (event && (event.target as HTMLElement).closest(".connection-group-export-btn")) return;
+                if (event && (event.target as HTMLElement).closest(".connection-group-color-picker")) return;
                 const group = headerEl.closest(".connection-group");
                 const items = group?.querySelector(".connection-group-items");
                 if (!items) return;

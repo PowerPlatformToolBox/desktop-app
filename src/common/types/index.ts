@@ -26,3 +26,6 @@ export * from "./dataverse";
 
 // API types (for renderer process)
 export * from "./api";
+
+// Community Links / Community Resources types
+export * from "./communityLinks";

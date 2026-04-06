@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
 import * as http from "http";
@@ -16,6 +16,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -24,9 +25,9 @@ import {
     MetadataOperationOptions,
     ModalWindowMessagePayload,
     ModalWindowOptions,
+    NativeContextMenuRequest,
     ToolBoxEvent,
 } from "../common/types";
-import { logInfo, logWarn, logError, logCheckpoint } from "../common/logger";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
 import { BrowserManager } from "./managers/browserManager";
@@ -48,6 +49,16 @@ import { VersionManager } from "./managers/versionManager";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
+
+// Favicon proxy allowlist: only fetch favicons from these known provider domains and their redirect targets.
+const FAVICON_ALLOWED_HOSTS = new Set<string>(["www.google.com"]);
+const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
+const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
+
+const isFaviconAllowedHost = (hostname: string): boolean => {
+    if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
+    return FAVICON_ALLOWED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+};
 
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
@@ -195,6 +206,9 @@ class ToolBoxApp {
         });
 
         this.autoUpdateManager.on("update-downloaded", (info) => {
+            // Record that an auto-update is pending installation so we can auto-open
+            // the What's New tab after the next restart into the new version.
+            this.settingsManager.setSetting("pendingWhatsNewVersion", info.version);
             this.api.showNotification({
                 title: "Update Ready",
                 body: `Version ${info.version} has been downloaded and will be installed on restart.`,
@@ -233,12 +247,15 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.DELETE_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTIONS);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.GET_CATEGORIES);
         ipcMain.removeHandler(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.TEST_CONNECTION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IS_TOKEN_EXPIRED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
         ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.EXPORT_CONNECTIONS);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.IMPORT_CONNECTIONS);
 
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
@@ -247,6 +264,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
+        ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.IS_TOOL_UPDATING);
@@ -292,6 +310,7 @@ class ToolBoxApp {
 
         // Notification and utility handlers
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_NOTIFICATION);
+        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_CONTEXT_MENU);
         ipcMain.removeHandler(UTIL_CHANNELS.SHOW_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
@@ -300,6 +319,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
+        ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
 
         // Filesystem handlers
@@ -444,6 +464,19 @@ class ToolBoxApp {
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_CONNECTION_BY_ID, (event, connectionId: string) => {
             return this.connectionsManager.getConnectionById(connectionId);
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.GET_CATEGORIES, () => {
+            const connections = this.connectionsManager.getConnections();
+            const categoryMap = new Map<string, string | undefined>();
+            for (const conn of connections) {
+                if (conn.category && !categoryMap.has(conn.category)) {
+                    categoryMap.set(conn.category, conn.categoryColor);
+                }
+            }
+            return Array.from(categoryMap.entries())
+                .map(([name, color]) => ({ name, color }))
+                .sort((a, b) => a.name.localeCompare(b.name));
         });
 
         ipcMain.handle(CONNECTION_CHANNELS.SET_ACTIVE_CONNECTION, async (_, id) => {
@@ -695,6 +728,16 @@ class ToolBoxApp {
             return this.browserManager.getBrowserProfiles(browserType);
         });
 
+        // Export connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.EXPORT_CONNECTIONS, (_, ids?: string[]) => {
+            return this.connectionsManager.exportConnections(ids);
+        });
+
+        // Import connections handler
+        ipcMain.handle(CONNECTION_CHANNELS.IMPORT_CONNECTIONS, (_, data: unknown) => {
+            return this.connectionsManager.importConnections(data);
+        });
+
         // Tool handlers
         ipcMain.handle(TOOL_CHANNELS.GET_ALL_TOOLS, () => {
             return this.toolManager.getAllTools();
@@ -723,6 +766,11 @@ class ToolBoxApp {
         // Fetch available tools from registry
         ipcMain.handle(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS, async () => {
             return await this.toolManager.fetchAvailableTools();
+        });
+
+        // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
+        ipcMain.handle(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS, async () => {
+            return await this.toolManager.fetchCommunityLinks();
         });
 
         // Check for tool updates
@@ -899,6 +947,44 @@ class ToolBoxApp {
             this.api.showNotification(options);
         });
 
+        ipcMain.handle(UTIL_CHANNELS.SHOW_CONTEXT_MENU, async (event, request: NativeContextMenuRequest) => {
+            const window = BrowserWindow.fromWebContents(event.sender) || this.mainWindow;
+            if (!window || !request || !Array.isArray(request.items) || request.items.length === 0) {
+                return null;
+            }
+
+            return await new Promise<string | null>((resolve) => {
+                let settled = false;
+                const settle = (value: string | null) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    resolve(value);
+                };
+
+                const template: MenuItemConstructorOptions[] = request.items.map((item) => {
+                    if (item.type === "separator") {
+                        return { type: "separator" };
+                    }
+
+                    return {
+                        label: item.label || "",
+                        enabled: item.enabled !== false,
+                        click: () => settle(item.id),
+                    };
+                });
+
+                const menu = Menu.buildFromTemplate(template);
+                const popupOptions: Electron.PopupOptions = {
+                    window,
+                    callback: () => settle(null),
+                };
+
+                menu.popup(popupOptions);
+            });
+        });
+
         // BrowserWindow modal handlers
         ipcMain.handle(UTIL_CHANNELS.SHOW_MODAL_WINDOW, (_, options: ModalWindowOptions) => {
             this.modalWindowManager?.showModal(options);
@@ -995,9 +1081,130 @@ class ToolBoxApp {
             return this.api.getEventHistory(limit);
         });
 
+        // Favicon proxy: fetch a favicon URL server-side and return a base64 data URI.
+        // Follows up to 5 https: redirects (Google favicon service uses a 302 to gstatic.com).
+        // This bypasses renderer CSP restrictions on external image sources.
+        // Only requests to the known favicon provider domains (and their redirect targets) are allowed.
+        ipcMain.handle(UTIL_CHANNELS.FETCH_FAVICON, async (_, url: unknown): Promise<string | null> => {
+            if (typeof url !== "string") {
+                logWarn("[Favicon] Rejected: url is not a string");
+                return null;
+            }
+
+            const fetchWithRedirects = async (targetUrl: string, hopsLeft: number): Promise<string | null> => {
+                let parsedUrl: URL;
+                try {
+                    parsedUrl = new URL(targetUrl);
+                } catch (e) {
+                    logWarn(`[Favicon] Rejected: invalid URL — ${(e as Error).message}`);
+                    return null;
+                }
+
+                if (parsedUrl.protocol !== "https:") {
+                    logWarn(`[Favicon] Rejected: non-https URL protocol "${parsedUrl.protocol}"`);
+                    return null;
+                }
+
+                if (!isFaviconAllowedHost(parsedUrl.hostname)) {
+                    logWarn("[Favicon] Rejected: hostname not in favicon provider allowlist");
+                    return null;
+                }
+
+                const https = await import("https");
+                return new Promise<string | null>((resolve) => {
+                    const req = https.get(parsedUrl.toString(), { timeout: 5000 }, (res) => {
+                        const status = res.statusCode ?? 0;
+                        const contentType = res.headers["content-type"] ?? "image/png";
+
+                        // Follow redirects
+                        if ((status === 301 || status === 302 || status === 303 || status === 307 || status === 308) && res.headers["location"]) {
+                            res.resume();
+                            if (hopsLeft <= 0) {
+                                logWarn("[Favicon] Too many redirects, giving up");
+                                resolve(null);
+                                return;
+                            }
+                            const next = new URL(res.headers["location"], parsedUrl).toString();
+                            resolve(fetchWithRedirects(next, hopsLeft - 1));
+                            return;
+                        }
+
+                        if (status !== 200) {
+                            logWarn(`[Favicon] Non-200 status ${status}`);
+                            res.resume();
+                            resolve(null);
+                            return;
+                        }
+
+                        const chunks: Buffer[] = [];
+                        let totalBytes = 0;
+                        let limitExceeded = false;
+                        res.on("data", (chunk: Buffer) => {
+                            if (limitExceeded) return;
+                            totalBytes += chunk.length;
+                            if (totalBytes > FAVICON_MAX_BYTES) {
+                                limitExceeded = true;
+                                logWarn(`[Favicon] Response exceeded max size (${FAVICON_MAX_BYTES} bytes), aborting`);
+                                req.destroy();
+                                resolve(null);
+                                return;
+                            }
+                            chunks.push(chunk);
+                        });
+                        res.on("end", () => {
+                            if (limitExceeded) return;
+                            const buffer = Buffer.concat(chunks);
+                            const mimeType = contentType.split(";")[0].trim() || "image/png";
+                            resolve(`data:${mimeType};base64,${buffer.toString("base64")}`);
+                        });
+                        res.on("error", (e) => {
+                            logWarn(`[Favicon] Response stream error: ${e.message}`);
+                            resolve(null);
+                        });
+                    });
+
+                    req.on("error", (e) => {
+                        logWarn(`[Favicon] Request error: ${e.message}`);
+                        resolve(null);
+                    });
+                    req.on("timeout", () => {
+                        logWarn("[Favicon] Request timed out");
+                        req.destroy();
+                        resolve(null);
+                    });
+                });
+            };
+
+            try {
+                return await fetchWithRedirects(url, 5);
+            } catch (e) {
+                logError(e instanceof Error ? e : new Error(`[Favicon] Unexpected error: ${String(e)}`));
+                return null;
+            }
+        });
+
         // Open external URL handler
-        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url) => {
-            await shell.openExternal(url);
+        ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url: unknown) => {
+            if (typeof url !== "string") {
+                logWarn("Blocked openExternal call with non-string url", { urlType: typeof url });
+                return;
+            }
+
+            let parsedUrl: URL;
+            try {
+                parsedUrl = new URL(url);
+            } catch {
+                logWarn("Blocked openExternal call with invalid url", { url });
+                return;
+            }
+
+            const allowedProtocols = new Set<string>(["https:", "http:", "mailto:"]);
+            if (!allowedProtocols.has(parsedUrl.protocol)) {
+                logWarn("Blocked openExternal call with disallowed protocol", { url, protocol: parsedUrl.protocol });
+                return;
+            }
+
+            await shell.openExternal(parsedUrl.toString());
         });
 
         // Filesystem handlers with access control
@@ -1999,6 +2206,15 @@ class ToolBoxApp {
                             }
                         },
                     },
+                    {
+                        label: "Settings",
+                        accelerator: isMac ? "Command+," : "Ctrl+,",
+                        click: () => {
+                            if (this.mainWindow) {
+                                this.mainWindow.webContents.send(EVENT_CHANNELS.OPEN_SETTINGS);
+                            }
+                        },
+                    },
                     { type: "separator" },
                     { role: "resetZoom" },
                     { role: "zoomIn" },
@@ -2022,6 +2238,12 @@ class ToolBoxApp {
                         label: "Troubleshooting",
                         click: () => {
                             this.showTroubleshootingModal();
+                        },
+                    },
+                    {
+                        label: "What's New",
+                        click: () => {
+                            this.sendWhatsNewRequest("menu");
                         },
                     },
                     { type: "separator" },
@@ -2183,6 +2405,34 @@ class ToolBoxApp {
         this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
     }
 
+    private sendWhatsNewRequest(source: "menu" | "auto-update", version?: string): void {
+        if (!this.mainWindow) {
+            return;
+        }
+
+        const payload = {
+            event: "menu:show-whats-new",
+            data: {
+                source,
+                ...(version ? { version } : {}),
+            },
+            timestamp: new Date().toISOString(),
+        };
+
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, payload);
+            }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
+        }
+    }
+
     /**
      * Debounced menu creation to prevent excessive menu recreation during rapid tool switches.
      * This method cancels any pending menu recreation and schedules a new one after a short delay.
@@ -2266,9 +2516,14 @@ class ToolBoxApp {
         // Load the index.html
         this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 
+        // After the renderer is ready, auto-open What's New if an auto-update was installed.
+        this.mainWindow.webContents.once("did-finish-load", () => {
+            this.openWhatsNewIfPending();
+        });
+
         // Open DevTools in development
         if (process.env.NODE_ENV === "development") {
-            this.mainWindow.webContents.openDevTools();
+            this.mainWindow.webContents.openDevTools({ mode: "detach" });
         }
 
         this.mainWindow.on("closed", () => {
@@ -2286,28 +2541,37 @@ class ToolBoxApp {
      * Includes install ID and other important information for diagnostics
      */
     private showAboutDialog(): void {
-        if (this.mainWindow) {
-            const appVersion = app.getVersion();
-            const installId = this.installIdManager.getInstallId();
-            const locale = app.getLocale();
+        if (!this.mainWindow) {
+            return;
+        }
 
-            const message = `Power Platform ToolBox
-            Version: ${appVersion}
-            Install ID: ${installId}
+        const appVersion = app.getVersion();
+        const installId = this.installIdManager.getInstallId();
+        const locale = app.getLocale();
 
-            Environment:
-            Electron: ${process.versions.electron}
-            Node.js: ${process.versions.node}
-            Chromium: ${process.versions.chrome}
+        const payload = {
+            appVersion,
+            installId,
+            locale,
+            electronVersion: process.versions.electron,
+            nodeVersion: process.versions.node,
+            chromeVersion: process.versions.chrome,
+            platform: process.platform,
+            arch: process.arch,
+            osVersion: process.getSystemVersion(),
+        };
 
-            System:
-            OS: ${process.platform} ${process.arch}
-            OS Version: ${process.getSystemVersion()}
-            Locale: ${locale}`;
-
-            if (dialog.showMessageBoxSync({ title: "About Power Platform ToolBox", message: message, type: "info", noLink: true, defaultId: 1, buttons: ["Copy", "OK"] }) === 0) {
-                clipboard.writeText(message);
+        const webContents = this.mainWindow.webContents;
+        const deliver = (): void => {
+            if (!webContents.isDestroyed()) {
+                webContents.send(EVENT_CHANNELS.SHOW_ABOUT, payload);
             }
+        };
+
+        if (webContents.isLoading()) {
+            webContents.once("did-finish-load", deliver);
+        } else {
+            deliver();
         }
     }
 
@@ -2320,6 +2584,22 @@ class ToolBoxApp {
 
         // Send message to renderer to open the troubleshooting modal
         this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    private openWhatsNewIfPending(): void {
+        const pendingVersion = this.settingsManager.getSetting("pendingWhatsNewVersion");
+        if (!pendingVersion || typeof pendingVersion !== "string" || pendingVersion.trim().length === 0) {
+            return;
+        }
+
+        const currentVersion = app.getVersion();
+        if (pendingVersion.trim() !== currentVersion) {
+            return;
+        }
+
+        // Clear first so the tab only auto-opens once.
+        this.settingsManager.setSetting("pendingWhatsNewVersion", null);
+        this.sendWhatsNewRequest("auto-update", currentVersion);
     }
 
     /**

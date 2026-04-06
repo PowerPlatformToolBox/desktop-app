@@ -9,8 +9,9 @@ import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
 import { escapeHtml } from "../utils/toolIconResolver";
 import { getToolLibrary, openToolDetail } from "./marketplaceManagement";
-import { switchSidebar } from "./sidebarManagement";
 import { logInfo, logError } from "../../common/logger";
+import { switchSidebar } from "./sidebarManagement";
+import { openSettingsTab } from "./settingsManagement";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,16 @@ interface SearchResult {
 let isOpen = false;
 let selectedIndex = -1;
 let currentResults: SearchResult[] = [];
+
+/** The tool instance that was active before the search was opened (used to restore on dismiss). */
+let previousActiveInstanceId: string | null = null;
+
+/**
+ * When true, closeGlobalSearch() will restore the previously active tool BrowserView.
+ * Set to false in action callbacks that navigate to a new tool/feature so we don't
+ * briefly flash the old view before the new destination renders.
+ */
+let shouldRestoreToolOnClose = false;
 
 // ── Static settings entries ───────────────────────────────────────────────────
 
@@ -63,6 +74,9 @@ function getResultsContainer(): HTMLElement | null {
 
 /**
  * Open the global search command palette.
+ * Hides the active tool BrowserView so the overlay is not obscured by the native
+ * Electron BrowserView (which always composites above HTML content regardless of
+ * CSS z-index). The view is restored when the palette is dismissed without an action.
  */
 export function openGlobalSearch(): void {
     const overlay = getOverlay();
@@ -72,6 +86,23 @@ export function openGlobalSearch(): void {
     isOpen = true;
     selectedIndex = -1;
     currentResults = [];
+
+    // Hide the active BrowserView so the overlay is not rendered underneath it.
+    // We capture the current active instance first so we can restore it on dismiss.
+    void window.toolboxAPI
+        .getActiveToolWindow()
+        .then((activeId: string | null) => {
+            previousActiveInstanceId = activeId;
+            if (previousActiveInstanceId) {
+                // Only flag restoration when there is actually a tool to restore.
+                shouldRestoreToolOnClose = true;
+                void window.toolboxAPI.hideToolWindows();
+            }
+        })
+        .catch((err: unknown) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+            previousActiveInstanceId = null;
+        });
 
     overlay.style.display = "flex";
     input.value = "";
@@ -92,6 +123,8 @@ export function openGlobalSearch(): void {
 
 /**
  * Close the global search command palette.
+ * Restores the previously active tool BrowserView unless an action was taken that
+ * handles its own navigation (those actions set shouldRestoreToolOnClose = false).
  */
 export function closeGlobalSearch(): void {
     const overlay = getOverlay();
@@ -101,6 +134,18 @@ export function closeGlobalSearch(): void {
     selectedIndex = -1;
     currentResults = [];
     overlay.style.display = "none";
+
+    // Restore the tool BrowserView only when the user dismisses the palette without
+    // taking an action (ESC or backdrop click). Actions set shouldRestoreToolOnClose
+    // to false because they manage their own navigation target.
+    if (shouldRestoreToolOnClose && previousActiveInstanceId) {
+        window.toolboxAPI.switchToolWindow(previousActiveInstanceId).catch((err: unknown) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    }
+
+    previousActiveInstanceId = null;
+    shouldRestoreToolOnClose = false;
 }
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
@@ -116,22 +161,26 @@ function syncInputIconTheme(): void {
 // ── Settings focus helper ─────────────────────────────────────────────────────
 
 /**
- * Switch to settings sidebar and focus/scroll a specific setting element.
+ * Open the settings tab and focus/scroll a specific setting element.
  */
 function navigateToSetting(focusId: string | undefined): void {
-    switchSidebar("settings");
-    if (!focusId) return;
-
-    // Wait for sidebar transition then focus/scroll the element
-    requestAnimationFrame(() => {
-        const el = document.getElementById(focusId) as HTMLElement | null;
-        if (!el) return;
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.focus();
-        // Highlight briefly so the user sees the focused setting
-        el.classList.add("global-search-highlight");
-        setTimeout(() => el.classList.remove("global-search-highlight"), 1500);
-    });
+    openSettingsTab()
+        .then(() => {
+            if (!focusId) return;
+            // Wait for tab content to render then focus/scroll the element
+            requestAnimationFrame(() => {
+                const el = document.getElementById(focusId) as HTMLElement | null;
+                if (!el) return;
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.focus();
+                // Highlight briefly so the user sees the focused setting
+                el.classList.add("global-search-highlight");
+                setTimeout(() => el.classList.remove("global-search-highlight"), 1500);
+            });
+        })
+        .catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -153,6 +202,8 @@ async function runSearch(query: string): Promise<void> {
                     description: tool.description ?? "",
                     category: "installed",
                     action: () => {
+                        // launchTool handles showing the BrowserView; don't restore the old one.
+                        shouldRestoreToolOnClose = false;
                         closeGlobalSearch();
                         // Dynamically import to avoid circular dependency
                         import("./toolManagement")
@@ -179,6 +230,8 @@ async function runSearch(query: string): Promise<void> {
                     description: tool.description ?? "",
                     category: "marketplace",
                     action: () => {
+                        // openToolDetail opens a detail tab and hides BrowserViews itself.
+                        shouldRestoreToolOnClose = false;
                         closeGlobalSearch();
                         openToolDetail(toolSnapshot, false).catch((err) => {
                             logError(err instanceof Error ? err : new Error(String(err)));
@@ -199,6 +252,8 @@ async function runSearch(query: string): Promise<void> {
                     description: `${conn.environment} · ${conn.url}`,
                     category: "connection",
                     action: () => {
+                        // Sidebar navigation: restore the tool BrowserView so it stays visible
+                        // in the main content area while the user browses the sidebar.
                         closeGlobalSearch();
                         switchSidebar("connections");
                     },
@@ -217,6 +272,8 @@ async function runSearch(query: string): Promise<void> {
                     description: entry.description,
                     category: "settings",
                     action: () => {
+                        // Sidebar navigation: restore the tool BrowserView so it stays visible
+                        // in the main content area while the user browses the sidebar.
                         closeGlobalSearch();
                         if (entryName === "Connections") {
                             switchSidebar("connections");
@@ -415,6 +472,13 @@ export function initializeGlobalSearch(): void {
     if (searchBtn && !(searchBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
         (searchBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound = true;
         searchBtn.addEventListener("click", () => openGlobalSearch());
+    }
+
+    // Close button inside the container header
+    const closeBtn = document.getElementById("global-search-close-btn");
+    if (closeBtn && !(closeBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound) {
+        (closeBtn as HTMLElement & { _pptbBound?: boolean })._pptbBound = true;
+        closeBtn.addEventListener("click", () => closeGlobalSearch());
     }
 
     // Overlay backdrop click → close
