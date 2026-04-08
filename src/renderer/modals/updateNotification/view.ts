@@ -341,7 +341,6 @@ export function getUpdateNotificationModalView(model: UpdateNotificationModalVie
     <div class="update-modal-footer">
         ${footerButtons}
     </div>
-</div>
 </div>`;
 
     return { styles, body };
