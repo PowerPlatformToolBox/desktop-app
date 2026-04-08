@@ -239,7 +239,6 @@ export function getAboutModalView(model: AboutModalViewModel): AboutModalViewTem
         <button id="about-copy-btn" class="fluent-button fluent-button-secondary">Copy to Clipboard</button>
         <button id="about-ok-btn" class="fluent-button fluent-button-primary">OK</button>
     </div>
-</div>
 </div>`;
 
     return { styles, body };
