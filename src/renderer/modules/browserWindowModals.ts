@@ -48,7 +48,12 @@ export async function showBrowserWindowModal(options: ModalWindowOptions): Promi
     const backdrop = document.getElementById("modal-backdrop");
     if (backdrop) backdrop.style.display = "flex";
 
-    await window.toolboxAPI.utils.showModalWindow(options);
+    try {
+        await window.toolboxAPI.utils.showModalWindow(options);
+    } catch (error) {
+        if (backdrop) backdrop.style.display = "none";
+        throw error;
+    }
 }
 
 export async function showBrowserWindowModalFromElement(element: HTMLElement, options: Omit<ModalWindowOptions, "html">): Promise<void> {
