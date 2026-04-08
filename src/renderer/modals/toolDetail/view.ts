@@ -299,7 +299,6 @@ export function getToolDetailModalView(model: ToolDetailModalViewModel): ModalVi
             <div id="tool-detail-readme-content" class="markdown-content">${readmePlaceholder}</div>
         </div>
     </div>
-</div>
 </div>`;
 
     return { styles, body };
