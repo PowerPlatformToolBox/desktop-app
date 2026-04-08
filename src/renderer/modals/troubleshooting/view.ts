@@ -298,7 +298,6 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
         <button id="retry-checks-btn" class="retry-button">Run Checks</button>
         <button id="close-btn" class="fluent-button fluent-button-secondary">Close</button>
     </div>
-</div>
 </div>`;
 
     return { styles, body };
