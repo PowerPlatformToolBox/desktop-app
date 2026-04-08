@@ -34,7 +34,7 @@ export class TrayManager {
             return;
         }
 
-        const iconPath = path.join(__dirname, "../../assets/icon.png");
+        const iconPath = path.join(__dirname, "../../icons/icon.png");
         let icon = nativeImage.createFromPath(iconPath);
 
         // Tray icons should be 16×16 (standard) or 22×22 pixels.
