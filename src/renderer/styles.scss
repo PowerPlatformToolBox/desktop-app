@@ -5317,6 +5317,19 @@ body.dark-theme .csp-warning ul {
 }
 
 /* ============================================================
+   Modal Backdrop Overlay
+   ============================================================ */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: $z-modal;
+    display: flex;
+    backdrop-filter: blur(4px);
+}
+
+/* ============================================================
    Global Search Command Palette
    ============================================================ */
 

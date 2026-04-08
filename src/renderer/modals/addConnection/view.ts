@@ -12,6 +12,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
     const styles = getModalStyles(isDarkTheme);
 
     const body = `
+
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -153,6 +154,7 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Add</button>
     </div>
+
 </div>`;
 
     return { styles, body };

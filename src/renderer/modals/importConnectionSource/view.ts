@@ -196,6 +196,7 @@ export function getImportConnectionSourceModalView(isDarkTheme: boolean): ModalV
 
     const body = `
 <body>
+
 <div class="modal-panel">
     <div class="modal-header">
         <div>
