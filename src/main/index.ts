@@ -85,6 +85,22 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
 
+    /**
+     * Resolve the application icon for the current release channel.
+     * Returns the insider icon path when `PPTB_CHANNEL=insider` and the file
+     * exists; otherwise falls back to the standard stable icon.
+     */
+    static resolveAppIcon(): string {
+        const channel = process.env.PPTB_CHANNEL ?? "stable";
+        if (channel === "insider") {
+            const insiderPath = path.join(__dirname, "../../icons/insider/icon.png");
+            if (fs.existsSync(insiderPath)) {
+                return insiderPath;
+            }
+        }
+        return path.join(__dirname, "../../icons/icon.png");
+    }
+
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
 
@@ -2487,7 +2503,7 @@ class ToolBoxApp {
                 // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform ToolBox",
-            icon: path.join(__dirname, "../../icons/icon.png"),
+            icon: ToolBoxApp.resolveAppIcon(),
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews

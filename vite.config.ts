@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
     const supabaseKey = env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
     const azureBlobBaseUrl = env.AZURE_BLOB_BASE_URL || process.env.AZURE_BLOB_BASE_URL || "";
     const updatesOrigin = env.PPTB_UPDATES_ORIGIN || process.env.PPTB_UPDATES_ORIGIN || "https://www.powerplatformtoolbox.com";
+    const channel = env.PPTB_CHANNEL || process.env.PPTB_CHANNEL || "stable";
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -38,6 +39,7 @@ export default defineConfig(({ mode }) => {
         "process.env.SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
         "process.env.AZURE_BLOB_BASE_URL": JSON.stringify(azureBlobBaseUrl),
         "process.env.PPTB_UPDATES_ORIGIN": JSON.stringify(updatesOrigin),
+        "process.env.PPTB_CHANNEL": JSON.stringify(channel),
     };
 
     return {

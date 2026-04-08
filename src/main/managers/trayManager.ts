@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import { existsSync } from "fs";
 import * as path from "path";
 
 /**
@@ -34,7 +35,7 @@ export class TrayManager {
             return;
         }
 
-        const iconPath = path.join(__dirname, "../../icons/icon.png");
+        const iconPath = this.resolveIconPath();
         let icon = nativeImage.createFromPath(iconPath);
 
         // Tray icons should be 16×16 (standard) or 22×22 pixels.
@@ -47,7 +48,7 @@ export class TrayManager {
         }
 
         this.tray = new Tray(icon);
-        this.tray.setToolTip("Power Platform ToolBox");
+        this.tray.setToolTip(this.appName);
 
         this.updateContextMenu();
 
@@ -75,6 +76,29 @@ export class TrayManager {
         }
     }
 
+    /**
+     * Resolve the correct icon path for the current release channel.
+     * Uses `icons/insider/icon.png` for insider builds; falls back to
+     * `icons/icon.png` if the insider icon has not yet been placed.
+     */
+    private resolveIconPath(): string {
+        const channel = process.env.PPTB_CHANNEL ?? "stable";
+        if (channel === "insider") {
+            const insiderPath = path.join(__dirname, "../../icons/insider/icon.png");
+            if (existsSync(insiderPath)) {
+                return insiderPath;
+            }
+        }
+        return path.join(__dirname, "../../icons/icon.png");
+    }
+
+    /**
+     * Returns the human-readable application name for the current channel.
+     */
+    private get appName(): string {
+        return process.env.PPTB_CHANNEL === "insider" ? "Power Platform ToolBox Insider" : "Power Platform ToolBox";
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     private showMainWindow(): void {
@@ -98,7 +122,7 @@ export class TrayManager {
 
         const contextMenu = Menu.buildFromTemplate([
             {
-                label: "Open Power Platform ToolBox",
+                label: `Open ${this.appName}`,
                 click: () => this.showMainWindow(),
             },
             { type: "separator" },

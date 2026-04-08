@@ -16,6 +16,11 @@
     "package:win-arm64": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-win-arm64.json",
     "package:mac": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-mac.json",
     "package:linux": "pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-linux.json",
+    "package:insider": "PPTB_CHANNEL=insider pnpm run build && node ./buildScripts/package.js --insider",
+    "package:insider:win": "PPTB_CHANNEL=insider pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-win-insider.json --insider",
+    "package:insider:win-arm64": "PPTB_CHANNEL=insider pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-win-arm64-insider.json --insider",
+    "package:insider:mac": "PPTB_CHANNEL=insider pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-mac-insider.json --insider",
+    "package:insider:linux": "PPTB_CHANNEL=insider pnpm run build && node ./buildScripts/package.js --config=buildScripts/electron-builder-linux-insider.json --insider",
     "version": "auto-changelog -p && git add CHANGELOG.md",
     "contributors:add": "all-contributors add",
     "contributors:generate": "all-contributors generate"
