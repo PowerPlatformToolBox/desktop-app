@@ -44,6 +44,7 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
+import { TrayManager } from "./managers/trayManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { VersionManager } from "./managers/versionManager";
 
@@ -72,6 +73,7 @@ class ToolBoxApp {
     private notificationWindowManager: NotificationWindowManager | null = null;
     private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
+    private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private browserManager: BrowserManager;
@@ -108,6 +110,10 @@ class ToolBoxApp {
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.trayManager = new TrayManager(
+                () => this.mainWindow,
+                () => this.createWindow(),
+            );
 
             this.setupEventListeners();
             this.setupIpcHandlers();
@@ -2961,6 +2967,10 @@ class ToolBoxApp {
             this.createWindow();
             logCheckpoint("Main window created");
 
+            // Create the system tray icon so the app is accessible when its window is closed.
+            this.trayManager?.create();
+            logCheckpoint("Tray icon created");
+
             // Set up deep link protocol handler callback after the main window exists.
             // The callback defers IPC delivery until the renderer has finished loading so
             // that protocol URLs captured during startup (buffered in pendingUrls) are
@@ -3017,7 +3027,16 @@ class ToolBoxApp {
             this.connectionsManager.clearAllConnectionTokens();
 
             app.on("activate", () => {
-                if (BrowserWindow.getAllWindows().length === 0) {
+                // On macOS the app stays alive after the window is closed.
+                // When the user clicks the Dock icon (or the tray "Open" item),
+                // restore the existing window if it still exists, otherwise create a new one.
+                if (this.mainWindow) {
+                    if (this.mainWindow.isMinimized()) {
+                        this.mainWindow.restore();
+                    }
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
+                } else {
                     this.createWindow();
                 }
             });
@@ -3030,6 +3049,8 @@ class ToolBoxApp {
 
             app.on("before-quit", () => {
                 logCheckpoint("Application shutting down");
+                // Clean up tray icon before quitting
+                this.trayManager?.destroy();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
