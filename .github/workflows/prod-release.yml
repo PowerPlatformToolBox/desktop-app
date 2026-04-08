@@ -76,9 +76,11 @@ jobs:
                     - os: windows-latest
                       config: buildScripts/electron-builder-win.json
                       artifact_name: windows-x64-release
+                      win_arch: x64
                     - os: windows-latest
                       config: buildScripts/electron-builder-win-arm64.json
                       artifact_name: windows-arm64-release
+                      win_arch: arm64
                     - os: macos-latest
                       config: buildScripts/electron-builder-mac.json
                       artifact_name: macos-release
@@ -133,9 +135,9 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
-            - name: Package application (Windows)
+            - name: Build application directory (Windows)
               if: matrix.os == 'windows-latest'
-              run: node ./buildScripts/package.js --config=${{ matrix.config }}
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --target=dir:${{ matrix.win_arch }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -146,7 +148,38 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
-            - name: Sign Windows artifacts with Azure Trusted Signing
+            - name: Sign application binaries with Azure Trusted Signing (Windows)
+              if: matrix.os == 'windows-latest'
+              uses: azure/artifact-signing-action@v1
+              with:
+                  azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+                  endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
+                  signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
+                  certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+                  files-folder: ${{ github.workspace }}/build/win-${{ matrix.win_arch }}-unpacked
+                  files-folder-filter: exe,dll
+                  files-folder-recurse: true
+                  timestamp-rfc3161: http://timestamp.acs.microsoft.com
+                  timestamp-digest: SHA256
+                  description: Power Platform ToolBox
+                  description-url: https://github.com/PowerPlatformToolBox/desktop-app
+
+            - name: Package installers from signed directory (Windows)
+              if: matrix.os == 'windows-latest'
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/win-${{ matrix.win_arch }}-unpacked
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
+                  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+            - name: Sign Windows installers with Azure Trusted Signing
               if: matrix.os == 'windows-latest'
               uses: azure/artifact-signing-action@v1
               with:
@@ -158,45 +191,11 @@ jobs:
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
                   files-folder: ${{ github.workspace }}/build
                   files-folder-filter: exe,msi
-                  files-folder-recurse: true
+                  files-folder-recurse: false
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
                   timestamp-digest: SHA256
                   description: Power Platform ToolBox
                   description-url: https://github.com/PowerPlatformToolBox/desktop-app
-
-            - name: Repackage portable ZIP with signed EXE (Windows)
-              if: matrix.os == 'windows-latest'
-              shell: powershell
-              run: |
-                  $buildDir = "${{ github.workspace }}/build"
-                  $zipFiles = @(Get-ChildItem "$buildDir/*.zip" -ErrorAction SilentlyContinue)
-
-                  if ($zipFiles.Count -eq 0) {
-                    Write-Host "No ZIP artifacts found; skipping repack."
-                    exit 0
-                  }
-
-                  foreach ($zip in $zipFiles) {
-                    Write-Host "Repacking ZIP: $($zip.Name)"
-                    $tempDir = Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString())
-                    New-Item -ItemType Directory -Path $tempDir | Out-Null
-
-                    Expand-Archive -Path $zip.FullName -DestinationPath $tempDir -Force
-
-                    $zipExeFiles = @(Get-ChildItem $tempDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue)
-                    foreach ($zipExe in $zipExeFiles) {
-                      $signedExe = Get-ChildItem $buildDir -Recurse -Filter $zipExe.Name -ErrorAction SilentlyContinue | Select-Object -First 1
-                      if ($signedExe) {
-                        Copy-Item $signedExe.FullName $zipExe.FullName -Force
-                        Write-Host "  Replaced $($zipExe.Name) with signed binary."
-                      } else {
-                        Write-Host "  No signed match found for $($zipExe.Name)."
-                      }
-                    }
-
-                    Remove-Item $zip.FullName -Force
-                    Compress-Archive -Path (Join-Path $tempDir '*') -DestinationPath $zip.FullName -Force
-                  }
 
             - name: Regenerate latest.yml with correct SHA256 hashes (Windows)
               if: matrix.os == 'windows-latest'
