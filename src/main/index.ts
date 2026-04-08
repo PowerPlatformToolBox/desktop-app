@@ -2487,7 +2487,7 @@ class ToolBoxApp {
                 // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform ToolBox",
-            icon: path.join(__dirname, "../../assets/icon.png"),
+            icon: path.join(__dirname, "../../icons/icon.png"),
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
