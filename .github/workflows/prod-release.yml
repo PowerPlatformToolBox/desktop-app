@@ -137,7 +137,7 @@ jobs:
 
             - name: Build application directory (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm exec electron-builder --config ${{ matrix.config }} --target=dir:${{ matrix.win_arch }}
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --dir ${{ matrix.win_arch == 'arm64' && '--arm64' || '--x64' }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
