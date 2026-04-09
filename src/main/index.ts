@@ -84,6 +84,7 @@ class ToolBoxApp {
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
+    private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
 
     /**
      * Resolve the application icon for the current release channel.
@@ -3058,12 +3059,17 @@ class ToolBoxApp {
             });
 
             app.on("window-all-closed", () => {
-                if (process.platform !== "darwin") {
+                // On macOS the app intentionally stays alive after all windows are closed so
+                // background tool execution can continue.  The exception is when the user
+                // explicitly quits (via the tray "Quit" item, Cmd+Q, or the app menu) — in
+                // that case `isQuitting` is already true and we allow the quit to proceed.
+                if (process.platform !== "darwin" || this.isQuitting) {
                     app.quit();
                 }
             });
 
             app.on("before-quit", () => {
+                this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
                 this.trayManager?.destroy();
