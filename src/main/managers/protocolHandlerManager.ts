@@ -62,6 +62,12 @@ export class ProtocolHandlerManager {
             return normalized === "1" || normalized === "true" || normalized === "yes";
         }
 
+        // Insider (nightly) builds must not claim the OS-level pptb:// handler so they
+        // don't interfere with a stable installation on the same machine.
+        if (process.env.PPTB_CHANNEL === "insider") {
+            return false;
+        }
+
         // Default behavior: only register/handle the OS-level pptb:// protocol when packaged.
         // This prevents local development runs from hijacking/claiming the protocol handler.
         return app.isPackaged;
@@ -78,7 +84,7 @@ export class ProtocolHandlerManager {
             }
 
             if (!this.protocolEnabled) {
-                logInfo("[ProtocolHandler] Skipping pptb:// protocol registration (local/dev run)");
+                logInfo("[ProtocolHandler] Skipping pptb:// protocol registration (local/dev run or insider build)");
                 return;
             }
 
@@ -98,10 +104,10 @@ export class ProtocolHandlerManager {
      * no deep link is lost before the main window exists.
      */
     initialize(): void {
-        // If the protocol is disabled (e.g. local/dev run), we skip all protocol-related setup to avoid any risk of
-        // accidentally hijacking the protocol handler on a developer's machine.
+        // If the protocol is disabled (e.g. local/dev run or insider build), we skip all protocol-related setup to
+        // avoid accidentally hijacking the protocol handler on a developer's machine or insider installation.
         if (!this.protocolEnabled) {
-            logInfo("[ProtocolHandler] pptb:// protocol disabled for local/dev run; skipping protocol event listeners");
+            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping protocol event listeners");
             return;
         }
 
