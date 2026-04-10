@@ -99,24 +99,25 @@ export class ProtocolHandlerManager {
 
     /**
      * Initialize early protocol listeners - must be called BEFORE app.whenReady().
-     * Acquires the single-instance lock, registers the open-url and second-instance
-     * event handlers, and buffers any startup protocol URL from process.argv so that
-     * no deep link is lost before the main window exists.
+     * Always acquires the single-instance lock (regardless of channel) to prevent
+     * concurrent instances, then — if protocol is enabled — registers the open-url
+     * and second-instance event handlers and buffers any startup protocol URL from
+     * process.argv so that no deep link is lost before the main window exists.
      */
     initialize(): void {
-        // If the protocol is disabled (e.g. local/dev run or insider build), we skip all protocol-related setup to
-        // avoid accidentally hijacking the protocol handler on a developer's machine or insider installation.
-        if (!this.protocolEnabled) {
-            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping protocol event listeners");
-            return;
-        }
-
-        // Acquire the single-instance lock as early as possible so a second launch
-        // forwards its command line to the first instance and then quits.
+        // Always acquire the single-instance lock so the app prevents concurrent
+        // instances on all channels (stable and insider alike).
         const gotTheLock = app.requestSingleInstanceLock();
         if (!gotTheLock) {
             logInfo("[ProtocolHandler] Another instance is already running, quitting this instance");
             app.quit();
+            return;
+        }
+
+        // If the protocol is disabled (e.g. local/dev run or insider build), we skip all protocol-related setup to
+        // avoid accidentally hijacking the protocol handler on a developer's machine or insider installation.
+        if (!this.protocolEnabled) {
+            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping protocol event listeners");
             return;
         }
 

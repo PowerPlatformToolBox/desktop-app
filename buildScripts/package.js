@@ -25,6 +25,12 @@ if (isInsider) {
     console.log("🔬 Building INSIDER channel");
 }
 
+// Run the Vite build (with the correct PPTB_CHANNEL injected cross-platform).
+// This keeps all channel-specific env-var logic inside this script so the
+// npm package:* scripts work on Windows (CMD/PowerShell) without cross-env.
+console.log("⚙️  Building application...");
+run("pnpm run build", channelEnv);
+
 if (configFile) {
     // Validate config file exists
     const configPath = path.resolve(process.cwd(), configFile);
