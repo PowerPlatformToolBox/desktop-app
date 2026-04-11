@@ -46,10 +46,12 @@ jobs:
                       config: buildScripts/electron-builder-win.json
                       artifact_name: windows-x64-build
                       win_arch: x64
+                      win_unpacked_dir: win-unpacked
                     - os: windows-latest
                       config: buildScripts/electron-builder-win-arm64.json
                       artifact_name: windows-arm64-build
                       win_arch: arm64
+                      win_unpacked_dir: win-arm64-unpacked
                     - os: macos-latest
                       config: buildScripts/electron-builder-mac.json
                       artifact_name: macos-build
@@ -132,7 +134,7 @@ jobs:
                   endpoint: ${{ secrets.TRUSTED_SIGNING_ENDPOINT }}
                   signing-account-name: ${{ secrets.TRUSTED_SIGNING_ACCOUNT_NAME }}
                   certificate-profile-name: ${{ secrets.TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
-                  files-folder: ${{ github.workspace }}/build/win-${{ matrix.win_arch }}-unpacked
+                  files-folder: ${{ github.workspace }}/build/${{ matrix.win_unpacked_dir }}
                   files-folder-filter: exe,dll
                   files-folder-recurse: true
                   timestamp-rfc3161: http://timestamp.acs.microsoft.com
@@ -142,7 +144,7 @@ jobs:
 
             - name: Package installers from signed directory (Windows)
               if: matrix.os == 'windows-latest'
-              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/win-${{ matrix.win_arch }}-unpacked
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/${{ matrix.win_unpacked_dir }}
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

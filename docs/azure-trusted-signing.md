@@ -29,7 +29,7 @@ The Windows signing process uses a **three-phase signing approach** to ensure ev
 
 ### Phase 1 – Sign application binaries
 
-After building only the unpacked application directory (`build/win-{arch}-unpacked/`), the `azure/artifact-signing-action@v1` step signs all `.exe` and `.dll` files found recursively inside that directory. This includes:
+After building only the unpacked application directory (`build/win-unpacked/` for x64, `build/win-arm64-unpacked/` for arm64), the `azure/artifact-signing-action@v1` step signs all `.exe` and `.dll` files found recursively inside that directory. This includes:
 
 - `Power Platform ToolBox.exe` (the main application executable)
 - All `.dll` files bundled with the application
