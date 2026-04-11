@@ -1,0 +1,15 @@
+{
+    "extends": "buildScripts/electron-builder-mac.json",
+    "appId": "com.powerplatform.toolbox.insider",
+    "productName": "Power Platform ToolBox Insider",
+    "artifactName": "Power-Platform-ToolBox-Insider-${version}-${arch}-${os}.${ext}",
+    "mac": {
+        "icon": "icons/insider/icon.icns"
+    },
+    "publish": {
+        "provider": "github",
+        "owner": "PowerPlatformToolBox",
+        "repo": "desktop-app",
+        "releaseType": "prerelease"
+    }
+}

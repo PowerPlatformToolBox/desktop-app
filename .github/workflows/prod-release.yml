@@ -112,6 +112,7 @@ jobs:
             - name: Build application
               run: pnpm run build
               env:
+                  PPTB_CHANNEL: stable
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
                   APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
@@ -124,6 +125,7 @@ jobs:
               if: matrix.os == 'ubuntu-latest'
               run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
+                  PPTB_CHANNEL: stable
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -137,6 +139,7 @@ jobs:
               if: matrix.os == 'windows-latest'
               run: node ./buildScripts/package.js --config=${{ matrix.config }}
               env:
+                  PPTB_CHANNEL: stable
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -313,6 +316,7 @@ jobs:
               shell: bash
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PPTB_CHANNEL: stable
                   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
                   APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}

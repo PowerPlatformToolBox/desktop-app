@@ -1,0 +1,15 @@
+{
+    "extends": "buildScripts/electron-builder-win-arm64.json",
+    "appId": "com.powerplatform.toolbox.insider",
+    "productName": "Power Platform ToolBox Insider",
+    "artifactName": "Power-Platform-ToolBox-Insider-${version}-${arch}-${os}.${ext}",
+    "win": {
+        "icon": "icons/insider/icon.ico"
+    },
+    "publish": {
+        "provider": "github",
+        "owner": "PowerPlatformToolBox",
+        "repo": "desktop-app",
+        "releaseType": "prerelease"
+    }
+}
