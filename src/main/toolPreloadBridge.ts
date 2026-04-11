@@ -344,7 +344,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
                 return null;
             }
             const prefillData = toolContext.prefillData;
-            if (!prefillData || typeof prefillData !== "object" || Array.isArray(prefillData)) {
+            if (prefillData === null || prefillData === undefined || typeof prefillData !== "object" || Array.isArray(prefillData)) {
                 return null;
             }
             return prefillData as Record<string, unknown>;

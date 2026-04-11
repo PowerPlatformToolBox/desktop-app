@@ -456,7 +456,6 @@ export class ToolWindowManager {
         pending.resolve(returnData);
     }
 
-
     async switchToTool(instanceId: string): Promise<boolean> {
         try {
             const toolView = this.toolViews.get(instanceId);
