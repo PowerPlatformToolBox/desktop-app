@@ -11,7 +11,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, TOOL_WINDOW_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 
@@ -329,6 +329,73 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         setAll: async (settings: Record<string, unknown>) => {
             const toolId = await ensureToolContext();
             return ipcInvoke(SETTINGS_CHANNELS.TOOL_SETTINGS_SET_ALL, toolId, settings);
+        },
+    },
+
+    // Invocation API (inter-tool launch context)
+    invocation: {
+        /**
+         * Returns the prefill data that was passed by the caller tool when it launched this tool,
+         * or null if this tool was not launched via an inter-tool invocation.
+         */
+        getLaunchContext: async (): Promise<Record<string, unknown> | null> => {
+            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+            if (!toolContext) {
+                return null;
+            }
+            const prefillData = toolContext.prefillData;
+            if (!prefillData || typeof prefillData !== "object" || Array.isArray(prefillData)) {
+                return null;
+            }
+            return prefillData as Record<string, unknown>;
+        },
+
+        /**
+         * Returns data to the caller tool that launched this tool and closes this tool window.
+         * If this tool was not launched by another tool the call is a no-op.
+         *
+         * @param returnData The data to pass back to the caller
+         */
+        returnData: async (returnData: Record<string, unknown>): Promise<void> => {
+            const { instanceId } = await getToolIdentifiers();
+            if (!instanceId) {
+                return;
+            }
+            await ipcInvoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, instanceId, returnData);
+        },
+
+        /**
+         * Launch another tool from within this tool, optionally passing prefill data.
+         * Returns a Promise that resolves with the data the target tool returns via returnData(),
+         * or null if the target tool closes without returning data.
+         *
+         * @param targetToolId The npm package name (toolId) of the tool to launch
+         * @param prefillData Data to pre-populate the target tool's state
+         * @param options Connection overrides for the target tool
+         */
+        launchTool: async (
+            targetToolId: string,
+            prefillData: Record<string, unknown> = {},
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null },
+        ): Promise<unknown> => {
+            const { instanceId: callerInstanceId } = await getToolIdentifiers();
+            if (!callerInstanceId) {
+                throw new Error("Cannot launch a tool from an uninitialized tool context");
+            }
+
+            // Get the target tool manifest
+            const tool = await ipcInvoke(TOOL_CHANNELS.GET_TOOL, targetToolId);
+            if (!tool) {
+                throw new Error(`Tool not found: ${targetToolId}`);
+            }
+
+            // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
+            const calleeInstanceId = `${targetToolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+            const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : null;
+            const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
+
+            return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
         },
     },
 });
