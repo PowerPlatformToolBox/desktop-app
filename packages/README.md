@@ -8,6 +8,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Quick start](#quick-start)
         - [CLI options](#cli-options)
         - [What is validated](#what-is-validated)
+        - [pptb.config.json (optional)](#pptbconfigjson-optional)
     - [Overview](#overview)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
@@ -108,6 +109,43 @@ The validator checks every field that the official review pipeline inspects:
 | `features.minAPI`           | ❌       | Valid semver string when provided                                                                                                      |
 
 > \* Required only when the `features` object is present.
+
+#### pptb.config.json (optional)
+
+In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
+
+| Field                                   | Required | Rules                                                                                                                     |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `invocation.version`                    | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
+| `invocation.prefill`                    | ❌       | JSON-schema-style object describing data callers can pre-populate                                                         |
+| `invocation.prefill.properties`         | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+| `invocation.returnTopic`                | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                              |
+| `invocation.returnTopic.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+
+> \*\* Required only when the `invocation` object is present.
+
+**Example `pptb.config.json`:**
+
+```json
+{
+    "invocation": {
+        "version": "1.0.0",
+        "prefill": {
+            "properties": {
+                "entityName": { "type": "string" },
+                "attributes": { "type": "array", "items": { "type": "string" } }
+            }
+        },
+        "returnTopic": {
+            "properties": {
+                "result": { "type": "object" },
+                "status": { "type": "string", "enum": ["success", "cancelled", "error"] },
+                "error": { "type": "string" }
+            }
+        }
+    }
+}
+```
 
 ## Overview
 
