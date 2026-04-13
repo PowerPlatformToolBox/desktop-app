@@ -82,6 +82,7 @@ export const TOOL_CHANNELS = {
 // Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",
+    LAUNCH_WITH_CONTEXT: "tool-window:launch-with-context",
     SWITCH: "tool-window:switch",
     CLOSE: "tool-window:close",
     GET_ACTIVE: "tool-window:get-active",
@@ -89,6 +90,7 @@ export const TOOL_WINDOW_CHANNELS = {
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
     HIDE_ALL: "tool-window:hide-all",
     RENDERER_INITIALIZED: "tool-window:renderer-initialized",
+    RETURN_INVOCATION_DATA: "tool-window:return-invocation-data",
 } as const;
 
 // Terminal-related IPC channels

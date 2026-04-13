@@ -29,6 +29,10 @@ export interface LaunchToolOptions {
     source?: string;
     primaryConnectionId?: string | null;
     secondaryConnectionId?: string | null;
+    /** Prefill data to pass to the tool on launch (inter-tool launch context). */
+    prefillData?: Record<string, unknown>;
+    /** The instanceId of the tool initiating this launch (for inter-tool return data). */
+    callerInstanceId?: string;
 }
 
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
@@ -490,7 +494,16 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
-        const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
+        const launched = options?.callerInstanceId
+            ? await window.toolboxAPI.launchToolWithContext(
+                  options.callerInstanceId,
+                  instanceId,
+                  tool,
+                  primaryConnectionId,
+                  secondaryConnectionId ?? null,
+                  options.prefillData ?? {},
+              )
+            : await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
 
         if (!launched) {
             window.toolboxAPI.utils.showNotification({

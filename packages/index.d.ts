@@ -16,7 +16,9 @@
 
 /// <reference path="./toolboxAPI.d.ts" />
 /// <reference path="./dataverseAPI.d.ts" />
+/// <reference path="./pptbConfig.d.ts" />
 
 // Re-export all namespaces for convenience
 export * from "./dataverseAPI";
 export * from "./toolboxAPI";
+export * from "./pptbConfig";

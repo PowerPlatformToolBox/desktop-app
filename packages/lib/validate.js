@@ -33,6 +33,19 @@
  * }} ValidationResult
  */
 
+/**
+ * @typedef {{ type?: string; enum?: string[]; items?: object }} JsonSchemaProperty
+ * @typedef {{ properties?: Record<string, JsonSchemaProperty> }} JsonSchemaObject
+ * @typedef {{
+ *   version: string;
+ *   prefill?: JsonSchemaObject;
+ *   returnTopic?: JsonSchemaObject;
+ * }} InvocationConfig
+ * @typedef {{
+ *   invocation?: InvocationConfig;
+ * }} PPTBConfig
+ */
+
 // List of approved open source licenses
 const APPROVED_LICENSES = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "GPL-2.0", "GPL-3.0", "LGPL-3.0", "ISC", "AGPL-3.0-only"];
 
@@ -321,4 +334,110 @@ async function validatePackageJson(packageJson, options = {}) {
     };
 }
 
-module.exports = { validatePackageJson, isValidUrl, APPROVED_LICENSES };
+module.exports = { validatePackageJson, validatePPTBConfig, isValidUrl, APPROVED_LICENSES };
+
+/**
+ * Validates a tool's pptb.config.json against the official review criteria.
+ *
+ * @param {PPTBConfig} config - The parsed pptb.config.json object.
+ * @returns {ValidationResult}
+ */
+function validatePPTBConfig(config) {
+    const errors = /** @type {string[]} */ ([]);
+    const warnings = /** @type {string[]} */ ([]);
+
+    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+        errors.push("pptb.config.json must be a JSON object");
+        return { valid: false, errors, warnings };
+    }
+
+    const VALID_ROOT_KEYS = ["invocation"];
+    const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
+    if (unknownRootKeys.length > 0) {
+        warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
+    }
+
+    // Invocation section
+    if (config.invocation !== undefined) {
+        const inv = config.invocation;
+
+        if (inv === null || typeof inv !== "object" || Array.isArray(inv)) {
+            errors.push("invocation must be a non-array object");
+        } else {
+            // invocation.version – required, must be a valid semver string
+            if (inv.version === undefined || inv.version === null) {
+                errors.push("invocation.version is required");
+            } else if (typeof inv.version !== "string") {
+                errors.push("invocation.version must be a string");
+            } else if (!SEMVER_REGEX.test(inv.version)) {
+                errors.push(`invocation.version "${inv.version}" is not a valid semantic version string (e.g. "1.0.0")`);
+            }
+
+            // invocation.prefill – optional JSON-schema-like object
+            if (inv.prefill !== undefined) {
+                if (inv.prefill === null || typeof inv.prefill !== "object" || Array.isArray(inv.prefill)) {
+                    errors.push("invocation.prefill must be a non-array object");
+                } else if (inv.prefill.properties !== undefined) {
+                    validateJsonSchemaProperties("invocation.prefill", inv.prefill.properties, errors);
+                }
+            }
+
+            // invocation.returnTopic – optional JSON-schema-like object
+            if (inv.returnTopic !== undefined) {
+                if (inv.returnTopic === null || typeof inv.returnTopic !== "object" || Array.isArray(inv.returnTopic)) {
+                    errors.push("invocation.returnTopic must be a non-array object");
+                } else if (inv.returnTopic.properties !== undefined) {
+                    validateJsonSchemaProperties("invocation.returnTopic", inv.returnTopic.properties, errors);
+                }
+            }
+        }
+    }
+
+    const valid = errors.length === 0;
+
+    return {
+        valid,
+        errors,
+        warnings,
+        packageInfo: valid
+            ? {
+                  invocation: config.invocation,
+              }
+            : undefined,
+    };
+}
+
+/**
+ * Validates a JSON-schema-style `properties` map used inside invocation sections.
+ * Only performs basic structural validation; full JSON Schema validation is not required.
+ *
+ * @param {string} fieldName
+ * @param {unknown} properties
+ * @param {string[]} errors
+ */
+function validateJsonSchemaProperties(fieldName, properties, errors) {
+    if (properties === null || typeof properties !== "object" || Array.isArray(properties)) {
+        errors.push(`${fieldName}.properties must be a non-array object`);
+        return;
+    }
+
+    const propsRecord = /** @type {Record<string, unknown>} */ (properties);
+
+    for (const [key, value] of Object.entries(propsRecord)) {
+        if (value === null || typeof value !== "object" || Array.isArray(value)) {
+            errors.push(`${fieldName}.properties.${key} must be an object`);
+            continue;
+        }
+        const prop = /** @type {Record<string, unknown>} */ (value);
+        if (prop.type !== undefined && typeof prop.type !== "string") {
+            errors.push(`${fieldName}.properties.${key}.type must be a string`);
+        }
+        if (prop.enum !== undefined) {
+            if (!Array.isArray(prop.enum)) {
+                errors.push(`${fieldName}.properties.${key}.enum must be an array`);
+            } else if (prop.enum.length === 0) {
+                errors.push(`${fieldName}.properties.${key}.enum must not be empty`);
+            }
+        }
+    }
+}
