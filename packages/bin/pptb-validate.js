@@ -16,7 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { validatePackageJson, validatePptbConfig } = require("../lib/validate");
+const { validatePackageJson, validatePPTBConfig } = require("../lib/validate");
 
 // ANSI colour helpers – gracefully degrade when colours are unsupported
 const NO_COLOR = !process.stdout.isTTY || process.env.NO_COLOR;
@@ -151,7 +151,7 @@ async function main() {
     if (pptbConfigParseError !== null) {
         configResult = { valid: false, errors: [`Failed to parse pptb.config.json: ${pptbConfigParseError}`], warnings: [] };
     } else if (pptbConfig !== null) {
-        configResult = validatePptbConfig(pptbConfig);
+        configResult = validatePPTBConfig(pptbConfig);
     }
 
     // Merge results for overall pass/fail

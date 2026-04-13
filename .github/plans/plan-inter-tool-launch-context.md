@@ -76,15 +76,15 @@ Rationale:
 ### Data Architect
 
 **Part 1 — `pptb.config.json` schema & validation**
-- Add `packages/pptbConfig.d.ts` — TypeScript types for `PptbConfig`, `InvocationConfig`,
+- Add `packages/pptbConfig.d.ts` — TypeScript types for `PPTBConfig`, `InvocationConfig`,
   `JsonSchemaObject` and `JsonSchemaProperty`.
-- Update `packages/lib/validate.js` — add `validatePptbConfig(config)` function that checks:
+- Update `packages/lib/validate.js` — add `validatePPTBConfig(config)` function that checks:
   - `invocation.version` is required and must be a valid semver string.
   - `invocation.prefill` (optional) must be a `JsonSchemaObject` with valid `properties`.
   - `invocation.returnTopic` (optional) must be a `JsonSchemaObject` with valid `properties`.
   - Unknown root keys emit warnings (not errors).
 - Update `packages/bin/pptb-validate.js` — auto-discover `pptb.config.json` in the same directory
-  as `package.json` and call `validatePptbConfig` when found; report results in the same
+  as `package.json` and call `validatePPTBConfig` when found; report results in the same
   human-readable / `--json` output format.
 
 **Part 2 — IPC Channels**
@@ -199,11 +199,11 @@ Status: **APPROVED**
 **Part 1 — pptb.config.json schema & validation**
 
 - `packages/pptbConfig.d.ts` — created; exports `JsonSchemaProperty`, `JsonSchemaObject`,
-  `InvocationConfig`, `PptbConfig`.
-- `packages/lib/validate.js` — `validatePptbConfig(config)` added; validates `invocation.version`
+  `InvocationConfig`, `PPTBConfig`.
+- `packages/lib/validate.js` — `validatePPTBConfig(config)` added; validates `invocation.version`
   (semver), `prefill` and `returnTopic` (JSON-schema objects).
 - `packages/bin/pptb-validate.js` — auto-discovers `pptb.config.json` alongside `package.json`;
-  calls `validatePptbConfig`; results included in human-readable and `--json` output.
+  calls `validatePPTBConfig`; results included in human-readable and `--json` output.
 
 **Part 2 — IPC Channels**
 
@@ -278,7 +278,7 @@ Status: **APPROVED**
 | `packages/toolboxAPI.d.ts` | Add `InvocationAPI` interface; update `API` interface |
 | `packages/README.md` | Inter-tool invocation section + API reference entry |
 | `packages/pptbConfig.d.ts` | New file — TypeScript types for `pptb.config.json` |
-| `packages/lib/validate.js` | `validatePptbConfig` function |
+| `packages/lib/validate.js` | `validatePPTBConfig` function |
 | `packages/bin/pptb-validate.js` | Auto-discover and validate `pptb.config.json` |
 | `.gitignore` | Restored `.DS_Store` entry |
 

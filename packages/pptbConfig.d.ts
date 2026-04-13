@@ -76,7 +76,7 @@ export interface InvocationConfig {
  * All sections are optional; the file itself is optional.  When present it
  * is validated by `pptb-validate` in addition to `package.json`.
  */
-export interface PptbConfig {
+export interface PPTBConfig {
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
 }

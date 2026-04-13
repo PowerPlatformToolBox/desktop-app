@@ -43,7 +43,7 @@
  * }} InvocationConfig
  * @typedef {{
  *   invocation?: InvocationConfig;
- * }} PptbConfig
+ * }} PPTBConfig
  */
 
 // List of approved open source licenses
@@ -334,15 +334,15 @@ async function validatePackageJson(packageJson, options = {}) {
     };
 }
 
-module.exports = { validatePackageJson, validatePptbConfig, isValidUrl, APPROVED_LICENSES };
+module.exports = { validatePackageJson, validatePPTBConfig, isValidUrl, APPROVED_LICENSES };
 
 /**
  * Validates a tool's pptb.config.json against the official review criteria.
  *
- * @param {PptbConfig} config - The parsed pptb.config.json object.
+ * @param {PPTBConfig} config - The parsed pptb.config.json object.
  * @returns {ValidationResult}
  */
-function validatePptbConfig(config) {
+function validatePPTBConfig(config) {
     const errors = /** @type {string[]} */ ([]);
     const warnings = /** @type {string[]} */ ([]);
 
