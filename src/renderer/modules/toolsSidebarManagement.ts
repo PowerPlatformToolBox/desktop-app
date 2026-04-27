@@ -211,7 +211,6 @@ export async function loadSidebarTools(): Promise<void> {
                 const favoriteIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
                 const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
-                const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
 
                 const hasUpdate = !!tool.hasUpdate;
                 const isUpdating = !!tool.isUpdating;
@@ -295,7 +294,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available">▲</span>' : ""}
                                 </div>
                             </div>
                         </div>
@@ -329,7 +328,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available">▲</span>' : ""}
                                 </div>
                             </div>
                         </div>
@@ -758,7 +757,7 @@ function clearAllFilters(): void {
 }
 
 /**
- * Clear only the dropdown filter selections (category, author) for installed tools.
+ * Clear only the dropdown filter selections (category, author) and the "Update Available" checkbox for installed tools.
  * Leaves the search input unchanged.
  */
 export function clearInstalledToolsDropdownFilters(): void {
