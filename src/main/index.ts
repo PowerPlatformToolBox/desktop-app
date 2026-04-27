@@ -2614,7 +2614,7 @@ class ToolBoxApp {
      * Only includes privacy-safe diagnostics and active tool metadata.
      */
     private buildToolBoxFeedbackUrl(): string {
-        const fallbackIssuesUrl = "https://github.com/PowerPlatformToolBox/desktop-app/issues";
+        const fallbackIssuesUrl = "https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issue-form-bug.yml";
 
         try {
             const appVersion = app.getVersion();
@@ -2627,7 +2627,7 @@ class ToolBoxApp {
 
             if (activeInstanceId) {
                 const parsedToolId = activeInstanceId.split("-").slice(0, -2).join("-");
-                activeToolId = parsedToolId || activeInstanceId;
+                activeToolId = parsedToolId || "unknown";
 
                 const activeTool = this.toolManager.getTool(activeToolId);
                 const installedManifest = activeTool ? null : this.toolManager.getInstalledManifestSync(activeToolId);
@@ -2644,6 +2644,7 @@ class ToolBoxApp {
                 `Electron: ${process.versions.electron}`,
                 `Node: ${process.versions.node}`,
                 `Chrome: ${process.versions.chrome}`,
+                `Active Tool Instance ID: ${activeInstanceId ?? "none"}`,
                 `Active Tool ID: ${activeToolId}`,
                 `Active Tool Name: ${activeToolName}`,
             ].join("\n");
