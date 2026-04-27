@@ -62,7 +62,16 @@
                             <button type="button" class="search-filter-btn" id="tools-filter-btn" aria-label="Open filters and sort" title="Filters and Sort">
                                 <img width="16" height="16" alt="" aria-hidden="true" />
                             </button>
-                            <button type="button" class="search-filter-btn filter-clear-btn" id="tools-filter-clear-btn" aria-label="Clear active filters" title="Clear active filters" style="display: none">&times;</button>
+                            <button
+                                type="button"
+                                class="search-filter-btn filter-clear-btn"
+                                id="tools-filter-clear-btn"
+                                aria-label="Clear active filters"
+                                title="Clear active filters"
+                                style="display: none"
+                            >
+                                &times;
+                            </button>
                         </div>
                     </div>
                     <div class="filter-dropdown" id="tools-filter-dropdown" style="display: none">
@@ -90,6 +99,13 @@
                             <select id="tools-author-filter" class="filter-dropdown-select">
                                 <option value="">All Authors</option>
                             </select>
+                        </div>
+                        <div class="filter-divider"></div>
+                        <div class="filter-section">
+                            <label class="filter-checkbox-label" for="tools-update-required-filter">
+                                <input type="checkbox" id="tools-update-required-filter" class="filter-checkbox-input" />
+                                <span>Update Available</span>
+                            </label>
                         </div>
                     </div>
                     <div class="sidebar-body">
@@ -122,7 +138,16 @@
                             <button class="search-filter-btn" id="connections-filter-btn" title="Filters and Sort" aria-label="Open filters and sort">
                                 <img width="16" height="16" alt="" aria-hidden="true" />
                             </button>
-                            <button type="button" class="search-filter-btn filter-clear-btn" id="connections-filter-clear-btn" aria-label="Clear active filters" title="Clear active filters" style="display: none">&times;</button>
+                            <button
+                                type="button"
+                                class="search-filter-btn filter-clear-btn"
+                                id="connections-filter-clear-btn"
+                                aria-label="Clear active filters"
+                                title="Clear active filters"
+                                style="display: none"
+                            >
+                                &times;
+                            </button>
                         </div>
                     </div>
                     <div class="filter-dropdown" id="connections-filter-dropdown" style="display: none">
@@ -185,7 +210,16 @@
                             <button class="search-filter-btn" id="marketplace-filter-btn" aria-label="Open marketplace filters and sort options" title="Filters and Sort">
                                 <img width="16" height="16" alt="" aria-hidden="true" />
                             </button>
-                            <button type="button" class="search-filter-btn filter-clear-btn" id="marketplace-filter-clear-btn" aria-label="Clear active filters" title="Clear active filters" style="display: none">&times;</button>
+                            <button
+                                type="button"
+                                class="search-filter-btn filter-clear-btn"
+                                id="marketplace-filter-clear-btn"
+                                aria-label="Clear active filters"
+                                title="Clear active filters"
+                                style="display: none"
+                            >
+                                &times;
+                            </button>
                         </div>
                     </div>
                     <div class="filter-dropdown" id="marketplace-filter-dropdown" style="display: none">
@@ -723,7 +757,7 @@
         <div id="notification-container" class="notification-container"></div>
 
         <!-- Modal Backdrop Overlay -->
-        <div id="modal-backdrop" class="modal-backdrop" style="display: none;" aria-hidden="true"></div>
+        <div id="modal-backdrop" class="modal-backdrop" style="display: none" aria-hidden="true"></div>
 
         <!-- Global Search Command Palette -->
         <div id="global-search-overlay" class="global-search-overlay" style="display: none" role="dialog" aria-modal="true" aria-label="Global Search">
