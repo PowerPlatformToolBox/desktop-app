@@ -798,6 +798,14 @@ class ToolBoxApp {
 
         // Check for tool updates
         ipcMain.handle(TOOL_CHANNELS.CHECK_TOOL_UPDATES, async (_, toolId) => {
+            // DEV MOCK: randomly flag ~50% of tools as having an update available
+            if (process.env.NODE_ENV === "development") {
+                const hasMockUpdate = Math.random() < 0.5;
+                if (hasMockUpdate) {
+                    return { hasUpdate: true, latestVersion: "99.0.0" };
+                }
+                return { hasUpdate: false };
+            }
             return await this.toolManager.checkForUpdates(toolId);
         });
 

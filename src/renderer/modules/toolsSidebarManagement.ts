@@ -14,6 +14,8 @@ import { launchTool } from "./toolManagement";
 
 let activeToolContextMenu: { menu: HTMLElement; anchor: HTMLElement; cleanup: () => void } | null = null;
 
+type CheckboxElement = HTMLInputElement & { _pptbBound?: boolean };
+
 /**
  * Load and display installed tools in the sidebar
  */
@@ -62,13 +64,15 @@ export async function loadSidebarTools(): Promise<void> {
         const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
         const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
         const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
+        const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
 
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
+        const showUpdateRequiredOnly = !!updateRequiredFilter?.checked;
 
         // Update filter button indicator and one-click clear button visibility
-        const hasDropdownFilters = !!(selectedCategory || selectedAuthor);
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly);
         const toolsFilterBtn = document.getElementById("tools-filter-btn");
         if (toolsFilterBtn) {
             toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -112,6 +116,11 @@ export async function loadSidebarTools(): Promise<void> {
                 return false;
             }
 
+            // Update required filter
+            if (showUpdateRequiredOnly && !t.hasUpdate) {
+                return false;
+            }
+
             // Deprecated filter
             if (t.status === "deprecated") {
                 if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-marketplace") {
@@ -151,7 +160,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Empty state when no matches after filtering
         if (sortedTools.length === 0) {
             const hasSearchTerm = searchTerm.length > 0;
-            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor;
+            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly;
             const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
@@ -268,7 +277,7 @@ export async function loadSidebarTools(): Promise<void> {
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -281,9 +290,12 @@ export async function loadSidebarTools(): Promise<void> {
                                     `
                                         : ""
                                 }
-                                <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
-                                    tool.id
-                                }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
+                                <div class="tool-item-menu-stack-pptb">
+                                    <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
+                                        tool.id
+                                    }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                </div>
                             </div>
                         </div>
                         <div class="tool-item-authors-pptb">${authorsDisplay}</div>
@@ -299,7 +311,7 @@ export async function loadSidebarTools(): Promise<void> {
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name} ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">⬆</span>' : ""}
+                                        ${tool.name}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -312,9 +324,12 @@ export async function loadSidebarTools(): Promise<void> {
                                     `
                                         : ""
                                 }
-                                <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
-                                    tool.id
-                                }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
+                                <div class="tool-item-menu-stack-pptb">
+                                    <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
+                                        tool.id
+                                    }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                </div>
                             </div>
                         </div>
                         <div class="tool-item-description-pptb">${description}</div>
@@ -408,6 +423,7 @@ export async function loadSidebarTools(): Promise<void> {
     const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
     const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
+    const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
 
     if (searchInput && !(searchInput as any)._pptbBound) {
         (searchInput as any)._pptbBound = true;
@@ -427,6 +443,13 @@ export async function loadSidebarTools(): Promise<void> {
     if (authorFilter && !(authorFilter as any)._pptbBound) {
         (authorFilter as any)._pptbBound = true;
         authorFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    if (updateRequiredFilter && !updateRequiredFilter._pptbBound) {
+        updateRequiredFilter._pptbBound = true;
+        updateRequiredFilter.addEventListener("change", () => {
             loadSidebarTools();
         });
     }
@@ -724,6 +747,11 @@ function clearAllFilters(): void {
         authorFilter.value = "";
     }
 
+    const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
+    if (updateRequiredFilter) {
+        updateRequiredFilter.checked = false;
+    }
+
     // Reload the sidebar tools to reflect the cleared filters
     loadSidebarTools();
 }
@@ -743,6 +771,11 @@ export function clearInstalledToolsDropdownFilters(): void {
     const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
     if (authorFilter) {
         authorFilter.value = "";
+    }
+
+    const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
+    if (updateRequiredFilter) {
+        updateRequiredFilter.checked = false;
     }
 
     // Reload the sidebar tools to reflect the cleared filters
