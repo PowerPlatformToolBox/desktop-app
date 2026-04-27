@@ -2338,7 +2338,7 @@ class ToolBoxApp {
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal(this.buildToolBoxFeedbackUrl());
                         },
                     },
                     {
@@ -2609,6 +2609,62 @@ class ToolBoxApp {
         this.mainWindow.webContents.send("open-troubleshooting-modal");
     }
 
+    /**
+     * Build a prefilled GitHub bug report URL for ToolBox feedback.
+     * Only includes privacy-safe diagnostics and active tool metadata.
+     */
+    private buildToolBoxFeedbackUrl(): string {
+        const fallbackIssuesUrl = "https://github.com/PowerPlatformToolBox/desktop-app/issues";
+
+        try {
+            const appVersion = app.getVersion();
+            const channel = process.env.PPTB_CHANNEL ?? "stable";
+            const locale = app.getLocale();
+
+            const activeInstanceId = this.toolWindowManager?.getActiveToolId() ?? null;
+            let activeToolId = "none";
+            let activeToolName = "none";
+
+            if (activeInstanceId) {
+                const parsedToolId = activeInstanceId.split("-").slice(0, -2).join("-");
+                activeToolId = parsedToolId || activeInstanceId;
+
+                const activeTool = this.toolManager.getTool(activeToolId);
+                const installedManifest = activeTool ? null : this.toolManager.getInstalledManifestSync(activeToolId);
+                activeToolName = activeTool?.name || installedManifest?.name || activeToolId;
+            }
+
+            const environmentSummary = [
+                `PPTB Version: ${appVersion}`,
+                `Channel: ${channel}`,
+                `Platform: ${process.platform}`,
+                `Architecture: ${process.arch}`,
+                `OS Version: ${process.getSystemVersion()}`,
+                `Locale: ${locale}`,
+                `Electron: ${process.versions.electron}`,
+                `Node: ${process.versions.node}`,
+                `Chrome: ${process.versions.chrome}`,
+                `Active Tool ID: ${activeToolId}`,
+                `Active Tool Name: ${activeToolName}`,
+            ].join("\n");
+
+            const logsTemplate = ["Paste relevant logs here (if available).", "", "Environment (auto-filled):", environmentSummary].join("\n");
+
+            const params = new URLSearchParams({
+                template: "issue-form-bug.yml",
+                title: "[Bug]: ",
+                version: appVersion,
+                logs: logsTemplate,
+            });
+
+            return `https://github.com/PowerPlatformToolBox/desktop-app/issues/new?${params.toString()}`;
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            logError(err);
+            return fallbackIssuesUrl;
+        }
+    }
+
     private openWhatsNewIfPending(): void {
         const pendingVersion = this.settingsManager.getSetting("pendingWhatsNewVersion");
         if (!pendingVersion || typeof pendingVersion !== "string" || pendingVersion.trim().length === 0) {
@@ -2631,7 +2687,6 @@ class ToolBoxApp {
      */
     private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
         try {
-            // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
                 logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
