@@ -211,6 +211,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const favoriteIconPath = isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg";
                 const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
                 const moreIcon = `<img src="${moreIconPath}" alt="More actions" class="tool-more-icon" />`;
+                const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
 
                 const hasUpdate = !!tool.hasUpdate;
                 const isUpdating = !!tool.isUpdating;
@@ -294,7 +295,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                    ${shouldShowUpdateBadge ? `<img src="${updateIconPath}" class="tool-update-badge" alt="Update available" title="Update available" />` : ""}
                                 </div>
                             </div>
                         </div>
@@ -328,7 +329,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
+                                    ${shouldShowUpdateBadge ? `<img src="${updateIconPath}" class="tool-update-badge" alt="Update available" title="Update available" />` : ""}
                                 </div>
                             </div>
                         </div>

@@ -2597,7 +2597,7 @@ body.dark-theme .search-filter-btn.active img {
     height: 16px;
     margin: 0;
     cursor: pointer;
-    accent-color: var(--accent-color, #0078d4);
+    accent-color: var(--accent-color, #6a00ff);
     flex-shrink: 0;
 }
 
@@ -2927,9 +2927,8 @@ img.tool-item-icon-img {
 
 .tool-update-badge {
     display: block;
-    font-size: 12px;
-    line-height: 1;
-    color: var(--accent-color, #6a00ff);
+    width: 16px;
+    height: 16px;
     animation: pulse 2s infinite;
 }
 
