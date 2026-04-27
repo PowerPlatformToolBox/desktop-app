@@ -2927,8 +2927,9 @@ img.tool-item-icon-img {
 
 .tool-update-badge {
     display: block;
-    width: 16px;
-    height: 16px;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--accent-color, #6a00ff);
     animation: pulse 2s infinite;
 }
 

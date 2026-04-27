@@ -295,7 +295,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? `<img src="${updateIconPath}" class="tool-update-badge" alt="Update available" title="Update available" />` : ""}
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
                                 </div>
                             </div>
                         </div>
@@ -329,7 +329,7 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? `<img src="${updateIconPath}" class="tool-update-badge" alt="Update available" title="Update available" />` : ""}
+                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available">▲</span>' : ""}
                                 </div>
                             </div>
                         </div>
