@@ -3,6 +3,10 @@ name: "Combine Dependabot PRs"
 on:
   workflow_dispatch:
 
+concurrency:
+  group: combine-prs-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   combine-prs:
     runs-on: ubuntu-latest
@@ -17,13 +21,27 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |
+            const OWNER = context.repo.owner;
+            const REPO = context.repo.repo;
             const BRANCH_PREFIX = 'dependabot';
             const COMBINE_BRANCH = 'combine-prs-branch';
-            const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
+            const repoFullName = `${OWNER}/${REPO}`;
+            const SAFE_REF_REGEX = /^[A-Za-z0-9._/-]+$/;
+            const SAFE_SHA_REGEX = /^[a-f0-9]{40}$/i;
+
+            const sanitizeText = (value, maxLength = 200) =>
+              String(value ?? '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, maxLength);
+
+            const pullLabel = (pull) => `#${pull.number} ${sanitizeText(pull.title, 120)}`;
+
+            if (!SAFE_REF_REGEX.test(COMBINE_BRANCH) || COMBINE_BRANCH === 'main' || COMBINE_BRANCH === 'master') {
+              core.setFailed('Invalid or unsafe combine branch name');
+              return;
+            }
 
             const pulls = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: OWNER,
+              repo: REPO,
               state: 'open'
             });
 
@@ -33,10 +51,14 @@ jobs:
             let skipped = [];
 
             for (const pull of pulls) {
-              const branch = pull.head.ref;
+              const branch = pull.head?.ref;
+              if (typeof branch !== 'string' || branch.length === 0 || !SAFE_REF_REGEX.test(branch)) {
+                skipped.push(`${pullLabel(pull)} (invalid branch ref)`);
+                continue;
+              }
               if (!branch.startsWith(BRANCH_PREFIX)) continue;
 
-              console.log('Checking green status for: ' + branch);
+              core.info('Checking green status for: ' + branch);
               const result = await github.graphql(
                 `query($owner: String!, $repo: String!, $pull_number: Int!) {
                   repository(owner: $owner, name: $repo) {
@@ -47,21 +69,25 @@ jobs:
                     }
                   }
                 }`,
-                { owner: context.repo.owner, repo: context.repo.repo, pull_number: pull.number }
+                { owner: OWNER, repo: REPO, pull_number: pull.number }
               );
               const state = result?.repository?.pullRequest?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? null;
               if (state !== 'SUCCESS') {
-                console.log('Skipping ' + branch + ' — status: ' + (state ?? 'unknown'));
-                skipped.push('#' + pull.number + ' ' + pull.title + ' (status: ' + (state ?? 'unknown') + ')');
+                core.info('Skipping ' + branch + ' — status: ' + (state ?? 'unknown'));
+                skipped.push(`${pullLabel(pull)} (status: ${sanitizeText(state ?? 'unknown', 40)})`);
                 continue;
               }
 
-              const currentBase = pull.base.ref;
+              const currentBase = pull.base?.ref;
+              if (typeof currentBase !== 'string' || !SAFE_REF_REGEX.test(currentBase)) {
+                skipped.push(`${pullLabel(pull)} (invalid base branch)`);
+                continue;
+              }
               if (baseBranch === null) {
                 baseBranch = currentBase;
               } else if (currentBase !== baseBranch) {
-                console.log('Skipping ' + branch + ' — targets ' + currentBase + ', expected ' + baseBranch);
-                skipped.push('#' + pull.number + ' ' + pull.title + ' (targets ' + currentBase + ')');
+                core.info('Skipping ' + branch + ' — targets ' + currentBase + ', expected ' + baseBranch);
+                skipped.push(`${pullLabel(pull)} (targets ${sanitizeText(currentBase, 60)})`);
                 continue;
               }
 
@@ -73,10 +99,15 @@ jobs:
               return;
             }
 
+            if (!baseBranch || !SAFE_REF_REGEX.test(baseBranch)) {
+              core.setFailed('Resolved base branch is invalid');
+              return;
+            }
+
             // Fetch fresh base SHA
             const baseRef = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: OWNER,
+              repo: REPO,
               ref: 'heads/' + baseBranch
             });
             baseBranchSHA = baseRef.data.object.sha;
@@ -84,22 +115,35 @@ jobs:
             // Create or hard-reset the combine branch to the current base SHA
             try {
               await github.rest.git.createRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: OWNER,
+                repo: REPO,
                 ref: 'refs/heads/' + COMBINE_BRANCH,
                 sha: baseBranchSHA
               });
-              console.log('Created ' + COMBINE_BRANCH);
+              core.info('Created ' + COMBINE_BRANCH);
             } catch (err) {
               if (err.status === 422) {
+                const existingCombinedPrs = await github.rest.pulls.list({
+                  owner: OWNER,
+                  repo: REPO,
+                  state: 'open',
+                  head: OWNER + ':' + COMBINE_BRANCH,
+                });
+
+                const mismatchedBase = existingCombinedPrs.data.find((pr) => pr.base.ref !== baseBranch);
+                if (mismatchedBase) {
+                  core.setFailed('Existing combine PR targets a different base branch; refusing force update');
+                  return;
+                }
+
                 await github.rest.git.updateRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner: OWNER,
+                  repo: REPO,
                   ref: 'heads/' + COMBINE_BRANCH,
                   sha: baseBranchSHA,
                   force: true
                 });
-                console.log('Reset ' + COMBINE_BRANCH + ' to base SHA');
+                core.info('Reset ' + COMBINE_BRANCH + ' to base SHA');
               } else {
                 core.setFailed('Failed to create/reset branch: ' + err.message);
                 return;
@@ -110,22 +154,40 @@ jobs:
             const merged = [];
             const failed = [];
             for (const pull of candidates) {
-              const headRepo = pull.head.repo;
-              const headRef = headRepo && headRepo.full_name === repoFullName
-                ? pull.head.ref
-                : pull.head.sha;
+              const headRepoFullName = pull.head?.repo?.full_name;
+              const useBranchRef = headRepoFullName === repoFullName;
+              const headRef = useBranchRef ? pull.head?.ref : pull.head?.sha;
+
+              if (typeof headRef !== 'string' || headRef.length === 0) {
+                failed.push(`${pullLabel(pull)} (missing head reference)`);
+                core.warning('Skipping merge for PR #' + pull.number + ' due to missing head reference');
+                continue;
+              }
+
+              if (useBranchRef && !SAFE_REF_REGEX.test(headRef)) {
+                failed.push(`${pullLabel(pull)} (unsafe branch ref)`);
+                core.warning('Skipping merge for PR #' + pull.number + ' due to unsafe branch ref');
+                continue;
+              }
+
+              if (!useBranchRef && !SAFE_SHA_REGEX.test(headRef)) {
+                failed.push(`${pullLabel(pull)} (invalid commit SHA)`);
+                core.warning('Skipping merge for PR #' + pull.number + ' due to invalid commit SHA');
+                continue;
+              }
+
               try {
                 await github.rest.repos.merge({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner: OWNER,
+                  repo: REPO,
                   base: COMBINE_BRANCH,
                   head: headRef
                 });
-                merged.push('#' + pull.number + ' ' + pull.title);
-                console.log('Merged ' + headRef);
+                merged.push(pullLabel(pull));
+                core.info('Merged ' + headRef);
               } catch (err) {
-                failed.push('#' + pull.number + ' ' + pull.title + ' (' + err.message + ')');
-                console.log('Failed to merge ' + headRef + ': ' + err.message);
+                failed.push(`${pullLabel(pull)} (${sanitizeText(err.message, 120)})`);
+                core.warning('Failed to merge ' + headRef + ': ' + sanitizeText(err.message, 120));
               }
             }
 
@@ -141,30 +203,30 @@ jobs:
 
             // Create or update the combined PR
             const existing = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner: OWNER,
+              repo: REPO,
               state: 'open',
-              head: context.repo.owner + ':' + COMBINE_BRANCH,
+              head: OWNER + ':' + COMBINE_BRANCH,
               base: baseBranch
             });
 
             if (existing.data.length > 0) {
               await github.rest.pulls.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: OWNER,
+                repo: REPO,
                 pull_number: existing.data[0].number,
                 title: 'chore: combine dependabot PRs',
                 body
               });
-              console.log('Updated PR #' + existing.data[0].number);
+              core.info('Updated PR #' + existing.data[0].number);
             } else {
               const pr = await github.rest.pulls.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: OWNER,
+                repo: REPO,
                 title: 'chore: combine dependabot PRs',
                 head: COMBINE_BRANCH,
                 base: baseBranch,
                 body
               });
-              console.log('Created PR #' + pr.data.number);
+              core.info('Created PR #' + pr.data.number);
             }
