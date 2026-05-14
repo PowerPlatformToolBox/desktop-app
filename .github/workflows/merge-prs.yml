@@ -77,10 +77,9 @@ jobs:
                     pull_number: pull['number']
                   };
                   const result = await github.graphql(stateQuery, vars);
-                  const commitNodes = result.repository.pullRequest.commits.nodes || [];
+                  const commitNodes = result?.repository?.pullRequest?.commits?.nodes ?? [];
                   const latestCommitNode = commitNodes.length > 0 ? commitNodes[0] : null;
-                  const commit = latestCommitNode ? latestCommitNode.commit : null;
-                  const state = commit && commit.statusCheckRollup ? commit.statusCheckRollup.state : null;
+                  const state = latestCommitNode?.commit?.statusCheckRollup?.state ?? null;
                   if (!state) {
                     console.log('Discarding ' + branch + ' because no status check rollup state is available');
                     statusOK = false;
