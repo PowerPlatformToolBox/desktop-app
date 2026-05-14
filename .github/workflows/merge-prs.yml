@@ -1,26 +1,26 @@
-name: 'Combine PRs'
+name: "Combine PRs"
 
 # Controls when the action will run - in this case triggered manually
 on:
   workflow_dispatch:
     inputs:
       branchPrefix:
-        description: 'Branch prefix to find combinable PRs based on'
+        description: "Branch prefix to find combinable PRs based on"
         required: true
-        default: 'dependabot'
+        default: "dependabot"
       mustBeGreen:
-        description: 'Only combine PRs that are green (status is success). Set to false if repo does not run checks'
+        description: "Only combine PRs that are green (status is success). Set to false if repo does not run checks"
         type: boolean
         required: true
         default: true
       combineBranchName:
-        description: 'Name of the branch to combine PRs into'
+        description: "Name of the branch to combine PRs into"
         required: true
-        default: 'combine-prs-branch'
+        default: "combine-prs-branch"
       ignoreLabel:
-        description: 'Exclude PRs with this label'
+        description: "Exclude PRs with this label"
         required: true
-        default: 'nocombine'
+        default: "nocombine"
 
 jobs:
   # This workflow contains a single job called "combine-prs"
@@ -46,6 +46,8 @@ jobs:
             let branchesAndPRStrings = [];
             let baseBranch = null;
             let baseBranchSHA = null;
+            let skippedPRs = [];
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
             for (const pull of pulls) {
               const branch = pull['head']['ref'];
               console.log('Pull for branch: ' + branch);
@@ -101,11 +103,23 @@ jobs:
                   }
                 }
                 if (statusOK) {
-                  console.log('Adding branch to array: ' + branch);
                   const prString = '#' + pull['number'] + ' ' + pull['title'];
-                  branchesAndPRStrings.push({ branch, prString });
-                  baseBranch = pull['base']['ref'];
-                  baseBranchSHA = pull['base']['sha'];
+                  const currentBaseBranch = pull['base']['ref'];
+                  
+                  // Set base branch from the first matching PR
+                  if (baseBranch === null) {
+                    baseBranch = currentBaseBranch;
+                    console.log('Setting base branch to: ' + baseBranch);
+                  }
+                  
+                  // Validate all PRs target the same base branch
+                  if (currentBaseBranch !== baseBranch) {
+                    console.log('Skipping ' + branch + ' - targets different base branch: ' + currentBaseBranch + ' (expected: ' + baseBranch + ')');
+                    skippedPRs.push(prString + ' (targets ' + currentBaseBranch + ')');
+                  } else {
+                    console.log('Adding branch to array: ' + branch);
+                    branchesAndPRStrings.push({ pull, branch, prString });
+                  }
                 }
               }
             }
@@ -113,49 +127,118 @@ jobs:
               core.setFailed('No PRs/branches matched criteria');
               return;
             }
+            
+            // Get the current SHA of the base branch (not the stale SHA from PR objects)
+            console.log('Fetching current SHA for base branch: ' + baseBranch);
+            const baseRef = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/' + baseBranch
+            });
+            baseBranchSHA = baseRef.data.object.sha;
+            console.log('Current base branch SHA: ' + baseBranchSHA);
+            
+            // Create or reset the combined branch
+            const combineBranchRef = 'refs/heads/' + '${{ github.event.inputs.combineBranchName }}';
             try {
               await github.rest.git.createRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                ref: 'refs/heads/' + '${{ github.event.inputs.combineBranchName }}',
+                ref: combineBranchRef,
                 sha: baseBranchSHA
               });
+              console.log('Created new combined branch');
             } catch (error) {
-              console.log(error);
-              core.setFailed('Failed to create combined branch - maybe a branch by that name already exists?');
-              return;
+              if (error.status === 422) {
+                // Branch already exists, reset it to the base SHA
+                console.log('Combined branch already exists, resetting to base SHA');
+                await github.rest.git.updateRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: 'heads/' + '${{ github.event.inputs.combineBranchName }}',
+                  sha: baseBranchSHA,
+                  force: true
+                });
+              } else {
+                console.log(error);
+                core.setFailed('Failed to create or reset combined branch: ' + error.message);
+                return;
+              }
             }
-            
+
             let combinedPRs = [];
             let mergeFailedPRs = [];
-            for(const { branch, prString } of branchesAndPRStrings) {
+            for(const { pull, branch, prString } of branchesAndPRStrings) {
               try {
+                // Support fork PRs by using pull.head.label (owner:ref format)
+                const headRef = pull['head']['repo']['full_name'] === repoFullName 
+                  ? branch 
+                  : pull['head']['label'];
+                console.log('Merging ' + headRef + ' into combined branch');
                 await github.rest.repos.merge({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   base: '${{ github.event.inputs.combineBranchName }}',
-                  head: branch,
+                  head: headRef,
                 });
                 console.log('Merged branch ' + branch);
                 combinedPRs.push(prString);
               } catch (error) {
-                console.log('Failed to merge branch ' + branch);
-                mergeFailedPRs.push(prString);
+                console.log('Failed to merge branch ' + branch + ': ' + error.message);
+                mergeFailedPRs.push({ prString, error: error.message });
               }
             }
             
-            console.log('Creating combined PR');
+            // Don't create PR if no merges succeeded
+            if (combinedPRs.length === 0) {
+              const failureDetails = mergeFailedPRs.map(({ prString, error }) => `${prString}: ${error}`).join('\n');
+              core.setFailed('All merges failed. No combined PR created.\n\nFailure details:\n' + failureDetails);
+              return;
+            }
+
+            console.log('Creating or updating combined PR');
             const combinedPRsString = combinedPRs.join('\n');
             let body = '✅ This PR was created by the Combine PRs action by combining the following PRs:\n' + combinedPRsString;
             if(mergeFailedPRs.length > 0) {
-              const mergeFailedPRsString = mergeFailedPRs.join('\n');
-              body += '\n\n⚠️ The following PRs were left out due to merge conflicts:\n' + mergeFailedPRsString
+              const mergeFailedPRsString = mergeFailedPRs.map(({ prString, error }) => `${prString}\n  Error: ${error}`).join('\n');
+              body += '\n\n⚠️ The following PRs were left out due to merge failures:\n' + mergeFailedPRsString
             }
-            await github.rest.pulls.create({
+            if(skippedPRs.length > 0) {
+              const skippedPRsString = skippedPRs.join('\n');
+              body += '\n\n⚠️ The following PRs were skipped due to targeting a different base branch:\n' + skippedPRsString
+            }
+            
+            // Check if a PR already exists for this head/base combination
+            const existingPRs = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'Combined PR',
-              head: '${{ github.event.inputs.combineBranchName }}',
-              base: baseBranch,
-              body: body
+              state: 'open',
+              head: context.repo.owner + ':' + '${{ github.event.inputs.combineBranchName }}',
+              base: baseBranch
             });
+            
+            if (existingPRs.data.length > 0) {
+              // Update existing PR
+              const existingPR = existingPRs.data[0];
+              console.log('Updating existing PR #' + existingPR.number);
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: existingPR.number,
+                title: 'Combined PR',
+                body: body
+              });
+              console.log('Updated existing PR #' + existingPR.number);
+            } else {
+              // Create new PR
+              console.log('Creating new combined PR');
+              const newPR = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Combined PR',
+                head: '${{ github.event.inputs.combineBranchName }}',
+                base: baseBranch,
+                body: body
+              });
+              console.log('Created new PR #' + newPR.data.number);
+            }
