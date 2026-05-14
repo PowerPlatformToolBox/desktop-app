@@ -60,6 +60,13 @@ jobs:
               }
               if (!branch.startsWith(BRANCH_PREFIX)) continue;
 
+              const authorLogin = pull.user?.login;
+              if (authorLogin !== 'dependabot[bot]') {
+                core.info('Skipping ' + branch + ' — author is not dependabot[bot]: ' + (authorLogin ?? 'unknown'));
+                skipped.push(`${pullLabel(pull)} (author: ${sanitizeText(authorLogin ?? 'unknown', 60)})`);
+                continue;
+              }
+
               core.info('Checking green status for: ' + branch);
               const result = await github.graphql(
                 `query($owner: String!, $repo: String!, $pull_number: Int!) {
@@ -156,23 +163,15 @@ jobs:
             const merged = [];
             const failed = [];
             for (const pull of candidates) {
-              const headRepoFullName = pull.head?.repo?.full_name;
-              const useBranchRef = headRepoFullName === repoFullName;
-              const headRef = useBranchRef ? pull.head?.ref : pull.head?.sha;
+              const headRef = pull.head?.sha;
 
               if (typeof headRef !== 'string' || headRef.length === 0) {
-                failed.push(`${pullLabel(pull)} (missing head reference)`);
-                core.warning('Skipping merge for PR #' + pull.number + ' due to missing head reference');
+                failed.push(`${pullLabel(pull)} (missing head SHA)`);
+                core.warning('Skipping merge for PR #' + pull.number + ' due to missing head SHA');
                 continue;
               }
 
-              if (useBranchRef && !SAFE_REF_REGEX.test(headRef)) {
-                failed.push(`${pullLabel(pull)} (unsafe branch ref)`);
-                core.warning('Skipping merge for PR #' + pull.number + ' due to unsafe branch ref');
-                continue;
-              }
-
-              if (!useBranchRef && !SAFE_SHA_REGEX.test(headRef)) {
+              if (!SAFE_SHA_REGEX.test(headRef)) {
                 failed.push(`${pullLabel(pull)} (invalid commit SHA)`);
                 core.warning('Skipping merge for PR #' + pull.number + ' due to invalid commit SHA');
                 continue;
