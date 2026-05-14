@@ -75,12 +75,19 @@ jobs:
                     pull_number: pull['number']
                   };
                   const result = await github.graphql(stateQuery, vars);
-                  const [{ commit }] = result.repository.pullRequest.commits.nodes;
-                  const state = commit.statusCheckRollup.state
-                  console.log('Validating status: ' + state);
-                  if(state != 'SUCCESS') {
-                    console.log('Discarding ' + branch + ' with status ' + state);
+                  const commitNodes = result.repository.pullRequest.commits.nodes || [];
+                  const latestCommitNode = commitNodes.length > 0 ? commitNodes[0] : null;
+                  const commit = latestCommitNode ? latestCommitNode.commit : null;
+                  const state = commit && commit.statusCheckRollup ? commit.statusCheckRollup.state : null;
+                  if (!state) {
+                    console.log('Discarding ' + branch + ' because no status check rollup state is available');
                     statusOK = false;
+                  } else {
+                    console.log('Validating status: ' + state);
+                    if(state != 'SUCCESS') {
+                      console.log('Discarding ' + branch + ' with status ' + state);
+                      statusOK = false;
+                    }
                   }
                 }
                 console.log('Checking labels: ' + branch);
