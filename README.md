@@ -6,7 +6,7 @@
 
 <p align="center">
     <h1 align="center">
-        Power Platform ToolBox
+        Power Platform ToolBox 1
     </h1>
     <h3 align="center">
         A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform
