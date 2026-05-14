@@ -26,6 +26,7 @@
     "index.d.ts",
     "toolboxAPI.d.ts",
     "dataverseAPI.d.ts",
+    "pptbConfig.d.ts",
     "bin/",
     "lib/",
     "README.md"

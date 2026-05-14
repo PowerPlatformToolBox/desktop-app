@@ -398,10 +398,88 @@ declare namespace ToolBoxAPI {
         events: EventsAPI;
 
         /**
+         * Inter-tool launch context API.
+         *
+         * Allows one tool to launch another, pass prefill data to it, and receive
+         * a return value when the callee finishes.
+         */
+        invocation: InvocationAPI;
+
+        /**
          * Get the current tool context
          * @internal Used internally by the framework
          */
         getToolContext: () => Promise<ToolContext>;
+    }
+
+    /**
+     * Inter-tool launch context API.
+     *
+     * Tools use this namespace to:
+     * 1. **Launch another tool** with prefill data (`invocation.launchTool`).
+     * 2. **Read their own launch context** when they were launched by another tool (`invocation.getLaunchContext`).
+     * 3. **Return data** back to the tool that launched them (`invocation.returnData`).
+     *
+     * @example Caller (Tool A)
+     * ```ts
+     * const result = await toolboxAPI.invocation.launchTool(
+     *   "@my-org/entity-picker",
+     *   { entityName: "account" },
+     * );
+     * console.log(result); // { selectedId: "...", selectedName: "..." }
+     * ```
+     *
+     * @example Callee (Tool B)
+     * ```ts
+     * const ctx = await toolboxAPI.invocation.getLaunchContext();
+     * if (ctx) {
+     *   console.log(ctx.entityName); // "account"
+     * }
+     *
+     * // After user picks something...
+     * await toolboxAPI.invocation.returnData({ selectedId, selectedName });
+     * ```
+     */
+    export interface InvocationAPI {
+        /**
+         * Returns the prefill data that was passed by the caller tool when it launched
+         * this tool, or `null` if this tool was not launched via an inter-tool invocation.
+         */
+        getLaunchContext: () => Promise<Record<string, unknown> | null>;
+
+        /**
+         * Returns data back to the caller tool that launched this tool.
+         *
+         * The value resolves the `Promise` returned by the caller's
+         * `invocation.launchTool()` call.  After calling `returnData`, the PPTB host
+         * will notify the caller; it is the callee's responsibility to close itself (or
+         * update its UI) after the return.
+         *
+         * If this tool was not launched by another tool, the call is a no-op.
+         *
+         * @param returnData The data to pass back to the caller
+         */
+        returnData: (returnData: Record<string, unknown>) => Promise<void>;
+
+        /**
+         * Launch another tool from within this tool and (optionally) pass prefill data.
+         *
+         * Returns a Promise that resolves with the data the target tool sends via
+         * `invocation.returnData()`, or `null` if the target tool closes without
+         * returning any data.
+         *
+         * The target tool must be installed and its `pptb.config.json` must declare an
+         * `invocation.prefill` schema that matches the shape of `prefillData`.
+         *
+         * @param targetToolId The npm package name (toolId) of the tool to launch
+         * @param prefillData  Data to pre-populate the target tool's state
+         * @param options      Optional connection overrides for the target tool
+         */
+        launchTool: (
+            targetToolId: string,
+            prefillData?: Record<string, unknown>,
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null },
+        ) => Promise<unknown>;
     }
 
     /**

@@ -152,6 +152,7 @@ export interface ToolboxAPI {
 
     // Tool Window Management
     launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
+    launchToolWithContext: (callerInstanceId: string, calleeInstanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null, prefillData: Record<string, unknown>) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     hideToolWindows: () => Promise<boolean>;
