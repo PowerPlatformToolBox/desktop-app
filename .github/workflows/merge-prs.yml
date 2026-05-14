@@ -127,7 +127,7 @@ jobs:
               core.setFailed('No PRs/branches matched criteria');
               return;
             }
-            
+
             // Get the current SHA of the base branch (not the stale SHA from PR objects)
             console.log('Fetching current SHA for base branch: ' + baseBranch);
             const baseRef = await github.rest.git.getRef({
@@ -137,7 +137,7 @@ jobs:
             });
             baseBranchSHA = baseRef.data.object.sha;
             console.log('Current base branch SHA: ' + baseBranchSHA);
-            
+
             // Create or reset the combined branch
             const combineBranchRef = 'refs/heads/' + '${{ github.event.inputs.combineBranchName }}';
             try {
@@ -188,7 +188,7 @@ jobs:
                 mergeFailedPRs.push({ prString, error: error.message });
               }
             }
-            
+
             // Don't create PR if no merges succeeded
             if (combinedPRs.length === 0) {
               const failureDetails = mergeFailedPRs.map(({ prString, error }) => `${prString}: ${error}`).join('\n');
@@ -207,7 +207,7 @@ jobs:
               const skippedPRsString = skippedPRs.join('\n');
               body += '\n\n⚠️ The following PRs were skipped due to targeting a different base branch:\n' + skippedPRsString
             }
-            
+
             // Check if a PR already exists for this head/base combination
             const existingPRs = await github.rest.pulls.list({
               owner: context.repo.owner,
@@ -216,7 +216,7 @@ jobs:
               head: context.repo.owner + ':' + '${{ github.event.inputs.combineBranchName }}',
               base: baseBranch
             });
-            
+
             if (existingPRs.data.length > 0) {
               // Update existing PR
               const existingPR = existingPRs.data[0];
