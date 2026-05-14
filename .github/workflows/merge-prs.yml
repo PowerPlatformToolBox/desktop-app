@@ -170,9 +170,14 @@ jobs:
             for(const { pull, branch, prString } of branchesAndPRStrings) {
               try {
                 // Support fork PRs by using pull.head.label (owner:ref format)
-                const headRef = pull['head']['repo']['full_name'] === repoFullName 
-                  ? branch 
-                  : pull['head']['label'];
+                const headRepo = pull['head']['repo'];
+                const headLabel = pull['head']['label'];
+                const headRef = headRepo && headRepo['full_name'] === repoFullName
+                  ? branch
+                  : headLabel;
+                if (!headRef) {
+                  throw new Error('PR head repository is unavailable and no head label could be determined');
+                }
                 console.log('Merging ' + headRef + ' into combined branch');
                 await github.rest.repos.merge({
                   owner: context.repo.owner,
@@ -191,6 +196,16 @@ jobs:
             // Don't create PR if no merges succeeded
             if (combinedPRs.length === 0) {
               const failureDetails = mergeFailedPRs.map(({ prString, error }) => `${prString}: ${error}`).join('\n');
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: 'heads/${{ github.event.inputs.combineBranchName }}'
+                });
+                console.log('Deleted combined branch because all merges failed');
+              } catch (cleanupError) {
+                console.log('Failed to delete combined branch after all merges failed: ' + cleanupError.message);
+              }
               core.setFailed('All merges failed. No combined PR created.\n\nFailure details:\n' + failureDetails);
               return;
             }
