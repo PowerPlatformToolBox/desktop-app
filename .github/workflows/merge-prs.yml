@@ -16,3 +16,5 @@ jobs:
       - name: combine-prs
         id: combine-prs
         uses: github/combine-prs@v5.2.0
+        with:
+          token: ${{ secrets.COMBINE_PRS_TOKEN }}
