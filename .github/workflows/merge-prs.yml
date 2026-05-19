@@ -3,6 +3,10 @@ name: Combine PRs
 on:
   workflow_dispatch:
 
+concurrency:
+  group: combine-prs
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -18,3 +22,4 @@ jobs:
         uses: github/combine-prs@v5.2.0
         with:
           token: ${{ secrets.COMBINE_PRS_TOKEN }}
+          base: dev
