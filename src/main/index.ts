@@ -2297,7 +2297,7 @@ class ToolBoxApp {
                                   click: async () => {
                                       const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
                                       if (repositoryUrl) {
-                                          await shell.openExternal(repositoryUrl);
+                                          await shell.openExternal(this.buildToolFeedbackUrl(repositoryUrl));
                                       } else {
                                           const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
@@ -2607,6 +2607,49 @@ class ToolBoxApp {
 
         // Send message to renderer to open the troubleshooting modal
         this.mainWindow.webContents.send("open-troubleshooting-modal");
+    }
+
+    /**
+     * Build a URL for tool feedback, appending a prefilled body with the environment summary.
+     * If the repository URL is a GitHub repo root or issues URL, converts it to an issues/new URL.
+     * Falls back to the original URL if construction fails.
+     */
+    private buildToolFeedbackUrl(repositoryUrl: string): string {
+        try {
+            const appVersion = app.getVersion();
+            const channel = process.env.PPTB_CHANNEL ?? "stable";
+            const locale = app.getLocale();
+
+            const environmentSummary = [
+                `[Write your comment/feedback/issue here]`,
+                ``,
+                `PPTB Version: ${appVersion}`,
+                `Channel: ${channel}`,
+                `Platform: ${process.platform}`,
+                `Architecture: ${process.arch}`,
+                `OS Version: ${process.getSystemVersion()}`,
+                `Locale: ${locale}`,
+                `Electron: ${process.versions.electron}`,
+                `Node: ${process.versions.node}`,
+                `Chrome: ${process.versions.chrome}`,
+            ].join("\n");
+
+            // Normalise GitHub repo URLs to the issues/new endpoint
+            const url = new URL(repositoryUrl);
+            if (url.hostname === "github.com") {
+                // Strip trailing slashes and known suffixes so we always end up at the repo root
+                const cleanPath = url.pathname.replace(/\/(issues|pulls|discussions).*$/, "").replace(/\/+$/, "");
+                url.pathname = `${cleanPath}/issues/new`;
+                url.search = "";
+            }
+
+            url.searchParams.set("body", environmentSummary);
+            return url.toString();
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            logError(err);
+            return repositoryUrl;
+        }
     }
 
     /**
