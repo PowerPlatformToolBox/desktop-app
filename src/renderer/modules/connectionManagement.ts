@@ -1473,7 +1473,7 @@ export async function importConnections(): Promise<void> {
  * \d* is intentionally lenient to accommodate current and future Microsoft region codes (crm, crm4, crm9, crm11, etc.).
  * End-anchored and case-insensitive; applied against the parsed hostname only.
  */
-const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)$/i;
+const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)(\.mcas\.ms)?$/i;
 
 /**
  * Validates that a URL string points to a Dataverse environment hostname.
