@@ -2926,11 +2926,19 @@ img.tool-item-icon-img {
 }
 
 .tool-update-badge {
-    display: block;
-    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
     line-height: 1;
-    color: var(--accent-color, #6a00ff);
+    color: var(--primary-color);
     animation: pulse 2s infinite;
+}
+
+.tool-update-badge svg {
+    width: 100%;
+    height: 100%;
 }
 
 .tool-deprecated-badge {

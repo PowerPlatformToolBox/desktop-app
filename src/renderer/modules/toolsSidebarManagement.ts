@@ -49,6 +49,7 @@ export async function loadSidebarTools(): Promise<void> {
             tools.map(async (tool: ToolDetail) => {
                 const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
                 const isUpdating = await window.toolboxAPI.isToolUpdating(tool.id);
+
                 return {
                     ...tool,
                     latestVersion: updateInfo.latestVersion,
@@ -294,7 +295,11 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available">▲</span>' : ""}
+                                    ${
+                                        shouldShowUpdateBadge
+                                            ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"></circle><path d="M8 4.25L11.25 10.75H4.75L8 4.25Z" fill="currentColor"></path></svg></span>'
+                                            : ""
+                                    }
                                 </div>
                             </div>
                         </div>
@@ -328,7 +333,11 @@ export async function loadSidebarTools(): Promise<void> {
                                     <button class="icon-button tool-more-btn" data-action="more" data-tool-id="${
                                         tool.id
                                     }" title="More options" aria-haspopup="true" aria-expanded="false">${moreIcon}</button>
-                                    ${shouldShowUpdateBadge ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available">▲</span>' : ""}
+                                    ${
+                                        shouldShowUpdateBadge
+                                            ? '<span class="tool-update-badge" title="Update available" role="img" aria-label="Update available"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"></circle><path d="M8 4.25L11.25 10.75H4.75L8 4.25Z" fill="currentColor"></path></svg></span>'
+                                            : ""
+                                    }
                                 </div>
                             </div>
                         </div>
