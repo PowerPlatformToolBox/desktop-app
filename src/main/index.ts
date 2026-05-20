@@ -2568,20 +2568,19 @@ class ToolBoxApp {
             return;
         }
 
-        const appVersion = app.getVersion();
+        const diagnostics = this.getEnvironmentDiagnostics();
         const installId = this.installIdManager.getInstallId();
-        const locale = app.getLocale();
 
         const payload = {
-            appVersion,
+            appVersion: diagnostics.appVersion,
             installId,
-            locale,
-            electronVersion: process.versions.electron,
-            nodeVersion: process.versions.node,
-            chromeVersion: process.versions.chrome,
-            platform: process.platform,
-            arch: process.arch,
-            osVersion: process.getSystemVersion(),
+            locale: diagnostics.locale,
+            electronVersion: diagnostics.electronVersion,
+            nodeVersion: diagnostics.nodeVersion,
+            chromeVersion: diagnostics.chromeVersion,
+            platform: diagnostics.platform,
+            arch: diagnostics.arch,
+            osVersion: diagnostics.osVersion,
         };
 
         const webContents = this.mainWindow.webContents;
@@ -2596,6 +2595,47 @@ class ToolBoxApp {
         } else {
             deliver();
         }
+    }
+
+    private getEnvironmentDiagnostics(): {
+        appVersion: string;
+        channel: string;
+        locale: string;
+        electronVersion: string;
+        nodeVersion: string;
+        chromeVersion: string;
+        platform: string;
+        arch: string;
+        osVersion: string;
+    } {
+        return {
+            appVersion: app.getVersion(),
+            channel: process.env.PPTB_CHANNEL ?? "stable",
+            locale: app.getLocale(),
+            electronVersion: process.versions.electron,
+            nodeVersion: process.versions.node,
+            chromeVersion: process.versions.chrome,
+            platform: process.platform,
+            arch: process.arch,
+            osVersion: process.getSystemVersion(),
+        };
+    }
+
+    private buildEnvironmentSummaryLines(extraLines: string[] = []): string[] {
+        const diagnostics = this.getEnvironmentDiagnostics();
+
+        return [
+            `PPTB Version: ${diagnostics.appVersion}`,
+            `Channel: ${diagnostics.channel}`,
+            `Platform: ${diagnostics.platform}`,
+            `Architecture: ${diagnostics.arch}`,
+            `OS Version: ${diagnostics.osVersion}`,
+            `Locale: ${diagnostics.locale}`,
+            `Electron: ${diagnostics.electronVersion}`,
+            `Node: ${diagnostics.nodeVersion}`,
+            `Chrome: ${diagnostics.chromeVersion}`,
+            ...extraLines,
+        ];
     }
 
     /**
@@ -2616,23 +2656,7 @@ class ToolBoxApp {
      */
     private buildToolFeedbackUrl(repositoryUrl: string): string {
         try {
-            const appVersion = app.getVersion();
-            const channel = process.env.PPTB_CHANNEL ?? "stable";
-            const locale = app.getLocale();
-
-            const environmentSummary = [
-                `[Write your comment/feedback/issue here]`,
-                ``,
-                `PPTB Version: ${appVersion}`,
-                `Channel: ${channel}`,
-                `Platform: ${process.platform}`,
-                `Architecture: ${process.arch}`,
-                `OS Version: ${process.getSystemVersion()}`,
-                `Locale: ${locale}`,
-                `Electron: ${process.versions.electron}`,
-                `Node: ${process.versions.node}`,
-                `Chrome: ${process.versions.chrome}`,
-            ].join("\n");
+            const environmentSummary = [`[Write your comment/feedback/issue here]`, ``, ...this.buildEnvironmentSummaryLines()].join("\n");
 
             // Normalise GitHub repo URLs to the issues/new endpoint
             const url = new URL(repositoryUrl);
@@ -2640,7 +2664,6 @@ class ToolBoxApp {
                 // Strip trailing slashes and known suffixes so we always end up at the repo root
                 const cleanPath = url.pathname.replace(/\/(issues|pulls|discussions).*$/, "").replace(/\/+$/, "");
                 url.pathname = `${cleanPath}/issues/new`;
-                url.search = "";
             }
 
             url.searchParams.set("body", environmentSummary);
@@ -2660,9 +2683,7 @@ class ToolBoxApp {
         const fallbackIssuesUrl = "https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issue-form-bug.yml";
 
         try {
-            const appVersion = app.getVersion();
-            const channel = process.env.PPTB_CHANNEL ?? "stable";
-            const locale = app.getLocale();
+            const diagnostics = this.getEnvironmentDiagnostics();
 
             const activeInstanceId = this.toolWindowManager?.getActiveToolId() ?? null;
             let activeToolId = "none";
@@ -2677,27 +2698,18 @@ class ToolBoxApp {
                 activeToolName = activeTool?.name || installedManifest?.name || activeToolId;
             }
 
-            const environmentSummary = [
-                `PPTB Version: ${appVersion}`,
-                `Channel: ${channel}`,
-                `Platform: ${process.platform}`,
-                `Architecture: ${process.arch}`,
-                `OS Version: ${process.getSystemVersion()}`,
-                `Locale: ${locale}`,
-                `Electron: ${process.versions.electron}`,
-                `Node: ${process.versions.node}`,
-                `Chrome: ${process.versions.chrome}`,
+            const environmentSummary = this.buildEnvironmentSummaryLines([
                 `Active Tool Instance ID: ${activeInstanceId ?? "none"}`,
                 `Active Tool ID: ${activeToolId}`,
                 `Active Tool Name: ${activeToolName}`,
-            ].join("\n");
+            ]).join("\n");
 
             const logsTemplate = ["Paste relevant logs here (if available).", "", "Environment (auto-filled):", environmentSummary].join("\n");
 
             const params = new URLSearchParams({
                 template: "issue-form-bug.yml",
                 title: "[Bug]: ",
-                version: appVersion,
+                version: diagnostics.appVersion,
                 logs: logsTemplate,
             });
 
