@@ -44,9 +44,10 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
-import { TrayManager } from "./managers/trayManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -2297,7 +2298,7 @@ class ToolBoxApp {
                                   click: async () => {
                                       const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
                                       if (repositoryUrl) {
-                                          await shell.openExternal(this.buildToolFeedbackUrl(repositoryUrl));
+                                          await shell.openExternal(buildToolFeedbackUrl(repositoryUrl, this.getActiveToolInfo()));
                                       } else {
                                           const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
@@ -2338,7 +2339,7 @@ class ToolBoxApp {
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
-                            await shell.openExternal(this.buildToolBoxFeedbackUrl());
+                            await shell.openExternal(buildToolBoxFeedbackUrl(this.getActiveToolInfo()));
                         },
                     },
                     {
@@ -2568,7 +2569,7 @@ class ToolBoxApp {
             return;
         }
 
-        const diagnostics = this.getEnvironmentDiagnostics();
+        const diagnostics = getEnvironmentDiagnostics();
         const installId = this.installIdManager.getInstallId();
 
         const payload = {
@@ -2597,45 +2598,14 @@ class ToolBoxApp {
         }
     }
 
-    private getEnvironmentDiagnostics(): {
-        appVersion: string;
-        channel: string;
-        locale: string;
-        electronVersion: string;
-        nodeVersion: string;
-        chromeVersion: string;
-        platform: string;
-        arch: string;
-        osVersion: string;
-    } {
-        return {
-            appVersion: app.getVersion(),
-            channel: process.env.PPTB_CHANNEL ?? "stable",
-            locale: app.getLocale(),
-            electronVersion: process.versions.electron,
-            nodeVersion: process.versions.node,
-            chromeVersion: process.versions.chrome,
-            platform: process.platform,
-            arch: process.arch,
-            osVersion: process.getSystemVersion(),
-        };
-    }
-
-    private buildEnvironmentSummaryLines(extraLines: string[] = []): string[] {
-        const diagnostics = this.getEnvironmentDiagnostics();
-
-        return [
-            `PPTB Version: ${diagnostics.appVersion}`,
-            `Channel: ${diagnostics.channel}`,
-            `Platform: ${diagnostics.platform}`,
-            `Architecture: ${diagnostics.arch}`,
-            `OS Version: ${diagnostics.osVersion}`,
-            `Locale: ${diagnostics.locale}`,
-            `Electron: ${diagnostics.electronVersion}`,
-            `Node: ${diagnostics.nodeVersion}`,
-            `Chrome: ${diagnostics.chromeVersion}`,
-            ...extraLines,
-        ];
+    /** Resolve the currently-active tool's identity using the live manager instances. */
+    private getActiveToolInfo(): ActiveToolInfo {
+        const instanceId = this.toolWindowManager?.getActiveToolId() ?? null;
+        return resolveActiveToolInfo(
+            instanceId,
+            (id) => this.toolManager.getTool(id),
+            (id) => this.toolManager.getInstalledManifestSync(id),
+        );
     }
 
     /**
@@ -2647,78 +2617,6 @@ class ToolBoxApp {
 
         // Send message to renderer to open the troubleshooting modal
         this.mainWindow.webContents.send("open-troubleshooting-modal");
-    }
-
-    /**
-     * Build a URL for tool feedback, appending a prefilled body with the environment summary.
-     * If the repository URL is a GitHub repo root or issues URL, converts it to an issues/new URL.
-     * Falls back to the original URL if construction fails.
-     */
-    private buildToolFeedbackUrl(repositoryUrl: string): string {
-        try {
-            const environmentSummary = [`[Write your comment/feedback/issue here]`, ``, ...this.buildEnvironmentSummaryLines()].join("\n");
-
-            // Normalise GitHub repo URLs to the issues/new endpoint
-            const url = new URL(repositoryUrl);
-            if (url.hostname === "github.com") {
-                // Strip trailing slashes and known suffixes so we always end up at the repo root
-                const cleanPath = url.pathname.replace(/\/(issues|pulls|discussions).*$/, "").replace(/\/+$/, "");
-                url.pathname = `${cleanPath}/issues/new`;
-            }
-
-            url.searchParams.set("body", environmentSummary);
-            return url.toString();
-        } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
-            return repositoryUrl;
-        }
-    }
-
-    /**
-     * Build a prefilled GitHub bug report URL for ToolBox feedback.
-     * Only includes privacy-safe diagnostics and active tool metadata.
-     */
-    private buildToolBoxFeedbackUrl(): string {
-        const fallbackIssuesUrl = "https://github.com/PowerPlatformToolBox/desktop-app/issues/new?template=issue-form-bug.yml";
-
-        try {
-            const diagnostics = this.getEnvironmentDiagnostics();
-
-            const activeInstanceId = this.toolWindowManager?.getActiveToolId() ?? null;
-            let activeToolId = "none";
-            let activeToolName = "none";
-
-            if (activeInstanceId) {
-                const parsedToolId = activeInstanceId.split("-").slice(0, -2).join("-");
-                activeToolId = parsedToolId || "unknown";
-
-                const activeTool = this.toolManager.getTool(activeToolId);
-                const installedManifest = activeTool ? null : this.toolManager.getInstalledManifestSync(activeToolId);
-                activeToolName = activeTool?.name || installedManifest?.name || activeToolId;
-            }
-
-            const environmentSummary = this.buildEnvironmentSummaryLines([
-                `Active Tool Instance ID: ${activeInstanceId ?? "none"}`,
-                `Active Tool ID: ${activeToolId}`,
-                `Active Tool Name: ${activeToolName}`,
-            ]).join("\n");
-
-            const logsTemplate = ["Paste relevant logs here (if available).", "", "Environment (auto-filled):", environmentSummary].join("\n");
-
-            const params = new URLSearchParams({
-                template: "issue-form-bug.yml",
-                title: "[Bug]: ",
-                version: diagnostics.appVersion,
-                logs: logsTemplate,
-            });
-
-            return `https://github.com/PowerPlatformToolBox/desktop-app/issues/new?${params.toString()}`;
-        } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            logError(err);
-            return fallbackIssuesUrl;
-        }
     }
 
     private openWhatsNewIfPending(): void {
