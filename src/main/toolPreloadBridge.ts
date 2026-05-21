@@ -11,7 +11,17 @@
 import { contextBridge, ipcRenderer } from "electron";
 // Reverted to importing centralized channel definitions from single source file.
 // Ensure BrowserView preload can resolve this module (see ToolWindowManager sandbox setting).
-import { CONNECTION_CHANNELS, DATAVERSE_CHANNELS, EVENT_CHANNELS, FILESYSTEM_CHANNELS, SETTINGS_CHANNELS, TERMINAL_CHANNELS, TOOL_CHANNELS, TOOL_WINDOW_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
+import {
+    CONNECTION_CHANNELS,
+    DATAVERSE_CHANNELS,
+    EVENT_CHANNELS,
+    FILESYSTEM_CHANNELS,
+    SETTINGS_CHANNELS,
+    TERMINAL_CHANNELS,
+    TOOL_CHANNELS,
+    TOOL_WINDOW_CHANNELS,
+    UTIL_CHANNELS,
+} from "../common/ipc/channels";
 import { logInfo } from "../common/logger";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse } from "../common/types";
 
@@ -259,11 +269,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         openExternal: (url: string) => ipcInvoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
-        // TODO: Remove showLoading and hideLoading - deprecated
-        /** @deprecated */
-        showLoading: (message?: string) => ipcInvoke(UTIL_CHANNELS.SHOW_LOADING, message),
-        /** @deprecated */
-        hideLoading: () => ipcInvoke(UTIL_CHANNELS.HIDE_LOADING),
         executeParallel: async <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => {
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);

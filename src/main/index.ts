@@ -339,8 +339,6 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
-        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
-        ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
@@ -1025,37 +1023,6 @@ class ToolBoxApp {
         // Clipboard handler
         ipcMain.handle(UTIL_CHANNELS.COPY_TO_CLIPBOARD, (_, text) => {
             this.api.copyToClipboard(text);
-        });
-
-        // Show loading handler (overlay window above tool panel area only)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
-            if (this.loadingOverlayWindowManager && this.mainWindow) {
-                try {
-                    // Get bounds from the active tool's BrowserView directly
-                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
-
-                    // Show overlay with tool panel bounds (or undefined for full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
-                } catch (error) {
-                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    logError(error instanceof Error ? error : new Error(String(error)));
-                    // On error, show without bounds (full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...");
-                }
-            } else if (this.mainWindow) {
-                // Fallback to legacy in-DOM loading screen if manager not ready
-                this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
-            }
-        });
-
-        // Hide loading handler
-        ipcMain.handle(UTIL_CHANNELS.HIDE_LOADING, () => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.hide();
-            } else if (this.mainWindow) {
-                // Fallback legacy hide
-                this.mainWindow.webContents.send(EVENT_CHANNELS.HIDE_LOADING_SCREEN);
-            }
         });
 
         // Get current theme handler

@@ -469,7 +469,9 @@ body {
     border-radius: 10px;
     padding: 16px 18px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .settings-section-card:hover {
@@ -1645,7 +1647,9 @@ body.dark-theme .settings-section-card {
     cursor: pointer;
     color: var(--text-color);
     opacity: 0.7;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -1785,7 +1789,9 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
 }
 
 .tool-tab:hover .tool-tab-close {
@@ -1807,7 +1813,9 @@ body.dark-theme .settings-section-card {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition: opacity 0.2s, background-color 0.2s;
+    transition:
+        opacity 0.2s,
+        background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2033,7 +2041,9 @@ body.dark-theme .settings-section-card {
     text-decoration: none;
     cursor: pointer;
     border-left: 3px solid transparent;
-    transition: background 0.15s, color 0.15s;
+    transition:
+        background 0.15s,
+        color 0.15s;
 }
 
 .settings-nav-link:hover {
@@ -2462,7 +2472,10 @@ body.dark-theme .settings-vscode-item:hover {
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
-    transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        background-color 0.2s ease,
+        color 0.2s ease;
 }
 
 .sidebar-search-input-wrapper:has(.search-input:not(:placeholder-shown)) .search-clear-btn {
@@ -2488,7 +2501,6 @@ body.dark-theme .settings-vscode-item:hover {
     gap: 2px;
     flex-shrink: 0;
 }
-
 
 .search-filter-btn {
     padding: 6px 8px;
@@ -2695,7 +2707,10 @@ body.dark-theme .search-filter-btn.active img {
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
 }
 
 .tool-item-pptb-local {
@@ -2784,7 +2799,9 @@ img.tool-item-icon-img {
     border: none;
     cursor: pointer;
     padding: 2px 4px;
-    transition: transform 0.2s, opacity 0.2s;
+    transition:
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3037,7 +3054,10 @@ img.tool-item-icon-img {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
 }
 
 .marketplace-item-pptb:hover {
@@ -3107,7 +3127,11 @@ img.tool-item-icon-img {
     color: var(--text-color);
     padding: 0;
     cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
 }
 
 body.dark-theme .install-button {
@@ -3242,7 +3266,10 @@ body.light-theme .install-button:focus-visible img {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+    transition:
+        background-color 0.2s,
+        box-shadow 0.2s,
+        border-color 0.2s;
     margin-bottom: 10px;
 }
 
@@ -3911,8 +3938,8 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
-        radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
+    background:
+        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%), radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
 body.dark-theme #tool-detail-modal .modal-content.tool-detail-modern {
@@ -4735,7 +4762,9 @@ fluent-badge {
     border-radius: 3px;
     font-size: 13px;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
+    transition:
+        background-color 0.2s,
+        color 0.2s;
     white-space: nowrap;
 }
 
@@ -4890,77 +4919,6 @@ body.dark-theme .terminal-tab.active {
     color: #ffffff;
 }
 
-/* Loading Screen Overlay */
-.loading-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    backdrop-filter: blur(4px);
-    animation: fadeIn 0.2s ease-in;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes fadeOut {
-    from {
-        opacity: 1;
-    }
-    to {
-        opacity: 0;
-    }
-}
-
-.loading-screen.fade-out {
-    animation: fadeOut 0.2s ease-out;
-}
-
-.loading-spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #0078d4;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.loading-message {
-    margin-top: 16px;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-    text-align: center;
-}
-
-body.dark-theme .loading-screen {
-    background-color: rgba(0, 0, 0, 0.75);
-}
-
-body.dark-theme .loading-spinner {
-    border-color: rgba(255, 255, 255, 0.15);
-    border-top-color: #4fc3f7;
-}
-
 /* CSP Consent Dialog Styles */
 .csp-consent-dialog {
     max-width: 600px;
@@ -5102,7 +5060,9 @@ body.dark-theme .csp-warning ul {
     align-items: flex-start;
     gap: 12px;
     animation: slideInRight 0.3s ease-out;
-    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    transition:
+        opacity 0.2s ease-out,
+        transform 0.2s ease-out;
     max-width: 100%;
 }
 
@@ -5706,7 +5666,6 @@ body.dark-theme .global-search-item-badge.badge-settings {
         }
     }
 }
-
 
 /* Export button on category group header */
 .connection-group-export-btn {
