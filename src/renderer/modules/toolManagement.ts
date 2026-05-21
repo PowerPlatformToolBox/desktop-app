@@ -496,7 +496,14 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // The backend ToolWindowManager will create a BrowserView and load the tool
         if (options?.callerInstanceId) {
             void window.toolboxAPI
-                .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})
+                .launchToolWithContext(
+                    options.callerInstanceId,
+                    instanceId,
+                    tool,
+                    primaryConnectionId,
+                    secondaryConnectionId ?? null,
+                    options.prefillData ?? {},
+                )
                 .catch(async (error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
@@ -505,7 +512,11 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                         body: `Failed to launch ${tool.name}: ${errorMessage}`,
                         type: "error",
                     });
-                    await closeTool(instanceId);
+                    try {
+                        await closeTool(instanceId);
+                    } catch (closeError) {
+                        logError("Failed to close tool after invocation launch failure", { instanceId, error: closeError instanceof Error ? closeError.message : String(closeError) });
+                    }
                 });
         } else {
             const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
