@@ -187,19 +187,6 @@ declare namespace ToolBoxAPI {
          * );
          */
         executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
-
-        /**
-         * Show a loading screen in the tool's context
-         * @param message Optional message to display (default: "Loading...")
-         * @deprecated Use a tool-level loading pattern instead. Will be removed in a future version.
-         */
-        showLoading: (message?: string) => Promise<void>;
-
-        /**
-         * Hide the loading screen in the tool's context
-         * @deprecated Use a tool-level loading pattern instead. Will be removed in a future version.
-         */
-        hideLoading: () => Promise<void>;
     }
 
     /**
@@ -475,11 +462,7 @@ declare namespace ToolBoxAPI {
          * @param prefillData  Data to pre-populate the target tool's state
          * @param options      Optional connection overrides for the target tool
          */
-        launchTool: (
-            targetToolId: string,
-            prefillData?: Record<string, unknown>,
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null },
-        ) => Promise<unknown>;
+        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }) => Promise<unknown>;
     }
 
     /**
