@@ -35,7 +35,6 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
-import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
@@ -45,7 +44,9 @@ import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -70,8 +71,8 @@ class ToolBoxApp {
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
-    private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
+    private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private browserManager: BrowserManager;
@@ -82,6 +83,23 @@ class ToolBoxApp {
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
+    private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+
+    /**
+     * Resolve the application icon for the current release channel.
+     * Returns the insider icon path when `PPTB_CHANNEL=insider` and the file
+     * exists; otherwise falls back to the standard stable icon.
+     */
+    static resolveAppIcon(): string {
+        const channel = process.env.PPTB_CHANNEL ?? "stable";
+        if (channel === "insider") {
+            const insiderPath = path.join(__dirname, "../../icons/insider/icon.png");
+            if (fs.existsSync(insiderPath)) {
+                return insiderPath;
+            }
+        }
+        return path.join(__dirname, "../../icons/icon.png");
+    }
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
@@ -108,6 +126,10 @@ class ToolBoxApp {
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.trayManager = new TrayManager(
+                () => this.mainWindow,
+                () => this.createWindow(),
+            );
 
             this.setupEventListeners();
             this.setupIpcHandlers();
@@ -315,8 +337,6 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
-        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
-        ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
@@ -1001,37 +1021,6 @@ class ToolBoxApp {
         // Clipboard handler
         ipcMain.handle(UTIL_CHANNELS.COPY_TO_CLIPBOARD, (_, text) => {
             this.api.copyToClipboard(text);
-        });
-
-        // Show loading handler (overlay window above tool panel area only)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
-            if (this.loadingOverlayWindowManager && this.mainWindow) {
-                try {
-                    // Get bounds from the active tool's BrowserView directly
-                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
-
-                    // Show overlay with tool panel bounds (or undefined for full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
-                } catch (error) {
-                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    logError(error instanceof Error ? error : new Error(String(error)));
-                    // On error, show without bounds (full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...");
-                }
-            } else if (this.mainWindow) {
-                // Fallback to legacy in-DOM loading screen if manager not ready
-                this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
-            }
-        });
-
-        // Hide loading handler
-        ipcMain.handle(UTIL_CHANNELS.HIDE_LOADING, () => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.hide();
-            } else if (this.mainWindow) {
-                // Fallback legacy hide
-                this.mainWindow.webContents.send(EVENT_CHANNELS.HIDE_LOADING_SCREEN);
-            }
         });
 
         // Get current theme handler
@@ -2274,7 +2263,7 @@ class ToolBoxApp {
                                   click: async () => {
                                       const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
                                       if (repositoryUrl) {
-                                          await shell.openExternal(repositoryUrl);
+                                          await shell.openExternal(buildToolFeedbackUrl(repositoryUrl, this.getActiveToolInfo()));
                                       } else {
                                           const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
@@ -2315,7 +2304,7 @@ class ToolBoxApp {
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal(buildToolBoxFeedbackUrl(this.getActiveToolInfo()));
                         },
                     },
                     {
@@ -2481,7 +2470,7 @@ class ToolBoxApp {
                 // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform ToolBox",
-            icon: path.join(__dirname, "../../assets/icon.png"),
+            icon: ToolBoxApp.resolveAppIcon(),
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
@@ -2502,8 +2491,6 @@ class ToolBoxApp {
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
-        // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
-        this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
@@ -2530,7 +2517,6 @@ class ToolBoxApp {
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;
-            this.loadingOverlayWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
@@ -2545,20 +2531,19 @@ class ToolBoxApp {
             return;
         }
 
-        const appVersion = app.getVersion();
+        const diagnostics = getEnvironmentDiagnostics();
         const installId = this.installIdManager.getInstallId();
-        const locale = app.getLocale();
 
         const payload = {
-            appVersion,
+            appVersion: diagnostics.appVersion,
             installId,
-            locale,
-            electronVersion: process.versions.electron,
-            nodeVersion: process.versions.node,
-            chromeVersion: process.versions.chrome,
-            platform: process.platform,
-            arch: process.arch,
-            osVersion: process.getSystemVersion(),
+            locale: diagnostics.locale,
+            electronVersion: diagnostics.electronVersion,
+            nodeVersion: diagnostics.nodeVersion,
+            chromeVersion: diagnostics.chromeVersion,
+            platform: diagnostics.platform,
+            arch: diagnostics.arch,
+            osVersion: diagnostics.osVersion,
         };
 
         const webContents = this.mainWindow.webContents;
@@ -2573,6 +2558,16 @@ class ToolBoxApp {
         } else {
             deliver();
         }
+    }
+
+    /** Resolve the currently-active tool's identity using the live manager instances. */
+    private getActiveToolInfo(): ActiveToolInfo {
+        const instanceId = this.toolWindowManager?.getActiveToolId() ?? null;
+        return resolveActiveToolInfo(
+            instanceId,
+            (id) => this.toolManager.getTool(id),
+            (id) => this.toolManager.getInstalledManifestSync(id),
+        );
     }
 
     /**
@@ -2608,7 +2603,6 @@ class ToolBoxApp {
      */
     private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
         try {
-            // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
                 logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
@@ -2961,6 +2955,10 @@ class ToolBoxApp {
             this.createWindow();
             logCheckpoint("Main window created");
 
+            // Create the system tray icon so the app is accessible when its window is closed.
+            this.trayManager?.create();
+            logCheckpoint("Tray icon created");
+
             // Set up deep link protocol handler callback after the main window exists.
             // The callback defers IPC delivery until the renderer has finished loading so
             // that protocol URLs captured during startup (buffered in pendingUrls) are
@@ -3017,19 +3015,35 @@ class ToolBoxApp {
             this.connectionsManager.clearAllConnectionTokens();
 
             app.on("activate", () => {
-                if (BrowserWindow.getAllWindows().length === 0) {
+                // On macOS the app stays alive after the window is closed.
+                // When the user clicks the Dock icon (or the tray "Open" item),
+                // restore the existing window if it still exists, otherwise create a new one.
+                if (this.mainWindow) {
+                    if (this.mainWindow.isMinimized()) {
+                        this.mainWindow.restore();
+                    }
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
+                } else {
                     this.createWindow();
                 }
             });
 
             app.on("window-all-closed", () => {
-                if (process.platform !== "darwin") {
+                // On macOS the app intentionally stays alive after all windows are closed so
+                // background tool execution can continue.  The exception is when the user
+                // explicitly quits (via the tray "Quit" item, Cmd+Q, or the app menu) — in
+                // that case `isQuitting` is already true and we allow the quit to proceed.
+                if (process.platform !== "darwin" || this.isQuitting) {
                     app.quit();
                 }
             });
 
             app.on("before-quit", () => {
+                this.isQuitting = true;
                 logCheckpoint("Application shutting down");
+                // Clean up tray icon before quitting
+                this.trayManager?.destroy();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks

@@ -37,11 +37,6 @@ export interface UtilsAPI {
     copyToClipboard: (text: string) => Promise<void>;
     getCurrentTheme: () => Promise<Theme>;
     executeParallel: <T = unknown>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
-    // TODO: Remove showLoading and hideLoading - deprecated, use a tool-level loading pattern instead
-    /** @deprecated Use a tool-level loading pattern instead. Will be removed in a future version. */
-    showLoading: (message?: string) => Promise<void>;
-    /** @deprecated Use a tool-level loading pattern instead. Will be removed in a future version. */
-    hideLoading: () => Promise<void>;
     showModalWindow: (options: ModalWindowOptions) => Promise<void>;
     closeModalWindow: () => Promise<void>;
     sendModalMessage: (payload: ModalWindowMessagePayload) => Promise<void>;
@@ -152,6 +147,7 @@ export interface ToolboxAPI {
 
     // Tool Window Management
     launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
+    launchToolWithContext: (callerInstanceId: string, calleeInstanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null, prefillData: Record<string, unknown>) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     hideToolWindows: () => Promise<boolean>;

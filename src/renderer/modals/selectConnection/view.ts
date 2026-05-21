@@ -16,6 +16,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
         : `<p class="modal-eyebrow">Connections</p>`;
 
     const body = `
+
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -88,6 +89,7 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
         <button id="cancel-select-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="connect-selected-connection-btn" class="fluent-button fluent-button-primary" disabled>Connect</button>
     </div>
+
 </div>`;
 
     return { styles, body };

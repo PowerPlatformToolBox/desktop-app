@@ -44,7 +44,7 @@ export class NotificationWindowManager {
             height: this.calculateWindowHeight(),
             frame: false,
             transparent: true,
-            alwaysOnTop: false,
+            alwaysOnTop: true,
             skipTaskbar: true,
             resizable: false,
             movable: false,

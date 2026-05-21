@@ -5,7 +5,7 @@
     "directories": {
         "output": "build"
     },
-    "files": ["dist/**/*", "assets/**/*", "package.json"],
+    "files": ["dist/**/*", "icons/**/*", "package.json"],
     "publish": {
         "provider": "github",
         "owner": "PowerPlatformToolBox",

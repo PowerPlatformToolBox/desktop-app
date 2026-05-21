@@ -12,11 +12,11 @@ import {
     DEFAULT_SHOW_CATEGORY_COLOR,
     DEFAULT_SHOW_ENVIRONMENT_COLOR,
     DEFAULT_TERMINAL_FONT,
-    LOADING_SCREEN_FADE_DURATION,
 } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import {
+    clearConnectionDropdownFilters,
     exportConnections,
     handleReauthentication,
     importConnections,
@@ -27,7 +27,7 @@ import {
 } from "./connectionManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
-import { handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
@@ -35,7 +35,7 @@ import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
-import { loadSidebarTools } from "./toolsSidebarManagement";
+import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -138,9 +138,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
-
-        // Set up loading screen listeners
-        setupLoadingScreenListeners();
 
         // Set up toolbox event listeners
         setupToolboxEventListeners();
@@ -666,32 +663,6 @@ function setupAuthenticationListeners(): void {
 }
 
 /**
- * Set up loading screen listeners
- */
-function setupLoadingScreenListeners(): void {
-    window.api.on("show-loading-screen", (...args: unknown[]) => {
-        const message = args[1] as string;
-        const loadingScreen = document.getElementById("loading-screen");
-        const loadingMessage = document.getElementById("loading-message");
-        if (loadingScreen && loadingMessage) {
-            loadingMessage.textContent = message || "Loading...";
-            loadingScreen.style.display = "flex";
-            loadingScreen.classList.remove("fade-out");
-        }
-    });
-
-    window.api.on("hide-loading-screen", () => {
-        const loadingScreen = document.getElementById("loading-screen");
-        if (loadingScreen) {
-            loadingScreen.classList.add("fade-out");
-            setTimeout(() => {
-                loadingScreen.style.display = "none";
-            }, LOADING_SCREEN_FADE_DURATION);
-        }
-    });
-}
-
-/**
  * Set up toolbox event listeners
  */
 function setupToolboxEventListeners(): void {
@@ -819,6 +790,15 @@ function setupFilterDropdownToggles(): void {
         });
     }
 
+    // Tools filter clear button
+    const toolsFilterClearBtn = document.getElementById("tools-filter-clear-btn");
+    if (toolsFilterClearBtn) {
+        toolsFilterClearBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            clearInstalledToolsDropdownFilters();
+        });
+    }
+
     // Connections filter dropdown
     const connectionsFilterBtn = document.getElementById("connections-filter-btn");
     const connectionsFilterDropdown = document.getElementById("connections-filter-dropdown");
@@ -837,6 +817,15 @@ function setupFilterDropdownToggles(): void {
             // Toggle current dropdown
             connectionsFilterDropdown.style.display = isVisible ? "none" : "block";
             connectionsFilterBtn.classList.toggle("active", !isVisible);
+        });
+    }
+
+    // Connections filter clear button
+    const connectionsFilterClearBtn = document.getElementById("connections-filter-clear-btn");
+    if (connectionsFilterClearBtn) {
+        connectionsFilterClearBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            clearConnectionDropdownFilters();
         });
     }
 
@@ -861,10 +850,19 @@ function setupFilterDropdownToggles(): void {
         });
     }
 
+    // Marketplace filter clear button
+    const marketplaceFilterClearBtn = document.getElementById("marketplace-filter-clear-btn");
+    if (marketplaceFilterClearBtn) {
+        marketplaceFilterClearBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            clearMarketplaceDropdownFilters();
+        });
+    }
+
     // Close dropdowns when clicking outside
     document.addEventListener("click", (e) => {
         const target = e.target as HTMLElement;
-        if (!target.closest(".filter-dropdown") && !target.closest(".search-filter-btn")) {
+        if (!target.closest(".filter-dropdown") && !target.closest(".search-filter-btn") && !target.closest(".filter-clear-btn")) {
             document.querySelectorAll(".filter-dropdown").forEach((dropdown) => {
                 (dropdown as HTMLElement).style.display = "none";
             });

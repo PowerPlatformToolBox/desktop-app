@@ -47,11 +47,6 @@ export const ACTIVITY_BAR_ICONS = [
 export const MODAL_ANIMATION_DELAY = 300;
 
 /**
- * Loading screen fade out duration in milliseconds
- */
-export const LOADING_SCREEN_FADE_DURATION = 200;
-
-/**
  * Terminal panel resize constraints
  */
 export const TERMINAL_RESIZE_CONFIG = {

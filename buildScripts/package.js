@@ -5,9 +5,9 @@ const os = require("os");
 const fs = require("fs");
 const path = require("path");
 
-function run(cmd) {
+function run(cmd, env = {}) {
     console.log(`\n> ${cmd}\n`);
-    execSync(cmd, { stdio: "inherit" });
+    execSync(cmd, { stdio: "inherit", env: { ...process.env, ...env } });
 }
 
 const platform = os.platform();
@@ -16,6 +16,20 @@ const arch = os.arch();
 // Get config file from command line argument or use platform defaults
 const configArg = process.argv.find((arg) => arg.startsWith("--config="));
 const configFile = configArg ? configArg.split("=")[1] : null;
+
+// Detect insider channel flag
+const isInsider = process.argv.includes("--insider");
+const channelEnv = isInsider ? { PPTB_CHANNEL: "insider" } : {};
+
+if (isInsider) {
+    console.log("🔬 Building INSIDER channel");
+}
+
+// Run the Vite build (with the correct PPTB_CHANNEL injected cross-platform).
+// This keeps all channel-specific env-var logic inside this script so the
+// npm package:* scripts work on Windows (CMD/PowerShell) without cross-env.
+console.log("⚙️  Building application...");
+run("pnpm run build", channelEnv);
 
 if (configFile) {
     // Validate config file exists
@@ -28,27 +42,47 @@ if (configFile) {
 
     // Build with specific config file
     console.log(`📦 Building with config: ${configFile}`);
-    run(`pnpm exec electron-builder --config ${configFile}`);
+    run(`pnpm exec electron-builder --config ${configFile}`, channelEnv);
 } else {
-    // Build with platform defaults
+    // Build with platform defaults, selecting insider configs when --insider is passed
     switch (platform) {
         case "darwin": // macOS
             console.log(`📦 Building for macOS (${arch})`);
-            run("pnpm exec electron-builder --config buildScripts/electron-builder-mac.json");
+            run(
+                isInsider
+                    ? "pnpm exec electron-builder --config buildScripts/electron-builder-mac-insider.json"
+                    : "pnpm exec electron-builder --config buildScripts/electron-builder-mac.json",
+                channelEnv,
+            );
             break;
 
         case "win32": // Windows
             console.log(`📦 Building for Windows (${arch})`);
             if (arch === "arm64") {
-                run("pnpm exec electron-builder --config buildScripts/electron-builder-win-arm64.json");
+                run(
+                    isInsider
+                        ? "pnpm exec electron-builder --config buildScripts/electron-builder-win-arm64-insider.json"
+                        : "pnpm exec electron-builder --config buildScripts/electron-builder-win-arm64.json",
+                    channelEnv,
+                );
             } else {
-                run("pnpm exec electron-builder --config buildScripts/electron-builder-win.json");
+                run(
+                    isInsider
+                        ? "pnpm exec electron-builder --config buildScripts/electron-builder-win-insider.json"
+                        : "pnpm exec electron-builder --config buildScripts/electron-builder-win.json",
+                    channelEnv,
+                );
             }
             break;
 
         case "linux": // Linux
             console.log(`📦 Building for Linux (${arch})`);
-            run("pnpm exec electron-builder --config buildScripts/electron-builder-linux.json");
+            run(
+                isInsider
+                    ? "pnpm exec electron-builder --config buildScripts/electron-builder-linux-insider.json"
+                    : "pnpm exec electron-builder --config buildScripts/electron-builder-linux.json",
+                channelEnv,
+            );
             break;
 
         default:

@@ -308,6 +308,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 </style>`;
 
     const body = `
+
 <div class="modal-panel">
     <div class="modal-header">
         <div>
@@ -337,6 +338,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         <button id="csp-decline-btn" class="fluent-button fluent-button-secondary">Decline</button>
         <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Allow &amp; Continue</button>
     </div>
+
 </div>`;
 
     return { styles, body };
