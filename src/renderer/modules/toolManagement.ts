@@ -494,24 +494,41 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
-        const launched = options?.callerInstanceId
-            ? await window.toolboxAPI.launchToolWithContext(
-                  options.callerInstanceId,
-                  instanceId,
-                  tool,
-                  primaryConnectionId,
-                  secondaryConnectionId ?? null,
-                  options.prefillData ?? {},
-              )
-            : await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
-
-        if (!launched) {
-            window.toolboxAPI.utils.showNotification({
-                title: "Tool Launch Failed",
-                body: `Failed to launch ${tool.name}`,
-                type: "error",
-            });
-            return;
+        if (options?.callerInstanceId) {
+            // Intentionally fire-and-forget so the callee tool can open immediately while invocation result resolves later.
+            void window.toolboxAPI
+                .launchToolWithContext(
+                    options.callerInstanceId,
+                    instanceId,
+                    tool,
+                    primaryConnectionId,
+                    secondaryConnectionId ?? null,
+                    options.prefillData ?? {},
+                )
+                .catch(async (error) => {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
+                    void window.toolboxAPI.utils.showNotification({
+                        title: "Tool Launch Failed",
+                        body: `Failed to launch ${tool.name}: ${errorMessage}`,
+                        type: "error",
+                    });
+                    try {
+                        await closeTool(instanceId);
+                    } catch (closeError) {
+                        logError("Failed to close tool after invocation launch failure", { instanceId, error: closeError instanceof Error ? closeError.message : String(closeError) });
+                    }
+                });
+        } else {
+            const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
+            if (!launched) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Launch Failed",
+                    body: `Failed to launch ${tool.name}`,
+                    type: "error",
+                });
+                return;
+            }
         }
 
         logInfo(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);

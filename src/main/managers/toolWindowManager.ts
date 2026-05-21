@@ -418,10 +418,17 @@ export class ToolWindowManager {
                 reject,
             });
 
-            this.launchTool(calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData).catch((error) => {
-                this.pendingInvocations.delete(calleeInstanceId);
-                reject(error as Error);
-            });
+            this.launchTool(calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData)
+                .then((launched) => {
+                    if (!launched) {
+                        this.pendingInvocations.delete(calleeInstanceId);
+                        reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                    }
+                })
+                .catch((error) => {
+                    this.pendingInvocations.delete(calleeInstanceId);
+                    reject(error as Error);
+                });
         });
     }
 
