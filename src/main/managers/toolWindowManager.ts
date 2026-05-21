@@ -694,7 +694,10 @@ export class ToolWindowManager {
         try {
             parsed = new URL(url);
         } catch {
-            logWarn("[ToolWindowManager] Blocked mailto: link — URL failed to parse");
+            // At this point we know the URL starts with "mailto:" (checked by the caller)
+            // but URL parsing still failed (e.g. malformed recipient). Log the scheme only — not
+            // the full URL — to avoid capturing email addresses or body text as PII.
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL failed to parse (scheme: mailto:)");
             return;
         }
 
