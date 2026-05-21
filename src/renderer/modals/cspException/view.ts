@@ -46,6 +46,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const hasMailto = directiveKeys.includes("mailto");
 
     const modalTitle = hasMailtoOnly ? "Email Permission Required" : "Permission Request";
+    // These are intentional sentence fragments that complete the phrase
+    // "<ToolName> by <Authors> <modalDescription>" in the modal body template below.
     const modalDescription = hasMailtoOnly
         ? "wants to open email links in your default email client."
         : hasMailto

@@ -256,31 +256,23 @@ export class ToolWindowManager {
             toolView.webContents.on("will-navigate", (event, url) => {
                 if (url.startsWith("mailto:")) {
                     event.preventDefault();
-                    const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
-                    const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
-                    const hasMailtoConsent = approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
-                    if (hasMailtoConsent) {
-                        shell.openExternal(url).catch((err) => {
-                            logError("[ToolWindowManager] Failed to open mailto link", err);
-                        });
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
                     } else {
-                        logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId, url });
+                        logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
                     }
                 }
             });
 
-            // Deny all new-window requests from tools except mailto: links (handled above via will-navigate).
+            // Deny all new-window requests from tools.
+            // Handle mailto: links with a consent check (similar to the will-navigate handler above,
+            // but for window.open() calls rather than anchor-tag navigation).
             toolView.webContents.setWindowOpenHandler(({ url }) => {
                 if (url.startsWith("mailto:")) {
-                    const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
-                    const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
-                    const hasMailtoConsent = approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
-                    if (hasMailtoConsent) {
-                        shell.openExternal(url).catch((err) => {
-                            logError("[ToolWindowManager] Failed to open mailto link via window.open", err);
-                        });
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
                     } else {
-                        logWarn("[ToolWindowManager] Blocked mailto: window.open — tool has no mailto consent", { toolId, url });
+                        logWarn("[ToolWindowManager] Blocked mailto: window.open — tool has no mailto consent", { toolId });
                     }
                 }
                 return { action: "deny" };
@@ -524,6 +516,47 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
+     * Check whether a tool has been granted mailto consent.
+     * The sentinel domain "mailto:" must appear in the tool's stored required or optional consent domains.
+     */
+    private toolHasMailtoConsent(toolId: string): boolean {
+        const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
+        const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
+        return approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
+    }
+
+    /**
+     * Safely open a mailto: URL in the user's default email client.
+     * Validates the URL scheme and enforces a maximum length to prevent abuse.
+     */
+    private openMailtoLink(url: string): void {
+        // Enforce a maximum URL length to prevent abuse with overly long mailto strings.
+        const MAX_MAILTO_LENGTH = 2000;
+        if (url.length > MAX_MAILTO_LENGTH) {
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL exceeds maximum allowed length", { length: url.length });
+            return;
+        }
+
+        // Re-verify the scheme via URL parsing to guard against scheme-confusion attacks.
+        let parsed: URL;
+        try {
+            parsed = new URL(url);
+        } catch {
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL failed to parse", { url });
+            return;
+        }
+
+        if (parsed.protocol !== "mailto:") {
+            logWarn("[ToolWindowManager] Blocked link — unexpected protocol after mailto: check", { protocol: parsed.protocol });
+            return;
+        }
+
+        shell.openExternal(url).catch((err) => {
+            logError("[ToolWindowManager] Failed to open mailto link", err);
+        });
     }
 
     /**
