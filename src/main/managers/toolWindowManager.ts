@@ -291,6 +291,9 @@ export class ToolWindowManager {
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
 
+            // Apply current zoom level so the new tool matches the main window zoom
+            toolView.webContents.setZoomLevel(this.mainWindow.webContents.getZoomLevel());
+
             // Store the view with instanceId as key
             this.toolViews.set(instanceId, toolView);
 
@@ -626,6 +629,20 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
+     * Apply the given zoom level to every open tool BrowserView.
+     * Called from the View menu zoom handlers so that all tool windows stay
+     * in sync with the main window zoom level.
+     * @param zoomLevel Electron zoom level (0 = 100%, 1 ≈ 120%, -1 ≈ 83%)
+     */
+    applyZoomLevelToAllTools(zoomLevel: number): void {
+        for (const [, toolView] of this.toolViews) {
+            if (!toolView.webContents.isDestroyed()) {
+                toolView.webContents.setZoomLevel(zoomLevel);
+            }
+        }
     }
 
     /**

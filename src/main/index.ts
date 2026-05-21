@@ -2240,9 +2240,32 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
-                    { role: "resetZoom" },
-                    { role: "zoomIn" },
-                    { role: "zoomOut" },
+                    {
+                        label: "Actual Size",
+                        accelerator: isMac ? "Command+0" : "Ctrl+0",
+                        click: () => {
+                            this.mainWindow?.webContents.setZoomLevel(0);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(0);
+                        },
+                    },
+                    {
+                        label: "Zoom In",
+                        accelerator: isMac ? "Command+=" : "Ctrl+=",
+                        click: () => {
+                            const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) + 0.5;
+                            this.mainWindow?.webContents.setZoomLevel(newLevel);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(newLevel);
+                        },
+                    },
+                    {
+                        label: "Zoom Out",
+                        accelerator: isMac ? "Command+-" : "Ctrl+-",
+                        click: () => {
+                            const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) - 0.5;
+                            this.mainWindow?.webContents.setZoomLevel(newLevel);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(newLevel);
+                        },
+                    },
                     { type: "separator" },
                     { role: "togglefullscreen" },
                 ],
@@ -2251,7 +2274,7 @@ class ToolBoxApp {
             // Window menu
             {
                 label: "Window",
-                submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }])],
+                submenu: [{ role: "minimize" }, { role: "zoom", label: "Maximize Window" }, ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }])],
             },
 
             // Help menu
