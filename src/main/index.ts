@@ -44,9 +44,10 @@ import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
-import { TrayManager } from "./managers/trayManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -2297,7 +2298,7 @@ class ToolBoxApp {
                                   click: async () => {
                                       const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
                                       if (repositoryUrl) {
-                                          await shell.openExternal(repositoryUrl);
+                                          await shell.openExternal(buildToolFeedbackUrl(repositoryUrl, this.getActiveToolInfo()));
                                       } else {
                                           const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
@@ -2338,7 +2339,7 @@ class ToolBoxApp {
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal(buildToolBoxFeedbackUrl(this.getActiveToolInfo()));
                         },
                     },
                     {
@@ -2568,20 +2569,19 @@ class ToolBoxApp {
             return;
         }
 
-        const appVersion = app.getVersion();
+        const diagnostics = getEnvironmentDiagnostics();
         const installId = this.installIdManager.getInstallId();
-        const locale = app.getLocale();
 
         const payload = {
-            appVersion,
+            appVersion: diagnostics.appVersion,
             installId,
-            locale,
-            electronVersion: process.versions.electron,
-            nodeVersion: process.versions.node,
-            chromeVersion: process.versions.chrome,
-            platform: process.platform,
-            arch: process.arch,
-            osVersion: process.getSystemVersion(),
+            locale: diagnostics.locale,
+            electronVersion: diagnostics.electronVersion,
+            nodeVersion: diagnostics.nodeVersion,
+            chromeVersion: diagnostics.chromeVersion,
+            platform: diagnostics.platform,
+            arch: diagnostics.arch,
+            osVersion: diagnostics.osVersion,
         };
 
         const webContents = this.mainWindow.webContents;
@@ -2596,6 +2596,16 @@ class ToolBoxApp {
         } else {
             deliver();
         }
+    }
+
+    /** Resolve the currently-active tool's identity using the live manager instances. */
+    private getActiveToolInfo(): ActiveToolInfo {
+        const instanceId = this.toolWindowManager?.getActiveToolId() ?? null;
+        return resolveActiveToolInfo(
+            instanceId,
+            (id) => this.toolManager.getTool(id),
+            (id) => this.toolManager.getInstalledManifestSync(id),
+        );
     }
 
     /**
@@ -2631,7 +2641,6 @@ class ToolBoxApp {
      */
     private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
         try {
-            // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
                 logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
