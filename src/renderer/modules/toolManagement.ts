@@ -494,7 +494,6 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
-        let launched = true;
         if (options?.callerInstanceId) {
             void window.toolboxAPI
                 .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})
@@ -509,16 +508,15 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     await closeTool(instanceId);
                 });
         } else {
-            launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
-        }
-
-        if (!launched) {
-            window.toolboxAPI.utils.showNotification({
-                title: "Tool Launch Failed",
-                body: `Failed to launch ${tool.name}`,
-                type: "error",
-            });
-            return;
+            const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
+            if (!launched) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Launch Failed",
+                    body: `Failed to launch ${tool.name}`,
+                    type: "error",
+                });
+                return;
+            }
         }
 
         logInfo(`[Tool Launch] Tool window created via BrowserView: ${instanceId}`);
