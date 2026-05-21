@@ -40,6 +40,18 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
+    // Determine which types of permissions are being requested for dynamic title/description.
+    const directiveKeys = Object.keys(model.cspExceptions);
+    const hasMailtoOnly = directiveKeys.length === 1 && directiveKeys[0] === "mailto";
+    const hasMailto = directiveKeys.includes("mailto");
+
+    const modalTitle = hasMailtoOnly ? "Email Permission Required" : "Permission Request";
+    const modalDescription = hasMailtoOnly
+        ? "wants to open email links in your default email client."
+        : hasMailto
+          ? "wants to access external resources and open email links."
+          : "wants to connect to websites outside this application.";
+
     // Build flat map of unique CSP source entries across all directives, keyed by domain
     const allEntries = new Map<string, { domain: string; exceptionReason?: string; optional?: boolean }>();
     for (const sources of Object.values(model.cspExceptions)) {
@@ -77,7 +89,9 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
 
     const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false): string => {
-        const domainHtml = `<code class="csp-exception-domain-code">${escapeHtml(entry.domain)}</code>`;
+        // Use a human-readable label for the special mailto: sentinel domain.
+        const domainLabel = entry.domain === "mailto:" ? "Email links (mailto:)" : entry.domain;
+        const domainHtml = `<code class="csp-exception-domain-code">${escapeHtml(domainLabel)}</code>`;
         const reasonHtml = entry.exceptionReason ? `<div class="csp-exception-reason">${renderMarkdownInline(entry.exceptionReason)}</div>` : "";
         if (isCheckbox) {
             const disabledAttr = isDisabled ? " disabled" : "";
@@ -296,13 +310,13 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     <div class="modal-header">
         <div>
             <p class="modal-eyebrow">⚠️ Permission Request</p>
-            <h3>Website Access Required</h3>
+            <h3>${escapeHtml(modalTitle)}</h3>
         </div>
     </div>
     <div class="modal-body">
         <p>
             <strong class="tool-name">${escapeHtml(model.toolName)}</strong> by <span class="tool-author">${escapeHtml(authorsList)}</span>
-            wants to connect to websites outside this application.
+            ${escapeHtml(modalDescription)}
         </p>
         <p>Only allow if you trust this tool and the author(s) who created it.</p>
         ${requiredSectionHtml}

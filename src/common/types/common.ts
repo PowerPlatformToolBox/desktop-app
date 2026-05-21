@@ -33,6 +33,11 @@ export function normalizeCspExceptionSource(source: CspExceptionSource): CspExce
  * CSP (Content Security Policy) exceptions for a tool
  * Allows tools to specify which external resources they need to access.
  * Each source can be a plain string (legacy) or a CspExceptionEntry object with an optional reason.
+ *
+ * Special directives:
+ * - `"mailto"`: Allows the tool to open `mailto:` links in the user's default email client.
+ *   Sources should use the sentinel domain `"mailto:"` with an `exceptionReason` explaining why
+ *   the tool needs to open email links (e.g. for pre-formatted support requests).
  */
 export interface CspExceptions {
     "connect-src"?: CspExceptionSource[];
@@ -42,6 +47,8 @@ export interface CspExceptions {
     "font-src"?: CspExceptionSource[];
     "frame-src"?: CspExceptionSource[];
     "media-src"?: CspExceptionSource[];
+    /** Allow the tool to open mailto: links in the user's default email client. */
+    "mailto"?: CspExceptionSource[];
 }
 
 /**

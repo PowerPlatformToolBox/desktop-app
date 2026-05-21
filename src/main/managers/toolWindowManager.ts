@@ -1,4 +1,4 @@
-import { BrowserView, BrowserWindow, ipcMain } from "electron";
+import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
@@ -249,6 +249,42 @@ export class ToolWindowManager {
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
+
+            // Intercept mailto: navigation attempts from the tool.
+            // Electron BrowserViews do not open mailto: links automatically; we must handle them here.
+            // Only open the link if the user has previously granted mailto consent for this tool.
+            toolView.webContents.on("will-navigate", (event, url) => {
+                if (url.startsWith("mailto:")) {
+                    event.preventDefault();
+                    const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
+                    const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
+                    const hasMailtoConsent = approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
+                    if (hasMailtoConsent) {
+                        shell.openExternal(url).catch((err) => {
+                            logError("[ToolWindowManager] Failed to open mailto link", err);
+                        });
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId, url });
+                    }
+                }
+            });
+
+            // Deny all new-window requests from tools except mailto: links (handled above via will-navigate).
+            toolView.webContents.setWindowOpenHandler(({ url }) => {
+                if (url.startsWith("mailto:")) {
+                    const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
+                    const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
+                    const hasMailtoConsent = approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
+                    if (hasMailtoConsent) {
+                        shell.openExternal(url).catch((err) => {
+                            logError("[ToolWindowManager] Failed to open mailto link via window.open", err);
+                        });
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: window.open — tool has no mailto consent", { toolId, url });
+                    }
+                }
+                return { action: "deny" };
+            });
 
             // Store the view with instanceId as key
             this.toolViews.set(instanceId, toolView);
