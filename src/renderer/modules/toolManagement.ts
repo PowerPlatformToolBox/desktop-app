@@ -495,6 +495,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         // Launch the tool using BrowserView via IPC with the instance ID and connection IDs
         // The backend ToolWindowManager will create a BrowserView and load the tool
         if (options?.callerInstanceId) {
+            // Intentionally fire-and-forget so the callee tool can open immediately while invocation result resolves later.
             void window.toolboxAPI
                 .launchToolWithContext(
                     options.callerInstanceId,
@@ -507,7 +508,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 .catch(async (error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
-                    await window.toolboxAPI.utils.showNotification({
+                    void window.toolboxAPI.utils.showNotification({
                         title: "Tool Launch Failed",
                         body: `Failed to launch ${tool.name}: ${errorMessage}`,
                         type: "error",
