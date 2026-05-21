@@ -1,0 +1,25 @@
+name: Combine PRs
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: combine-prs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  combine-prs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: combine-prs
+        id: combine-prs
+        uses: github/combine-prs@v5.2.0
+        with:
+          token: ${{ secrets.COMBINE_PRS_TOKEN }}
+          base: dev
