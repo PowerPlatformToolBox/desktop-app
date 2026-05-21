@@ -96,11 +96,16 @@ export class ToolWindowManager {
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
+                // getBoundingClientRect() returns CSS pixels. When the main window is
+                // zoomed via setZoomLevel(), the CSS viewport shrinks so reported
+                // values are smaller than the logical pixels that setBounds() needs.
+                // Multiply by the current zoom factor to convert CSS px → logical px.
+                const zoomFactor = this.mainWindow.webContents.getZoomFactor();
                 this.applyToolViewBounds({
-                    x: Math.round(bounds.x),
-                    y: Math.round(bounds.y),
-                    width: Math.round(bounds.width),
-                    height: Math.round(bounds.height),
+                    x: Math.round(bounds.x * zoomFactor),
+                    y: Math.round(bounds.y * zoomFactor),
+                    width: Math.round(bounds.width * zoomFactor),
+                    height: Math.round(bounds.height * zoomFactor),
                 });
             } else {
                 this.boundsUpdatePending = false;
@@ -290,6 +295,9 @@ export class ToolWindowManager {
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
+
+            // Apply current zoom level so the new tool matches the main window zoom
+            toolView.webContents.setZoomLevel(this.mainWindow.webContents.getZoomLevel());
 
             // Store the view with instanceId as key
             this.toolViews.set(instanceId, toolView);
@@ -626,6 +634,23 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
+     * Apply the given zoom level to every open tool BrowserView.
+     * Called from the View menu zoom handlers so that all tool windows stay
+     * in sync with the main window zoom level.
+     * @param zoomLevel Electron zoom level (0 = 100%, 1 ≈ 120%, -1 ≈ 83%)
+     */
+    applyZoomLevelToAllTools(zoomLevel: number): void {
+        for (const [, toolView] of this.toolViews) {
+            if (!toolView.webContents.isDestroyed()) {
+                toolView.webContents.setZoomLevel(zoomLevel);
+            }
+        }
+        // Re-query the renderer for tool panel bounds after zoom so the
+        // BrowserView is correctly positioned in the new CSS coordinate space.
+        this.scheduleBoundsUpdate();
     }
 
     /**
