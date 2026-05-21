@@ -2250,7 +2250,7 @@ class ToolBoxApp {
                     },
                     {
                         label: "Zoom In",
-                        accelerator: isMac ? "Command+Shift+=" : "Ctrl+Shift+=",
+                        accelerator: isMac ? "Command+Plus" : "Ctrl+Plus",
                         click: () => {
                             const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) + 0.5;
                             this.mainWindow?.webContents.setZoomLevel(newLevel);
@@ -2274,7 +2274,11 @@ class ToolBoxApp {
             // Window menu
             {
                 label: "Window",
-                submenu: [{ role: "minimize" }, { role: "zoom", label: "Maximize Window" }, ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }])],
+                submenu: [
+                    { role: "minimize" },
+                    { role: "zoom", label: "Maximize Window" },
+                    ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }]),
+                ],
             },
 
             // Help menu
