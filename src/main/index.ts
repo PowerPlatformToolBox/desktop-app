@@ -35,7 +35,6 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
-import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
@@ -72,7 +71,6 @@ class ToolBoxApp {
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
-    private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
     private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
@@ -2493,8 +2491,6 @@ class ToolBoxApp {
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
-        // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
-        this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
@@ -2521,7 +2517,6 @@ class ToolBoxApp {
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;
-            this.loadingOverlayWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });

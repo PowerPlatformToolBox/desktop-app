@@ -139,8 +139,6 @@ export async function initializeApplication(): Promise<void> {
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
 
-        // Set up loading screen listeners
-
         // Set up toolbox event listeners
         setupToolboxEventListeners();
 
