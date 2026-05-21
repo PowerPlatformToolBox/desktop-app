@@ -351,12 +351,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         },
 
         /**
-         * Returns data to the caller tool that launched this tool and closes this tool window.
+         * Returns data to the caller tool that launched this tool.
          * If this tool was not launched by another tool the call is a no-op.
          *
          * @param returnData The data to pass back to the caller
          */
         returnData: async (returnData: Record<string, unknown>): Promise<void> => {
+            await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
+            if (!toolContext || typeof toolContext.callerInstanceId !== "string") {
+                return;
+            }
             const { instanceId } = await getToolIdentifiers();
             if (!instanceId) {
                 return;
