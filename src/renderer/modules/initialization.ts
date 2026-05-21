@@ -12,7 +12,6 @@ import {
     DEFAULT_SHOW_CATEGORY_COLOR,
     DEFAULT_SHOW_ENVIRONMENT_COLOR,
     DEFAULT_TERMINAL_FONT,
-    LOADING_SCREEN_FADE_DURATION,
 } from "../constants";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
@@ -139,9 +138,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up IPC listeners for authentication dialogs
         setupAuthenticationListeners();
-
-        // Set up loading screen listeners
-        setupLoadingScreenListeners();
 
         // Set up toolbox event listeners
         setupToolboxEventListeners();
@@ -663,32 +659,6 @@ function setupAuthenticationListeners(): void {
 
         await loadSidebarConnections();
         await updateFooterConnection();
-    });
-}
-
-/**
- * Set up loading screen listeners
- */
-function setupLoadingScreenListeners(): void {
-    window.api.on("show-loading-screen", (...args: unknown[]) => {
-        const message = args[1] as string;
-        const loadingScreen = document.getElementById("loading-screen");
-        const loadingMessage = document.getElementById("loading-message");
-        if (loadingScreen && loadingMessage) {
-            loadingMessage.textContent = message || "Loading...";
-            loadingScreen.style.display = "flex";
-            loadingScreen.classList.remove("fade-out");
-        }
-    });
-
-    window.api.on("hide-loading-screen", () => {
-        const loadingScreen = document.getElementById("loading-screen");
-        if (loadingScreen) {
-            loadingScreen.classList.add("fade-out");
-            setTimeout(() => {
-                loadingScreen.style.display = "none";
-            }, LOADING_SCREEN_FADE_DURATION);
-        }
     });
 }
 
