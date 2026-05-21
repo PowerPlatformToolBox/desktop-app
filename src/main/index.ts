@@ -2250,7 +2250,7 @@ class ToolBoxApp {
                     },
                     {
                         label: "Zoom In",
-                        accelerator: isMac ? "Command+=" : "Ctrl+=",
+                        accelerator: isMac ? "Command+Shift+=" : "Ctrl+Shift+=",
                         click: () => {
                             const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) + 0.5;
                             this.mainWindow?.webContents.setZoomLevel(newLevel);

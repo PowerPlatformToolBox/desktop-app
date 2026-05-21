@@ -96,11 +96,16 @@ export class ToolWindowManager {
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
+                // getBoundingClientRect() returns CSS pixels. When the main window is
+                // zoomed via setZoomLevel(), the CSS viewport shrinks so reported
+                // values are smaller than the logical pixels that setBounds() needs.
+                // Multiply by the current zoom factor to convert CSS px → logical px.
+                const zoomFactor = this.mainWindow.webContents.getZoomFactor();
                 this.applyToolViewBounds({
-                    x: Math.round(bounds.x),
-                    y: Math.round(bounds.y),
-                    width: Math.round(bounds.width),
-                    height: Math.round(bounds.height),
+                    x: Math.round(bounds.x * zoomFactor),
+                    y: Math.round(bounds.y * zoomFactor),
+                    width: Math.round(bounds.width * zoomFactor),
+                    height: Math.round(bounds.height * zoomFactor),
                 });
             } else {
                 this.boundsUpdatePending = false;
@@ -643,6 +648,9 @@ export class ToolWindowManager {
                 toolView.webContents.setZoomLevel(zoomLevel);
             }
         }
+        // Re-query the renderer for tool panel bounds after zoom so the
+        // BrowserView is correctly positioned in the new CSS coordinate space.
+        this.scheduleBoundsUpdate();
     }
 
     /**
