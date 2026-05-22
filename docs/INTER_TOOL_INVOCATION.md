@@ -265,8 +265,8 @@ launchTool(
 |-----------|------|-------------|
 | `targetToolId` | `string` | The npm package name of the tool to launch (e.g. `"@my-org/entity-picker"`). Must be installed. |
 | `prefillData` | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema. |
-| `options.primaryConnectionId` | `string \| null` | Override the primary Dataverse connection for the callee. |
-| `options.secondaryConnectionId` | `string \| null` | Override the secondary Dataverse connection for the callee. |
+| `options.primaryConnectionId` | `string | null` | Override the primary Dataverse connection for the callee. |
+| `options.secondaryConnectionId` | `string | null` | Override the secondary Dataverse connection for the callee. |
 
 **Return value:** A `Promise` that resolves with the `Record<string, unknown>` passed to `returnData()` by the callee, or `null` if the callee closes without returning data.
 
