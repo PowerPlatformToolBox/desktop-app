@@ -265,6 +265,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             platform: string;
             arch: string;
             osVersion: string;
+            isInsider: boolean;
         }) => void,
     ) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));

@@ -147,7 +147,14 @@ export interface ToolboxAPI {
 
     // Tool Window Management
     launchToolWindow: (instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<boolean>;
-    launchToolWithContext: (callerInstanceId: string, calleeInstanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null, prefillData: Record<string, unknown>) => Promise<unknown>;
+    launchToolWithContext: (
+        callerInstanceId: string,
+        calleeInstanceId: string,
+        tool: Tool,
+        primaryConnectionId: string | null,
+        secondaryConnectionId: string | null,
+        prefillData: Record<string, unknown>,
+    ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
     hideToolWindows: () => Promise<boolean>;
@@ -240,7 +247,20 @@ export interface ToolboxAPI {
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => void;
 
     // About dialog event
-    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => void;
+    onShowAbout: (
+        callback: (info: {
+            appVersion: string;
+            installId: string;
+            locale: string;
+            electronVersion: string;
+            nodeVersion: string;
+            chromeVersion: string;
+            platform: string;
+            arch: string;
+            osVersion: string;
+            isInsider: boolean;
+        }) => void,
+    ) => void;
 
     // Dataverse namespace
     dataverse: DataverseAPI;

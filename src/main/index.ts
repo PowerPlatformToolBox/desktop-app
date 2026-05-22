@@ -2579,6 +2579,7 @@ class ToolBoxApp {
             platform: diagnostics.platform,
             arch: diagnostics.arch,
             osVersion: diagnostics.osVersion,
+            isInsider: process.env.PPTB_CHANNEL === "insider",
         };
 
         const webContents = this.mainWindow.webContents;

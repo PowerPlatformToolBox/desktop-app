@@ -11,6 +11,7 @@ export interface AboutModalViewModel {
     arch: string;
     osVersion: string;
     isDarkTheme: boolean;
+    isInsider: boolean;
 }
 
 export interface AboutModalViewTemplate {
@@ -86,6 +87,21 @@ export function getAboutModalView(model: AboutModalViewModel): AboutModalViewTem
         background: ${model.isDarkTheme ? "rgba(14, 99, 156, 0.45)" : "rgba(14, 99, 156, 0.12)"};
         color: ${model.isDarkTheme ? "#6eb3e6" : "#0e639c"};
         border: 1px solid ${model.isDarkTheme ? "rgba(14, 99, 156, 0.5)" : "rgba(14, 99, 156, 0.25)"};
+    }
+
+    .about-modal-insider-badge {
+        display: inline-block;
+        margin-top: 6px;
+        margin-left: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: ${model.isDarkTheme ? "rgba(217, 119, 6, 0.2)" : "rgba(217, 119, 6, 0.1)"};
+        color: ${model.isDarkTheme ? "#fbbf24" : "#b45309"};
+        border: 1px solid ${model.isDarkTheme ? "rgba(251, 191, 36, 0.35)" : "rgba(180, 83, 9, 0.3)"};
     }
 
     .about-modal-close-btn {
@@ -186,7 +202,7 @@ export function getAboutModalView(model: AboutModalViewModel): AboutModalViewTem
         <div class="about-modal-hero-text">
             <p class="about-modal-eyebrow">About</p>
             <h2 class="about-modal-title">Power Platform ToolBox</h2>
-            <span class="about-modal-version-badge">Version ${escapeHtml(model.appVersion)}</span>
+            <span class="about-modal-version-badge">Version ${escapeHtml(model.appVersion)}</span>${model.isInsider ? '<span class="about-modal-insider-badge">Insider</span>' : ""}
         </div>
         <button id="about-close-btn" class="about-modal-close-btn" aria-label="Close">&times;</button>
     </div>
