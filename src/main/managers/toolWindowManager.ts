@@ -1,4 +1,4 @@
-import { BrowserView, BrowserWindow, ipcMain } from "electron";
+import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
@@ -292,6 +292,37 @@ export class ToolWindowManager {
             // Get tool URL from custom protocol using the base toolId
             const toolUrl = this.browserviewProtocolManager.buildToolUrl(toolId);
             logInfo(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
+
+            // Register event handlers BEFORE loading the tool URL so they are active
+            // from the very first navigation onward.
+
+            // Intercept mailto: navigation attempts from the tool.
+            // Electron BrowserViews do not open mailto: links automatically; we must handle them here.
+            // Only open the link if the user has previously granted mailto consent for this tool.
+            toolView.webContents.on("will-navigate", (event, url) => {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
+                    event.preventDefault();
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
+                    }
+                }
+            });
+
+            // Deny all new-window requests from tools.
+            // Handle mailto: links with a consent check (similar to the will-navigate handler above,
+            // but for window.open() calls rather than anchor-tag navigation).
+            toolView.webContents.setWindowOpenHandler(({ url }) => {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: window.open — tool has no mailto consent", { toolId });
+                    }
+                }
+                return { action: "deny" };
+            });
 
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
@@ -634,6 +665,50 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
+     * Check whether a tool has been granted mailto consent.
+     * The sentinel domain "mailto:" must appear in the tool's stored required or optional consent domains.
+     */
+    private toolHasMailtoConsent(toolId: string): boolean {
+        const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
+        const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
+        return approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
+    }
+
+    /**
+     * Safely open a mailto: URL in the user's default email client.
+     * Validates the URL scheme and enforces a maximum length to prevent abuse.
+     */
+    private openMailtoLink(url: string): void {
+        // Enforce a maximum URL length to prevent abuse with overly long mailto strings.
+        const MAX_MAILTO_LENGTH = 2000;
+        if (url.length > MAX_MAILTO_LENGTH) {
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL exceeds maximum allowed length", { length: url.length });
+            return;
+        }
+
+        // Re-verify the scheme via URL parsing to guard against scheme-confusion attacks.
+        let parsed: URL;
+        try {
+            parsed = new URL(url);
+        } catch {
+            // At this point we know the URL starts with "mailto:" (checked by the caller)
+            // but URL parsing still failed (e.g. malformed recipient). Log the scheme only — not
+            // the full URL — to avoid capturing email addresses or body text as PII.
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL failed to parse (scheme: mailto:)");
+            return;
+        }
+
+        if (parsed.protocol !== "mailto:") {
+            logWarn("[ToolWindowManager] Blocked link — unexpected protocol after mailto: check", { protocol: parsed.protocol });
+            return;
+        }
+
+        shell.openExternal(url).catch((err) => {
+            logError("[ToolWindowManager] Failed to open mailto link", err);
+        });
     }
 
     /**
