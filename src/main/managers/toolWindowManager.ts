@@ -300,7 +300,7 @@ export class ToolWindowManager {
             // Electron BrowserViews do not open mailto: links automatically; we must handle them here.
             // Only open the link if the user has previously granted mailto consent for this tool.
             toolView.webContents.on("will-navigate", (event, url) => {
-                if (url.toLowerCase().startsWith("mailto:")) {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
                     event.preventDefault();
                     if (this.toolHasMailtoConsent(toolId)) {
                         this.openMailtoLink(url);
@@ -314,7 +314,7 @@ export class ToolWindowManager {
             // Handle mailto: links with a consent check (similar to the will-navigate handler above,
             // but for window.open() calls rather than anchor-tag navigation).
             toolView.webContents.setWindowOpenHandler(({ url }) => {
-                if (url.toLowerCase().startsWith("mailto:")) {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
                     if (this.toolHasMailtoConsent(toolId)) {
                         this.openMailtoLink(url);
                     } else {
