@@ -341,6 +341,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+        ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -1202,6 +1203,43 @@ class ToolBoxApp {
             }
 
             await shell.openExternal(parsedUrl.toString());
+        });
+
+        // Open URL in the browser/profile associated with the tool's connection
+        ipcMain.handle(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, async (event, url: unknown, connectionTarget?: unknown) => {
+            if (typeof url !== "string") {
+                logWarn("Blocked openInConnectionBrowser call with non-string url", { urlType: typeof url });
+                return;
+            }
+
+            let parsedUrl: URL;
+            try {
+                parsedUrl = new URL(url);
+            } catch {
+                logWarn("Blocked openInConnectionBrowser call with invalid url", { url });
+                return;
+            }
+
+            const allowedProtocols = new Set<string>(["https:", "http:"]);
+            if (!allowedProtocols.has(parsedUrl.protocol)) {
+                logWarn("Blocked openInConnectionBrowser call with disallowed protocol", { url, protocol: parsedUrl.protocol });
+                return;
+            }
+
+            // Resolve the connection linked to the calling tool window
+            const isSecondary = connectionTarget === "secondary";
+            const connectionId = isSecondary
+                ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+            const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
+
+            if (connection) {
+                await this.browserManager.openBrowserWithProfile(parsedUrl.toString(), connection);
+            } else {
+                // No connection found (e.g. called from main window or tool has no connection) — fall back to default browser
+                await shell.openExternal(parsedUrl.toString());
+            }
         });
 
         // Filesystem handlers with access control

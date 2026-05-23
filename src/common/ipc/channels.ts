@@ -123,6 +123,7 @@ export const UTIL_CHANNELS = {
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
     FETCH_FAVICON: "fetch-favicon",
+    OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
 } as const;
 
 // Filesystem-related IPC channels

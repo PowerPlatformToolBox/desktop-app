@@ -187,6 +187,23 @@ declare namespace ToolBoxAPI {
          * );
          */
         executeParallel: <T = any>(...operations: Array<Promise<T> | (() => Promise<T>)>) => Promise<T[]>;
+
+        /**
+         * Open a URL in the external browser associated with the tool's active connection.
+         *
+         * When the connection has a browser profile configured (e.g. a specific Chrome or
+         * Edge profile), the URL will be opened in that browser and profile so the user is
+         * already authenticated.  Falls back to the system default browser when no profile
+         * is configured or the browser cannot be found.
+         *
+         * Only `https:` and `http:` URLs are allowed.
+         *
+         * @param url The URL to open (must use https: or http: protocol)
+         * @param connectionTarget Which connection's browser profile to use.
+         *   Defaults to `"primary"`. Pass `"secondary"` for multi-connection tools that
+         *   want to open the URL in the secondary connection's browser context.
+         */
+        openInConnectionBrowser: (url: string, connectionTarget?: "primary" | "secondary") => Promise<void>;
     }
 
     /**
