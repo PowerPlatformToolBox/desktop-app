@@ -266,7 +266,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Utils API
     utils: {
         showNotification: (options: Record<string, unknown>) => ipcInvoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
-        openExternal: (url: string) => ipcInvoke(UTIL_CHANNELS.OPEN_EXTERNAL, url),
         openInConnectionBrowser: (url: string, connectionTarget?: "primary" | "secondary") => ipcInvoke(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, url, connectionTarget),
         copyToClipboard: (text: string) => ipcInvoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
         getCurrentTheme: () => ipcInvoke(UTIL_CHANNELS.GET_CURRENT_THEME),
