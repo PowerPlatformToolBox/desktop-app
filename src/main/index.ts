@@ -55,6 +55,8 @@ const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation dur
 const FAVICON_ALLOWED_HOSTS = new Set<string>(["www.google.com"]);
 const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
 const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
+const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:", "mailto:"]);
+const OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:"]);
 
 const isFaviconAllowedHost = (hostname: string): boolean => {
     if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
@@ -341,6 +343,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+        ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -418,6 +421,28 @@ class ToolBoxApp {
     /**
      * Set up IPC handlers for communication with renderer
      */
+    private parseAndValidateExternalUrl(url: unknown, allowedProtocols: Set<string>, operation: "openExternal" | "openInConnectionBrowser"): URL | null {
+        if (typeof url !== "string") {
+            logWarn(`Blocked ${operation} call with non-string url`, { urlType: typeof url });
+            return null;
+        }
+
+        let parsedUrl: URL;
+        try {
+            parsedUrl = new URL(url);
+        } catch {
+            logWarn(`Blocked ${operation} call with invalid url`, { url });
+            return null;
+        }
+
+        if (!allowedProtocols.has(parsedUrl.protocol)) {
+            logWarn(`Blocked ${operation} call with disallowed protocol`, { url, protocol: parsedUrl.protocol });
+            return null;
+        }
+
+        return parsedUrl;
+    }
+
     private setupIpcHandlers(): void {
         // Remove existing handlers first to prevent duplicate registration errors
         // This is necessary on macOS where the app doesn't quit when windows are closed
@@ -1182,26 +1207,40 @@ class ToolBoxApp {
 
         // Open external URL handler
         ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url: unknown) => {
-            if (typeof url !== "string") {
-                logWarn("Blocked openExternal call with non-string url", { urlType: typeof url });
-                return;
-            }
-
-            let parsedUrl: URL;
-            try {
-                parsedUrl = new URL(url);
-            } catch {
-                logWarn("Blocked openExternal call with invalid url", { url });
-                return;
-            }
-
-            const allowedProtocols = new Set<string>(["https:", "http:", "mailto:"]);
-            if (!allowedProtocols.has(parsedUrl.protocol)) {
-                logWarn("Blocked openExternal call with disallowed protocol", { url, protocol: parsedUrl.protocol });
+            const parsedUrl = this.parseAndValidateExternalUrl(url, OPEN_EXTERNAL_ALLOWED_PROTOCOLS, "openExternal");
+            if (!parsedUrl) {
                 return;
             }
 
             await shell.openExternal(parsedUrl.toString());
+        });
+
+        // Open URL in the browser/profile associated with the tool's connection
+        ipcMain.handle(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, async (event, url: unknown, connectionTarget?: unknown) => {
+            const parsedUrl = this.parseAndValidateExternalUrl(url, OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS, "openInConnectionBrowser");
+            if (!parsedUrl) {
+                return;
+            }
+
+            if (connectionTarget !== undefined && connectionTarget !== "primary" && connectionTarget !== "secondary") {
+                logWarn("Blocked openInConnectionBrowser call with invalid connectionTarget", { connectionTarget });
+                return;
+            }
+
+            // Resolve the connection linked to the calling tool window
+            const isSecondary = connectionTarget === "secondary";
+            const connectionId = isSecondary
+                ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+            const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
+
+            if (connection) {
+                await this.browserManager.openBrowserWithProfile(parsedUrl.toString(), connection);
+            } else {
+                // No connection found (e.g. called from main window or tool has no connection) — fall back to default browser
+                await shell.openExternal(parsedUrl.toString());
+            }
         });
 
         // Filesystem handlers with access control
