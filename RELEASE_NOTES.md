@@ -1,42 +1,46 @@
-# Power Platform ToolBox 1.2.1
+# Power Platform ToolBox 1.2.2
 
 ## Highlights
 
-- Import connections from XrmToolBox XML with a source selection step (XTB vs PPTB)
-- Share and move connections via import/export connection files
-- Review "What's New" after updates via in-app auto-update notifications
-- Manage Settings as a dedicated tab, plus a Settings entry in the View menu
-- Browse Community Resources with dynamic, Supabase-backed links
-- Connect to US Government Dataverse environments (GCC High / DoD URL support)
-- Customize connection list visuals with category/environment color border appearance settings
-- Control startup behavior with an option to disable session restore
+- Open external URLs using the active connection's browser profile for consistent session isolation
+- Keep the app accessible on macOS with a system tray icon when the window is closed
+- Sync zoom level between the main window and all open tool BrowserViews
+- Allow tools to open `mailto:` links with explicit user consent and URL validation
+- Improve protocol handler behavior for stable builds (single-instance lock and safer registration rules)
+- Make marketplace filtering clearer with an active-filter indicator and one-click clear
+- Improve tool update availability visibility with a clearer text-based indicator
 
 ## Fixes
 
-- Auto-update: fixed force-close TypeError ("Object has been destroyed") during modal teardown
-- Global search: fixed command palette rendering behind active tool BrowserViews
-- Tools: improved dual-connection handling and corrected dual-connection tab color split
-- UI: fixed BrowserView sizing and spurious connection prompts after force-reload
-- Auto-update: loading overlay no longer blocks system dialogs (always-on-top conflicts removed)
-- Protocol handler: fixed `pptb://` handling in development mode when explicitly enabled
+- Zoom: correct zoom-in accelerator keys and re-fit BrowserView bounds after zooming
+- Links: avoid lowercasing full URLs during `mailto:` scheme checks
+- Links: improve parse-failure logging with scheme context while avoiding PII
+- UI: fix notification layering/z-index issues in the renderer
+- Tools sidebar: improve empty-state hint behavior for better guidance
+- Marketplace: fix tool icon theming so icons adapt correctly in light/dark mode
+- URLs: add support for URLs ending in `mcas.ms` where applicable
+- macOS: ensure tray Quit fully exits the app (track `isQuitting` correctly)
 
 ## Developer & Build
 
-- toolboxAPI: deprecated `showLoading`/`hideLoading` to reduce API surface and clarify usage
-- DevTools: open in detached mode for main and tool windows
-- Release automation: avoid draft release creation and switch nightly versioning to `dev` tags
+- toolboxAPI: remove deprecated loading screen API and associated handlers
+- `pptb-validate`: validate `pptb.config.json` invocation with semver enforcement
+- Types: rename `PptbConfig` → `PPTBConfig` and `validatePptbConfig` → `validatePPTBConfig` for consistent casing
+- CI/CD: separate stable vs insider release channels (including channel-specific icons)
+- Windows packaging: sign app binaries before packaging into installers
+- Workflows: tighten merge automation with explicit permissions and concurrency
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-1.2.1-Setup.exe
-- macOS: Power-Platform-ToolBox-1.2.1.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-1.2.1.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-1.2.2-Setup.exe
+- macOS: Power-Platform-ToolBox-1.2.2.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-1.2.2.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed; existing settings and connections continue to work.
-- Tool developers: plan to remove `showLoading`/`hideLoading` usage and move to the newer loading UX patterns.
+- Tool developers: `mailto:` opening may prompt for user consent; update config/type references to `PPTBConfig` if you used the older casing.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.0...v1.2.1
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.1...v1.2.2
