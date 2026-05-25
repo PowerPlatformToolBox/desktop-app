@@ -27,6 +27,7 @@ export interface AboutModalInfo {
     arch: string;
     osVersion: string;
     isDarkTheme: boolean;
+    isInsider: boolean;
 }
 
 /**

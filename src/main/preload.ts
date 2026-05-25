@@ -54,6 +54,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Tool Window Management (NEW - BrowserView based)
     launchToolWindow: (instanceId: string, tool: unknown, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH, instanceId, tool, primaryConnectionId, secondaryConnectionId),
+    launchToolWithContext: (
+        callerInstanceId: string,
+        calleeInstanceId: string,
+        tool: unknown,
+        primaryConnectionId: string | null,
+        secondaryConnectionId: string | null,
+        prefillData: Record<string, unknown>,
+    ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
@@ -124,11 +132,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             const promises = operations.map((op) => (typeof op === "function" ? op() : op));
             return Promise.all(promises);
         },
-        // TODO: Remove showLoading and hideLoading - deprecated
-        /** @deprecated */
-        showLoading: (message?: string) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_LOADING, message),
-        /** @deprecated */
-        hideLoading: () => ipcRenderer.invoke(UTIL_CHANNELS.HIDE_LOADING),
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
@@ -251,7 +254,20 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     },
 
     // About dialog event
-    onShowAbout: (callback: (info: { appVersion: string; installId: string; locale: string; electronVersion: string; nodeVersion: string; chromeVersion: string; platform: string; arch: string; osVersion: string }) => void) => {
+    onShowAbout: (
+        callback: (info: {
+            appVersion: string;
+            installId: string;
+            locale: string;
+            electronVersion: string;
+            nodeVersion: string;
+            chromeVersion: string;
+            platform: string;
+            arch: string;
+            osVersion: string;
+            isInsider: boolean;
+        }) => void,
+    ) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));
     },
 

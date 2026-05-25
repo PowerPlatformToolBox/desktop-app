@@ -35,7 +35,6 @@ import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManage
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
-import { LoadingOverlayWindowManager } from "./managers/loadingOverlayWindowManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
@@ -45,7 +44,9 @@ import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
 import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
+import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -54,6 +55,8 @@ const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation dur
 const FAVICON_ALLOWED_HOSTS = new Set<string>(["www.google.com"]);
 const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
 const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
+const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:", "mailto:"]);
+const OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:"]);
 
 const isFaviconAllowedHost = (hostname: string): boolean => {
     if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
@@ -70,8 +73,8 @@ class ToolBoxApp {
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
-    private loadingOverlayWindowManager: LoadingOverlayWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
+    private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
     private autoUpdateManager: AutoUpdateManager;
     private browserManager: BrowserManager;
@@ -82,6 +85,23 @@ class ToolBoxApp {
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
+    private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+
+    /**
+     * Resolve the application icon for the current release channel.
+     * Returns the insider icon path when `PPTB_CHANNEL=insider` and the file
+     * exists; otherwise falls back to the standard stable icon.
+     */
+    static resolveAppIcon(): string {
+        const channel = process.env.PPTB_CHANNEL ?? "stable";
+        if (channel === "insider") {
+            const insiderPath = path.join(__dirname, "../../icons/insider/icon.png");
+            if (fs.existsSync(insiderPath)) {
+                return insiderPath;
+            }
+        }
+        return path.join(__dirname, "../../icons/icon.png");
+    }
 
     constructor() {
         logCheckpoint("ToolBoxApp constructor started");
@@ -108,6 +128,10 @@ class ToolBoxApp {
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.trayManager = new TrayManager(
+                () => this.mainWindow,
+                () => this.createWindow(),
+            );
 
             this.setupEventListeners();
             this.setupIpcHandlers();
@@ -315,12 +339,11 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.CLOSE_MODAL_WINDOW);
         ipcMain.removeHandler(UTIL_CHANNELS.SEND_MODAL_MESSAGE);
         ipcMain.removeHandler(UTIL_CHANNELS.COPY_TO_CLIPBOARD);
-        ipcMain.removeHandler(UTIL_CHANNELS.SHOW_LOADING);
-        ipcMain.removeHandler(UTIL_CHANNELS.HIDE_LOADING);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_CURRENT_THEME);
         ipcMain.removeHandler(UTIL_CHANNELS.GET_EVENT_HISTORY);
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
+        ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -398,6 +421,28 @@ class ToolBoxApp {
     /**
      * Set up IPC handlers for communication with renderer
      */
+    private parseAndValidateExternalUrl(url: unknown, allowedProtocols: Set<string>, operation: "openExternal" | "openInConnectionBrowser"): URL | null {
+        if (typeof url !== "string") {
+            logWarn(`Blocked ${operation} call with non-string url`, { urlType: typeof url });
+            return null;
+        }
+
+        let parsedUrl: URL;
+        try {
+            parsedUrl = new URL(url);
+        } catch {
+            logWarn(`Blocked ${operation} call with invalid url`, { url });
+            return null;
+        }
+
+        if (!allowedProtocols.has(parsedUrl.protocol)) {
+            logWarn(`Blocked ${operation} call with disallowed protocol`, { url, protocol: parsedUrl.protocol });
+            return null;
+        }
+
+        return parsedUrl;
+    }
+
     private setupIpcHandlers(): void {
         // Remove existing handlers first to prevent duplicate registration errors
         // This is necessary on macOS where the app doesn't quit when windows are closed
@@ -775,6 +820,14 @@ class ToolBoxApp {
 
         // Check for tool updates
         ipcMain.handle(TOOL_CHANNELS.CHECK_TOOL_UPDATES, async (_, toolId) => {
+            // DEV MOCK: randomly flag ~50% of tools as having an update available
+            if (process.env.NODE_ENV === "development" && process.env.MOCK_UPDATES === "true") {
+                const hasMockUpdate = Math.random() < 0.5;
+                if (hasMockUpdate) {
+                    return { hasUpdate: true, latestVersion: "99.0.0" };
+                }
+                return { hasUpdate: false };
+            }
             return await this.toolManager.checkForUpdates(toolId);
         });
 
@@ -1003,37 +1056,6 @@ class ToolBoxApp {
             this.api.copyToClipboard(text);
         });
 
-        // Show loading handler (overlay window above tool panel area only)
-        ipcMain.handle(UTIL_CHANNELS.SHOW_LOADING, async (_, message: string) => {
-            if (this.loadingOverlayWindowManager && this.mainWindow) {
-                try {
-                    // Get bounds from the active tool's BrowserView directly
-                    const bounds = this.toolWindowManager?.getActiveToolBounds() || undefined;
-
-                    // Show overlay with tool panel bounds (or undefined for full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...", bounds);
-                } catch (error) {
-                    // Capture bounds retrieval failure for diagnostics, then fall back to full window overlay
-                    logError(error instanceof Error ? error : new Error(String(error)));
-                    // On error, show without bounds (full window fallback)
-                    this.loadingOverlayWindowManager.show(message || "Loading...");
-                }
-            } else if (this.mainWindow) {
-                // Fallback to legacy in-DOM loading screen if manager not ready
-                this.mainWindow.webContents.send(EVENT_CHANNELS.SHOW_LOADING_SCREEN, message || "Loading...");
-            }
-        });
-
-        // Hide loading handler
-        ipcMain.handle(UTIL_CHANNELS.HIDE_LOADING, () => {
-            if (this.loadingOverlayWindowManager) {
-                this.loadingOverlayWindowManager.hide();
-            } else if (this.mainWindow) {
-                // Fallback legacy hide
-                this.mainWindow.webContents.send(EVENT_CHANNELS.HIDE_LOADING_SCREEN);
-            }
-        });
-
         // Get current theme handler
         ipcMain.handle(UTIL_CHANNELS.GET_CURRENT_THEME, () => {
             const settings = this.settingsManager.getUserSettings();
@@ -1185,26 +1207,40 @@ class ToolBoxApp {
 
         // Open external URL handler
         ipcMain.handle(UTIL_CHANNELS.OPEN_EXTERNAL, async (_, url: unknown) => {
-            if (typeof url !== "string") {
-                logWarn("Blocked openExternal call with non-string url", { urlType: typeof url });
-                return;
-            }
-
-            let parsedUrl: URL;
-            try {
-                parsedUrl = new URL(url);
-            } catch {
-                logWarn("Blocked openExternal call with invalid url", { url });
-                return;
-            }
-
-            const allowedProtocols = new Set<string>(["https:", "http:", "mailto:"]);
-            if (!allowedProtocols.has(parsedUrl.protocol)) {
-                logWarn("Blocked openExternal call with disallowed protocol", { url, protocol: parsedUrl.protocol });
+            const parsedUrl = this.parseAndValidateExternalUrl(url, OPEN_EXTERNAL_ALLOWED_PROTOCOLS, "openExternal");
+            if (!parsedUrl) {
                 return;
             }
 
             await shell.openExternal(parsedUrl.toString());
+        });
+
+        // Open URL in the browser/profile associated with the tool's connection
+        ipcMain.handle(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER, async (event, url: unknown, connectionTarget?: unknown) => {
+            const parsedUrl = this.parseAndValidateExternalUrl(url, OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS, "openInConnectionBrowser");
+            if (!parsedUrl) {
+                return;
+            }
+
+            if (connectionTarget !== undefined && connectionTarget !== "primary" && connectionTarget !== "secondary") {
+                logWarn("Blocked openInConnectionBrowser call with invalid connectionTarget", { connectionTarget });
+                return;
+            }
+
+            // Resolve the connection linked to the calling tool window
+            const isSecondary = connectionTarget === "secondary";
+            const connectionId = isSecondary
+                ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+            const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
+
+            if (connection) {
+                await this.browserManager.openBrowserWithProfile(parsedUrl.toString(), connection);
+            } else {
+                // No connection found (e.g. called from main window or tool has no connection) — fall back to default browser
+                await shell.openExternal(parsedUrl.toString());
+            }
         });
 
         // Filesystem handlers with access control
@@ -2216,9 +2252,32 @@ class ToolBoxApp {
                         },
                     },
                     { type: "separator" },
-                    { role: "resetZoom" },
-                    { role: "zoomIn" },
-                    { role: "zoomOut" },
+                    {
+                        label: "Actual Size",
+                        accelerator: isMac ? "Command+0" : "Ctrl+0",
+                        click: () => {
+                            this.mainWindow?.webContents.setZoomLevel(0);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(0);
+                        },
+                    },
+                    {
+                        label: "Zoom In",
+                        accelerator: isMac ? "Command+Plus" : "Ctrl+Plus",
+                        click: () => {
+                            const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) + 0.5;
+                            this.mainWindow?.webContents.setZoomLevel(newLevel);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(newLevel);
+                        },
+                    },
+                    {
+                        label: "Zoom Out",
+                        accelerator: isMac ? "Command+-" : "Ctrl+-",
+                        click: () => {
+                            const newLevel = (this.mainWindow?.webContents.getZoomLevel() ?? 0) - 0.5;
+                            this.mainWindow?.webContents.setZoomLevel(newLevel);
+                            this.toolWindowManager?.applyZoomLevelToAllTools(newLevel);
+                        },
+                    },
                     { type: "separator" },
                     { role: "togglefullscreen" },
                 ],
@@ -2227,7 +2286,11 @@ class ToolBoxApp {
             // Window menu
             {
                 label: "Window",
-                submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }])],
+                submenu: [
+                    { role: "minimize" },
+                    { role: "zoom", label: "Maximize Window" },
+                    ...(isMac ? [{ type: "separator" }, { role: "front" }, { type: "separator" }, { role: "window" }] : [{ role: "close" }]),
+                ],
             },
 
             // Help menu
@@ -2274,7 +2337,7 @@ class ToolBoxApp {
                                   click: async () => {
                                       const repositoryUrl = this.toolWindowManager?.getActiveToolRepositoryUrl();
                                       if (repositoryUrl) {
-                                          await shell.openExternal(repositoryUrl);
+                                          await shell.openExternal(buildToolFeedbackUrl(repositoryUrl, this.getActiveToolInfo()));
                                       } else {
                                           const result = await dialog.showMessageBox(this.mainWindow!, {
                                               type: "info",
@@ -2315,7 +2378,7 @@ class ToolBoxApp {
                     {
                         label: "ToolBox Feedback",
                         click: async () => {
-                            await shell.openExternal("https://github.com/PowerPlatformToolBox/desktop-app");
+                            await shell.openExternal(buildToolBoxFeedbackUrl(this.getActiveToolInfo()));
                         },
                     },
                     {
@@ -2481,7 +2544,7 @@ class ToolBoxApp {
                 // No longer need webviewTag - using BrowserView instead
             },
             title: "Power Platform ToolBox",
-            icon: path.join(__dirname, "../../assets/icon.png"),
+            icon: ToolBoxApp.resolveAppIcon(),
         });
 
         // Initialize ToolWindowManager for managing tool BrowserViews
@@ -2502,8 +2565,6 @@ class ToolBoxApp {
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
-        // Initialize LoadingOverlayWindowManager for full-screen loading spinner above BrowserViews
-        this.loadingOverlayWindowManager = new LoadingOverlayWindowManager(this.mainWindow);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
@@ -2530,7 +2591,6 @@ class ToolBoxApp {
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;
-            this.loadingOverlayWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
@@ -2545,20 +2605,20 @@ class ToolBoxApp {
             return;
         }
 
-        const appVersion = app.getVersion();
+        const diagnostics = getEnvironmentDiagnostics();
         const installId = this.installIdManager.getInstallId();
-        const locale = app.getLocale();
 
         const payload = {
-            appVersion,
+            appVersion: diagnostics.appVersion,
             installId,
-            locale,
-            electronVersion: process.versions.electron,
-            nodeVersion: process.versions.node,
-            chromeVersion: process.versions.chrome,
-            platform: process.platform,
-            arch: process.arch,
-            osVersion: process.getSystemVersion(),
+            locale: diagnostics.locale,
+            electronVersion: diagnostics.electronVersion,
+            nodeVersion: diagnostics.nodeVersion,
+            chromeVersion: diagnostics.chromeVersion,
+            platform: diagnostics.platform,
+            arch: diagnostics.arch,
+            osVersion: diagnostics.osVersion,
+            isInsider: process.env.PPTB_CHANNEL === "insider",
         };
 
         const webContents = this.mainWindow.webContents;
@@ -2573,6 +2633,16 @@ class ToolBoxApp {
         } else {
             deliver();
         }
+    }
+
+    /** Resolve the currently-active tool's identity using the live manager instances. */
+    private getActiveToolInfo(): ActiveToolInfo {
+        const instanceId = this.toolWindowManager?.getActiveToolId() ?? null;
+        return resolveActiveToolInfo(
+            instanceId,
+            (id) => this.toolManager.getTool(id),
+            (id) => this.toolManager.getInstalledManifestSync(id),
+        );
     }
 
     /**
@@ -2608,7 +2678,6 @@ class ToolBoxApp {
      */
     private async checkSupabaseConnectivity(): Promise<{ success: boolean; message?: string }> {
         try {
-            // Use the toolManager to check connectivity by fetching tools
             const tools = await this.toolManager.fetchAvailableTools();
             if (tools && Array.isArray(tools)) {
                 logInfo(`[Troubleshooting] Supabase connectivity check passed: ${tools.length} tools found`);
@@ -2961,6 +3030,10 @@ class ToolBoxApp {
             this.createWindow();
             logCheckpoint("Main window created");
 
+            // Create the system tray icon so the app is accessible when its window is closed.
+            this.trayManager?.create();
+            logCheckpoint("Tray icon created");
+
             // Set up deep link protocol handler callback after the main window exists.
             // The callback defers IPC delivery until the renderer has finished loading so
             // that protocol URLs captured during startup (buffered in pendingUrls) are
@@ -3017,19 +3090,35 @@ class ToolBoxApp {
             this.connectionsManager.clearAllConnectionTokens();
 
             app.on("activate", () => {
-                if (BrowserWindow.getAllWindows().length === 0) {
+                // On macOS the app stays alive after the window is closed.
+                // When the user clicks the Dock icon (or the tray "Open" item),
+                // restore the existing window if it still exists, otherwise create a new one.
+                if (this.mainWindow) {
+                    if (this.mainWindow.isMinimized()) {
+                        this.mainWindow.restore();
+                    }
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
+                } else {
                     this.createWindow();
                 }
             });
 
             app.on("window-all-closed", () => {
-                if (process.platform !== "darwin") {
+                // On macOS the app intentionally stays alive after all windows are closed so
+                // background tool execution can continue.  The exception is when the user
+                // explicitly quits (via the tray "Quit" item, Cmd+Q, or the app menu) — in
+                // that case `isQuitting` is already true and we allow the quit to proceed.
+                if (process.platform !== "darwin" || this.isQuitting) {
                     app.quit();
                 }
             });
 
             app.on("before-quit", () => {
+                this.isQuitting = true;
                 logCheckpoint("Application shutting down");
+                // Clean up tray icon before quitting
+                this.trayManager?.destroy();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks

@@ -1,4 +1,4 @@
-import { BrowserView, BrowserWindow, ipcMain } from "electron";
+import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
@@ -47,6 +47,22 @@ export class ToolWindowManager {
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
+    /**
+     * Pending invocation contexts – created when one tool launches another with prefill data.
+     * The entry is keyed by the *callee* instanceId and holds:
+     *  - the prefill data passed by the caller
+     *  - the caller's instanceId so we can forward the return value
+     *  - resolve/reject callbacks for the Promise returned to the caller tool
+     */
+    private pendingInvocations: Map<
+        string, // calleeInstanceId
+        {
+            callerInstanceId: string;
+            prefillData: Record<string, unknown>;
+            resolve: (data: unknown) => void;
+            reject: (reason: unknown) => void;
+        }
+    > = new Map();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -80,11 +96,16 @@ export class ToolWindowManager {
 
         this.boundsResponseListener = (event, bounds) => {
             if (bounds && bounds.width > 0 && bounds.height > 0) {
+                // getBoundingClientRect() returns CSS pixels. When the main window is
+                // zoomed via setZoomLevel(), the CSS viewport shrinks so reported
+                // values are smaller than the logical pixels that setBounds() needs.
+                // Multiply by the current zoom factor to convert CSS px → logical px.
+                const zoomFactor = this.mainWindow.webContents.getZoomFactor();
                 this.applyToolViewBounds({
-                    x: Math.round(bounds.x),
-                    y: Math.round(bounds.y),
-                    width: Math.round(bounds.width),
-                    height: Math.round(bounds.height),
+                    x: Math.round(bounds.x * zoomFactor),
+                    y: Math.round(bounds.y * zoomFactor),
+                    width: Math.round(bounds.width * zoomFactor),
+                    height: Math.round(bounds.height * zoomFactor),
                 });
             } else {
                 this.boundsUpdatePending = false;
@@ -121,12 +142,14 @@ export class ToolWindowManager {
      */
     private removeIpcHandlers(): void {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
     }
 
     /**
@@ -141,6 +164,29 @@ export class ToolWindowManager {
         // Now accepts instanceId instead of toolId, plus connection IDs
         ipcMain.handle(TOOL_WINDOW_CHANNELS.LAUNCH, async (event, instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
             return this.launchTool(instanceId, tool, primaryConnectionId, secondaryConnectionId);
+        });
+
+        // Launch a tool with inter-tool context (called by a tool's preload bridge)
+        // The caller passes its own instanceId, the target tool, connection IDs, and prefill data.
+        // Returns a Promise that resolves when the callee calls returnInvocationData.
+        ipcMain.handle(
+            TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT,
+            async (
+                event,
+                callerInstanceId: string,
+                calleeInstanceId: string,
+                tool: Tool,
+                primaryConnectionId: string | null,
+                secondaryConnectionId: string | null,
+                prefillData: Record<string, unknown>,
+            ) => {
+                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
+            },
+        );
+
+        // Handle data returned by a callee tool back to its caller
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string, returnData: unknown) => {
+            return this.resolveInvocation(calleeInstanceId, returnData);
         });
 
         // Switch to a different tool
@@ -213,7 +259,7 @@ export class ToolWindowManager {
      * @param primaryConnectionId Primary connection ID for this instance (passed from frontend)
      * @param secondaryConnectionId Secondary connection ID for multi-connection tools (optional)
      */
-    async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null): Promise<boolean> {
+    async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null, prefillData?: Record<string, unknown>): Promise<boolean> {
         try {
             logInfo(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
 
@@ -247,8 +293,42 @@ export class ToolWindowManager {
             const toolUrl = this.browserviewProtocolManager.buildToolUrl(toolId);
             logInfo(`[ToolWindowManager] Loading tool from: ${toolUrl}`);
 
+            // Register event handlers BEFORE loading the tool URL so they are active
+            // from the very first navigation onward.
+
+            // Intercept mailto: navigation attempts from the tool.
+            // Electron BrowserViews do not open mailto: links automatically; we must handle them here.
+            // Only open the link if the user has previously granted mailto consent for this tool.
+            toolView.webContents.on("will-navigate", (event, url) => {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
+                    event.preventDefault();
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
+                    }
+                }
+            });
+
+            // Deny all new-window requests from tools.
+            // Handle mailto: links with a consent check (similar to the will-navigate handler above,
+            // but for window.open() calls rather than anchor-tag navigation).
+            toolView.webContents.setWindowOpenHandler(({ url }) => {
+                if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
+                    if (this.toolHasMailtoConsent(toolId)) {
+                        this.openMailtoLink(url);
+                    } else {
+                        logWarn("[ToolWindowManager] Blocked mailto: window.open — tool has no mailto consent", { toolId });
+                    }
+                }
+                return { action: "deny" };
+            });
+
             // Load the tool
             await toolView.webContents.loadURL(toolUrl);
+
+            // Apply current zoom level so the new tool matches the main window zoom
+            toolView.webContents.setZoomLevel(this.mainWindow.webContents.getZoomLevel());
 
             // Store the view with instanceId as key
             this.toolViews.set(instanceId, toolView);
@@ -295,6 +375,7 @@ export class ToolWindowManager {
 
             // Send tool context immediately (don't wait for did-finish-load)
             // The preload script will receive this before the tool code runs
+            const pending = this.pendingInvocations.get(instanceId);
             const toolContext = {
                 toolId: tool.id,
                 instanceId,
@@ -304,6 +385,14 @@ export class ToolWindowManager {
                 connectionId: primaryConnectionId,
                 secondaryConnectionUrl: secondaryConnectionUrl,
                 secondaryConnectionId: secondaryConnectionId,
+                // Inter-tool launch context (only present when launched by another tool)
+                ...(pending
+                    ? {
+                          callerInstanceId: pending.callerInstanceId,
+                          prefillData: pending.prefillData,
+                      }
+                    : {}),
+                ...(prefillData && !pending ? { prefillData } : {}),
             };
             toolView.webContents.send("toolbox:context", toolContext);
             logInfo(`[ToolWindowManager] Sent tool context for ${instanceId} with connection: ${connectionUrl ? "yes" : "no"}, secondary: ${secondaryConnectionUrl ? "yes" : "no"}`);
@@ -339,9 +428,80 @@ export class ToolWindowManager {
     }
 
     /**
-     * Switch to a different tool (show its BrowserView)
-     * @param instanceId The instance identifier to switch to
+     * Launch a tool with inter-tool invocation context.
+     *
+     * Called when Tool A wants to launch Tool B with prefill data and (optionally) receive
+     * a return value when Tool B calls returnInvocationData().
+     *
+     * @param callerInstanceId The instanceId of the tool initiating the launch
+     * @param calleeInstanceId The instanceId to use for the new tool window
+     * @param tool The tool manifest to launch
+     * @param primaryConnectionId Primary connection for the callee
+     * @param secondaryConnectionId Secondary connection for the callee (optional)
+     * @param prefillData Arbitrary data to pre-populate the callee's state
+     * @returns A Promise that resolves with the data returned by the callee, or null if the callee closes without returning data
      */
+    async launchToolWithContext(
+        callerInstanceId: string,
+        calleeInstanceId: string,
+        tool: Tool,
+        primaryConnectionId: string | null,
+        secondaryConnectionId: string | null,
+        prefillData: Record<string, unknown>,
+    ): Promise<unknown> {
+        return new Promise((resolve, reject) => {
+            this.pendingInvocations.set(calleeInstanceId, {
+                callerInstanceId,
+                prefillData,
+                resolve,
+                reject,
+            });
+
+            this.launchTool(calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData)
+                .then((launched) => {
+                    if (!launched) {
+                        this.pendingInvocations.delete(calleeInstanceId);
+                        reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                    }
+                })
+                .catch((error) => {
+                    this.pendingInvocations.delete(calleeInstanceId);
+                    reject(error as Error);
+                });
+        });
+    }
+
+    /**
+     * Called by the callee tool's preload bridge when it is ready to return data to its caller.
+     *
+     * Resolves the pending Promise created in launchToolWithContext and notifies the
+     * caller tool via IPC so it can continue its workflow.
+     *
+     * @param calleeInstanceId The instanceId of the tool returning data
+     * @param returnData The data to hand back to the caller
+     */
+    resolveInvocation(calleeInstanceId: string, returnData: unknown): void {
+        const pending = this.pendingInvocations.get(calleeInstanceId);
+        if (!pending) {
+            logWarn(`[ToolWindowManager] resolveInvocation: no pending invocation for ${calleeInstanceId}`);
+            return;
+        }
+
+        this.pendingInvocations.delete(calleeInstanceId);
+
+        // Notify the caller tool (if it is still open) via an IPC push
+        const callerView = this.toolViews.get(pending.callerInstanceId);
+        if (callerView && !callerView.webContents.isDestroyed()) {
+            callerView.webContents.send("toolbox:invocation-result", {
+                calleeInstanceId,
+                returnData,
+            });
+        }
+
+        // Resolve the JS Promise held by launchToolWithContext
+        pending.resolve(returnData);
+    }
+
     async switchToTool(instanceId: string): Promise<boolean> {
         try {
             const toolView = this.toolViews.get(instanceId);
@@ -408,6 +568,23 @@ export class ToolWindowManager {
             // Remove from maps - also clean up connection info
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
+
+            // If the tool was launched by another tool (inter-tool invocation) and it closes
+            // without calling returnData, resolve the caller's Promise with null so the caller
+            // doesn't hang indefinitely.
+            const pending = this.pendingInvocations.get(instanceId);
+            if (pending) {
+                this.pendingInvocations.delete(instanceId);
+                // Notify the caller view (if still alive)
+                const callerView = this.toolViews.get(pending.callerInstanceId);
+                if (callerView && !callerView.webContents.isDestroyed()) {
+                    callerView.webContents.send("toolbox:invocation-result", {
+                        calleeInstanceId: instanceId,
+                        returnData: null,
+                    });
+                }
+                pending.resolve(null);
+            }
 
             // Dispose any terminals created by this tool instance
             this.terminalManager.closeToolInstanceTerminals(instanceId);
@@ -488,6 +665,67 @@ export class ToolWindowManager {
         }
         // Extract toolId from instanceId (format: toolId-timestamp-random)
         return instanceId.split("-").slice(0, -2).join("-");
+    }
+
+    /**
+     * Check whether a tool has been granted mailto consent.
+     * The sentinel domain "mailto:" must appear in the tool's stored required or optional consent domains.
+     */
+    private toolHasMailtoConsent(toolId: string): boolean {
+        const approvedRequired = this.settingsManager.getApprovedRequiredDomains(toolId);
+        const approvedOptional = this.settingsManager.getApprovedOptionalDomains(toolId);
+        return approvedRequired.includes("mailto:") || approvedOptional.includes("mailto:");
+    }
+
+    /**
+     * Safely open a mailto: URL in the user's default email client.
+     * Validates the URL scheme and enforces a maximum length to prevent abuse.
+     */
+    private openMailtoLink(url: string): void {
+        // Enforce a maximum URL length to prevent abuse with overly long mailto strings.
+        const MAX_MAILTO_LENGTH = 2000;
+        if (url.length > MAX_MAILTO_LENGTH) {
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL exceeds maximum allowed length", { length: url.length });
+            return;
+        }
+
+        // Re-verify the scheme via URL parsing to guard against scheme-confusion attacks.
+        let parsed: URL;
+        try {
+            parsed = new URL(url);
+        } catch {
+            // At this point we know the URL starts with "mailto:" (checked by the caller)
+            // but URL parsing still failed (e.g. malformed recipient). Log the scheme only — not
+            // the full URL — to avoid capturing email addresses or body text as PII.
+            logWarn("[ToolWindowManager] Blocked mailto: link — URL failed to parse (scheme: mailto:)");
+            return;
+        }
+
+        if (parsed.protocol !== "mailto:") {
+            logWarn("[ToolWindowManager] Blocked link — unexpected protocol after mailto: check", { protocol: parsed.protocol });
+            return;
+        }
+
+        shell.openExternal(url).catch((err) => {
+            logError("[ToolWindowManager] Failed to open mailto link", err);
+        });
+    }
+
+    /**
+     * Apply the given zoom level to every open tool BrowserView.
+     * Called from the View menu zoom handlers so that all tool windows stay
+     * in sync with the main window zoom level.
+     * @param zoomLevel Electron zoom level (0 = 100%, 1 ≈ 120%, -1 ≈ 83%)
+     */
+    applyZoomLevelToAllTools(zoomLevel: number): void {
+        for (const [, toolView] of this.toolViews) {
+            if (!toolView.webContents.isDestroyed()) {
+                toolView.webContents.setZoomLevel(zoomLevel);
+            }
+        }
+        // Re-query the renderer for tool panel bounds after zoom so the
+        // BrowserView is correctly positioned in the new CSS coordinate space.
+        this.scheduleBoundsUpdate();
     }
 
     /**
@@ -707,11 +945,13 @@ export class ToolWindowManager {
      */
     destroy(): void {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);

@@ -82,6 +82,7 @@ export const TOOL_CHANNELS = {
 // Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",
+    LAUNCH_WITH_CONTEXT: "tool-window:launch-with-context",
     SWITCH: "tool-window:switch",
     CLOSE: "tool-window:close",
     GET_ACTIVE: "tool-window:get-active",
@@ -89,6 +90,7 @@ export const TOOL_WINDOW_CHANNELS = {
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
     HIDE_ALL: "tool-window:hide-all",
     RENDERER_INITIALIZED: "tool-window:renderer-initialized",
+    RETURN_INVOCATION_DATA: "tool-window:return-invocation-data",
 } as const;
 
 // Terminal-related IPC channels
@@ -108,8 +110,6 @@ export const UTIL_CHANNELS = {
     SHOW_CONTEXT_MENU: "show-context-menu",
     COPY_TO_CLIPBOARD: "copy-to-clipboard",
     GET_CURRENT_THEME: "get-current-theme",
-    SHOW_LOADING: "show-loading",
-    HIDE_LOADING: "hide-loading",
     OPEN_EXTERNAL: "open-external",
     GET_EVENT_HISTORY: "get-event-history",
     SHOW_MODAL_WINDOW: "show-modal-window",
@@ -123,6 +123,7 @@ export const UTIL_CHANNELS = {
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
     FETCH_FAVICON: "fetch-favicon",
+    OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
 } as const;
 
 // Filesystem-related IPC channels
@@ -217,8 +218,6 @@ export const EVENT_CHANNELS = {
     CLOSE_DEVICE_CODE_DIALOG: "close-device-code-dialog",
     SHOW_AUTH_ERROR_DIALOG: "show-auth-error-dialog",
     TOKEN_EXPIRED: "token-expired",
-    SHOW_LOADING_SCREEN: "show-loading-screen",
-    HIDE_LOADING_SCREEN: "hide-loading-screen",
     MODAL_WINDOW_OPENED: "modal-window:opened",
     MODAL_WINDOW_CLOSED: "modal-window:closed",
     MODAL_WINDOW_MESSAGE: "modal-window:message",

@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, dialog } from "electron";
 import { logError, logInfo, logWarn } from "../../common/logger";
 
 /**
@@ -62,6 +62,12 @@ export class ProtocolHandlerManager {
             return normalized === "1" || normalized === "true" || normalized === "yes";
         }
 
+        // Insider (nightly) builds must not claim the OS-level pptb:// handler so they
+        // don't interfere with a stable installation on the same machine.
+        if (process.env.PPTB_CHANNEL === "insider") {
+            return false;
+        }
+
         // Default behavior: only register/handle the OS-level pptb:// protocol when packaged.
         // This prevents local development runs from hijacking/claiming the protocol handler.
         return app.isPackaged;
@@ -78,7 +84,7 @@ export class ProtocolHandlerManager {
             }
 
             if (!this.protocolEnabled) {
-                logInfo("[ProtocolHandler] Skipping pptb:// protocol registration (local/dev run)");
+                logInfo("[ProtocolHandler] Skipping pptb:// protocol registration (local/dev run or insider build)");
                 return;
             }
 
@@ -93,23 +99,29 @@ export class ProtocolHandlerManager {
 
     /**
      * Initialize early protocol listeners - must be called BEFORE app.whenReady().
-     * Acquires the single-instance lock, registers the open-url and second-instance
-     * event handlers, and buffers any startup protocol URL from process.argv so that
-     * no deep link is lost before the main window exists.
+     * For stable packaged builds (protocolEnabled), acquires the single-instance lock
+     * to prevent duplicate stable instances and registers open-url / second-instance
+     * event handlers so no deep link is lost before the main window exists.
+     *
+     * Insider and dev builds skip both the single-instance lock and the protocol
+     * event listeners so they can run alongside a stable installation without
+     * interfering with it.
      */
     initialize(): void {
-        // If the protocol is disabled (e.g. local/dev run), we skip all protocol-related setup to avoid any risk of
-        // accidentally hijacking the protocol handler on a developer's machine.
+        // Insider and dev builds must not acquire the single-instance lock so that
+        // they can run alongside a stable installation on the same machine.
         if (!this.protocolEnabled) {
-            logInfo("[ProtocolHandler] pptb:// protocol disabled for local/dev run; skipping protocol event listeners");
+            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping single-instance lock and protocol event listeners");
             return;
         }
 
-        // Acquire the single-instance lock as early as possible so a second launch
-        // forwards its command line to the first instance and then quits.
+        // Stable packaged builds: acquire the single-instance lock to prevent a
+        // second stable instance from starting and to receive protocol URLs forwarded
+        // via the second-instance event.
         const gotTheLock = app.requestSingleInstanceLock();
         if (!gotTheLock) {
-            logInfo("[ProtocolHandler] Another instance is already running, quitting this instance");
+            logInfo("[ProtocolHandler] Another stable instance is already running, quitting this instance");
+            dialog.showErrorBox("Power Platform ToolBox is already running", "Only one instance of Power Platform ToolBox can be open at a time.\n\nPlease switch to the existing window.");
             app.quit();
             return;
         }

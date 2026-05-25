@@ -284,6 +284,9 @@ export class BrowserviewProtocolManager {
 
         // Merge tool's CSP exceptions (only if consent was granted)
         for (const [directive, sources] of Object.entries(cspExceptions)) {
+            // Skip non-CSP permission directives (e.g. "mailto" is a permission flag handled
+            // at navigation time, not a browser CSP directive).
+            if (directive === "mailto") continue;
             if (Array.isArray(sources) && sources.length > 0) {
                 if (!directives[directive]) {
                     directives[directive] = ["'self'"];

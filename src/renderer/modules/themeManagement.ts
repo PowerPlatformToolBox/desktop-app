@@ -39,6 +39,9 @@ export function applyTheme(theme: string): void {
     // Update marketplace icons when theme changes
     updateMarketplaceIconsForTheme();
 
+    // Update tool detail tab icons when theme changes
+    updateToolDetailIconsForTheme();
+
     // Update homepage icon when theme changes
     updateHomepageIconForTheme();
 
@@ -266,6 +269,27 @@ export function updateFilterIconsForTheme(): void {
             filterImg.src = filterIconPath;
         }
     }
+}
+
+/**
+ * Update tool detail tab fallback icons to match current theme
+ * Called when theme changes to update default tool icons in any open detail tab
+ */
+export function updateToolDetailIconsForTheme(): void {
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const cacheBuster = `?t=${Date.now()}`;
+    const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
+
+    const detailPanel = document.getElementById("tool-detail-content-panel");
+    if (!detailPanel) return;
+
+    // Update fallback img icons (only default tool icons, not custom tool icons)
+    detailPanel.querySelectorAll(".tool-detail-tab-icon img").forEach((img) => {
+        const currentSrc = (img as HTMLImageElement).src;
+        if (currentSrc.includes("tool-default.svg")) {
+            (img as HTMLImageElement).src = defaultToolIcon + cacheBuster;
+        }
+    });
 }
 
 /**

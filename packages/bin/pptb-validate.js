@@ -16,7 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { validatePackageJson } = require("../lib/validate");
+const { validatePackageJson, validatePPTBConfig } = require("../lib/validate");
 
 // ANSI colour helpers – gracefully degrade when colours are unsupported
 const NO_COLOR = !process.stdout.isTTY || process.env.NO_COLOR;
@@ -37,7 +37,8 @@ ${c.bold("USAGE")}
   pptb-validate [options] [path/to/package.json]
 
   When no path is given the tool looks for ${c.cyan("package.json")} in the current
-  working directory.
+  working directory. If a ${c.cyan("pptb.config.json")} file exists in the same directory
+  it is automatically validated as well.
 
 ${c.bold("OPTIONS")}
   ${c.cyan("--skip-url-checks")}   Skip URL reachability checks (faster, works offline)
@@ -79,6 +80,10 @@ async function main() {
         packageJsonPath = path.resolve(process.cwd(), packageJsonPath);
     }
 
+    // Derive pptb.config.json path from the same directory as package.json
+    const toolDir = path.dirname(packageJsonPath);
+    const pptbConfigPath = path.join(toolDir, "pptb.config.json");
+
     // --- Load package.json ---
     if (!fs.existsSync(packageJsonPath)) {
         if (jsonOutput) {
@@ -102,21 +107,35 @@ async function main() {
         process.exit(1);
     }
 
+    // --- Load pptb.config.json (optional) ---
+    let pptbConfig = null;
+    let pptbConfigParseError = null;
+    if (fs.existsSync(pptbConfigPath)) {
+        try {
+            pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf8"));
+        } catch (err) {
+            pptbConfigParseError = err instanceof Error ? err.message : String(err);
+        }
+    }
+
     // --- Run validation ---
     if (!jsonOutput) {
         console.log();
         console.log(c.bold("Power Platform ToolBox – Tool Validator"));
         console.log(c.dim("─".repeat(45)));
         console.log(c.dim(`File: ${packageJsonPath}`));
+        if (pptbConfig !== null) {
+            console.log(c.dim(`Config: ${pptbConfigPath}`));
+        }
         if (skipUrlChecks) {
             console.log(c.yellow("⚠  URL reachability checks are skipped"));
         }
         console.log();
     }
 
-    let result;
+    let packageResult;
     try {
-        result = await validatePackageJson(packageJson, { skipUrlChecks });
+        packageResult = await validatePackageJson(packageJson, { skipUrlChecks });
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (jsonOutput) {
@@ -127,27 +146,62 @@ async function main() {
         process.exit(1);
     }
 
+    // --- Validate pptb.config.json if present ---
+    let configResult = null;
+    if (pptbConfigParseError !== null) {
+        configResult = { valid: false, errors: [`Failed to parse pptb.config.json: ${pptbConfigParseError}`], warnings: [] };
+    } else if (pptbConfig !== null) {
+        configResult = validatePPTBConfig(pptbConfig);
+    }
+
+    // Merge results for overall pass/fail
+    const allErrors = [...packageResult.errors, ...(configResult ? configResult.errors : [])];
+    const allWarnings = [...packageResult.warnings, ...(configResult ? configResult.warnings : [])];
+    const overallValid = packageResult.valid && (configResult === null || configResult.valid);
+
     // --- Output results ---
     if (jsonOutput) {
-        console.log(JSON.stringify(result, null, 2));
-        process.exit(result.valid ? 0 : 1);
+        const output = {
+            valid: overallValid,
+            errors: allErrors,
+            warnings: allWarnings,
+            packageInfo: packageResult.packageInfo,
+            configInfo: configResult ? configResult.packageInfo : undefined,
+        };
+        console.log(JSON.stringify(output, null, 2));
+        process.exit(overallValid ? 0 : 1);
     }
 
-    // Human-readable output
-    if (result.errors.length > 0) {
-        console.log(c.bold(c.red(`Errors (${result.errors.length})`)));
-        result.errors.forEach((e) => console.log(`  ${c.red("✖")} ${e}`));
+    // Human-readable output – package.json section
+    if (packageResult.errors.length > 0) {
+        console.log(c.bold(c.red(`package.json Errors (${packageResult.errors.length})`)));
+        packageResult.errors.forEach((e) => console.log(`  ${c.red("✖")} ${e}`));
         console.log();
     }
 
-    if (result.warnings.length > 0) {
-        console.log(c.bold(c.yellow(`Warnings (${result.warnings.length})`)));
-        result.warnings.forEach((w) => console.log(`  ${c.yellow("⚠")} ${w}`));
+    if (packageResult.warnings.length > 0) {
+        console.log(c.bold(c.yellow(`package.json Warnings (${packageResult.warnings.length})`)));
+        packageResult.warnings.forEach((w) => console.log(`  ${c.yellow("⚠")} ${w}`));
         console.log();
     }
 
-    if (result.valid) {
-        const info = result.packageInfo;
+    // Human-readable output – pptb.config.json section
+    if (configResult !== null) {
+        if (configResult.errors.length > 0) {
+            console.log(c.bold(c.red(`pptb.config.json Errors (${configResult.errors.length})`)));
+            configResult.errors.forEach((e) => console.log(`  ${c.red("✖")} ${e}`));
+            console.log();
+        }
+
+        if (configResult.warnings.length > 0) {
+            console.log(c.bold(c.yellow(`pptb.config.json Warnings (${configResult.warnings.length})`)));
+            configResult.warnings.forEach((w) => console.log(`  ${c.yellow("⚠")} ${w}`));
+            console.log();
+        }
+    }
+
+    if (overallValid) {
+        const info = packageResult.packageInfo;
         console.log(c.green(c.bold("✔ Validation passed")));
         console.log();
         console.log(c.bold("Package summary"));
@@ -157,12 +211,15 @@ async function main() {
         console.log(`  Display name: ${info.displayName}`);
         console.log(`  Description : ${info.description}`);
         console.log(`  License     : ${info.license}`);
-        console.log(`  Contributors: ${info.contributors.map((c) => c.name).join(", ")}`);
+        console.log(`  Contributors: ${info.contributors.map((contributor) => contributor.name).join(", ")}`);
         if (info.icon) {
             console.log(`  Icon        : ${info.icon}`);
         }
         if (info.features) {
             console.log(`  Features    : multiConnection=${info.features.multiConnection}${info.features.minAPI ? `, minAPI=${info.features.minAPI}` : ""}`);
+        }
+        if (configResult !== null && configResult.packageInfo && configResult.packageInfo.invocation) {
+            console.log(`  Invocation  : version=${configResult.packageInfo.invocation.version}`);
         }
         console.log();
     } else {
@@ -172,7 +229,7 @@ async function main() {
         console.log();
     }
 
-    process.exit(result.valid ? 0 : 1);
+    process.exit(overallValid ? 0 : 1);
 }
 
 main().catch((err) => {

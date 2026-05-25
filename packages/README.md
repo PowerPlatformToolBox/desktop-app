@@ -8,6 +8,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Quick start](#quick-start)
         - [CLI options](#cli-options)
         - [What is validated](#what-is-validated)
+        - [pptb.config.json (optional)](#pptbconfigjson-optional)
     - [Overview](#overview)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
@@ -17,6 +18,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Utilities](#utilities)
         - [Terminal Operations](#terminal-operations)
         - [Events](#events)
+        - [Inter-Tool Invocation](#inter-tool-invocation)
     - [Dataverse API Examples](#dataverse-api-examples)
         - [CRUD Operations](#crud-operations)
         - [FetchXML Queries](#fetchxml-queries)
@@ -29,6 +31,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
             - [Utils](#utils)
             - [Terminal](#terminal)
             - [Events](#events-1)
+            - [Invocation](#invocation)
         - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
             - [CRUD Operations](#crud-operations-1)
             - [Query Operations](#query-operations)
@@ -108,6 +111,43 @@ The validator checks every field that the official review pipeline inspects:
 | `features.minAPI`           | ❌       | Valid semver string when provided                                                                                                      |
 
 > \* Required only when the `features` object is present.
+
+#### pptb.config.json (optional)
+
+In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
+
+| Field                                   | Required | Rules                                                                                                                     |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `invocation.version`                    | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
+| `invocation.prefill`                    | ❌       | JSON-schema-style object describing data callers can pre-populate                                                         |
+| `invocation.prefill.properties`         | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+| `invocation.returnTopic`                | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                              |
+| `invocation.returnTopic.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+
+> \*\* Required only when the `invocation` object is present.
+
+**Example `pptb.config.json`:**
+
+```json
+{
+    "invocation": {
+        "version": "1.0.0",
+        "prefill": {
+            "properties": {
+                "entityName": { "type": "string" },
+                "attributes": { "type": "array", "items": { "type": "string" } }
+            }
+        },
+        "returnTopic": {
+            "properties": {
+                "result": { "type": "object" },
+                "status": { "type": "string", "enum": ["success", "cancelled", "error"] },
+                "error": { "type": "string" }
+            }
+        }
+    }
+}
+```
 
 ## Overview
 
@@ -247,6 +287,67 @@ toolboxAPI.events.on((event, payload) => {
 // Get event history
 const history = await toolboxAPI.events.getHistory(10); // Last 10 events
 ```
+
+### Inter-Tool Invocation
+
+Tools can launch one another and pass data between them using the `invocation` namespace.
+
+#### Caller: launching another tool with prefill data
+
+```typescript
+// Tool A – launches the entity-picker tool and waits for a selection
+const result = await toolboxAPI.invocation.launchTool(
+    "@my-org/entity-picker",
+    { entityName: "account", allowMultiSelect: false },
+);
+
+if (result) {
+    console.log("Selected record id:", (result as { selectedId: string }).selectedId);
+}
+```
+
+#### Callee: reading prefill data and returning a result
+
+```typescript
+// Tool B (@my-org/entity-picker) – reads the context provided by Tool A
+const ctx = await toolboxAPI.invocation.getLaunchContext();
+if (ctx) {
+    const entityName = ctx.entityName as string; // "account"
+    // … show records from entityName …
+
+    // When the user makes their selection:
+    await toolboxAPI.invocation.returnData({ selectedId: "a1b2c3...", selectedName: "Contoso" });
+}
+```
+
+> **Tip:** A tool that was *not* launched by another tool receives `null` from `getLaunchContext()`.  
+> Use this to show a standalone UI or redirect accordingly.
+
+#### Declaring your invocation contract
+
+Add a `pptb.config.json` alongside your `package.json` to tell callers what data you expect and return:
+
+```json
+{
+    "invocation": {
+        "version": "1.0.0",
+        "prefill": {
+            "properties": {
+                "entityName": { "type": "string" },
+                "allowMultiSelect": { "type": "boolean" }
+            }
+        },
+        "returnTopic": {
+            "properties": {
+                "selectedId": { "type": "string" },
+                "selectedName": { "type": "string" }
+            }
+        }
+    }
+}
+```
+
+Run `pptb-validate` to validate both `package.json` and `pptb.config.json` at once.
 
 ## Dataverse API Examples
 
@@ -494,6 +595,19 @@ Core platform features organized into namespaces:
 
 - **off(callback: (event: any, payload: ToolBoxEventPayload) => void)**: void
     - Removes a previously registered event listener
+
+#### Invocation
+
+- **getLaunchContext()**: Promise\<Record\<string, unknown\> | null\>
+    - Returns the prefill data passed by the tool that launched this tool, or `null` when not launched via inter-tool invocation
+
+- **returnData(returnData: Record\<string, unknown\>)**: Promise\<void\>
+    - Sends data back to the caller tool and signals completion; no-op if not launched by another tool
+
+- **launchTool(targetToolId, prefillData?, options?)**: Promise\<unknown\>
+    - Launches the specified tool, optionally with prefill data
+    - Returns a Promise that resolves with the data returned by the callee (or `null` if it closes without returning)
+    - `options.primaryConnectionId` / `options.secondaryConnectionId` – override connection for the callee
 
 ### Dataverse API (`window.dataverseAPI`)
 
