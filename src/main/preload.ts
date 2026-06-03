@@ -69,6 +69,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
+    findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
+    registerSendToAction: (callerInstanceId: string, config: unknown) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION, callerInstanceId, config),
+    /** Trigger "Return to Caller" from the banner button. Resolves the active invocation for the given callee with null and auto-closes it. */
+    returnToCallerBanner: (calleeInstanceId: string) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, calleeInstanceId, null),
+    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
+    },
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),

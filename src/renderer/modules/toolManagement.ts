@@ -1756,3 +1756,53 @@ export function initializeTabScrollButtons(): void {
     // Initial update
     updateTabScrollButtons();
 }
+
+/**
+ * Initialise the shell-level "Return to [CallerToolName]" banner.
+ *
+ * The main process pushes INVOCATION_BANNER_STATE whenever the active tool changes.
+ * - visible: true  → show the banner with the caller's display name
+ * - visible: false → hide the banner
+ *
+ * Clicking "Return" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
+ *   - The active invocation resolves with null on the caller side
+ *   - PPTB auto-closes the callee window
+ *
+ * Clicking "✕" (dismiss) hides the banner for the session but does NOT cancel the invocation.
+ */
+export function initializeInvocationBanner(): void {
+    const banner = document.getElementById("invocation-banner");
+    const bannerText = document.getElementById("invocation-banner-text");
+    const returnBtn = document.getElementById("invocation-banner-return");
+    const dismissBtn = document.getElementById("invocation-banner-dismiss");
+
+    if (!banner || !bannerText || !returnBtn || !dismissBtn) return;
+
+    let currentCalleeInstanceId: string | null = null;
+
+    // Listen for banner state pushes from the main process
+    window.toolboxAPI.onInvocationBannerState((state) => {
+        if (state.visible && state.calleeInstanceId && state.callerToolName) {
+            currentCalleeInstanceId = state.calleeInstanceId;
+            bannerText.textContent = `Return to ${state.callerToolName}`;
+            returnBtn.textContent = `Return to ${state.callerToolName}`;
+            banner.style.display = "flex";
+        } else {
+            currentCalleeInstanceId = null;
+            banner.style.display = "none";
+        }
+    });
+
+    // "Return" button: trigger banner early-return path
+    returnBtn.addEventListener("click", () => {
+        if (!currentCalleeInstanceId) return;
+        void window.toolboxAPI.returnToCallerBanner(currentCalleeInstanceId);
+        banner.style.display = "none";
+        currentCalleeInstanceId = null;
+    });
+
+    // "Dismiss" button: hide banner only — does NOT end the invocation
+    dismissBtn.addEventListener("click", () => {
+        banner.style.display = "none";
+    });
+}

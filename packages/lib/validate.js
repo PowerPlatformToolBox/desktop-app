@@ -390,6 +390,19 @@ function validatePPTBConfig(config) {
                     validateJsonSchemaProperties("invocation.returnTopic", inv.returnTopic.properties, errors);
                 }
             }
+
+            // invocation.capabilities – optional array of non-empty strings
+            if (inv.capabilities !== undefined) {
+                if (!Array.isArray(inv.capabilities)) {
+                    errors.push("invocation.capabilities must be an array");
+                } else {
+                    inv.capabilities.forEach((cap, idx) => {
+                        if (typeof cap !== "string" || cap.trim().length === 0) {
+                            errors.push(`invocation.capabilities[${idx}] must be a non-empty string`);
+                        }
+                    });
+                }
+            }
         }
     }
 

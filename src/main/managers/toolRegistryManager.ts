@@ -626,6 +626,21 @@ export class ToolRegistryManager extends EventEmitter {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(toolPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
         const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
@@ -671,6 +686,7 @@ export class ToolRegistryManager extends EventEmitter {
             publishedAt: tool.publishedAt,
             minAPI, // Minimum API version required
             maxAPI, // Maximum API version tested (from @pptb/types)
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         // Save to manifest file

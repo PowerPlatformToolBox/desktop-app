@@ -67,6 +67,22 @@ export interface InvocationConfig {
     prefill?: JsonSchemaObject;
     /** Schema of the data this tool returns to its caller on completion. */
     returnTopic?: JsonSchemaObject;
+    /**
+     * Capability tags declared by this tool.
+     *
+     * Callers can use `toolboxAPI.invocation.findToolsByCapability(tag)` to
+     * discover tools that advertise a given capability and then launch them
+     * with pre-populated data.
+     *
+     * Tag names are free-form strings (e.g. `"entity-picker"`, `"solution-selector"`).
+     * Use a consistent naming convention within your organisation.
+     *
+     * @example
+     * ```json
+     * { "invocation": { "version": "1.0.0", "capabilities": ["entity-picker", "record-selector"] } }
+     * ```
+     */
+    capabilities?: string[];
 }
 
 /**

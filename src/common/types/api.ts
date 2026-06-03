@@ -161,6 +161,14 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    /** Find installed tools that declare a given capability tag in their pptb.config.json. */
+    findToolsByCapability: (tag: string) => Promise<Tool[]>;
+    /** Register a "Send To [TargetTool]" action; PPTB emits "toolbox:send-to-action-registered" back to the caller renderer. */
+    registerSendToAction: (callerInstanceId: string, config: { targetToolId: string; label?: string }) => Promise<void>;
+    /** Trigger banner "Return to Caller" — resolves the callee's active invocation with null and auto-closes it. */
+    returnToCallerBanner: (calleeInstanceId: string) => Promise<void>;
+    /** Subscribe to invocation banner state changes (main → renderer push). */
+    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => void;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;

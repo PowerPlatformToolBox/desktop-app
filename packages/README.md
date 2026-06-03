@@ -119,6 +119,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 | Field                                   | Required | Rules                                                                                                                     |
 | --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `invocation.version`                    | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
+| `invocation.capabilities`               | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`. |
 | `invocation.prefill`                    | ❌       | JSON-schema-style object describing data callers can pre-populate                                                         |
 | `invocation.prefill.properties`         | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
 | `invocation.returnTopic`                | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                              |
@@ -132,6 +133,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 {
     "invocation": {
         "version": "1.0.0",
+        "capabilities": ["entity-picker"],
         "prefill": {
             "properties": {
                 "entityName": { "type": "string" },
@@ -296,14 +298,48 @@ Tools can launch one another and pass data between them using the `invocation` n
 
 ```typescript
 // Tool A – launches the entity-picker tool and waits for a selection
+// The callee automatically inherits this tool's FXS connection
 const result = await toolboxAPI.invocation.launchTool(
     "@my-org/entity-picker",
     { entityName: "account", allowMultiSelect: false },
 );
 
-if (result) {
+if (result !== null) {
     console.log("Selected record id:", (result as { selectedId: string }).selectedId);
+} else {
+    // User dismissed the picker (closed window or clicked "Return to Caller" banner)
 }
+```
+
+> **One-at-a-time**: only one active callee per caller is supported. A second `launchTool` call while a callee is open throws `"A callee invocation is already in progress"`.
+
+#### Caller: tag-based capability discovery
+
+```typescript
+// Find all installed tools that declare the "entity-picker" capability
+const pickers = await toolboxAPI.invocation.findToolsByCapability("entity-picker");
+if (pickers.length > 0) {
+    const picker = pickers[0] as { id: string };
+    const result = await toolboxAPI.invocation.launchTool(picker.id, { entityName: "account" });
+}
+```
+
+#### Caller: registering a "Send To" action
+
+```typescript
+// Register a "Send To Entity Picker" action so PPTB notifies the renderer
+await toolboxAPI.invocation.registerSendToAction({
+    targetToolId: "@my-org/entity-picker",
+    label: "Send to Entity Picker",
+});
+
+// Listen for the registered action notification to render your button
+toolboxAPI.events.on((_event, payload) => {
+    const p = payload as { type?: string };
+    if (p?.type === "toolbox:send-to-action-registered") {
+        renderSendToButton();
+    }
+});
 ```
 
 #### Callee: reading prefill data and returning a result
@@ -317,11 +353,16 @@ if (ctx) {
 
     // When the user makes their selection:
     await toolboxAPI.invocation.returnData({ selectedId: "a1b2c3...", selectedName: "Contoso" });
+    // PPTB automatically closes this window after delivering the result
 }
 ```
 
 > **Tip:** A tool that was *not* launched by another tool receives `null` from `getLaunchContext()`.  
 > Use this to show a standalone UI or redirect accordingly.
+
+> **Auto-close**: after calling `returnData`, PPTB automatically closes the callee window. The callee does **not** need to close itself.
+
+> **Banner early-return**: PPTB injects a "Return to [CallerToolName]" banner in the callee window. If the user clicks it before `returnData` is called, the caller's Promise resolves with `null` and the callee window is closed.
 
 #### Declaring your invocation contract
 
@@ -331,6 +372,7 @@ Add a `pptb.config.json` alongside your `package.json` to tell callers what data
 {
     "invocation": {
         "version": "1.0.0",
+        "capabilities": ["entity-picker"],
         "prefill": {
             "properties": {
                 "entityName": { "type": "string" },
@@ -602,12 +644,19 @@ Core platform features organized into namespaces:
     - Returns the prefill data passed by the tool that launched this tool, or `null` when not launched via inter-tool invocation
 
 - **returnData(returnData: Record\<string, unknown\>)**: Promise\<void\>
-    - Sends data back to the caller tool and signals completion; no-op if not launched by another tool
+    - Sends data back to the caller tool and signals completion; PPTB **automatically closes the callee window** after delivery; no-op if not launched by another tool
 
 - **launchTool(targetToolId, prefillData?, options?)**: Promise\<unknown\>
     - Launches the specified tool, optionally with prefill data
-    - Returns a Promise that resolves with the data returned by the callee (or `null` if it closes without returning)
-    - `options.primaryConnectionId` / `options.secondaryConnectionId` – override connection for the callee
+    - Returns a Promise that resolves with the data returned by the callee, or `null` if it closes without returning or the user clicks the "Return to Caller" banner
+    - The callee automatically inherits the caller's FXS connection; pass `options.primaryConnectionId` to override
+    - Only one active callee per caller is allowed; throws `"A callee invocation is already in progress"` if a callee is already open
+
+- **findToolsByCapability(tag: string)**: Promise\<unknown[]\>
+    - Returns all installed tools that declare the given capability tag in their `pptb.config.json`
+
+- **registerSendToAction(config: SendToActionConfig)**: Promise\<void\>
+    - Registers a "Send To [TargetTool]" action; PPTB emits `"toolbox:send-to-action-registered"` to the caller renderer
 
 ### Dataverse API (`window.dataverseAPI`)
 

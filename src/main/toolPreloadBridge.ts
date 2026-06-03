@@ -401,10 +401,37 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
             const calleeInstanceId = `${targetToolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-            const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : null;
+            const primaryConnectionId = options?.primaryConnectionId !== undefined
+                ? options.primaryConnectionId
+                : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
             const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
 
             return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
+        },
+
+        /**
+         * Find installed tools that declare a given capability tag in their pptb.config.json.
+         *
+         * @param tag The capability tag to search for (e.g. "entity-picker")
+         * @returns A list of matching installed tools
+         */
+        findToolsByCapability: async (tag: string): Promise<unknown[]> => {
+            return ipcInvoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag) as Promise<unknown[]>;
+        },
+
+        /**
+         * Register a "Send To [TargetTool]" action that can be rendered anywhere in the caller tool's UI.
+         * PPTB emits a "toolbox:send-to-action-registered" event back to the caller renderer so it can
+         * place a button or menu item in its own UI.
+         *
+         * @param config Configuration for the send-to action
+         */
+        registerSendToAction: async (config: { targetToolId: string; label?: string }): Promise<void> => {
+            const { instanceId: callerInstanceId } = await getToolIdentifiers();
+            if (!callerInstanceId) {
+                return;
+            }
+            await ipcInvoke(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION, callerInstanceId, config);
         },
     },
 });

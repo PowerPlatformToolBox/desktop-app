@@ -455,9 +455,9 @@ declare namespace ToolBoxAPI {
          * Returns data back to the caller tool that launched this tool.
          *
          * The value resolves the `Promise` returned by the caller's
-         * `invocation.launchTool()` call.  After calling `returnData`, the PPTB host
-         * will notify the caller; it is the callee's responsibility to close itself (or
-         * update its UI) after the return.
+         * `invocation.launchTool()` call.  **After calling `returnData`, PPTB
+         * automatically closes the callee window** — the callee does not need to
+         * close itself.
          *
          * If this tool was not launched by another tool, the call is a no-op.
          *
@@ -469,17 +469,51 @@ declare namespace ToolBoxAPI {
          * Launch another tool from within this tool and (optionally) pass prefill data.
          *
          * Returns a Promise that resolves with the data the target tool sends via
-         * `invocation.returnData()`, or `null` if the target tool closes without
-         * returning any data.
+         * `invocation.returnData()`, or `null` if:
+         *  - the target tool closes without calling `returnData`, or
+         *  - the user clicks the "Return to [this tool]" banner before the callee finalises.
          *
-         * The target tool must be installed and its `pptb.config.json` must declare an
-         * `invocation.prefill` schema that matches the shape of `prefillData`.
+         * **One-at-a-time**: only one active callee per caller is supported. A second
+         * call while a callee is active throws `"A callee invocation is already in progress"`.
+         *
+         * **Connection auto-inheritance**: when `options.primaryConnectionId` is omitted,
+         * the callee automatically inherits the caller's active FXS connection.
          *
          * @param targetToolId The npm package name (toolId) of the tool to launch
          * @param prefillData  Data to pre-populate the target tool's state
          * @param options      Optional connection overrides for the target tool
          */
         launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }) => Promise<unknown>;
+
+        /**
+         * Find installed tools that declare a given capability tag in their
+         * `pptb.config.json` (`invocation.capabilities` array).
+         *
+         * @param tag  The capability tag to search for (e.g. `"entity-picker"`)
+         * @returns    Array of matching installed `ToolManifest` objects
+         */
+        findToolsByCapability: (tag: string) => Promise<unknown[]>;
+
+        /**
+         * Register a "Send To [TargetTool]" action.
+         *
+         * PPTB emits a `"toolbox:send-to-action-registered"` event back to the
+         * caller's renderer — listen with `toolboxAPI.events.on` — so the tool can
+         * render a button or menu item anywhere in its own UI.
+         *
+         * @param config  Action configuration
+         */
+        registerSendToAction: (config: SendToActionConfig) => Promise<void>;
+    }
+
+    /**
+     * Configuration for a "Send To [TargetTool]" action registered by a caller tool.
+     */
+    export interface SendToActionConfig {
+        /** The npm package name (toolId) of the target tool to send data to. */
+        targetToolId: string;
+        /** Optional display label for the action button (defaults to the target tool's display name). */
+        label?: string;
     }
 
     /**

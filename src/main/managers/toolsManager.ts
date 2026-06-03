@@ -79,6 +79,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -149,6 +150,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
