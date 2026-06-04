@@ -83,13 +83,10 @@ export class ToolWindowManager {
     /**
      * Tracks the one active callee per caller (one-at-a-time enforcement).
      * Maps callerInstanceId → calleeInstanceId.
+     * The reverse lookup (calleeInstanceId → callerInstanceId) is obtained directly
+     * from pendingInvocations, which already stores callerInstanceId per callee entry.
      */
     private activeCallees: Map<string, string> = new Map();
-    /**
-     * Reverse mapping for O(1) lookup in closeTool.
-     * Maps calleeInstanceId → callerInstanceId.
-     */
-    private calleeToCallerMap: Map<string, string> = new Map();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -233,9 +230,17 @@ export class ToolWindowManager {
             },
         );
 
-        // Handle data returned by a callee tool back to its caller
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string, returnData: unknown) => {
-            return this.resolveInvocation(calleeInstanceId, returnData);
+        // Handle data returned by a callee tool back to its caller.
+        // calleeInstanceId is provided by callee tools calling returnData() directly.
+        // When the banner's "Return to Caller" button is clicked, no calleeInstanceId is
+        // passed — the main process falls back to the currently active tool (activeToolId).
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string | null, returnData: unknown) => {
+            const effectiveCalleeId = calleeInstanceId ?? this.activeToolId;
+            if (!effectiveCalleeId) {
+                logWarn("[ToolWindowManager] RETURN_INVOCATION_DATA: no callee instance ID and no active tool");
+                return;
+            }
+            return this.resolveInvocation(effectiveCalleeId, returnData);
         });
 
         // Switch to a different tool
@@ -555,21 +560,18 @@ export class ToolWindowManager {
                 noReturn: noReturn ?? false,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
-            this.calleeToCallerMap.set(calleeInstanceId, callerInstanceId);
 
             this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
-                        this.calleeToCallerMap.delete(calleeInstanceId);
                         reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
                     }
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
                     this.activeCallees.delete(callerInstanceId);
-                    this.calleeToCallerMap.delete(calleeInstanceId);
                     reject(error as Error);
                 });
         });
@@ -625,7 +627,6 @@ export class ToolWindowManager {
         pending.resolved = true;
         this.pendingInvocations.delete(calleeInstanceId);
         this.activeCallees.delete(pending.callerInstanceId);
-        this.calleeToCallerMap.delete(calleeInstanceId);
 
         // Notify the caller tool (if it is still open) via an IPC push
         const callerView = this.toolViews.get(pending.callerInstanceId);
@@ -683,7 +684,6 @@ export class ToolWindowManager {
                 } else {
                     this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, {
                         visible: true,
-                        calleeInstanceId: instanceId,
                         callerToolName,
                     });
                 }
@@ -751,15 +751,6 @@ export class ToolWindowManager {
                     }
                     pending.resolve(null);
                 }
-            }
-
-            // Also clear activeCallees in case this instance was registered as a callee
-            // but pendingInvocations entry was already removed (e.g. already resolved).
-            // Use the reverse map for O(1) lookup instead of iterating all entries.
-            const callerOfThisCallee = this.calleeToCallerMap.get(instanceId);
-            if (callerOfThisCallee !== undefined) {
-                this.activeCallees.delete(callerOfThisCallee);
-                this.calleeToCallerMap.delete(instanceId);
             }
 
             // If this was the active tool, hide the banner in the renderer

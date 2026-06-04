@@ -1781,27 +1781,21 @@ export function initializeInvocationBanner(): void {
 
     if (!banner || !bannerText || !returnBtn || !dismissBtn) return;
 
-    let currentCalleeInstanceId: string | null = null;
-
     // Listen for banner state pushes from the main process
     window.toolboxAPI.onInvocationBannerState((state) => {
-        if (state.visible && state.calleeInstanceId && state.callerToolName) {
-            currentCalleeInstanceId = state.calleeInstanceId;
+        if (state.visible && state.callerToolName) {
             bannerText.textContent = `Return to ${state.callerToolName}`;
             returnBtn.textContent = `Return to ${state.callerToolName}`;
             banner.style.display = "flex";
         } else {
-            currentCalleeInstanceId = null;
             banner.style.display = "none";
         }
     });
 
     // "Return" button: trigger banner early-return path
     returnBtn.addEventListener("click", () => {
-        if (!currentCalleeInstanceId) return;
-        void window.toolboxAPI.returnToCallerBanner(currentCalleeInstanceId);
+        void window.toolboxAPI.returnToCallerBanner();
         banner.style.display = "none";
-        currentCalleeInstanceId = null;
     });
 
     // "Dismiss" button: hide banner only — does NOT end the invocation

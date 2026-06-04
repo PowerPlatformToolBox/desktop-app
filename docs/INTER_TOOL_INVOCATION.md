@@ -413,7 +413,7 @@ async function openEntityPicker(entityName: string) {
 
 ## End-to-End Scenario: FXS "Send To" Flyout
 
-This section illustrates a concrete real-world scenario where **FetchXML Studio (FXS)** exposes a "Send To ▾" flyout button that lets users push the current FetchXML query directly into another installed tool — such as **DRB** (DataRows Builder) or **DMS** (DataMigration Studio) — without expecting a return value.
+This section illustrates a concrete real-world scenario where **FetchXML Studio (FXS)** exposes a "Send To ▾" flyout button that lets users push the current FetchXML query directly into another installed tool — such as **DRB** (Dataverse Rest Builder) or **DMS** (Data Migration Studio) — without expecting a return value.
 
 ### Scenario summary
 
@@ -426,8 +426,8 @@ This section illustrates a concrete real-world scenario where **FetchXML Studio 
 | 5 | PPTB opens DMS, inheriting FXS's active Dataverse connection as the primary connection. |
 | 6 | If DMS requires a **secondary connection** (e.g. it is a multi-connection tool for cross-environment migration), PPTB automatically shows the **multi-connection selector** before launching DMS — the user picks the second connection. |
 | 7 | DMS opens pre-populated with the FetchXML from step 1. |
-| 8 | A **"Return to FXS"** banner appears at the top of the DMS window with a note: _"nothing will be returned to caller"_ — because FXS only sends data; it does not await a result. |
-| 9 | The user continues in DMS independently. Clicking **"Return to FXS"** in the banner simply closes DMS and switches back to FXS (the Promise on the FXS side resolves with `null`). |
+| 8 | Because `noReturn: true` was set, **no banner is shown** in the DMS window — FXS does not expect data back. |
+| 9 | The user continues in DMS independently. Closing DMS resolves the Promise on the FXS side with `null`. |
 
 ---
 

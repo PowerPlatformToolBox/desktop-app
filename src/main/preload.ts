@@ -71,10 +71,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
     findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
-    /** Trigger "Return to Caller" from the banner button. Resolves the active invocation for the given callee with null and auto-closes it. */
-    returnToCallerBanner: (calleeInstanceId: string) =>
-        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, calleeInstanceId, null),
-    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => {
+    /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
+    returnToCallerBanner: () =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
+    onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },
     /** Listen for multi-connection prompts triggered by an invocation that requires a secondary connection. */

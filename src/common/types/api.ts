@@ -164,10 +164,10 @@ export interface ToolboxAPI {
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
-    /** Trigger banner "Return to Caller" — resolves the callee's active invocation with null and auto-closes it. */
-    returnToCallerBanner: (calleeInstanceId: string) => Promise<void>;
+    /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
+    returnToCallerBanner: () => Promise<void>;
     /** Subscribe to invocation banner state changes (main → renderer push). */
-    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => void;
+    onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
     /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
     onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
