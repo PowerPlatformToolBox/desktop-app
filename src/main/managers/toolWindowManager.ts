@@ -234,10 +234,18 @@ export class ToolWindowManager {
         // calleeInstanceId is provided by callee tools calling returnData() directly.
         // When the banner's "Return to Caller" button is clicked, no calleeInstanceId is
         // passed — the main process falls back to the currently active tool (activeToolId).
+        // The banner is only visible while its callee is the active tool (switchToTool hides
+        // the banner whenever the active tool changes to a non-callee), so activeToolId is
+        // always the correct callee when the Return button is clicked. A guard on
+        // pendingInvocations defends against any residual race conditions.
         ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string | null, returnData: unknown) => {
             const effectiveCalleeId = calleeInstanceId ?? this.activeToolId;
             if (!effectiveCalleeId) {
                 logWarn("[ToolWindowManager] RETURN_INVOCATION_DATA: no callee instance ID and no active tool");
+                return;
+            }
+            if (!this.pendingInvocations.has(effectiveCalleeId)) {
+                logWarn(`[ToolWindowManager] RETURN_INVOCATION_DATA: ${effectiveCalleeId} has no pending invocation — ignoring`);
                 return;
             }
             return this.resolveInvocation(effectiveCalleeId, returnData);
