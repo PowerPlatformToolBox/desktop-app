@@ -503,7 +503,7 @@ export class ToolWindowManager {
      * @param primaryConnectionId Primary connection for the callee (null = auto-inherit from caller)
      * @param secondaryConnectionId Secondary connection for the callee (optional)
      * @param prefillData Arbitrary data to pre-populate the callee's state
-     * @param noReturn When true, the caller does not expect return data; banner shows a "nothing returned" warning
+     * @param noReturn When true, the caller does not expect return data; banner is suppressed for the callee
      * @returns A Promise that resolves with the data returned by the callee, or null if the callee closes without returning data
      */
     async launchToolWithContext(
