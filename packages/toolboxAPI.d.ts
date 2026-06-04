@@ -479,11 +479,23 @@ declare namespace ToolBoxAPI {
          * **Connection auto-inheritance**: when `options.primaryConnectionId` is omitted,
          * the callee automatically inherits the caller's active FXS connection.
          *
+         * **Multi-connection auto-prompt**: when the callee declares
+         * `features.multiConnection: "required"` or `"optional"` and
+         * `options.secondaryConnectionId` is not provided, PPTB automatically shows
+         * the multi-connection selector before launching the callee. The Promise rejects
+         * if the user cancels the selector.
+         *
+         * **`noReturn`**: pass `true` when the caller does not expect the callee to
+         * return data (e.g. a "Send To" pattern where data is only sent one-way).
+         * The "Return to [Caller]" banner in the callee will display a warning:
+         * _"nothing will be returned to caller"_. The invocation lifecycle is otherwise
+         * identical — the Promise still resolves with `null` when the callee closes.
+         *
          * @param targetToolId The npm package name (toolId) of the tool to launch
          * @param prefillData  Data to pre-populate the target tool's state
-         * @param options      Optional connection overrides for the target tool
+         * @param options      Optional connection overrides and launch flags
          */
-        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }) => Promise<unknown>;
+        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean }) => Promise<unknown>;
 
         /**
          * Find installed tools that declare a given capability tag in their

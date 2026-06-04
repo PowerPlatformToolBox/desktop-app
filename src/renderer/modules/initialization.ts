@@ -34,7 +34,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeInvocationBanner, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -247,6 +247,10 @@ function setupToolbarButtons(): void {
 
     // Initialize shell-level "Return to [CallerToolName]" banner for inter-tool invocations
     initializeInvocationBanner();
+
+    // Handle multi-connection prompts triggered by invoked callee tools that require
+    // a secondary connection not present on the caller (e.g. FXS "Send To" → DMS)
+    initializeInvocationConnectionsPrompt();
 }
 
 /**

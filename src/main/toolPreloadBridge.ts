@@ -385,7 +385,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         launchTool: async (
             targetToolId: string,
             prefillData: Record<string, unknown> = {},
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null },
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
         ): Promise<unknown> => {
             const { instanceId: callerInstanceId } = await getToolIdentifiers();
             if (!callerInstanceId) {
@@ -405,8 +405,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
                 ? options.primaryConnectionId
                 : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
             const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
+            const noReturn = options?.noReturn ?? false;
 
-            return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
+            return ipcInvoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
         },
 
         /**

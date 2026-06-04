@@ -61,7 +61,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
-    ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData),
+        noReturn?: boolean,
+    ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
@@ -75,9 +76,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     /** Trigger "Return to Caller" from the banner button. Resolves the active invocation for the given callee with null and auto-closes it. */
     returnToCallerBanner: (calleeInstanceId: string) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, calleeInstanceId, null),
-    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => {
+    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string; noReturn?: boolean }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },
+    /** Listen for multi-connection prompts triggered by an invocation that requires a secondary connection. */
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, (_event, prompt) => callback(prompt));
+    },
+    /** Reply to a multi-connection prompt with the selected connection IDs (or null to cancel). */
+    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS, requestId, result),
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),

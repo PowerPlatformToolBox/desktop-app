@@ -154,6 +154,7 @@ export interface ToolboxAPI {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
+        noReturn?: boolean,
     ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
@@ -168,7 +169,11 @@ export interface ToolboxAPI {
     /** Trigger banner "Return to Caller" — resolves the callee's active invocation with null and auto-closes it. */
     returnToCallerBanner: (calleeInstanceId: string) => Promise<void>;
     /** Subscribe to invocation banner state changes (main → renderer push). */
-    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string }) => void) => void;
+    onInvocationBannerState: (callback: (state: { visible: boolean; calleeInstanceId?: string; callerToolName?: string; noReturn?: boolean }) => void) => void;
+    /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
+    /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
+    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => Promise<void>;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;

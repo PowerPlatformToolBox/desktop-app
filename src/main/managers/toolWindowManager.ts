@@ -65,6 +65,19 @@ export class ToolWindowManager {
             resolve: (data: unknown) => void;
             reject: (reason: unknown) => void;
             resolved: boolean;
+            /** When true the caller does not expect return data; banner shows a "nothing returned" warning. */
+            noReturn?: boolean;
+        }
+    > = new Map();
+    /**
+     * Pending requests for connection selection shown to the user via the main renderer.
+     * Keyed by requestId; resolved by PROVIDE_INVOCATION_CONNECTIONS from the renderer.
+     */
+    private pendingConnectionPrompts: Map<
+        string, // requestId
+        {
+            resolve: (result: { primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void;
+            reject: (reason: Error) => void;
         }
     > = new Map();
     /**
@@ -195,8 +208,29 @@ export class ToolWindowManager {
                 primaryConnectionId: string | null,
                 secondaryConnectionId: string | null,
                 prefillData: Record<string, unknown>,
+                noReturn?: boolean,
             ) => {
-                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
+                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
+            },
+        );
+
+        // Receive the connection IDs selected by the user via the multi-connection modal
+        // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
+        ipcMain.handle(
+            TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
+            async (
+                _event,
+                requestId: string,
+                result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null,
+            ) => {
+                const prompt = this.pendingConnectionPrompts.get(requestId);
+                if (!prompt) return;
+                this.pendingConnectionPrompts.delete(requestId);
+                if (result) {
+                    prompt.resolve(result);
+                } else {
+                    prompt.reject(new Error("Connection selection cancelled"));
+                }
             },
         );
 
@@ -470,6 +504,8 @@ export class ToolWindowManager {
      * One-at-a-time enforcement: rejects if the caller already has an active callee.
      * FXS connection auto-inheritance: when primaryConnectionId is null, the caller's
      * active FXS connection is inherited automatically.
+     * Multi-connection: when the callee tool requires a secondary connection that was not
+     * provided, the user is prompted via the PPTB renderer before the tool is launched.
      *
      * @param callerInstanceId The instanceId of the tool initiating the launch
      * @param calleeInstanceId The instanceId to use for the new tool window
@@ -477,6 +513,7 @@ export class ToolWindowManager {
      * @param primaryConnectionId Primary connection for the callee (null = auto-inherit from caller)
      * @param secondaryConnectionId Secondary connection for the callee (optional)
      * @param prefillData Arbitrary data to pre-populate the callee's state
+     * @param noReturn When true, the caller does not expect return data; banner shows a "nothing returned" warning
      * @returns A Promise that resolves with the data returned by the callee, or null if the callee closes without returning data
      */
     async launchToolWithContext(
@@ -486,6 +523,7 @@ export class ToolWindowManager {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
+        noReturn?: boolean,
     ): Promise<unknown> {
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
@@ -495,6 +533,28 @@ export class ToolWindowManager {
         // FXS connection auto-inheritance: use caller's primary connection when none is specified
         const effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
 
+        // Multi-connection: if the callee requires a secondary connection but none was provided,
+        // ask the main renderer to show the multi-connection selector before launching the tool.
+        const multiConnectionMode = (tool as any).features?.multiConnection || "none";
+        const needsSecondary = multiConnectionMode === "required" || multiConnectionMode === "optional";
+        let effectiveSecondaryConnectionId = secondaryConnectionId;
+
+        if (needsSecondary && !effectiveSecondaryConnectionId) {
+            const isSecondaryRequired = multiConnectionMode === "required";
+            const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
+            try {
+                const connectionResult = await this.promptForInvocationConnections(
+                    requestId,
+                    tool.name,
+                    isSecondaryRequired,
+                    effectivePrimaryConnectionId,
+                );
+                effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
+            } catch (err) {
+                throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+
         return new Promise((resolve, reject) => {
             this.pendingInvocations.set(calleeInstanceId, {
                 callerInstanceId,
@@ -502,11 +562,12 @@ export class ToolWindowManager {
                 resolve,
                 reject,
                 resolved: false,
+                noReturn: noReturn ?? false,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
             this.calleeToCallerMap.set(calleeInstanceId, callerInstanceId);
 
-            this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, secondaryConnectionId, prefillData)
+            this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
@@ -521,6 +582,29 @@ export class ToolWindowManager {
                     this.calleeToCallerMap.delete(calleeInstanceId);
                     reject(error as Error);
                 });
+        });
+    }
+
+    /**
+     * Ask the main renderer to show the multi-connection selector for an invoked callee tool.
+     *
+     * Returns a Promise that resolves with the selected connection IDs once the user confirms,
+     * or rejects if the user cancels the dialog.
+     */
+    private promptForInvocationConnections(
+        requestId: string,
+        toolName: string,
+        isSecondaryRequired: boolean,
+        inheritedPrimaryConnectionId: string | null,
+    ): Promise<{ primaryConnectionId: string | null; secondaryConnectionId: string | null }> {
+        return new Promise((resolve, reject) => {
+            this.pendingConnectionPrompts.set(requestId, { resolve, reject });
+            this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, {
+                requestId,
+                toolName,
+                isSecondaryRequired,
+                inheritedPrimaryConnectionId,
+            });
         });
     }
 
@@ -607,6 +691,7 @@ export class ToolWindowManager {
                     visible: true,
                     calleeInstanceId: instanceId,
                     callerToolName,
+                    noReturn: invocationEntry.noReturn ?? false,
                 });
             } else {
                 this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });

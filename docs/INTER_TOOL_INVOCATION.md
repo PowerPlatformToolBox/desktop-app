@@ -23,9 +23,10 @@ This document covers the **Inter-Tool Invocation** feature of Power Platform Too
     - [2.4 Tag-based capability discovery](#24-tag-based-capability-discovery)
     - [2.5 Registering a "Send To" action](#25-registering-a-send-to-action)
     - [2.6 Complete caller example](#26-complete-caller-example)
-4. [Lifecycle and Behaviour](#lifecycle-and-behaviour)
-5. [Validation and Tooling](#validation-and-tooling)
-6. [Troubleshooting](#troubleshooting)
+4. [End-to-End Scenario: FXS "Send To" Flyout](#end-to-end-scenario-fxs-send-to-flyout)
+5. [Lifecycle and Behaviour](#lifecycle-and-behaviour)
+6. [Validation and Tooling](#validation-and-tooling)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -270,6 +271,7 @@ launchTool(
     options?: {
         primaryConnectionId?: string | null;
         secondaryConnectionId?: string | null;
+        noReturn?: boolean;
     },
 ): Promise<unknown>
 ```
@@ -279,7 +281,8 @@ launchTool(
 | `targetToolId` | `string` | The npm package name of the tool to launch (e.g. `"@my-org/entity-picker"`). Must be installed. |
 | `prefillData` | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema. |
 | `options.primaryConnectionId` | `string \| null` | Override the primary Dataverse connection for the callee. Omit to auto-inherit the caller's active FXS connection. |
-| `options.secondaryConnectionId` | `string \| null` | Override the secondary Dataverse connection for the callee. |
+| `options.secondaryConnectionId` | `string \| null` | Override the secondary Dataverse connection for the callee. Omit to let PPTB prompt for it when the callee is a multi-connection tool. |
+| `options.noReturn` | `boolean` | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner in the callee window will show a warning: _"nothing will be returned to caller"_. The invocation lifecycle is otherwise identical. |
 
 **Return value:** A `Promise` that resolves with the `Record<string, unknown>` passed to `returnData()` by the callee, or `null` if:
 - the callee closes without calling `returnData`, or
@@ -288,6 +291,8 @@ launchTool(
 > **Important:** Only one callee per caller is active at a time. Calling `launchTool` a second time while a callee is still active throws `"A callee invocation is already in progress"`.
 
 > **Important:** The target tool must be **installed** in PPTB. If the tool is not found, `launchTool` throws an error.
+
+> **Multi-connection auto-prompt:** If the callee tool declares `features.multiConnection: "required"` or `"optional"` in its manifest and no `options.secondaryConnectionId` is provided, PPTB automatically opens the multi-connection selector before launching the callee. If the user cancels the selector, `launchTool` throws `"Connection selection cancelled"`.
 
 ---
 
@@ -440,7 +445,233 @@ async function openEntityPicker(entityName: string) {
 
 ---
 
-## Lifecycle and Behaviour
+## End-to-End Scenario: FXS "Send To" Flyout
+
+This section illustrates a concrete real-world scenario where **FetchXML Studio (FXS)** exposes a "Send To ▾" flyout button that lets users push the current FetchXML query directly into another installed tool — such as **DRB** (DataRows Builder) or **DMS** (DataMigration Studio) — without expecting a return value.
+
+### Scenario summary
+
+| Step | What happens |
+|------|--------------|
+| 1 | User composes a FetchXML query in FXS. |
+| 2 | User clicks the **"Send To ▾"** flyout button in FXS. |
+| 3 | PPTB queries all installed tools that declare the `"fetchxml"` capability — both DRB and DMS qualify. The flyout lists them as options. |
+| 4 | User selects **DMS**. |
+| 5 | PPTB opens DMS, inheriting FXS's active Dataverse connection as the primary connection. |
+| 6 | If DMS requires a **secondary connection** (e.g. it is a multi-connection tool for cross-environment migration), PPTB automatically shows the **multi-connection selector** before launching DMS — the user picks the second connection. |
+| 7 | DMS opens pre-populated with the FetchXML from step 1. |
+| 8 | A **"Return to FXS"** banner appears at the top of the DMS window with a note: _"nothing will be returned to caller"_ — because FXS only sends data; it does not await a result. |
+| 9 | The user continues in DMS independently. Clicking **"Return to FXS"** in the banner simply closes DMS and switches back to FXS (the Promise on the FXS side resolves with `null`). |
+
+---
+
+### Step 1 – Callee tools declare the `"fetchxml"` capability
+
+Both DRB and DMS include the following in their `pptb.config.json`:
+
+**DRB `pptb.config.json`**
+
+```json
+{
+    "invocation": {
+        "version": "1.0.0",
+        "capabilities": ["fetchxml"],
+        "prefill": {
+            "properties": {
+                "fetchXml": { "type": "string" }
+            }
+        }
+    }
+}
+```
+
+**DMS `pptb.config.json`** — DMS is a multi-connection tool so it has no `returnTopic`; it uses the FetchXML purely as input.
+
+```json
+{
+    "invocation": {
+        "version": "1.0.0",
+        "capabilities": ["fetchxml"],
+        "prefill": {
+            "properties": {
+                "fetchXml": { "type": "string" }
+            }
+        }
+    }
+}
+```
+
+> DMS's multi-connection requirement is declared in the standard tool manifest (`pptb.package.json`):
+>
+> ```json
+> { "features": { "multiConnection": "required" } }
+> ```
+>
+> PPTB detects this at launch time and automatically prompts the user to select a secondary connection when none is available from the caller.
+
+---
+
+### Step 2 – FXS registers a "Send To" action on startup
+
+FXS does not hardcode a button; instead it registers a "Send To" action for each `fetchxml`-capable tool it discovers. PPTB emits `"toolbox:send-to-action-registered"` back to FXS so it can render the flyout:
+
+```typescript
+// fxs/index.ts  — called during tool initialisation
+async function setupSendToFlyout() {
+    // Discover all installed tools that accept fetchxml
+    const fetchXmlTools = await toolboxAPI.invocation.findToolsByCapability("fetchxml");
+
+    for (const tool of fetchXmlTools as Array<{ id: string; name: string }>) {
+        await toolboxAPI.invocation.registerSendToAction({
+            targetToolId: tool.id,
+            label: `Send to ${tool.name}`,
+        });
+    }
+
+    // PPTB fires "toolbox:send-to-action-registered" once per registration — use it
+    // to (re-)render the flyout menu so the button always reflects installed tools.
+    toolboxAPI.events.on((_event, payload) => {
+        const p = payload as { type?: string };
+        if (p?.type === "toolbox:send-to-action-registered") {
+            renderSendToFlyout(fetchXmlTools);
+        }
+    });
+}
+```
+
+---
+
+### Step 3 – User selects DMS; FXS launches it with `noReturn: true`
+
+When the user picks "Send to DMS" from the flyout, FXS calls `launchTool` with `noReturn: true` to signal that it does not expect DMS to return data:
+
+```typescript
+// fxs/index.ts
+async function sendCurrentQueryToTool(targetToolId: string) {
+    const currentFetchXml = getEditorContent(); // e.g. "<fetch>…</fetch>"
+
+    try {
+        // noReturn: true → DMS will NOT call returnData back to FXS.
+        // The Promise resolves with null when DMS closes or the user clicks "Return to FXS".
+        await toolboxAPI.invocation.launchTool(
+            targetToolId,
+            { fetchXml: currentFetchXml },
+            {
+                // primaryConnectionId omitted → FXS's active connection is inherited by DMS
+                // secondaryConnectionId omitted → PPTB shows multi-connection selector if DMS requires it
+                noReturn: true,
+            },
+        );
+        // Execution reaches here once DMS is closed (or user clicks "Return to FXS").
+        // No result data to process.
+    } catch (err) {
+        // Tool not installed, connection selection cancelled, or already has an active callee.
+        toolboxAPI.utils.showNotification({
+            title: "Send To failed",
+            body: err instanceof Error ? err.message : String(err),
+            type: "error",
+        });
+    }
+}
+```
+
+**What PPTB does behind the scenes:**
+
+1. Looks up the DMS tool manifest.
+2. Detects that DMS has `features.multiConnection: "required"` and no secondary connection was provided → opens the **multi-connection selector modal** in the PPTB shell. The user selects the target environment connection.
+3. Launches DMS with FXS's primary connection and the user-selected secondary connection.
+4. Pre-populates DMS with `{ fetchXml: "…" }`.
+5. Injects the **"Return to FXS"** banner at the top of the DMS window. Because `noReturn: true` was set, the banner also shows: _"nothing will be returned to caller"_.
+
+---
+
+### Step 4 – DMS reads the prefill data and uses it
+
+DMS starts normally and reads the FetchXML from its launch context:
+
+```typescript
+// dms/index.ts
+async function main() {
+    const ctx = await toolboxAPI.invocation.getLaunchContext();
+
+    if (ctx) {
+        // Launched by FXS (or another tool) with a fetchXml payload
+        const fetchXml = ctx.fetchXml as string | undefined;
+        if (fetchXml) {
+            loadQueryIntoEditor(fetchXml);
+        }
+        // DMS does NOT call returnData — FXS launched it with noReturn: true.
+        // The user works in DMS independently; closing DMS or clicking the
+        // "Return to FXS" banner resolves FXS's Promise with null.
+    } else {
+        // Standalone launch — show empty editor
+        renderEmptyEditor();
+    }
+}
+
+main();
+```
+
+> **Note:** DMS does not need to detect `noReturn` explicitly. The behaviour is the same as any other invocation: if `returnData` is never called and the tool is closed, the caller's Promise resolves with `null`. The `noReturn` flag only affects the banner warning — it does not change the invocation lifecycle.
+
+---
+
+### Step 5 – The "Return to FXS" banner
+
+When DMS is the active tab, PPTB displays the banner at the top of the window:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Return to FXS  — nothing will be returned to caller       [✕]  │
+│  [Return to FXS]                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Banner action | Result |
+|---------------|--------|
+| Click **"Return to FXS"** | DMS is auto-closed; PPTB switches back to FXS; FXS Promise resolves with `null`. |
+| Click **✕** (dismiss) | Banner is hidden. Invocation is still active; DMS stays open. FXS Promise remains pending until DMS is closed. |
+| Close DMS tab normally | DMS is closed; FXS Promise resolves with `null`. |
+
+---
+
+### Full sequence diagram
+
+```
+FXS (Caller)                        PPTB Shell                       DMS (Callee)
+────────────                         ──────────                       ────────────
+findToolsByCapability("fetchxml")
+  → [DRB, DMS]
+
+User clicks "Send to DMS"
+launchTool("dms", { fetchXml },
+  { noReturn: true })
+        │
+        ▼
+                            DMS needs secondary connection
+                            → show multi-connection selector
+                            ← user picks target env
+                                    │
+                                    ▼
+                            Launch DMS (primary = FXS conn,
+                                       secondary = user pick)
+                            Inject "Return to FXS" banner
+                            (with "nothing returned" warning)
+                                    │
+                                    ▼
+                                                         getLaunchContext()
+                                                           → { fetchXml: "…" }
+                                                         loadQueryIntoEditor(fetchXml)
+                                                         // user works in DMS …
+
+User clicks "Return to FXS"
+ in banner
+        ◄──────────────────────────────────────────────
+Promise resolves (null)     DMS auto-closed
+// No result to process
+```
+
+---
 
 Understanding the full lifecycle helps when reasoning about edge cases:
 

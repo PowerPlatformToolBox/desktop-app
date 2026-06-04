@@ -95,6 +95,18 @@ export const TOOL_WINDOW_CHANNELS = {
     REGISTER_SEND_TO_ACTION: "tool-window:register-send-to-action",
     /** Pushed from main process to the PPTB renderer to show/hide the invocation banner. */
     INVOCATION_BANNER_STATE: "tool-window:invocation-banner-state",
+    /**
+     * Pushed from main process to the PPTB renderer when an invoked callee tool requires
+     * connections that were not inherited from the caller (e.g. secondary connection needed
+     * by a multi-connection tool). The renderer shows the multi-connection selector and
+     * replies via PROVIDE_INVOCATION_CONNECTIONS.
+     */
+    INVOCATION_PROMPT_CONNECTIONS: "tool-window:invocation-prompt-connections",
+    /**
+     * Sent from the PPTB renderer back to the main process to provide the connection IDs
+     * selected by the user in response to an INVOCATION_PROMPT_CONNECTIONS request.
+     */
+    PROVIDE_INVOCATION_CONNECTIONS: "tool-window:provide-invocation-connections",
 } as const;
 
 // Terminal-related IPC channels

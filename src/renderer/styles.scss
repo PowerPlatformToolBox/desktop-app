@@ -5768,6 +5768,14 @@ body.dark-theme .global-search-item-badge.badge-settings {
     text-overflow: ellipsis;
 }
 
+.invocation-banner-no-return-warning {
+    font-size: 11px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .invocation-banner-actions {
     display: flex;
     align-items: center;

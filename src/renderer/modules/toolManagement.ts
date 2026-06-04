@@ -1764,6 +1764,9 @@ export function initializeTabScrollButtons(): void {
  * - visible: true  → show the banner with the caller's display name
  * - visible: false → hide the banner
  *
+ * When `noReturn` is true the banner also displays a warning that the callee will not
+ * return data to the caller (e.g. the FXS "Send To" pattern).
+ *
  * Clicking "Return" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
  *   - The active invocation resolves with null on the caller side
  *   - PPTB auto-closes the callee window
@@ -1773,6 +1776,7 @@ export function initializeTabScrollButtons(): void {
 export function initializeInvocationBanner(): void {
     const banner = document.getElementById("invocation-banner");
     const bannerText = document.getElementById("invocation-banner-text");
+    const noReturnWarning = document.getElementById("invocation-banner-no-return-warning");
     const returnBtn = document.getElementById("invocation-banner-return");
     const dismissBtn = document.getElementById("invocation-banner-dismiss");
 
@@ -1786,9 +1790,15 @@ export function initializeInvocationBanner(): void {
             currentCalleeInstanceId = state.calleeInstanceId;
             bannerText.textContent = `Return to ${state.callerToolName}`;
             returnBtn.textContent = `Return to ${state.callerToolName}`;
+            if (noReturnWarning) {
+                noReturnWarning.style.display = state.noReturn ? "inline" : "none";
+            }
             banner.style.display = "flex";
         } else {
             currentCalleeInstanceId = null;
+            if (noReturnWarning) {
+                noReturnWarning.style.display = "none";
+            }
             banner.style.display = "none";
         }
     });
@@ -1804,5 +1814,29 @@ export function initializeInvocationBanner(): void {
     // "Dismiss" button: hide banner only — does NOT end the invocation
     dismissBtn.addEventListener("click", () => {
         banner.style.display = "none";
+    });
+}
+
+/**
+ * Listen for invocation connection prompts from the main process.
+ *
+ * When an invoked callee tool requires a secondary connection that was not inherited from
+ * the caller (e.g. DMS requires both primary + secondary but FXS only has primary), the
+ * main process sends INVOCATION_PROMPT_CONNECTIONS. This handler shows the
+ * multi-connection selector and returns the chosen IDs back to the main process via
+ * PROVIDE_INVOCATION_CONNECTIONS.
+ */
+export function initializeInvocationConnectionsPrompt(): void {
+    window.toolboxAPI.onInvocationConnectionsPrompt(async ({ requestId, toolName, isSecondaryRequired, inheritedPrimaryConnectionId }) => {
+        try {
+            const result = await openSelectMultiConnectionModal(isSecondaryRequired, toolName);
+            await window.toolboxAPI.provideInvocationConnections(requestId, {
+                primaryConnectionId: result.primaryConnectionId ?? inheritedPrimaryConnectionId,
+                secondaryConnectionId: result.secondaryConnectionId,
+            });
+        } catch {
+            // User cancelled or modal failed – notify main process so it can reject the launch
+            await window.toolboxAPI.provideInvocationConnections(requestId, null);
+        }
     });
 }
