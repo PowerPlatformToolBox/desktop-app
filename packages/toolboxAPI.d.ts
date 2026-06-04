@@ -487,9 +487,9 @@ declare namespace ToolBoxAPI {
          *
          * **`noReturn`**: pass `true` when the caller does not expect the callee to
          * return data (e.g. a "Send To" pattern where data is only sent one-way).
-         * The "Return to [Caller]" banner in the callee will display a warning:
-         * _"nothing will be returned to caller"_. The invocation lifecycle is otherwise
-         * identical — the Promise still resolves with `null` when the callee closes.
+         * When set, the "Return to [Caller]" banner is suppressed entirely for the callee.
+         * The invocation lifecycle is otherwise identical — the Promise still resolves
+         * with `null` when the callee closes.
          *
          * @param targetToolId The npm package name (toolId) of the tool to launch
          * @param prefillData  Data to pre-populate the target tool's state
@@ -505,27 +505,6 @@ declare namespace ToolBoxAPI {
          * @returns    Array of matching installed `ToolManifest` objects
          */
         findToolsByCapability: (tag: string) => Promise<unknown[]>;
-
-        /**
-         * Register a "Send To [TargetTool]" action.
-         *
-         * PPTB emits a `"toolbox:send-to-action-registered"` event back to the
-         * caller's renderer — listen with `toolboxAPI.events.on` — so the tool can
-         * render a button or menu item anywhere in its own UI.
-         *
-         * @param config  Action configuration
-         */
-        registerSendToAction: (config: SendToActionConfig) => Promise<void>;
-    }
-
-    /**
-     * Configuration for a "Send To [TargetTool]" action registered by a caller tool.
-     */
-    export interface SendToActionConfig {
-        /** The npm package name (toolId) of the target tool to send data to. */
-        targetToolId: string;
-        /** Optional display label for the action button (defaults to the target tool's display name). */
-        label?: string;
     }
 
     /**

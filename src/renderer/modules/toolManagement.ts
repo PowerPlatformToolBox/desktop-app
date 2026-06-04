@@ -1764,8 +1764,8 @@ export function initializeTabScrollButtons(): void {
  * - visible: true  → show the banner with the caller's display name
  * - visible: false → hide the banner
  *
- * When `noReturn` is true the banner also displays a warning that the callee will not
- * return data to the caller (e.g. the FXS "Send To" pattern).
+ * The banner is only shown when the invocation was launched without `noReturn: true`.
+ * For one-way "Send To" flows (`noReturn: true`) no banner is shown.
  *
  * Clicking "Return" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
  *   - The active invocation resolves with null on the caller side
@@ -1776,7 +1776,6 @@ export function initializeTabScrollButtons(): void {
 export function initializeInvocationBanner(): void {
     const banner = document.getElementById("invocation-banner");
     const bannerText = document.getElementById("invocation-banner-text");
-    const noReturnWarning = document.getElementById("invocation-banner-no-return-warning");
     const returnBtn = document.getElementById("invocation-banner-return");
     const dismissBtn = document.getElementById("invocation-banner-dismiss");
 
@@ -1790,15 +1789,9 @@ export function initializeInvocationBanner(): void {
             currentCalleeInstanceId = state.calleeInstanceId;
             bannerText.textContent = `Return to ${state.callerToolName}`;
             returnBtn.textContent = `Return to ${state.callerToolName}`;
-            if (noReturnWarning) {
-                noReturnWarning.style.display = state.noReturn ? "inline" : "none";
-            }
             banner.style.display = "flex";
         } else {
             currentCalleeInstanceId = null;
-            if (noReturnWarning) {
-                noReturnWarning.style.display = "none";
-            }
             banner.style.display = "none";
         }
     });

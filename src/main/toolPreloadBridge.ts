@@ -419,21 +419,6 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         findToolsByCapability: async (tag: string): Promise<unknown[]> => {
             return ipcInvoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag) as Promise<unknown[]>;
         },
-
-        /**
-         * Register a "Send To [TargetTool]" action that can be rendered anywhere in the caller tool's UI.
-         * PPTB emits a "toolbox:send-to-action-registered" event back to the caller renderer so it can
-         * place a button or menu item in its own UI.
-         *
-         * @param config Configuration for the send-to action
-         */
-        registerSendToAction: async (config: { targetToolId: string; label?: string }): Promise<void> => {
-            const { instanceId: callerInstanceId } = await getToolIdentifiers();
-            if (!callerInstanceId) {
-                return;
-            }
-            await ipcInvoke(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION, callerInstanceId, config);
-        },
     },
 });
 

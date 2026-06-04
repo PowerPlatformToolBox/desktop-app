@@ -21,8 +21,7 @@ This document covers the **Inter-Tool Invocation** feature of Power Platform Too
     - [2.2 Handling the return value](#22-handling-the-return-value)
     - [2.3 Connection auto-inheritance and overrides](#23-connection-auto-inheritance-and-overrides)
     - [2.4 Tag-based capability discovery](#24-tag-based-capability-discovery)
-    - [2.5 Registering a "Send To" action](#25-registering-a-send-to-action)
-    - [2.6 Complete caller example](#26-complete-caller-example)
+    - [2.5 Complete caller example](#25-complete-caller-example)
 4. [End-to-End Scenario: FXS "Send To" Flyout](#end-to-end-scenario-fxs-send-to-flyout)
 5. [Lifecycle and Behaviour](#lifecycle-and-behaviour)
 6. [Validation and Tooling](#validation-and-tooling)
@@ -282,7 +281,7 @@ launchTool(
 | `prefillData` | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema. |
 | `options.primaryConnectionId` | `string \| null` | Override the primary Dataverse connection for the callee. Omit to auto-inherit the caller's active FXS connection. |
 | `options.secondaryConnectionId` | `string \| null` | Override the secondary Dataverse connection for the callee. Omit to let PPTB prompt for it when the callee is a multi-connection tool. |
-| `options.noReturn` | `boolean` | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner in the callee window will show a warning: _"nothing will be returned to caller"_. The invocation lifecycle is otherwise identical. |
+| `options.noReturn` | `boolean` | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner is suppressed entirely for the callee. The invocation lifecycle is otherwise identical — the Promise still resolves with `null` when the callee closes. |
 
 **Return value:** A `Promise` that resolves with the `Record<string, unknown>` passed to `returnData()` by the callee, or `null` if:
 - the callee closes without calling `returnData`, or
@@ -378,40 +377,7 @@ Returns an array of matching installed `Tool` objects (empty array if none found
 
 ---
 
-### 2.5 Registering a "Send To" action
-
-Instead of hardcoding a button, register a "Send To [TargetTool]" action so PPTB can emit a notification to your renderer when the target tool is available:
-
-```typescript
-// In your tool's initialisation
-await toolboxAPI.invocation.registerSendToAction({
-    targetToolId: "@my-org/entity-picker",
-    label: "Send to Entity Picker",   // optional; defaults to target tool display name
-});
-
-// Listen for the registered action notification to render your button
-toolboxAPI.events.on((_event, payload) => {
-    const p = payload as { type?: string };
-    if (p?.type === "toolbox:send-to-action-registered") {
-        renderSendToButton();
-    }
-});
-```
-
-**Signature:**
-
-```typescript
-registerSendToAction(config: SendToActionConfig): Promise<void>
-
-interface SendToActionConfig {
-    targetToolId: string;
-    label?: string;
-}
-```
-
----
-
-### 2.6 Complete caller example
+### 2.5 Complete caller example
 
 ```typescript
 async function openEntityPicker(entityName: string) {
@@ -511,9 +477,9 @@ Both DRB and DMS include the following in their `pptb.config.json`:
 
 ---
 
-### Step 2 – FXS registers a "Send To" action on startup
+### Step 2 – FXS builds its "Send To" flyout from discovered tools
 
-FXS does not hardcode a button; instead it registers a "Send To" action for each `fetchxml`-capable tool it discovers. PPTB emits `"toolbox:send-to-action-registered"` back to FXS so it can render the flyout:
+FXS calls `findToolsByCapability` on startup to discover all installed `fetchxml`-capable tools, then renders a flyout button for each one:
 
 ```typescript
 // fxs/index.ts  — called during tool initialisation
@@ -521,21 +487,8 @@ async function setupSendToFlyout() {
     // Discover all installed tools that accept fetchxml
     const fetchXmlTools = await toolboxAPI.invocation.findToolsByCapability("fetchxml");
 
-    for (const tool of fetchXmlTools as Array<{ id: string; name: string }>) {
-        await toolboxAPI.invocation.registerSendToAction({
-            targetToolId: tool.id,
-            label: `Send to ${tool.name}`,
-        });
-    }
-
-    // PPTB fires "toolbox:send-to-action-registered" once per registration — use it
-    // to (re-)render the flyout menu so the button always reflects installed tools.
-    toolboxAPI.events.on((_event, payload) => {
-        const p = payload as { type?: string };
-        if (p?.type === "toolbox:send-to-action-registered") {
-            renderSendToFlyout(fetchXmlTools);
-        }
-    });
+    // Render one "Send to [ToolName]" item in the flyout for each discovered tool
+    renderSendToFlyout(fetchXmlTools as Array<{ id: string; name: string }>);
 }
 ```
 
@@ -581,7 +534,7 @@ async function sendCurrentQueryToTool(targetToolId: string) {
 2. Detects that DMS has `features.multiConnection: "required"` and no secondary connection was provided → opens the **multi-connection selector modal** in the PPTB shell. The user selects the target environment connection.
 3. Launches DMS with FXS's primary connection and the user-selected secondary connection.
 4. Pre-populates DMS with `{ fetchXml: "…" }`.
-5. Injects the **"Return to FXS"** banner at the top of the DMS window. Because `noReturn: true` was set, the banner also shows: _"nothing will be returned to caller"_.
+5. Because `noReturn: true` was set, **no "Return to FXS" banner is shown** in the DMS window.
 
 ---
 
@@ -601,8 +554,7 @@ async function main() {
             loadQueryIntoEditor(fetchXml);
         }
         // DMS does NOT call returnData — FXS launched it with noReturn: true.
-        // The user works in DMS independently; closing DMS or clicking the
-        // "Return to FXS" banner resolves FXS's Promise with null.
+        // The user works in DMS independently; closing DMS resolves FXS's Promise with null.
     } else {
         // Standalone launch — show empty editor
         renderEmptyEditor();
@@ -612,25 +564,16 @@ async function main() {
 main();
 ```
 
-> **Note:** DMS does not need to detect `noReturn` explicitly. The behaviour is the same as any other invocation: if `returnData` is never called and the tool is closed, the caller's Promise resolves with `null`. The `noReturn` flag only affects the banner warning — it does not change the invocation lifecycle.
+> **Note:** DMS does not need to detect `noReturn` explicitly. The behaviour is the same as any other invocation: if `returnData` is never called and the tool is closed, the caller's Promise resolves with `null`. The `noReturn` flag only suppresses the banner — it does not change the invocation lifecycle.
 
 ---
 
-### Step 5 – The "Return to FXS" banner
+### Step 5 – DMS closes; FXS Promise resolves
 
-When DMS is the active tab, PPTB displays the banner at the top of the window:
+Because `noReturn: true` was set, no banner is shown in the DMS window. The user works in DMS and closes it normally (or closes the tab). PPTB resolves FXS's Promise with `null`.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Return to FXS  — nothing will be returned to caller       [✕]  │
-│  [Return to FXS]                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-| Banner action | Result |
-|---------------|--------|
-| Click **"Return to FXS"** | DMS is auto-closed; PPTB switches back to FXS; FXS Promise resolves with `null`. |
-| Click **✕** (dismiss) | Banner is hidden. Invocation is still active; DMS stays open. FXS Promise remains pending until DMS is closed. |
+| Action | Result |
+|--------|--------|
 | Close DMS tab normally | DMS is closed; FXS Promise resolves with `null`. |
 
 ---
@@ -655,8 +598,7 @@ launchTool("dms", { fetchXml },
                                     ▼
                             Launch DMS (primary = FXS conn,
                                        secondary = user pick)
-                            Inject "Return to FXS" banner
-                            (with "nothing returned" warning)
+                            No banner shown (noReturn: true)
                                     │
                                     ▼
                                                          getLaunchContext()
@@ -664,10 +606,9 @@ launchTool("dms", { fetchXml },
                                                          loadQueryIntoEditor(fetchXml)
                                                          // user works in DMS …
 
-User clicks "Return to FXS"
- in banner
+User closes DMS tab normally
         ◄──────────────────────────────────────────────
-Promise resolves (null)     DMS auto-closed
+Promise resolves (null)     DMS closed
 // No result to process
 ```
 
@@ -694,6 +635,7 @@ Callee loads, receives toolContext with:
         │
         ▼
 PPTB injects "Return to [CallerToolName]" banner in the callee window
+(skipped if launchTool was called with noReturn: true)
         │
         ▼
 Callee calls getLaunchContext()  →  returns prefillData
@@ -756,7 +698,6 @@ toolboxAPI.invocation.getLaunchContext()            // Promise<Record<string, un
 toolboxAPI.invocation.returnData(data)              // Promise<void>  (auto-closes callee after call)
 toolboxAPI.invocation.launchTool(...)               // Promise<unknown>
 toolboxAPI.invocation.findToolsByCapability(tag)    // Promise<unknown[]>
-toolboxAPI.invocation.registerSendToAction(config)  // Promise<void>
 ```
 
 For the shape of `pptb.config.json`, import from the bundled declaration file:
@@ -805,7 +746,7 @@ No installed tools declare the queried capability tag in their `pptb.config.json
 
 ## References
 
-- [`packages/toolboxAPI.d.ts`](../packages/toolboxAPI.d.ts) – Full TypeScript type definitions for the invocation API (`InvocationAPI`, `SendToActionConfig`)
+- [`packages/toolboxAPI.d.ts`](../packages/toolboxAPI.d.ts) – Full TypeScript type definitions for the invocation API (`InvocationAPI`)
 - [`packages/pptbConfig.d.ts`](../packages/pptbConfig.d.ts) – Type definitions for `pptb.config.json` (`PPTBConfig`, `InvocationConfig`)
 - [`packages/README.md`](../packages/README.md) – Developer guide for the `@pptb/types` package, including the API reference
 - [`src/main/managers/toolWindowManager.ts`](../src/main/managers/toolWindowManager.ts) – Host-side implementation (`launchToolWithContext`, `resolveInvocation`, `activeCallees`)

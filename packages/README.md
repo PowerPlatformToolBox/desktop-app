@@ -324,24 +324,6 @@ if (pickers.length > 0) {
 }
 ```
 
-#### Caller: registering a "Send To" action
-
-```typescript
-// Register a "Send To Entity Picker" action so PPTB notifies the renderer
-await toolboxAPI.invocation.registerSendToAction({
-    targetToolId: "@my-org/entity-picker",
-    label: "Send to Entity Picker",
-});
-
-// Listen for the registered action notification to render your button
-toolboxAPI.events.on((_event, payload) => {
-    const p = payload as { type?: string };
-    if (p?.type === "toolbox:send-to-action-registered") {
-        renderSendToButton();
-    }
-});
-```
-
 #### Callee: reading prefill data and returning a result
 
 ```typescript
@@ -651,12 +633,10 @@ Core platform features organized into namespaces:
     - Returns a Promise that resolves with the data returned by the callee, or `null` if it closes without returning or the user clicks the "Return to Caller" banner
     - The callee automatically inherits the caller's FXS connection; pass `options.primaryConnectionId` to override
     - Only one active callee per caller is allowed; throws `"A callee invocation is already in progress"` if a callee is already open
+    - Pass `options.noReturn: true` for one-way "Send To" flows; the banner is suppressed entirely for the callee
 
 - **findToolsByCapability(tag: string)**: Promise\<unknown[]\>
     - Returns all installed tools that declare the given capability tag in their `pptb.config.json`
-
-- **registerSendToAction(config: SendToActionConfig)**: Promise\<void\>
-    - Registers a "Send To [TargetTool]" action; PPTB emits `"toolbox:send-to-action-registered"` to the caller renderer
 
 ### Dataverse API (`window.dataverseAPI`)
 

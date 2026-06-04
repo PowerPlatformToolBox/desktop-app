@@ -178,7 +178,6 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
-        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION);
     }
 
     /**
@@ -277,15 +276,6 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, async (_event, tag: string) => {
             const allTools = this.toolManager.getAllTools();
             return allTools.filter((t) => Array.isArray(t.capabilities) && t.capabilities.includes(tag));
-        });
-
-        // Register a "Send To [Tool]" action from a caller tool
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION, async (event, callerInstanceId: string, config: unknown) => {
-            const callerView = this.toolViews.get(callerInstanceId);
-            if (callerView && !callerView.webContents.isDestroyed()) {
-                callerView.webContents.send("toolbox:send-to-action-registered", config);
-            }
-            logInfo(`[ToolWindowManager] Send-to action registered for caller ${callerInstanceId}`);
         });
 
         // Restore renderer-provided bounds flow
@@ -687,12 +677,16 @@ export class ToolWindowManager {
             const invocationEntry = this.pendingInvocations.get(instanceId);
             if (invocationEntry) {
                 const callerToolName = this.toolInstanceNames.get(invocationEntry.callerInstanceId) ?? "Caller";
-                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, {
-                    visible: true,
-                    calleeInstanceId: instanceId,
-                    callerToolName,
-                    noReturn: invocationEntry.noReturn ?? false,
-                });
+                // noReturn invocations do not show a banner — the caller does not expect data back
+                if (invocationEntry.noReturn) {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                } else {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, {
+                        visible: true,
+                        calleeInstanceId: instanceId,
+                        callerToolName,
+                    });
+                }
             } else {
                 this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
             }
@@ -1140,7 +1134,6 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
-        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.REGISTER_SEND_TO_ACTION);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);

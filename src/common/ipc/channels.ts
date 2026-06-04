@@ -92,7 +92,6 @@ export const TOOL_WINDOW_CHANNELS = {
     RENDERER_INITIALIZED: "tool-window:renderer-initialized",
     RETURN_INVOCATION_DATA: "tool-window:return-invocation-data",
     FIND_TOOLS_BY_CAPABILITY: "tool-window:find-tools-by-capability",
-    REGISTER_SEND_TO_ACTION: "tool-window:register-send-to-action",
     /** Pushed from main process to the PPTB renderer to show/hide the invocation banner. */
     INVOCATION_BANNER_STATE: "tool-window:invocation-banner-state",
     /**
