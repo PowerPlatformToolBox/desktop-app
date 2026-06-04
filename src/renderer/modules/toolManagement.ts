@@ -1834,8 +1834,9 @@ export function initializeInvocationConnectionsPrompt(): void {
                 primaryConnectionId: result.primaryConnectionId ?? inheritedPrimaryConnectionId,
                 secondaryConnectionId: result.secondaryConnectionId,
             });
-        } catch {
+        } catch (err) {
             // User cancelled or modal failed – notify main process so it can reject the launch
+            logWarn(`[invocationConnectionsPrompt] Connection modal cancelled or failed: ${err instanceof Error ? err.message : String(err)}`);
             await window.toolboxAPI.provideInvocationConnections(requestId, null);
         }
     });
