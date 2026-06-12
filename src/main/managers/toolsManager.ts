@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CspExceptions, Tool, ToolFeatures, ToolManifest, CommunityLinksCollection } from "../../common/types";
+import { CapabilityTagEntry, CspExceptions, Tool, ToolFeatures, ToolManifest, CommunityLinksCollection } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
@@ -79,6 +79,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -149,6 +150,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -289,6 +291,13 @@ export class ToolManager extends EventEmitter {
      */
     async fetchCommunityLinks(): Promise<CommunityLinksCollection | null> {
         return this.registryManager.fetchCommunityLinks();
+    }
+
+    /**
+     * Returns the list of known capability tags from the registry (backed by Supabase with fallback).
+     */
+    async getKnownCapabilityTags(): Promise<CapabilityTagEntry[]> {
+        return this.registryManager.getKnownCapabilityTags();
     }
 
     /**

@@ -47,12 +47,15 @@ export class ToolWindowManager {
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
     private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
+    /** Maps instanceId → tool display name (used for the "Return to [CallerToolName]" banner). */
+    private toolInstanceNames: Map<string, string> = new Map();
     /**
      * Pending invocation contexts – created when one tool launches another with prefill data.
      * The entry is keyed by the *callee* instanceId and holds:
      *  - the prefill data passed by the caller
      *  - the caller's instanceId so we can forward the return value
      *  - resolve/reject callbacks for the Promise returned to the caller tool
+     *  - resolved flag to prevent double-resolution (e.g. when auto-close calls closeTool after resolveInvocation)
      */
     private pendingInvocations: Map<
         string, // calleeInstanceId
@@ -61,8 +64,29 @@ export class ToolWindowManager {
             prefillData: Record<string, unknown>;
             resolve: (data: unknown) => void;
             reject: (reason: unknown) => void;
+            resolved: boolean;
+            /** When true the caller does not expect return data; banner shows a "nothing returned" warning. */
+            noReturn?: boolean;
         }
     > = new Map();
+    /**
+     * Pending requests for connection selection shown to the user via the main renderer.
+     * Keyed by requestId; resolved by PROVIDE_INVOCATION_CONNECTIONS from the renderer.
+     */
+    private pendingConnectionPrompts: Map<
+        string, // requestId
+        {
+            resolve: (result: { primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void;
+            reject: (reason: Error) => void;
+        }
+    > = new Map();
+    /**
+     * Tracks the one active callee per caller (one-at-a-time enforcement).
+     * Maps callerInstanceId → calleeInstanceId.
+     * The reverse lookup (calleeInstanceId → callerInstanceId) is obtained directly
+     * from pendingInvocations, which already stores callerInstanceId per callee entry.
+     */
+    private activeCallees: Map<string, string> = new Map();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -150,6 +174,7 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
     }
 
     /**
@@ -179,14 +204,51 @@ export class ToolWindowManager {
                 primaryConnectionId: string | null,
                 secondaryConnectionId: string | null,
                 prefillData: Record<string, unknown>,
+                noReturn?: boolean,
             ) => {
-                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData);
+                return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
             },
         );
 
-        // Handle data returned by a callee tool back to its caller
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string, returnData: unknown) => {
-            return this.resolveInvocation(calleeInstanceId, returnData);
+        // Receive the connection IDs selected by the user via the multi-connection modal
+        // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
+        ipcMain.handle(
+            TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
+            async (
+                _event,
+                requestId: string,
+                result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null,
+            ) => {
+                const prompt = this.pendingConnectionPrompts.get(requestId);
+                if (!prompt) return;
+                this.pendingConnectionPrompts.delete(requestId);
+                if (result) {
+                    prompt.resolve(result);
+                } else {
+                    prompt.reject(new Error("Connection selection cancelled"));
+                }
+            },
+        );
+
+        // Handle data returned by a callee tool back to its caller.
+        // calleeInstanceId is provided by callee tools calling returnData() directly.
+        // When the banner's "Return to Caller" button is clicked, no calleeInstanceId is
+        // passed — the main process falls back to the currently active tool (activeToolId).
+        // The banner is only visible while its callee is the active tool (switchToTool hides
+        // the banner whenever the active tool changes to a non-callee), so activeToolId is
+        // always the correct callee when the Return button is clicked. A guard on
+        // pendingInvocations defends against any residual race conditions.
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, async (event, calleeInstanceId: string | null, returnData: unknown) => {
+            const effectiveCalleeId = calleeInstanceId ?? this.activeToolId;
+            if (!effectiveCalleeId) {
+                logWarn("[ToolWindowManager] RETURN_INVOCATION_DATA: no callee instance ID and no active tool");
+                return;
+            }
+            if (!this.pendingInvocations.has(effectiveCalleeId)) {
+                logWarn(`[ToolWindowManager] RETURN_INVOCATION_DATA: ${effectiveCalleeId} has no pending invocation — ignoring`);
+                return;
+            }
+            return this.resolveInvocation(effectiveCalleeId, returnData);
         });
 
         // Switch to a different tool
@@ -219,7 +281,14 @@ export class ToolWindowManager {
             this.mainWindow.setBrowserView(null);
             this.activeToolId = null;
             this.invokeActiveToolChangedCallback();
+            this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
             return true;
+        });
+
+        // Find installed tools that declare a given capability tag
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, async (_event, tag: string) => {
+            const allTools = this.toolManager.getAllTools();
+            return allTools.filter((t) => Array.isArray(t.capabilities) && t.capabilities.includes(tag));
         });
 
         // Restore renderer-provided bounds flow
@@ -332,6 +401,8 @@ export class ToolWindowManager {
 
             // Store the view with instanceId as key
             this.toolViews.set(instanceId, toolView);
+            // Store the tool display name for the "Return to [CallerToolName]" banner
+            this.toolInstanceNames.set(instanceId, tool.name);
 
             // Get connection information for this tool instance
             // Connections are passed from frontend (per-instance), not retrieved from settings
@@ -433,12 +504,19 @@ export class ToolWindowManager {
      * Called when Tool A wants to launch Tool B with prefill data and (optionally) receive
      * a return value when Tool B calls returnInvocationData().
      *
+     * One-at-a-time enforcement: rejects if the caller already has an active callee.
+     * FXS connection auto-inheritance: when primaryConnectionId is null, the caller's
+     * active FXS connection is inherited automatically.
+     * Multi-connection: when the callee tool requires a secondary connection that was not
+     * provided, the user is prompted via the PPTB renderer before the tool is launched.
+     *
      * @param callerInstanceId The instanceId of the tool initiating the launch
      * @param calleeInstanceId The instanceId to use for the new tool window
      * @param tool The tool manifest to launch
-     * @param primaryConnectionId Primary connection for the callee
+     * @param primaryConnectionId Primary connection for the callee (null = auto-inherit from caller)
      * @param secondaryConnectionId Secondary connection for the callee (optional)
      * @param prefillData Arbitrary data to pre-populate the callee's state
+     * @param noReturn When true, the caller does not expect return data; banner is suppressed for the callee
      * @returns A Promise that resolves with the data returned by the callee, or null if the callee closes without returning data
      */
     async launchToolWithContext(
@@ -448,26 +526,85 @@ export class ToolWindowManager {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
+        noReturn?: boolean,
     ): Promise<unknown> {
+        // One-at-a-time enforcement
+        if (this.activeCallees.has(callerInstanceId)) {
+            throw new Error("A callee invocation is already in progress");
+        }
+
+        // FXS connection auto-inheritance: use caller's primary connection when none is specified
+        const effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
+
+        // Multi-connection: if the callee requires a secondary connection but none was provided,
+        // ask the main renderer to show the multi-connection selector before launching the tool.
+        const multiConnectionMode = tool.features?.multiConnection ?? "none";
+        const needsSecondary = multiConnectionMode === "required" || multiConnectionMode === "optional";
+        let effectiveSecondaryConnectionId = secondaryConnectionId;
+
+        if (needsSecondary && !effectiveSecondaryConnectionId) {
+            const isSecondaryRequired = multiConnectionMode === "required";
+            const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
+            try {
+                const connectionResult = await this.promptForInvocationConnections(
+                    requestId,
+                    tool.name,
+                    isSecondaryRequired,
+                    effectivePrimaryConnectionId,
+                );
+                effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
+            } catch (err) {
+                throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+
         return new Promise((resolve, reject) => {
             this.pendingInvocations.set(calleeInstanceId, {
                 callerInstanceId,
                 prefillData,
                 resolve,
                 reject,
+                resolved: false,
+                noReturn: noReturn ?? false,
             });
+            this.activeCallees.set(callerInstanceId, calleeInstanceId);
 
-            this.launchTool(calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData)
+            this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
+                        this.activeCallees.delete(callerInstanceId);
                         reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
                     }
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
+                    this.activeCallees.delete(callerInstanceId);
                     reject(error as Error);
                 });
+        });
+    }
+
+    /**
+     * Ask the main renderer to show the multi-connection selector for an invoked callee tool.
+     *
+     * Returns a Promise that resolves with the selected connection IDs once the user confirms,
+     * or rejects if the user cancels the dialog.
+     */
+    private promptForInvocationConnections(
+        requestId: string,
+        toolName: string,
+        isSecondaryRequired: boolean,
+        inheritedPrimaryConnectionId: string | null,
+    ): Promise<{ primaryConnectionId: string | null; secondaryConnectionId: string | null }> {
+        return new Promise((resolve, reject) => {
+            this.pendingConnectionPrompts.set(requestId, { resolve, reject });
+            this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, {
+                requestId,
+                toolName,
+                isSecondaryRequired,
+                inheritedPrimaryConnectionId,
+            });
         });
     }
 
@@ -475,10 +612,13 @@ export class ToolWindowManager {
      * Called by the callee tool's preload bridge when it is ready to return data to its caller.
      *
      * Resolves the pending Promise created in launchToolWithContext and notifies the
-     * caller tool via IPC so it can continue its workflow.
+     * caller tool via IPC so it can continue its workflow. After delivering the result,
+     * the callee window is automatically closed.
+     *
+     * Accepts null as a valid payload (banner early-return path).
      *
      * @param calleeInstanceId The instanceId of the tool returning data
-     * @param returnData The data to hand back to the caller
+     * @param returnData The data to hand back to the caller (null for early-return via banner)
      */
     resolveInvocation(calleeInstanceId: string, returnData: unknown): void {
         const pending = this.pendingInvocations.get(calleeInstanceId);
@@ -487,7 +627,14 @@ export class ToolWindowManager {
             return;
         }
 
+        if (pending.resolved) {
+            logWarn(`[ToolWindowManager] resolveInvocation: already resolved for ${calleeInstanceId}`);
+            return;
+        }
+
+        pending.resolved = true;
         this.pendingInvocations.delete(calleeInstanceId);
+        this.activeCallees.delete(pending.callerInstanceId);
 
         // Notify the caller tool (if it is still open) via an IPC push
         const callerView = this.toolViews.get(pending.callerInstanceId);
@@ -500,6 +647,11 @@ export class ToolWindowManager {
 
         // Resolve the JS Promise held by launchToolWithContext
         pending.resolve(returnData);
+
+        // Auto-close the callee window now that the result has been delivered
+        this.closeTool(calleeInstanceId).catch((err) => {
+            logWarn(`[ToolWindowManager] Auto-close of callee ${calleeInstanceId} failed`, err);
+        });
     }
 
     async switchToTool(instanceId: string): Promise<boolean> {
@@ -528,6 +680,24 @@ export class ToolWindowManager {
             }
             this.activeToolId = instanceId;
             this.invokeActiveToolChangedCallback();
+
+            // Push banner state to the renderer: show the "Return to [CallerToolName]" banner
+            // if this tool was launched by another tool, otherwise hide it.
+            const invocationEntry = this.pendingInvocations.get(instanceId);
+            if (invocationEntry) {
+                const callerToolName = this.toolInstanceNames.get(invocationEntry.callerInstanceId) ?? "Caller";
+                // noReturn invocations do not show a banner — the caller does not expect data back
+                if (invocationEntry.noReturn) {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                } else {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, {
+                        visible: true,
+                        callerToolName,
+                    });
+                }
+            } else {
+                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+            }
 
             logInfo(`[ToolWindowManager] Switched to tool instance: ${instanceId}, requesting bounds...`);
 
@@ -568,22 +738,32 @@ export class ToolWindowManager {
             // Remove from maps - also clean up connection info
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
+            this.toolInstanceNames.delete(instanceId);
 
             // If the tool was launched by another tool (inter-tool invocation) and it closes
             // without calling returnData, resolve the caller's Promise with null so the caller
             // doesn't hang indefinitely.
+            // Guard: skip resolve if resolveInvocation already handled it (auto-close path).
             const pending = this.pendingInvocations.get(instanceId);
             if (pending) {
                 this.pendingInvocations.delete(instanceId);
-                // Notify the caller view (if still alive)
-                const callerView = this.toolViews.get(pending.callerInstanceId);
-                if (callerView && !callerView.webContents.isDestroyed()) {
-                    callerView.webContents.send("toolbox:invocation-result", {
-                        calleeInstanceId: instanceId,
-                        returnData: null,
-                    });
+                this.activeCallees.delete(pending.callerInstanceId);
+                if (!pending.resolved) {
+                    // Notify the caller view (if still alive)
+                    const callerView = this.toolViews.get(pending.callerInstanceId);
+                    if (callerView && !callerView.webContents.isDestroyed()) {
+                        callerView.webContents.send("toolbox:invocation-result", {
+                            calleeInstanceId: instanceId,
+                            returnData: null,
+                        });
+                    }
+                    pending.resolve(null);
                 }
-                pending.resolve(null);
+            }
+
+            // If this was the active tool, hide the banner in the renderer
+            if (this.activeToolId === null) {
+                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
             }
 
             // Dispose any terminals created by this tool instance
@@ -952,6 +1132,7 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);

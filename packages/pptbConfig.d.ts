@@ -11,6 +11,7 @@
  * {
  *   "invocation": {
  *     "version": "1.0.0",
+ *     "capabilities": ["fetchxml"],
  *     "prefill": {
  *       "properties": {
  *         "entityName": { "type": "string" },
@@ -28,6 +29,50 @@
  * }
  * ```
  */
+
+/**
+ * Well-known capability tags defined in the Power Platform ToolBox capability registry.
+ *
+ * Using one of these values provides IDE auto-complete and ensures compatibility with the
+ * official capability discovery system (`toolboxAPI.invocation.findToolsByCapability`).
+ * The authoritative list is maintained in the Supabase `capability_tags` table so new
+ * tags can be added without an app update. Fetch the current list at runtime via
+ * `toolboxAPI.invocation.getKnownCapabilityTags()`.
+ *
+ * | Tag                  | Description                                           |
+ * | -------------------- | ----------------------------------------------------- |
+ * | `fetchxml`           | Accept or process FetchXML queries                    |
+ * | `entity-picker`      | Browse and select a Dataverse entity (table)          |
+ * | `record-selector`    | Browse and select a Dataverse record                  |
+ * | `solution-selector`  | Pick a Power Platform solution                        |
+ * | `webresource-editor` | Edit or manage web resources                          |
+ * | `plugin-inspector`   | Inspect or manage plugins and assemblies              |
+ * | `pcf-control-builder`| Build or scaffold PCF controls                        |
+ */
+export type KnownCapabilityTag =
+    | "fetchxml"
+    | "entity-picker"
+    | "record-selector"
+    | "solution-selector"
+    | "webresource-editor"
+    | "plugin-inspector"
+    | "pcf-control-builder";
+
+/**
+ * A capability tag string accepted by `invocation.capabilities` and
+ * `toolboxAPI.invocation.findToolsByCapability()`.
+ *
+ * `KnownCapabilityTag` values offer IDE auto-complete and are validated by
+ * `pptb-validate`. Custom strings are permitted for organisation-internal tags,
+ * but will produce a validation warning unless the tag appears in the official
+ * capability registry.
+ *
+ * @example
+ * ```json
+ * { "invocation": { "version": "1.0.0", "capabilities": ["fetchxml", "entity-picker"] } }
+ * ```
+ */
+export type CapabilityTag = KnownCapabilityTag | (string & {});
 
 /** A JSON-schema-style property descriptor used inside invocation definitions. */
 export interface JsonSchemaProperty {
@@ -67,6 +112,24 @@ export interface InvocationConfig {
     prefill?: JsonSchemaObject;
     /** Schema of the data this tool returns to its caller on completion. */
     returnTopic?: JsonSchemaObject;
+    /**
+     * Capability tags declared by this tool.
+     *
+     * Callers use `toolboxAPI.invocation.findToolsByCapability(tag)` to discover tools
+     * that advertise a given capability. Prefer `KnownCapabilityTag` values for IDE
+     * auto-complete; custom strings are accepted but will produce a `pptb-validate`
+     * warning unless the tag is present in the official capability registry.
+     *
+     * Use `toolboxAPI.invocation.getKnownCapabilityTags()` at runtime to retrieve the
+     * full list from the registry (backed by a configurable Supabase table so new tags
+     * can be added without an app update).
+     *
+     * @example
+     * ```json
+     * { "invocation": { "version": "1.0.0", "capabilities": ["entity-picker", "fetchxml"] } }
+     * ```
+     */
+    capabilities?: CapabilityTag[];
 }
 
 /**

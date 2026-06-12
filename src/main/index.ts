@@ -289,6 +289,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.IS_TOOL_UPDATING);
@@ -816,6 +817,11 @@ class ToolBoxApp {
         // Fetch community resource links from Supabase (returns null on failure; renderer falls back to bundled data)
         ipcMain.handle(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS, async () => {
             return await this.toolManager.fetchCommunityLinks();
+        });
+
+        // Fetch known capability tags from Supabase (with built-in fallback)
+        ipcMain.handle(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS, async () => {
+            return await this.toolManager.getKnownCapabilityTags();
         });
 
         // Check for tool updates
