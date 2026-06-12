@@ -370,10 +370,34 @@ if (pickers.length > 0) {
 **Signature:**
 
 ```typescript
-findToolsByCapability(tag: string): Promise<unknown[]>
+findToolsByCapability(tag: CapabilityTag): Promise<unknown[]>
+getKnownCapabilityTags(): Promise<Array<{ tag: string; description: string }>>
 ```
 
-Returns an array of matching installed `Tool` objects (empty array if none found).
+`findToolsByCapability` returns an array of matching installed `Tool` objects (empty array if none found).
+
+`getKnownCapabilityTags` returns the full capability registry (fetched from Supabase at runtime, cached for 5 minutes; falls back to a built-in list when offline).
+
+#### Well-known capability tags
+
+The following tags are registered in the official capability registry. Use them to ensure your tool is discoverable by callers without typos:
+
+| Tag | Description |
+|-----|-------------|
+| `fetchxml` | Accept or process FetchXML queries |
+| `entity-picker` | Browse and select a Dataverse entity (table) |
+| `record-selector` | Browse and select a Dataverse record |
+| `solution-selector` | Pick a Power Platform solution |
+| `webresource-editor` | Edit or manage web resources |
+| `plugin-inspector` | Inspect or manage plugins and assemblies |
+| `pcf-control-builder` | Build or scaffold PCF controls |
+
+> **Note:** The registry is configurable without an app update — new tags are added to the Supabase `capability_tags` table and become immediately discoverable at runtime via `getKnownCapabilityTags()`. The TypeScript `KnownCapabilityTag` union type and `pptb-validate` are updated in the next `@pptb/types` release.
+
+> **IDE auto-complete:** Import `CapabilityTag` from `@pptb/types/pptbConfig` to get IntelliSense for known tags:
+> ```typescript
+> import type { CapabilityTag } from "@pptb/types/pptbConfig";
+> ```
 
 ---
 
@@ -684,9 +708,11 @@ npx pptb-validate
 The validator checks:
 
 - `invocation.version` is present and a valid semver string.
-- `invocation.capabilities` (when present) is an array of non-empty strings.
+- `invocation.capabilities` (when present) is an array of non-empty strings where each value is a recognised capability tag (warning issued for unrecognised tags — see well-known tags above).
 - `invocation.prefill.properties` values are valid JSON-schema property descriptors.
 - `invocation.returnTopic.properties` values are valid JSON-schema property descriptors.
+
+The validator prints the list of known capability tags in its output summary so you can quickly check which tags are available.
 
 ### TypeScript types
 
@@ -697,13 +723,18 @@ The `@pptb/types` package ships type definitions for the entire invocation API:
 toolboxAPI.invocation.getLaunchContext()            // Promise<Record<string, unknown> | null>
 toolboxAPI.invocation.returnData(data)              // Promise<void>  (auto-closes callee after call)
 toolboxAPI.invocation.launchTool(...)               // Promise<unknown>
-toolboxAPI.invocation.findToolsByCapability(tag)    // Promise<unknown[]>
+toolboxAPI.invocation.findToolsByCapability(tag)    // Promise<unknown[]>  — tag is CapabilityTag
+toolboxAPI.invocation.getKnownCapabilityTags()      // Promise<Array<{ tag: string; description: string }>>
 ```
 
-For the shape of `pptb.config.json`, import from the bundled declaration file:
+For auto-complete on capability tags, import `CapabilityTag` / `KnownCapabilityTag` from the bundled declaration file:
 
 ```typescript
-import type { PPTBConfig, InvocationConfig } from "@pptb/types/pptbConfig";
+import type { PPTBConfig, InvocationConfig, CapabilityTag, KnownCapabilityTag } from "@pptb/types/pptbConfig";
+
+// IDE will suggest known tags when typing:
+const tag: CapabilityTag = "fetchxml";
+const tools = await toolboxAPI.invocation.findToolsByCapability(tag);
 ```
 
 ---

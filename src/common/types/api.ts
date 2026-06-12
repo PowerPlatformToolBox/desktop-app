@@ -9,7 +9,7 @@ import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { Tool, ToolContext, ToolSettings } from "./tool";
+import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -164,6 +164,8 @@ export interface ToolboxAPI {
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
+    /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */
+    getKnownCapabilityTags: () => Promise<CapabilityTagEntry[]>;
     /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
     returnToCallerBanner: () => Promise<void>;
     /** Subscribe to invocation banner state changes (main → renderer push). */

@@ -501,10 +501,30 @@ declare namespace ToolBoxAPI {
          * Find installed tools that declare a given capability tag in their
          * `pptb.config.json` (`invocation.capabilities` array).
          *
+         * Use a `KnownCapabilityTag` literal from `@pptb/types` for IDE auto-complete:
+         * ```ts
+         * import type { KnownCapabilityTag } from "@pptb/types/pptbConfig";
+         * const tools = await toolboxAPI.invocation.findToolsByCapability("fetchxml");
+         * ```
+         *
          * @param tag  The capability tag to search for (e.g. `"entity-picker"`)
          * @returns    Array of matching installed `ToolManifest` objects
          */
-        findToolsByCapability: (tag: string) => Promise<unknown[]>;
+        findToolsByCapability: (tag: import("./pptbConfig").CapabilityTag) => Promise<unknown[]>;
+
+        /**
+         * Returns the list of known (registered) capability tags from the capability registry.
+         *
+         * The registry is stored in a Supabase `capability_tags` table and fetched at
+         * startup (cached for 5 minutes). When Supabase is unavailable a built-in
+         * fallback list is returned, so the result is never empty.
+         *
+         * Use this at runtime to populate a "capabilities" picker or to validate a tag
+         * before calling `findToolsByCapability`.
+         *
+         * @returns Array of `{ tag: string; description: string }` entries ordered by tag name.
+         */
+        getKnownCapabilityTags: () => Promise<Array<{ tag: string; description: string }>>;
     }
 
     /**

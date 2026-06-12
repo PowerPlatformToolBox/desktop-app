@@ -5,6 +5,20 @@
 import { CspExceptions } from "./common";
 
 /**
+ * A single entry from the capability tag registry.
+ *
+ * The registry is stored in the Supabase `capability_tags` table and fetched at
+ * startup (with a TTL-based cache). A built-in fallback list is used when Supabase
+ * is unavailable so the application always has a baseline set of known tags.
+ */
+export interface CapabilityTagEntry {
+    /** The capability tag string (e.g. `"fetchxml"`, `"entity-picker"`). */
+    tag: string;
+    /** Human-readable description of what the capability represents. */
+    description: string;
+}
+
+/**
  * Tool features configuration
  */
 export interface ToolFeatures {

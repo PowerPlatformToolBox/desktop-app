@@ -77,6 +77,8 @@ export const TOOL_CHANNELS = {
     CHECK_TOOL_UPDATES: "check-tool-updates",
     UPDATE_TOOL: "update-tool",
     IS_TOOL_UPDATING: "is-tool-updating",
+    /** Fetch the list of registered capability tags from Supabase (with built-in fallback). */
+    GET_KNOWN_CAPABILITY_TAGS: "get-known-capability-tags",
 } as const;
 
 // Tool Window-related IPC channels

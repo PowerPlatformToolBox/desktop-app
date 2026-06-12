@@ -56,6 +56,25 @@ const VALID_MULTI_CONNECTION_VALUES = ["required", "optional", "none"];
 const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
 
 /**
+ * Built-in list of well-known capability tags.
+ * Mirrors the entries in the Supabase `capability_tags` table.
+ * New tags are added to Supabase first (configurable without a deploy) and are
+ * then reflected here in the next package release so offline validation stays current.
+ *
+ * When a tool declares a tag that is not in this list the validator emits a warning
+ * (not an error) so existing tools are not broken by registry updates.
+ */
+const KNOWN_CAPABILITY_TAGS = [
+    "fetchxml",
+    "entity-picker",
+    "record-selector",
+    "solution-selector",
+    "webresource-editor",
+    "plugin-inspector",
+    "pcf-control-builder",
+];
+
+/**
  * Checks if a string is a valid URL.
  * @param {string} url
  * @returns {boolean}
@@ -334,7 +353,7 @@ async function validatePackageJson(packageJson, options = {}) {
     };
 }
 
-module.exports = { validatePackageJson, validatePPTBConfig, isValidUrl, APPROVED_LICENSES };
+module.exports = { validatePackageJson, validatePPTBConfig, isValidUrl, APPROVED_LICENSES, KNOWN_CAPABILITY_TAGS };
 
 /**
  * Validates a tool's pptb.config.json against the official review criteria.
@@ -399,6 +418,12 @@ function validatePPTBConfig(config) {
                     inv.capabilities.forEach((cap, idx) => {
                         if (typeof cap !== "string" || cap.trim().length === 0) {
                             errors.push(`invocation.capabilities[${idx}] must be a non-empty string`);
+                        } else if (!KNOWN_CAPABILITY_TAGS.includes(cap.trim())) {
+                            warnings.push(
+                                `invocation.capabilities[${idx}] "${cap}" is not a recognised capability tag. ` +
+                                    `Known tags: ${KNOWN_CAPABILITY_TAGS.join(", ")}. ` +
+                                    "If this is a new tag, ensure it has been added to the capability registry.",
+                            );
                         }
                     });
                 }

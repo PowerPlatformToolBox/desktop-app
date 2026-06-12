@@ -419,6 +419,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         findToolsByCapability: async (tag: string): Promise<unknown[]> => {
             return ipcInvoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag) as Promise<unknown[]>;
         },
+
+        /**
+         * Returns the list of known (registered) capability tags from the capability registry.
+         * Backed by Supabase with a built-in fallback for offline use.
+         *
+         * @returns Array of { tag, description } entries
+         */
+        getKnownCapabilityTags: async (): Promise<Array<{ tag: string; description: string }>> => {
+            return ipcInvoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS) as Promise<Array<{ tag: string; description: string }>>;
+        },
     },
 });
 
