@@ -94,6 +94,7 @@ export class ToolWindowManager {
     private frameScheduled = false;
     private boundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
     private terminalVisibilityListener: () => void;
+    private bannerVisibilityListener: () => void;
     private sidebarLayoutListener: () => void;
     private refreshBoundsListener: () => void;
     private focusListener: () => void;
@@ -146,6 +147,9 @@ export class ToolWindowManager {
             setTimeout(() => this.refreshBoundsListener(), 120);
         };
         this.terminalVisibilityListener = () => {
+            this.scheduleBoundsUpdate();
+        };
+        this.bannerVisibilityListener = () => {
             this.scheduleBoundsUpdate();
         };
         this.sidebarLayoutListener = () => {
@@ -314,6 +318,7 @@ export class ToolWindowManager {
         // Handle terminal panel visibility changes
         // When terminal is shown/hidden, we need to adjust BrowserView bounds
         ipcMain.on("terminal-visibility-changed", this.terminalVisibilityListener);
+        ipcMain.on("invocation-banner-visibility-changed", this.bannerVisibilityListener);
         ipcMain.on("sidebar-layout-changed", this.sidebarLayoutListener);
 
         // Periodic frame scheduling helper
@@ -575,7 +580,17 @@ export class ToolWindowManager {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
                         reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        return;
                     }
+                    // Notify the renderer to create a tab for the callee so it appears as a
+                    // separate instance (its own tab) rather than replacing the caller's view.
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, {
+                        calleeInstanceId,
+                        callerInstanceId,
+                        tool,
+                        primaryConnectionId: effectivePrimaryConnectionId,
+                        secondaryConnectionId: effectiveSecondaryConnectionId,
+                    });
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
@@ -648,10 +663,20 @@ export class ToolWindowManager {
         // Resolve the JS Promise held by launchToolWithContext
         pending.resolve(returnData);
 
-        // Auto-close the callee window now that the result has been delivered
-        this.closeTool(calleeInstanceId).catch((err) => {
-            logWarn(`[ToolWindowManager] Auto-close of callee ${calleeInstanceId} failed`, err);
-        });
+        // Auto-close the callee window now that the result has been delivered.
+        // After the BrowserView is destroyed, notify the renderer to remove the callee
+        // tab and switch back to the caller.
+        const callerInstanceId = pending.callerInstanceId;
+        this.closeTool(calleeInstanceId)
+            .then(() => {
+                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, {
+                    calleeInstanceId,
+                    callerInstanceId,
+                });
+            })
+            .catch((err) => {
+                logWarn(`[ToolWindowManager] Auto-close of callee ${calleeInstanceId} failed`, err);
+            });
     }
 
     async switchToTool(instanceId: string): Promise<boolean> {
@@ -1136,6 +1161,7 @@ export class ToolWindowManager {
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
+        if (this.bannerVisibilityListener) ipcMain.removeListener("invocation-banner-visibility-changed", this.bannerVisibilityListener);
         if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);
         if (this.rendererInitializedListener) ipcMain.removeListener(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED, this.rendererInitializedListener);
 

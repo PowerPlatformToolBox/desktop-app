@@ -365,13 +365,13 @@
                         </div>
                         <!-- Tool detail tab content panel (rendered inline, shown when a detail tab is active) -->
                         <div id="tool-detail-content-panel" style="display: none"></div>
-                    </div>
-                    <!-- Invocation Banner: injected by PPTB when a callee tool is active (inter-tool launch) -->
-                    <div id="invocation-banner" class="invocation-banner" style="display: none" role="status" aria-live="polite">
-                        <span id="invocation-banner-text" class="invocation-banner-text"></span>
-                        <div class="invocation-banner-actions">
-                            <button id="invocation-banner-return" class="invocation-banner-return-btn">Return</button>
-                            <button id="invocation-banner-dismiss" class="invocation-banner-dismiss-btn" title="Dismiss banner (does not cancel invocation)" aria-label="Dismiss banner">✕</button>
+                        <!-- Invocation Banner: sits above tool content (not tabs) when a callee tool is active (inter-tool launch) -->
+                        <div id="invocation-banner" class="invocation-banner" style="display: none" role="status" aria-live="polite">
+                            <span id="invocation-banner-text" class="invocation-banner-text"></span>
+                            <div class="invocation-banner-actions">
+                                <button id="invocation-banner-return" class="invocation-banner-return-btn">Return</button>
+                                <button id="invocation-banner-dismiss" class="invocation-banner-dismiss-btn" title="Dismiss banner (does not cancel invocation)" aria-label="Dismiss banner">✕</button>
+                            </div>
                         </div>
                     </div>
                     <!-- Terminal Panel -->

@@ -1758,7 +1758,7 @@ export function initializeTabScrollButtons(): void {
 }
 
 /**
- * Initialise the shell-level "Return to [CallerToolName]" banner.
+ * Initialise the shell-level invocation banner shown above tool content when a callee tool is active.
  *
  * The main process pushes INVOCATION_BANNER_STATE whenever the active tool changes.
  * - visible: true  → show the banner with the caller's display name
@@ -1767,7 +1767,10 @@ export function initializeTabScrollButtons(): void {
  * The banner is only shown when the invocation was launched without `noReturn: true`.
  * For one-way "Send To" flows (`noReturn: true`) no banner is shown.
  *
- * Clicking "Return" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
+ * The banner text reads "Launched from [CallerToolName]" and the return button reads
+ * "Return to [CallerToolName]".
+ *
+ * Clicking "Return to …" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
  *   - The active invocation resolves with null on the caller side
  *   - PPTB auto-closes the callee window
  *
@@ -1784,12 +1787,15 @@ export function initializeInvocationBanner(): void {
     // Listen for banner state pushes from the main process
     window.toolboxAPI.onInvocationBannerState((state) => {
         if (state.visible && state.callerToolName) {
-            bannerText.textContent = `Return to ${state.callerToolName}`;
+            bannerText.textContent = `Launched from ${state.callerToolName}`;
             returnBtn.textContent = `Return to ${state.callerToolName}`;
             banner.style.display = "flex";
         } else {
             banner.style.display = "none";
         }
+        // Notify the main process so it can re-request BrowserView bounds that
+        // account for the banner height (or restore full-height when hidden).
+        window.api.send("invocation-banner-visibility-changed");
     });
 
     // "Return" button: trigger banner early-return path
@@ -1798,9 +1804,11 @@ export function initializeInvocationBanner(): void {
         banner.style.display = "none";
     });
 
-    // "Dismiss" button: hide banner only — does NOT end the invocation
+    // "Dismiss" button: hide banner only — does NOT end the invocation.
+    // After hiding, notify the main process to restore full-height BrowserView bounds.
     dismissBtn.addEventListener("click", () => {
         banner.style.display = "none";
+        window.api.send("invocation-banner-visibility-changed");
     });
 }
 
@@ -1825,6 +1833,107 @@ export function initializeInvocationConnectionsPrompt(): void {
             // User cancelled or modal failed – notify main process so it can reject the launch
             logWarn(`[invocationConnectionsPrompt] Connection modal cancelled or failed: ${err instanceof Error ? err.message : String(err)}`);
             await window.toolboxAPI.provideInvocationConnections(requestId, null);
+        }
+    });
+}
+
+/**
+ * Listen for callee tool lifecycle events pushed by the main process when a tool is
+ * launched via inter-tool invocation (invocation.launchTool()).
+ *
+ * CALLEE_TOOL_OPENED: the callee BrowserView was successfully created. The renderer
+ *   registers a new entry in openTools and creates a dedicated tab so the callee
+ *   appears as its own independent instance rather than replacing the caller's tab.
+ *
+ * CALLEE_TOOL_CLOSED: the callee was auto-closed by the main process after it returned
+ *   data (resolveInvocation path). The renderer removes the callee tab and switches
+ *   back to the caller tool.
+ */
+export function initializeCalleeToolListeners(): void {
+    window.toolboxAPI.onCalleeToolOpened(({ calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId }) => {
+        // Ensure the tool panel is visible (it may already be open via the caller, but
+        // guard against edge cases where the caller launched without the panel shown).
+        hideHomePage();
+        const toolPanel = document.getElementById("tool-panel");
+        if (toolPanel) {
+            toolPanel.style.display = "flex";
+        }
+
+        // Avoid double-registration if the event fires more than once.
+        if (openTools.has(calleeInstanceId)) {
+            return;
+        }
+
+        // Determine the instance number for the display name.
+        const existingInstances = Array.from(openTools.values()).filter((t) => !t.isDetailTab && t.toolId === tool.id);
+        const instanceNumber = existingInstances.length + 1;
+
+        // Register the callee in the open-tools map so all tab management
+        // functions (close, pin, context menu, session save, etc.) work correctly.
+        openTools.set(calleeInstanceId, {
+            instanceId: calleeInstanceId,
+            toolId: tool.id,
+            tool: tool,
+            isPinned: false,
+            connectionId: primaryConnectionId,
+            secondaryConnectionId: secondaryConnectionId,
+        });
+
+        // Create the visual tab for the callee.
+        createTab(calleeInstanceId, tool, instanceNumber);
+
+        // Set the callee as the active tab in the renderer (the main process has already
+        // switched the BrowserView — we only update renderer state here to stay in sync).
+        activeToolId = calleeInstanceId;
+        document.querySelectorAll(".tool-tab").forEach((tab) => {
+            tab.classList.remove("active");
+        });
+        const calleeTab = document.getElementById(`tool-tab-${calleeInstanceId}`);
+        if (calleeTab) {
+            calleeTab.classList.add("active");
+        }
+
+        updateToolbarButtonVisibility();
+        updateTabScrollButtons();
+        saveSession();
+
+        // Refresh the connection status strip for the newly active callee tab.
+        updateActiveToolConnectionStatus().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    });
+
+    window.toolboxAPI.onCalleeToolClosed(({ calleeInstanceId, callerInstanceId }) => {
+        // Remove the callee tab element from the DOM.
+        const calleeTab = document.getElementById(`tool-tab-${calleeInstanceId}`);
+        if (calleeTab) {
+            calleeTab.remove();
+        }
+
+        // Clean up any registered close guard for this instance.
+        closeGuards.delete(calleeInstanceId);
+
+        // Remove from the open-tools map.
+        openTools.delete(calleeInstanceId);
+
+        updateToolbarButtonVisibility();
+        updateTabScrollButtons();
+        saveSession();
+
+        // Switch back to the caller tool if it is still open, otherwise fall back to
+        // the most-recently-opened tool, or show the home page when no tools remain.
+        if (openTools.has(callerInstanceId)) {
+            void switchToTool(callerInstanceId);
+        } else if (openTools.size > 0) {
+            const lastInstanceId = Array.from(openTools.keys())[openTools.size - 1];
+            void switchToTool(lastInstanceId);
+        } else {
+            activeToolId = null;
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+            }
+            showHomePage();
         }
     });
 }

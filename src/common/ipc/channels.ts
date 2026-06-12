@@ -108,6 +108,18 @@ export const TOOL_WINDOW_CHANNELS = {
      * selected by the user in response to an INVOCATION_PROMPT_CONNECTIONS request.
      */
     PROVIDE_INVOCATION_CONNECTIONS: "tool-window:provide-invocation-connections",
+    /**
+     * Pushed from the main process to the PPTB renderer when a callee tool has been
+     * successfully launched via an inter-tool invocation. The renderer creates a new tab
+     * for the callee so it can be independently managed (switched to, closed, etc.).
+     */
+    CALLEE_TOOL_OPENED: "tool-window:callee-tool-opened",
+    /**
+     * Pushed from the main process to the PPTB renderer when a callee tool has been
+     * auto-closed after returning data (resolveInvocation path). The renderer removes
+     * the callee's tab and switches back to the caller tool.
+     */
+    CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
 } as const;
 
 // Terminal-related IPC channels

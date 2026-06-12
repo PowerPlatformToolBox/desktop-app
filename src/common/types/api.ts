@@ -174,6 +174,16 @@ export interface ToolboxAPI {
     onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
     /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
     provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => Promise<void>;
+    /**
+     * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
+     * so the renderer can create a dedicated tab for the callee instance.
+     */
+    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => void;
+    /**
+     * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
+     * the main process so the renderer can remove the callee tab and return focus to the caller.
+     */
+    onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => void;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
