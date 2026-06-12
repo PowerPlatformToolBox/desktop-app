@@ -4,7 +4,7 @@ import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 import { logInfo, logWarn } from "../../common/logger";
 
-const ALLOWED_TERMINAL_EXECUTABLES = new Set(["pac", "npm", "npx", "pnpm"]);
+const ALLOWED_TERMINAL_EXECUTABLES = new Set(["pac", "npm", "npx"]);
 const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
 
 interface ParsedTerminalCommand {
@@ -12,20 +12,32 @@ interface ParsedTerminalCommand {
     args: string[];
 }
 
-function sanitizeTerminalEnv(env?: Record<string, string>): Record<string, string> | undefined {
+interface SanitizedTerminalEnv {
+    env?: Record<string, string>;
+    strippedKeys: string[];
+}
+
+function sanitizeTerminalEnv(env?: Record<string, string>): SanitizedTerminalEnv {
     if (!env) {
-        return undefined;
+        return { strippedKeys: [] };
     }
 
+    const strippedKeys: string[] = [];
     const sanitizedEnv = Object.entries(env).reduce<Record<string, string>>((result, [key, value]) => {
-        if (!BLOCKED_TERMINAL_ENV_KEYS.has(key.toUpperCase())) {
-            result[key] = value;
+        const normalizedKey = key.toUpperCase();
+        if (BLOCKED_TERMINAL_ENV_KEYS.has(normalizedKey)) {
+            strippedKeys.push(key);
+            return result;
         }
 
+        result[key] = value;
         return result;
     }, {});
 
-    return Object.keys(sanitizedEnv).length > 0 ? sanitizedEnv : undefined;
+    return {
+        env: Object.keys(sanitizedEnv).length > 0 ? sanitizedEnv : undefined,
+        strippedKeys,
+    };
 }
 
 function tokenizeTerminalCommand(command: string): string[] {
@@ -45,6 +57,8 @@ function tokenizeTerminalCommand(command: string): string[] {
 
         if (char === "\\" && activeQuote !== "'") {
             const nextChar = command[index + 1];
+            // Commands are executed with shell:false, so tokenization only needs to preserve quoted
+            // arguments and escaped whitespace/quotes without emulating full shell parsing.
             if (nextChar === '"' || nextChar === "'" || nextChar === "\\" || (nextChar && /\s/.test(nextChar))) {
                 isEscaped = true;
                 continue;
@@ -111,6 +125,18 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Allowed commands: ${Array.from(ALLOWED_TERMINAL_EXECUTABLES).join(", ")}.`);
     }
 
+    if (executable === "npx" && tokens.slice(1).some((arg) => arg.toLowerCase() === "-c" || arg.toLowerCase() === "--call")) {
+        throw new Error("Blocked unsafe npx invocation. Shell execution flags are not allowed.");
+    }
+
+    if (executable === "npm") {
+        const blockedNpmSubcommands = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
+        const subcommand = tokens[1]?.toLowerCase();
+        if (subcommand && blockedNpmSubcommands.has(subcommand)) {
+            throw new Error(`Blocked unsafe npm subcommand "${tokens[1]}".`);
+        }
+    }
+
     return {
         executable,
         args: tokens.slice(1),
@@ -168,8 +194,7 @@ export class TerminalManager extends EventEmitter {
             createdAt: new Date().toISOString(),
         };
 
-        const sanitizedEnv = sanitizeTerminalEnv(options.env);
-        const strippedEnvKeys = Object.keys(options.env ?? {}).filter((key) => !Object.prototype.hasOwnProperty.call(sanitizedEnv ?? {}, key));
+        const { env: sanitizedEnv, strippedKeys: strippedEnvKeys } = sanitizeTerminalEnv(options.env);
         if (strippedEnvKeys.length > 0) {
             logWarn(`Ignoring restricted terminal environment variables for terminal ${terminalId}: ${strippedEnvKeys.join(", ")}`);
         }

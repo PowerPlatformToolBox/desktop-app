@@ -257,7 +257,7 @@ const terminal = await toolboxAPI.terminal.create({
     cwd: "/path/to/directory",
 });
 
-// Execute an allowed command (pac, npm, npx, pnpm)
+// Execute an allowed command (pac, npm, npx)
 const result = await toolboxAPI.terminal.execute(terminal.id, "pac auth list");
 console.log("Exit code:", result.exitCode);
 console.log("Output:", result.output);
@@ -585,7 +585,7 @@ Core platform features organized into namespaces:
 
 - **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
     - Executes a command in the specified terminal and returns its result
-    - Only allowlisted commands (`pac`, `npm`, `npx`, `pnpm`) are executed
+    - Only allowlisted commands (`pac`, `npm`, `npx`) are executed
 
 - **close(terminalId: string)**: Promise<void>
     - Closes the specified terminal
