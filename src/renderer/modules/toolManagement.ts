@@ -1758,7 +1758,7 @@ export function initializeTabScrollButtons(): void {
 }
 
 /**
- * Initialise the shell-level "Return to [CallerToolName]" banner.
+ * Initialise the shell-level invocation banner shown above tool content when a callee tool is active.
  *
  * The main process pushes INVOCATION_BANNER_STATE whenever the active tool changes.
  * - visible: true  → show the banner with the caller's display name
@@ -1767,7 +1767,10 @@ export function initializeTabScrollButtons(): void {
  * The banner is only shown when the invocation was launched without `noReturn: true`.
  * For one-way "Send To" flows (`noReturn: true`) no banner is shown.
  *
- * Clicking "Return" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
+ * The banner text reads "Launched from [CallerToolName]" and the return button reads
+ * "Return to [CallerToolName]".
+ *
+ * Clicking "Return to …" triggers RETURN_INVOCATION_DATA with a null payload (banner early-return path):
  *   - The active invocation resolves with null on the caller side
  *   - PPTB auto-closes the callee window
  *
@@ -1784,7 +1787,7 @@ export function initializeInvocationBanner(): void {
     // Listen for banner state pushes from the main process
     window.toolboxAPI.onInvocationBannerState((state) => {
         if (state.visible && state.callerToolName) {
-            bannerText.textContent = `Return to ${state.callerToolName}`;
+            bannerText.textContent = `Launched from ${state.callerToolName}`;
             returnBtn.textContent = `Return to ${state.callerToolName}`;
             banner.style.display = "flex";
         } else {
