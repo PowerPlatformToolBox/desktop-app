@@ -82,7 +82,10 @@ declare namespace ToolBoxAPI {
         name: string;
         url: string;
         environment: "Dev" | "Test" | "UAT" | "Production";
-        createdAt: string;
+        category?: string;
+        environmentColor?: string;
+        categoryColor?: string;
+        createdAt?: string;
         lastUsedAt?: string;
         /**
          * @deprecated isActive is a legacy field that is no longer persisted.
