@@ -11,7 +11,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
+import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate, Tool } from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -269,6 +269,19 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         }) => void,
     ) => {
         ipcRenderer.on(EVENT_CHANNELS.SHOW_ABOUT, (_, info) => callback(info));
+    },
+
+    // Inter-tool invocation: main process notifies renderer to create a tab for the callee tool
+    onToolInvocationLaunched: (
+        callback: (data: {
+            callerInstanceId: string;
+            calleeInstanceId: string;
+            tool: Tool;
+            primaryConnectionId: string | null;
+            secondaryConnectionId: string | null;
+        }) => void,
+    ) => {
+        ipcRenderer.on(EVENT_CHANNELS.TOOL_INVOCATION_LAUNCHED, (_, data) => callback(data));
     },
 
     // Dataverse API - Can be called by tools via message routing

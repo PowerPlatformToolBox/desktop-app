@@ -225,6 +225,7 @@ export const EVENT_CHANNELS = {
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
     PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
     SHOW_ABOUT: "show-about",
+    TOOL_INVOCATION_LAUNCHED: "tool-window:invocation-launched",
 } as const;
 
 // Internal BrowserWindow modal channels (modal content -> main process)

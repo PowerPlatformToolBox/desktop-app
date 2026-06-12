@@ -34,7 +34,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, createTab, getOpenTools, initializeTabScrollButtons, launchTool, restoreSession, saveSession, setupKeyboardShortcuts, showHomePage, switchToTool, updateToolbarButtonVisibility } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -594,6 +594,37 @@ function setupApplicationEventListeners(): void {
         handleProtocolInstallToolRequest(params).catch((error) => {
             logError(error instanceof Error ? error : new Error(String(error)));
         });
+    });
+
+    // Inter-tool invocation: create a new tab for the callee tool so it has its own UI entry
+    window.toolboxAPI.onToolInvocationLaunched((data) => {
+        const { calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId } = data;
+
+        // Count existing instances to determine the tab label suffix
+        const existingInstances = Array.from(getOpenTools().values()).filter((t) => t.toolId === tool.id);
+        const instanceNumber = existingInstances.length + 1;
+
+        // Register in openTools so tab interactions (switch, close, etc.) work correctly
+        getOpenTools().set(calleeInstanceId, {
+            instanceId: calleeInstanceId,
+            toolId: tool.id,
+            tool,
+            isPinned: false,
+            connectionId: primaryConnectionId,
+            secondaryConnectionId: secondaryConnectionId ?? null,
+        });
+
+        // Create the visible tab
+        createTab(calleeInstanceId, tool, instanceNumber);
+
+        // Activate the new tab (calls switchToolWindow on the main process)
+        switchToTool(calleeInstanceId).catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+
+        // Refresh toolbar state and persist session
+        updateToolbarButtonVisibility();
+        saveSession();
     });
 }
 

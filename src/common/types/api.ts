@@ -262,6 +262,17 @@ export interface ToolboxAPI {
         }) => void,
     ) => void;
 
+    // Inter-tool invocation: fired when a tool launches another tool so the renderer can create a tab
+    onToolInvocationLaunched: (
+        callback: (data: {
+            callerInstanceId: string;
+            calleeInstanceId: string;
+            tool: Tool;
+            primaryConnectionId: string | null;
+            secondaryConnectionId: string | null;
+        }) => void,
+    ) => void;
+
     // Dataverse namespace
     dataverse: DataverseAPI;
 }

@@ -462,7 +462,18 @@ export class ToolWindowManager {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
                         reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        return;
                     }
+                    // Notify the renderer so it creates a tab for the callee tool.
+                    // This must happen after launchTool() so the BrowserView already exists
+                    // by the time the renderer's switchToTool() calls back into switchToolWindow.
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOL_INVOCATION_LAUNCHED, {
+                        callerInstanceId,
+                        calleeInstanceId,
+                        tool,
+                        primaryConnectionId,
+                        secondaryConnectionId,
+                    });
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
