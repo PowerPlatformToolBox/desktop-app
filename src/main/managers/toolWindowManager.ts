@@ -575,7 +575,17 @@ export class ToolWindowManager {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
                         reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        return;
                     }
+                    // Notify the renderer to create a tab for the callee so it appears as a
+                    // separate instance (its own tab) rather than replacing the caller's view.
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, {
+                        calleeInstanceId,
+                        callerInstanceId,
+                        tool,
+                        primaryConnectionId: effectivePrimaryConnectionId,
+                        secondaryConnectionId: effectiveSecondaryConnectionId,
+                    });
                 })
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
@@ -648,10 +658,20 @@ export class ToolWindowManager {
         // Resolve the JS Promise held by launchToolWithContext
         pending.resolve(returnData);
 
-        // Auto-close the callee window now that the result has been delivered
-        this.closeTool(calleeInstanceId).catch((err) => {
-            logWarn(`[ToolWindowManager] Auto-close of callee ${calleeInstanceId} failed`, err);
-        });
+        // Auto-close the callee window now that the result has been delivered.
+        // After the BrowserView is destroyed, notify the renderer to remove the callee
+        // tab and switch back to the caller.
+        const callerInstanceId = pending.callerInstanceId;
+        this.closeTool(calleeInstanceId)
+            .then(() => {
+                this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, {
+                    calleeInstanceId,
+                    callerInstanceId,
+                });
+            })
+            .catch((err) => {
+                logWarn(`[ToolWindowManager] Auto-close of callee ${calleeInstanceId} failed`, err);
+            });
     }
 
     async switchToTool(instanceId: string): Promise<boolean> {

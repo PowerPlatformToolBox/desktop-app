@@ -1828,3 +1828,104 @@ export function initializeInvocationConnectionsPrompt(): void {
         }
     });
 }
+
+/**
+ * Listen for callee tool lifecycle events pushed by the main process when a tool is
+ * launched via inter-tool invocation (invocation.launchTool()).
+ *
+ * CALLEE_TOOL_OPENED: the callee BrowserView was successfully created. The renderer
+ *   registers a new entry in openTools and creates a dedicated tab so the callee
+ *   appears as its own independent instance rather than replacing the caller's tab.
+ *
+ * CALLEE_TOOL_CLOSED: the callee was auto-closed by the main process after it returned
+ *   data (resolveInvocation path). The renderer removes the callee tab and switches
+ *   back to the caller tool.
+ */
+export function initializeCalleeToolListeners(): void {
+    window.toolboxAPI.onCalleeToolOpened(({ calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId }) => {
+        // Ensure the tool panel is visible (it may already be open via the caller, but
+        // guard against edge cases where the caller launched without the panel shown).
+        hideHomePage();
+        const toolPanel = document.getElementById("tool-panel");
+        if (toolPanel) {
+            toolPanel.style.display = "flex";
+        }
+
+        // Avoid double-registration if the event fires more than once.
+        if (openTools.has(calleeInstanceId)) {
+            return;
+        }
+
+        // Determine the instance number for the display name.
+        const existingInstances = Array.from(openTools.values()).filter((t) => !t.isDetailTab && t.toolId === (tool as any).id);
+        const instanceNumber = existingInstances.length + 1;
+
+        // Register the callee in the open-tools map so all tab management
+        // functions (close, pin, context menu, session save, etc.) work correctly.
+        openTools.set(calleeInstanceId, {
+            instanceId: calleeInstanceId,
+            toolId: (tool as any).id,
+            tool: tool as any,
+            isPinned: false,
+            connectionId: primaryConnectionId,
+            secondaryConnectionId: secondaryConnectionId,
+        });
+
+        // Create the visual tab for the callee.
+        createTab(calleeInstanceId, tool, instanceNumber);
+
+        // Set the callee as the active tab in the renderer (the main process has already
+        // switched the BrowserView — we only update renderer state here to stay in sync).
+        activeToolId = calleeInstanceId;
+        document.querySelectorAll(".tool-tab").forEach((tab) => {
+            tab.classList.remove("active");
+        });
+        const calleeTab = document.getElementById(`tool-tab-${calleeInstanceId}`);
+        if (calleeTab) {
+            calleeTab.classList.add("active");
+        }
+
+        updateToolbarButtonVisibility();
+        updateTabScrollButtons();
+        saveSession();
+
+        // Refresh the connection status strip for the newly active callee tab.
+        updateActiveToolConnectionStatus().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    });
+
+    window.toolboxAPI.onCalleeToolClosed(({ calleeInstanceId, callerInstanceId }) => {
+        // Remove the callee tab element from the DOM.
+        const calleeTab = document.getElementById(`tool-tab-${calleeInstanceId}`);
+        if (calleeTab) {
+            calleeTab.remove();
+        }
+
+        // Clean up any registered close guard for this instance.
+        closeGuards.delete(calleeInstanceId);
+
+        // Remove from the open-tools map.
+        openTools.delete(calleeInstanceId);
+
+        updateToolbarButtonVisibility();
+        updateTabScrollButtons();
+        saveSession();
+
+        // Switch back to the caller tool if it is still open, otherwise fall back to
+        // the most-recently-opened tool, or show the home page when no tools remain.
+        if (openTools.has(callerInstanceId)) {
+            void switchToTool(callerInstanceId);
+        } else if (openTools.size > 0) {
+            const lastInstanceId = Array.from(openTools.keys())[openTools.size - 1];
+            void switchToTool(lastInstanceId);
+        } else {
+            activeToolId = null;
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+            }
+            showHomePage();
+        }
+    });
+}

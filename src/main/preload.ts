@@ -84,6 +84,21 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     /** Reply to a multi-connection prompt with the selected connection IDs (or null to cancel). */
     provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS, requestId, result),
+    /**
+     * Listen for inter-tool callee launch notifications. Fired once the callee BrowserView
+     * is ready so the renderer can create a dedicated tab for the callee instance.
+     */
+    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: unknown; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, (_event, data) => callback(data));
+    },
+    /**
+     * Listen for inter-tool callee auto-close notifications. Fired after the callee is
+     * auto-closed by the main process so the renderer can remove the tab and return focus
+     * to the caller.
+     */
+    onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, (_event, data) => callback(data));
+    },
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),

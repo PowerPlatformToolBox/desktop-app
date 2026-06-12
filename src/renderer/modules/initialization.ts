@@ -34,7 +34,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, initializeCalleeToolListeners, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -251,6 +251,10 @@ function setupToolbarButtons(): void {
     // Handle multi-connection prompts triggered by invoked callee tools that require
     // a secondary connection not present on the caller (e.g. FXS "Send To" → DMS)
     initializeInvocationConnectionsPrompt();
+
+    // Create/remove tabs for callee tools launched via inter-tool invocation so they
+    // open in their own tab instead of replacing the caller's view.
+    initializeCalleeToolListeners();
 }
 
 /**
