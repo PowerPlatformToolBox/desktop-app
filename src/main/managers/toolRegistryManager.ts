@@ -106,6 +106,11 @@ interface SupabaseCapabilityTagRow {
  * The authoritative list is stored in the Supabase `capability_tags` table and
  * fetched at startup; this list ensures the app always has a baseline set of
  * known tags so tools can be validated even in an offline scenario.
+ *
+ * **Keep in sync with `KNOWN_CAPABILITY_TAGS` in `packages/lib/validate.js`.**
+ * Since the validator is a standalone Node.js CLI that cannot import from the
+ * Electron/TypeScript source tree, both lists must be updated together whenever
+ * new tags are added to the Supabase `capability_tags` table.
  */
 const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = [
     { tag: "fetchxml", description: "Accept or process FetchXML queries" },
@@ -1168,8 +1173,12 @@ export class ToolRegistryManager extends EventEmitter {
             logWarn("[ToolRegistry] Could not fetch capability tags from Supabase, using built-in fallback", { error: error instanceof Error ? error.message : String(error) });
         }
 
-        // Return built-in fallback (do not cache so we retry on the next call)
-        return BUILT_IN_CAPABILITY_TAGS;
+        // Supabase unavailable: update the timestamp so we do not retry on every subsequent call
+        // while Supabase is down (rate-limit retries to once per TTL interval).
+        // If a previous successful fetch populated the cache, keep returning it; otherwise fall back
+        // to the built-in list so callers always receive a non-empty result.
+        this.capabilityTagsFetchedAtMs = now;
+        return this.capabilityTagsCache ?? BUILT_IN_CAPABILITY_TAGS;
     }
 
     /**

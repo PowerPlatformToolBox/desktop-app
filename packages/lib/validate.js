@@ -63,6 +63,11 @@ const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-
  *
  * When a tool declares a tag that is not in this list the validator emits a warning
  * (not an error) so existing tools are not broken by registry updates.
+ *
+ * **Keep in sync with `BUILT_IN_CAPABILITY_TAGS` in
+ * `src/main/managers/toolRegistryManager.ts`.**  Because this file is a standalone
+ * Node.js module that cannot import from the Electron/TypeScript source tree, both
+ * lists must be updated together whenever a new tag is added.
  */
 const KNOWN_CAPABILITY_TAGS = [
     "fetchxml",
