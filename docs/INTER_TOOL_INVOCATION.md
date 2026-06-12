@@ -9,23 +9,42 @@ This document covers the **Inter-Tool Invocation** feature of Power Platform Too
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Part 1 – Callee (the tool that accepts invocations)](#part-1--callee-the-tool-that-accepts-invocations)
-    - [1.1 Declaring the invocation contract (`pptb.config.json`)](#11-declaring-the-invocation-contract-pptbconfigjson)
-    - [1.2 Reading the launch context](#12-reading-the-launch-context)
-    - [1.3 Returning data to the caller](#13-returning-data-to-the-caller)
-    - [1.4 Handling standalone vs. invoked modes](#14-handling-standalone-vs-invoked-modes)
-    - [1.5 Complete callee example](#15-complete-callee-example)
-3. [Part 2 – Caller (the tool that launches other tools)](#part-2--caller-the-tool-that-launches-other-tools)
-    - [2.1 Launching a tool with prefill data](#21-launching-a-tool-with-prefill-data)
-    - [2.2 Handling the return value](#22-handling-the-return-value)
-    - [2.3 Connection auto-inheritance and overrides](#23-connection-auto-inheritance-and-overrides)
-    - [2.4 Tag-based capability discovery](#24-tag-based-capability-discovery)
-    - [2.5 Complete caller example](#25-complete-caller-example)
-4. [End-to-End Scenario: FXS "Send To" Flyout](#end-to-end-scenario-fxs-send-to-flyout)
-5. [Lifecycle and Behaviour](#lifecycle-and-behaviour)
-6. [Validation and Tooling](#validation-and-tooling)
-7. [Troubleshooting](#troubleshooting)
+- [Inter-Tool Invocation](#inter-tool-invocation)
+    - [Table of Contents](#table-of-contents)
+    - [Overview](#overview)
+    - [Part 1 – Callee (the tool that accepts invocations)](#part-1--callee-the-tool-that-accepts-invocations)
+        - [1.1 Declaring the invocation contract (`pptb.config.json`)](#11-declaring-the-invocation-contract-pptbconfigjson)
+        - [1.2 Reading the launch context](#12-reading-the-launch-context)
+        - [1.3 Returning data to the caller](#13-returning-data-to-the-caller)
+        - [1.4 Handling standalone vs. invoked modes](#14-handling-standalone-vs-invoked-modes)
+        - [1.5 Complete callee example](#15-complete-callee-example)
+    - [Part 2 – Caller (the tool that launches other tools)](#part-2--caller-the-tool-that-launches-other-tools)
+        - [2.1 Launching a tool with prefill data](#21-launching-a-tool-with-prefill-data)
+        - [2.2 Handling the return value](#22-handling-the-return-value)
+        - [2.3 Connection auto-inheritance and overrides](#23-connection-auto-inheritance-and-overrides)
+        - [2.4 Tag-based capability discovery](#24-tag-based-capability-discovery)
+            - [Well-known capability tags](#well-known-capability-tags)
+        - [2.5 Complete caller example](#25-complete-caller-example)
+    - [End-to-End Scenario: FXS "Send To" Flyout](#end-to-end-scenario-fxs-send-to-flyout)
+        - [Scenario summary](#scenario-summary)
+        - [Step 1 – Callee tools declare the `"fetchxml"` capability](#step-1--callee-tools-declare-the-fetchxml-capability)
+        - [Step 2 – FXS builds its "Send To" flyout from discovered tools](#step-2--fxs-builds-its-send-to-flyout-from-discovered-tools)
+        - [Step 3 – User selects DMS; FXS launches it with `noReturn: true`](#step-3--user-selects-dms-fxs-launches-it-with-noreturn-true)
+        - [Step 4 – DMS reads the prefill data and uses it](#step-4--dms-reads-the-prefill-data-and-uses-it)
+        - [Step 5 – DMS closes; FXS Promise resolves](#step-5--dms-closes-fxs-promise-resolves)
+        - [Full sequence diagram](#full-sequence-diagram)
+    - [Validation and Tooling](#validation-and-tooling)
+        - [`pptb-validate`](#pptb-validate)
+        - [TypeScript types](#typescript-types)
+    - [Troubleshooting](#troubleshooting)
+        - [`launchTool` throws "Tool not found"](#launchtool-throws-tool-not-found)
+        - [`launchTool` throws "A callee invocation is already in progress"](#launchtool-throws-a-callee-invocation-is-already-in-progress)
+        - [`getLaunchContext()` returns `null` when expecting prefill data](#getlaunchcontext-returns-null-when-expecting-prefill-data)
+        - [Caller `Promise` resolves with `null` unexpectedly](#caller-promise-resolves-with-null-unexpectedly)
+        - [Changes to `pptb.config.json` are not picked up](#changes-to-pptbconfigjson-are-not-picked-up)
+        - [`returnData` appears to do nothing](#returndata-appears-to-do-nothing)
+        - [`findToolsByCapability` returns an empty array](#findtoolsbycapability-returns-an-empty-array)
+    - [References](#references)
 
 ---
 
@@ -68,14 +87,14 @@ Key properties of the feature:
 
 Create a file named `pptb.config.json` in the **root of your tool package** (next to `package.json`). This file declares:
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `invocation.version` | **Yes** (when `invocation` is present) | Semantic version of your invocation contract (e.g. `"1.0.0"`). Bump this when the shape of `prefill` or `returnTopic` changes. |
-| `invocation.capabilities` | No | Array of capability tag strings (e.g. `["entity-picker"]`). Used by callers to discover this tool. |
-| `invocation.prefill` | No | JSON-schema-style object describing the data a caller can pass in. |
-| `invocation.prefill.properties` | No | Map of property names to `{ type?, enum?, items? }` descriptors. |
-| `invocation.returnTopic` | No | JSON-schema-style object describing the data your tool returns to its caller. |
-| `invocation.returnTopic.properties` | No | Map of property names to `{ type?, enum?, items? }` descriptors. |
+| Field                               | Required                               | Description                                                                                                                    |
+| ----------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `invocation.version`                | **Yes** (when `invocation` is present) | Semantic version of your invocation contract (e.g. `"1.0.0"`). Bump this when the shape of `prefill` or `returnTopic` changes. |
+| `invocation.capabilities`           | No                                     | Array of capability tag strings (e.g. `["entity-picker"]`). Used by callers to discover this tool.                             |
+| `invocation.prefill`                | No                                     | JSON-schema-style object describing the data a caller can pass in.                                                             |
+| `invocation.prefill.properties`     | No                                     | Map of property names to `{ type?, enum?, items? }` descriptors.                                                               |
+| `invocation.returnTopic`            | No                                     | JSON-schema-style object describing the data your tool returns to its caller.                                                  |
+| `invocation.returnTopic.properties` | No                                     | Map of property names to `{ type?, enum?, items? }` descriptors.                                                               |
 
 **Example `pptb.config.json`:**
 
@@ -164,10 +183,10 @@ returnData(returnData: Record<string, unknown>): Promise<void>
 
 A well-behaved callee works in both modes:
 
-| Mode | `getLaunchContext()` returns | Expected behaviour |
-|------|-----------------------------|--------------------|
-| Standalone (normal launch) | `null` | Show full UI, no pre-populated state |
-| Invoked by another tool | `Record<string, unknown>` | Pre-populate UI from the context, show a "confirm / return" action |
+| Mode                       | `getLaunchContext()` returns | Expected behaviour                                                 |
+| -------------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| Standalone (normal launch) | `null`                       | Show full UI, no pre-populated state                               |
+| Invoked by another tool    | `Record<string, unknown>`    | Pre-populate UI from the context, show a "confirm / return" action |
 
 ```typescript
 async function initTool() {
@@ -256,8 +275,8 @@ Use `toolboxAPI.invocation.launchTool()` to open another installed tool and pass
 
 ```typescript
 const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",           // npm package name of the target tool
-    { entityName: "account" },         // prefill data (must match callee's prefill schema)
+    "@my-org/entity-picker", // npm package name of the target tool
+    { entityName: "account" }, // prefill data (must match callee's prefill schema)
 );
 ```
 
@@ -275,15 +294,16 @@ launchTool(
 ): Promise<unknown>
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `targetToolId` | `string` | The npm package name of the tool to launch (e.g. `"@my-org/entity-picker"`). Must be installed. |
-| `prefillData` | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema. |
-| `options.primaryConnectionId` | `string \| null` | Override the primary Dataverse connection for the callee. Omit to auto-inherit the caller's active FXS connection. |
-| `options.secondaryConnectionId` | `string \| null` | Override the secondary Dataverse connection for the callee. Omit to let PPTB prompt for it when the callee is a multi-connection tool. |
-| `options.noReturn` | `boolean` | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner is suppressed entirely for the callee. The invocation lifecycle is otherwise identical — the Promise still resolves with `null` when the callee closes. |
+| Parameter                       | Type                      | Description                                                                                                                                                                                                                                                             |
+| ------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `targetToolId`                  | `string`                  | The npm package name of the tool to launch (e.g. `"@my-org/entity-picker"`). Must be installed.                                                                                                                                                                         |
+| `prefillData`                   | `Record<string, unknown>` | Optional data to pre-populate the callee's state. Shape should match the callee's `invocation.prefill` schema.                                                                                                                                                          |
+| `options.primaryConnectionId`   | `string \| null`          | Override the primary Dataverse connection for the callee. Omit to auto-inherit the caller's active FXS connection.                                                                                                                                                      |
+| `options.secondaryConnectionId` | `string \| null`          | Override the secondary Dataverse connection for the callee. Omit to let PPTB prompt for it when the callee is a multi-connection tool.                                                                                                                                  |
+| `options.noReturn`              | `boolean`                 | When `true`, signals that the caller does not expect the callee to return data. The "Return to [Caller]" banner is suppressed entirely for the callee. The invocation lifecycle is otherwise identical — the Promise still resolves with `null` when the callee closes. |
 
 **Return value:** A `Promise` that resolves with the `Record<string, unknown>` passed to `returnData()` by the callee, or `null` if:
+
 - the callee closes without calling `returnData`, or
 - the user clicks the "Return to [this tool]" banner before the callee calls `returnData`.
 
@@ -298,10 +318,7 @@ launchTool(
 ### 2.2 Handling the return value
 
 ```typescript
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",
-    { entityName: "contact" },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", { entityName: "contact" });
 
 if (result !== null) {
     const { selectedId, selectedName } = result as { selectedId: string; selectedName: string };
@@ -325,30 +342,19 @@ By default, the callee **automatically inherits the caller's active FXS connecti
 
 ```typescript
 // Callee receives the same primary connection as this tool automatically
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",
-    { entityName: "account" },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", { entityName: "account" });
 ```
 
 To override with a specific connection, pass `options.primaryConnectionId`:
 
 ```typescript
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/solution-importer",
-    { solutionName: "MySolution" },
-    { primaryConnectionId: specificConnectionId },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/solution-importer", { solutionName: "MySolution" }, { primaryConnectionId: specificConnectionId });
 ```
 
 Pass `null` to launch the callee with no connection:
 
 ```typescript
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",
-    {},
-    { primaryConnectionId: null },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", {}, { primaryConnectionId: null });
 ```
 
 ---
@@ -382,19 +388,17 @@ getKnownCapabilityTags(): Promise<Array<{ tag: string; description: string }>>
 
 The following tags are registered in the official capability registry. Use them to ensure your tool is discoverable by callers without typos:
 
-| Tag | Description |
-|-----|-------------|
-| `fetchxml` | Accept or process FetchXML queries |
-| `entity-picker` | Browse and select a Dataverse entity (table) |
-| `record-selector` | Browse and select a Dataverse record |
-| `solution-selector` | Pick a Power Platform solution |
-| `webresource-editor` | Edit or manage web resources |
-| `plugin-inspector` | Inspect or manage plugins and assemblies |
-| `pcf-control-builder` | Build or scaffold PCF controls |
+| Tag                 | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `fetchxml`          | Accept or process FetchXML queries           |
+| `entity-picker`     | Browse and select a Dataverse entity (table) |
+| `record-selector`   | Browse and select a Dataverse record         |
+| `solution-selector` | Pick a Power Platform solution               |
 
 > **Note:** The registry is configurable without an app update — new tags are added to the Supabase `capability_tags` table and become immediately discoverable at runtime via `getKnownCapabilityTags()`. The TypeScript `KnownCapabilityTag` union type and `pptb-validate` are updated in the next `@pptb/types` release.
 
 > **IDE auto-complete:** Import `CapabilityTag` from `@pptb/types/pptbConfig` to get IntelliSense for known tags:
+>
 > ```typescript
 > import type { CapabilityTag } from "@pptb/types/pptbConfig";
 > ```
@@ -441,17 +445,17 @@ This section illustrates a concrete real-world scenario where **FetchXML Studio 
 
 ### Scenario summary
 
-| Step | What happens |
-|------|--------------|
-| 1 | User composes a FetchXML query in FXS. |
-| 2 | User clicks the **"Send To ▾"** flyout button in FXS. |
-| 3 | PPTB queries all installed tools that declare the `"fetchxml"` capability — both DRB and DMS qualify. The flyout lists them as options. |
-| 4 | User selects **DMS**. |
-| 5 | PPTB opens DMS, inheriting FXS's active Dataverse connection as the primary connection. |
-| 6 | If DMS requires a **secondary connection** (e.g. it is a multi-connection tool for cross-environment migration), PPTB automatically shows the **multi-connection selector** before launching DMS — the user picks the second connection. |
-| 7 | DMS opens pre-populated with the FetchXML from step 1. |
-| 8 | Because `noReturn: true` was set, **no banner is shown** in the DMS window — FXS does not expect data back. |
-| 9 | The user continues in DMS independently. Closing DMS resolves the Promise on the FXS side with `null`. |
+| Step | What happens                                                                                                                                                                                                                             |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | User composes a FetchXML query in FXS.                                                                                                                                                                                                   |
+| 2    | User clicks the **"Send To ▾"** flyout button in FXS.                                                                                                                                                                                    |
+| 3    | PPTB queries all installed tools that declare the `"fetchxml"` capability — both DRB and DMS qualify. The flyout lists them as options.                                                                                                  |
+| 4    | User selects **DMS**.                                                                                                                                                                                                                    |
+| 5    | PPTB opens DMS, inheriting FXS's active Dataverse connection as the primary connection.                                                                                                                                                  |
+| 6    | If DMS requires a **secondary connection** (e.g. it is a multi-connection tool for cross-environment migration), PPTB automatically shows the **multi-connection selector** before launching DMS — the user picks the second connection. |
+| 7    | DMS opens pre-populated with the FetchXML from step 1.                                                                                                                                                                                   |
+| 8    | Because `noReturn: true` was set, **no banner is shown** in the DMS window — FXS does not expect data back.                                                                                                                              |
+| 9    | The user continues in DMS independently. Closing DMS resolves the Promise on the FXS side with `null`.                                                                                                                                   |
 
 ---
 
@@ -596,8 +600,8 @@ main();
 
 Because `noReturn: true` was set, no banner is shown in the DMS window. The user works in DMS and closes it normally (or closes the tab). PPTB resolves FXS's Promise with `null`.
 
-| Action | Result |
-|--------|--------|
+| Action                 | Result                                           |
+| ---------------------- | ------------------------------------------------ |
 | Close DMS tab normally | DMS is closed; FXS Promise resolves with `null`. |
 
 ---
@@ -756,6 +760,7 @@ The tool was opened by the user directly rather than via `launchTool`. Ensure th
 ### Caller `Promise` resolves with `null` unexpectedly
 
 One of the following occurred:
+
 1. The callee window was closed by the user before `returnData()` was called.
 2. The user clicked the "Return to [CallerTool]" banner button before the callee called `returnData()`.
 
@@ -782,4 +787,3 @@ No installed tools declare the queried capability tag in their `pptb.config.json
 - [`packages/README.md`](../packages/README.md) – Developer guide for the `@pptb/types` package, including the API reference
 - [`src/main/managers/toolWindowManager.ts`](../src/main/managers/toolWindowManager.ts) – Host-side implementation (`launchToolWithContext`, `resolveInvocation`, `activeCallees`)
 - [`src/main/toolPreloadBridge.ts`](../src/main/toolPreloadBridge.ts) – Preload-side implementation of the `invocation` namespace
-
