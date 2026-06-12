@@ -112,9 +112,9 @@ declare namespace ToolBoxAPI {
      */
     export interface TerminalOptions {
         name: string;
-        shell?: string;
+        shell?: string; // Custom shells are ignored for tool security; secure default shell is always used
         cwd?: string;
-        env?: Record<string, string>;
+        env?: Record<string, string>; // PATH-like and shell bootstrap variables are filtered for tool security
         visible?: boolean; // Whether terminal should be visible initially (default: true)
     }
 

@@ -257,8 +257,8 @@ const terminal = await toolboxAPI.terminal.create({
     cwd: "/path/to/directory",
 });
 
-// Execute a command
-const result = await toolboxAPI.terminal.execute(terminal.id, "npm install");
+// Execute an allowed command (pac, npm, npx, pnpm)
+const result = await toolboxAPI.terminal.execute(terminal.id, "pac auth list");
 console.log("Exit code:", result.exitCode);
 console.log("Output:", result.output);
 
@@ -581,9 +581,11 @@ Core platform features organized into namespaces:
 
 - **create(options: TerminalOptions)**: Promise<Terminal>
     - Creates a new terminal attached to the tool (tool ID is auto-determined)
+    - Uses the app's secure default shell even if a custom shell is requested
 
 - **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
     - Executes a command in the specified terminal and returns its result
+    - Only allowlisted commands (`pac`, `npm`, `npx`, `pnpm`) are executed
 
 - **close(terminalId: string)**: Promise<void>
     - Closes the specified terminal

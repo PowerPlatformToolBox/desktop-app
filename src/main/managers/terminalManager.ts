@@ -4,6 +4,119 @@ import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 import { logInfo, logWarn } from "../../common/logger";
 
+const ALLOWED_TERMINAL_EXECUTABLES = new Set(["pac", "npm", "npx", "pnpm"]);
+const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
+
+interface ParsedTerminalCommand {
+    executable: string;
+    args: string[];
+}
+
+function sanitizeTerminalEnv(env?: Record<string, string>): Record<string, string> | undefined {
+    if (!env) {
+        return undefined;
+    }
+
+    const sanitizedEnv = Object.entries(env).reduce<Record<string, string>>((result, [key, value]) => {
+        if (!BLOCKED_TERMINAL_ENV_KEYS.has(key.toUpperCase())) {
+            result[key] = value;
+        }
+
+        return result;
+    }, {});
+
+    return Object.keys(sanitizedEnv).length > 0 ? sanitizedEnv : undefined;
+}
+
+function tokenizeTerminalCommand(command: string): string[] {
+    const tokens: string[] = [];
+    let currentToken = "";
+    let activeQuote: '"' | "'" | null = null;
+    let isEscaped = false;
+
+    for (let index = 0; index < command.length; index += 1) {
+        const char = command[index];
+
+        if (isEscaped) {
+            currentToken += char;
+            isEscaped = false;
+            continue;
+        }
+
+        if (char === "\\" && activeQuote !== "'") {
+            const nextChar = command[index + 1];
+            if (nextChar === '"' || nextChar === "'" || nextChar === "\\" || (nextChar && /\s/.test(nextChar))) {
+                isEscaped = true;
+                continue;
+            }
+        }
+
+        if (activeQuote) {
+            if (char === activeQuote) {
+                activeQuote = null;
+            } else {
+                currentToken += char;
+            }
+            continue;
+        }
+
+        if (char === '"' || char === "'") {
+            activeQuote = char;
+            continue;
+        }
+
+        if (/\s/.test(char)) {
+            if (currentToken) {
+                tokens.push(currentToken);
+                currentToken = "";
+            }
+            continue;
+        }
+
+        currentToken += char;
+    }
+
+    if (activeQuote) {
+        throw new Error("Terminal command contains an unterminated quote.");
+    }
+
+    if (isEscaped) {
+        currentToken += "\\";
+    }
+
+    if (currentToken) {
+        tokens.push(currentToken);
+    }
+
+    return tokens;
+}
+
+function parseTerminalCommand(command: string): ParsedTerminalCommand {
+    const trimmedCommand = command.trim();
+    if (!trimmedCommand) {
+        throw new Error("Terminal command cannot be empty.");
+    }
+
+    if (/[\r\n]/.test(trimmedCommand)) {
+        throw new Error("Multi-line terminal commands are not allowed.");
+    }
+
+    const tokens = tokenizeTerminalCommand(trimmedCommand);
+    if (tokens.length === 0) {
+        throw new Error("Terminal command cannot be empty.");
+    }
+
+    const executable = tokens[0].toLowerCase();
+    if (!ALLOWED_TERMINAL_EXECUTABLES.has(executable)) {
+        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Allowed commands: ${Array.from(ALLOWED_TERMINAL_EXECUTABLES).join(", ")}.`);
+    }
+
+    return {
+        executable,
+        args: tokens.slice(1),
+    };
+}
+
 /**
  * Manages terminal instances for tools
  * Each tool can create its own terminal and execute commands
@@ -29,27 +142,14 @@ export class TerminalManager extends EventEmitter {
     }
 
     /**
-     * Check if a shell exists and is executable
-     */
-    private async shellExists(shellPath: string): Promise<boolean> {
-        return new Promise((resolve) => {
-            const testProcess = spawn(shellPath, ["--version"], { stdio: "ignore" });
-            testProcess.on("error", () => resolve(false));
-            testProcess.on("close", (code) => resolve(code !== null));
-        });
-    }
-
-    /**
      * Create a new terminal for a tool
      */
     async createTerminal(toolId: string, toolInstanceId: string | null, options: TerminalOptions): Promise<Terminal> {
         const terminalId = randomUUID();
-        let shell = options.shell || this.defaultShell;
+        const shell = this.defaultShell;
 
-        // Verify shell exists, fallback to default if not
-        if (options.shell && !(await this.shellExists(options.shell))) {
-            logWarn(`Shell ${options.shell} not found, using default shell ${this.defaultShell}`);
-            shell = this.defaultShell;
+        if (options.shell && options.shell !== this.defaultShell) {
+            logWarn(`Ignoring custom shell ${options.shell} for terminal ${terminalId}; using secure default shell ${this.defaultShell}`);
         }
 
         const cwd = options.cwd || process.cwd();
@@ -68,7 +168,13 @@ export class TerminalManager extends EventEmitter {
             createdAt: new Date().toISOString(),
         };
 
-        const instance = new TerminalInstance(terminal, options.env);
+        const sanitizedEnv = sanitizeTerminalEnv(options.env);
+        const strippedEnvKeys = Object.keys(options.env ?? {}).filter((key) => !Object.prototype.hasOwnProperty.call(sanitizedEnv ?? {}, key));
+        if (strippedEnvKeys.length > 0) {
+            logWarn(`Ignoring restricted terminal environment variables for terminal ${terminalId}: ${strippedEnvKeys.join(", ")}`);
+        }
+
+        const instance = new TerminalInstance(terminal, sanitizedEnv);
         this.terminals.set(terminalId, instance);
 
         // Forward terminal events with toolId for proper filtering
@@ -99,7 +205,23 @@ export class TerminalManager extends EventEmitter {
             throw new Error(`Terminal ${terminalId} not found`);
         }
 
-        return instance.executeCommand(command);
+        let parsedCommand: ParsedTerminalCommand;
+        try {
+            parsedCommand = parseTerminalCommand(command);
+        } catch (error) {
+            const blockedResult: TerminalCommandResult = {
+                terminalId,
+                commandId: randomUUID(),
+                exitCode: 1,
+                error: error instanceof Error ? error.message : "Blocked unsafe terminal command.",
+            };
+
+            this.emit("terminal:error", { terminalId, toolId: instance.terminal.toolId, error: blockedResult.error });
+            this.emit("terminal:command:completed", { ...blockedResult, toolId: instance.terminal.toolId });
+            return blockedResult;
+        }
+
+        return instance.executeCommand(parsedCommand);
     }
 
     /**
@@ -194,115 +316,29 @@ export class TerminalManager extends EventEmitter {
 }
 
 /**
- * Internal terminal instance that manages a shell process
+ * Internal terminal instance that manages secured command execution
  */
 class TerminalInstance extends EventEmitter {
     public terminal: Terminal;
     private process: ChildProcessWithoutNullStreams | null = null;
-    private commandQueue: Array<{ command: string; commandId: string; resolve: (result: TerminalCommandResult) => void; reject: (error: Error) => void }> = [];
-    private currentCommand: { commandId: string; output: string; resolve: (result: TerminalCommandResult) => void; reject: (error: Error) => void } | null = null;
+    private env?: Record<string, string>;
+    private commandQueue: Array<{ parsedCommand: ParsedTerminalCommand; commandId: string; resolve: (result: TerminalCommandResult) => void }> = [];
     private isProcessing = false;
 
     constructor(terminal: Terminal, env?: Record<string, string>) {
         super();
         this.terminal = terminal;
-        this.startShellProcess(env);
-    }
-
-    /**
-     * Start the shell process
-     */
-    private startShellProcess(env?: Record<string, string>): void {
-        const shellArgs = this.getShellArgs();
-
-        // Ensure critical environment variables are set for proper shell initialization
-        const processEnv = {
-            ...process.env,
-            ...env,
-            // Ensure TERM is set for proper terminal emulation (needed for Oh-My-Posh and colors)
-            TERM: process.env.TERM || "xterm-256color",
-            // Ensure COLORTERM is set to indicate true color support
-            COLORTERM: process.env.COLORTERM || "truecolor",
-        };
-
-        // Log shell startup for debugging (can be removed in production)
-        logInfo(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell} with args: ${shellArgs.join(" ")}`);
-        logInfo(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
-        logInfo(`[Terminal ${this.terminal.id}] TERM: ${processEnv.TERM}, COLORTERM: ${processEnv.COLORTERM}`);
-
-        this.process = spawn(this.terminal.shell, shellArgs, {
-            cwd: this.terminal.cwd,
-            env: processEnv,
-            shell: false,
-        });
-
-        this.process.stdout.on("data", (data: Buffer) => {
-            const output = data.toString();
-            this.emit("output", output);
-
-            if (this.currentCommand) {
-                this.currentCommand.output += output;
-            }
-        });
-
-        this.process.stderr.on("data", (data: Buffer) => {
-            const output = data.toString();
-            this.emit("output", output);
-
-            if (this.currentCommand) {
-                this.currentCommand.output += output;
-            }
-        });
-
-        this.process.on("error", (error: Error) => {
-            this.emit("error", error.message);
-            if (this.currentCommand) {
-                this.currentCommand.reject(error);
-                this.currentCommand = null;
-            }
-        });
-
-        this.process.on("close", (code: number | null) => {
-            if (this.currentCommand) {
-                const result: TerminalCommandResult = {
-                    terminalId: this.terminal.id,
-                    commandId: this.currentCommand.commandId,
-                    output: this.currentCommand.output,
-                    exitCode: code ?? undefined,
-                };
-                this.currentCommand.resolve(result);
-                this.emit("command:completed", result);
-                this.currentCommand = null;
-            }
-        });
-    }
-
-    /**
-     * Get appropriate shell arguments for interactive mode
-     */
-    private getShellArgs(): string[] {
-        if (process.platform === "win32") {
-            // Windows cmd.exe or PowerShell
-            if (this.terminal.shell.toLowerCase().includes("powershell")) {
-                return ["-NoLogo", "-NoExit"];
-            }
-            return ["/Q"]; // Quiet mode for cmd
-        } else {
-            // Unix-like shells - use both login and interactive modes
-            // -l loads the login profile (e.g., .bash_profile, .zprofile)
-            // -i makes it interactive (loads .bashrc, .zshrc)
-            return ["-l", "-i"]; // Login + Interactive mode to load all profiles
-        }
+        this.env = env;
     }
 
     /**
      * Execute a command in the terminal
      */
-    async executeCommand(command: string): Promise<TerminalCommandResult> {
+    async executeCommand(parsedCommand: ParsedTerminalCommand): Promise<TerminalCommandResult> {
         const commandId = randomUUID();
 
-        return new Promise<TerminalCommandResult>((resolve, reject) => {
-            this.commandQueue.push({ command, commandId, resolve, reject });
+        return new Promise<TerminalCommandResult>((resolve) => {
+            this.commandQueue.push({ parsedCommand, commandId, resolve });
             this.processQueue();
         });
     }
@@ -311,38 +347,74 @@ class TerminalInstance extends EventEmitter {
      * Process the command queue
      */
     private processQueue(): void {
-        if (this.isProcessing || this.commandQueue.length === 0 || !this.process) {
+        if (this.isProcessing || this.commandQueue.length === 0) {
             return;
         }
 
         this.isProcessing = true;
         const queueItem = this.commandQueue.shift()!;
-        this.currentCommand = {
-            commandId: queueItem.commandId,
-            output: "",
-            resolve: queueItem.resolve,
-            reject: queueItem.reject,
+        let output = "";
+        let isCompleted = false;
+        const processEnv = {
+            ...process.env,
+            ...this.env,
+            TERM: process.env.TERM || "xterm-256color",
+            COLORTERM: process.env.COLORTERM || "truecolor",
         };
 
-        // Write command to stdin
-        const commandWithNewline = queueItem.command + (process.platform === "win32" ? "\r\n" : "\n");
-        this.process.stdin.write(commandWithNewline);
+        logInfo(`[Terminal ${this.terminal.id}] Executing ${queueItem.parsedCommand.executable} ${queueItem.parsedCommand.args.join(" ")}`.trim());
+        logInfo(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
 
-        // Set a timeout to resolve the command even if process doesn't close
-        setTimeout(() => {
-            if (this.currentCommand && this.currentCommand.commandId === queueItem.commandId) {
-                const result: TerminalCommandResult = {
-                    terminalId: this.terminal.id,
-                    commandId: this.currentCommand.commandId,
-                    output: this.currentCommand.output,
-                };
-                this.currentCommand.resolve(result);
-                this.emit("command:completed", result);
-                this.currentCommand = null;
-                this.isProcessing = false;
-                this.processQueue();
+        this.process = spawn(queueItem.parsedCommand.executable, queueItem.parsedCommand.args, {
+            cwd: this.terminal.cwd,
+            env: processEnv,
+            shell: false,
+        });
+
+        const complete = (result: TerminalCommandResult): void => {
+            if (isCompleted) {
+                return;
             }
-        }, 5000); // 5 second timeout for command execution
+
+            isCompleted = true;
+            this.process = null;
+            this.isProcessing = false;
+            queueItem.resolve(result);
+            this.emit("command:completed", result);
+            this.processQueue();
+        };
+
+        this.process.stdout.on("data", (data: Buffer) => {
+            const chunk = data.toString();
+            output += chunk;
+            this.emit("output", chunk);
+        });
+
+        this.process.stderr.on("data", (data: Buffer) => {
+            const chunk = data.toString();
+            output += chunk;
+            this.emit("output", chunk);
+        });
+
+        this.process.on("error", (error: Error) => {
+            this.emit("error", error.message);
+            complete({
+                terminalId: this.terminal.id,
+                commandId: queueItem.commandId,
+                output,
+                exitCode: 1,
+                error: error.message,
+            });
+        });
+
+        this.process.on("close", (code: number | null) => {
+            complete({
+                terminalId: this.terminal.id,
+                commandId: queueItem.commandId,
+                output,
+                exitCode: code ?? undefined,
+            });
+        });
     }
 
     /**
