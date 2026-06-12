@@ -762,11 +762,25 @@ function setupToolPanelBoundsListener(): void {
 
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
+            let adjustedY = Math.round(rect.top);
+            let adjustedHeight = Math.round(rect.height);
+
+            // If the invocation banner is visible it floats over the content area via
+            // position:absolute, but Electron BrowserViews are native OS views that CSS
+            // cannot push around.  Shrink the BrowserView bounds from the top so the
+            // tool content starts below the banner and is never hidden behind it.
+            const invocationBanner = document.getElementById("invocation-banner");
+            if (invocationBanner && invocationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(invocationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
             const bounds = {
                 x: Math.round(rect.left),
-                y: Math.round(rect.top),
+                y: adjustedY,
                 width: Math.round(rect.width),
-                height: Math.round(rect.height),
+                height: adjustedHeight,
             };
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);

@@ -1793,6 +1793,9 @@ export function initializeInvocationBanner(): void {
         } else {
             banner.style.display = "none";
         }
+        // Notify the main process so it can re-request BrowserView bounds that
+        // account for the banner height (or restore full-height when hidden).
+        window.api.send("invocation-banner-visibility-changed");
     });
 
     // "Return" button: trigger banner early-return path
@@ -1801,9 +1804,11 @@ export function initializeInvocationBanner(): void {
         banner.style.display = "none";
     });
 
-    // "Dismiss" button: hide banner only — does NOT end the invocation
+    // "Dismiss" button: hide banner only — does NOT end the invocation.
+    // After hiding, notify the main process to restore full-height BrowserView bounds.
     dismissBtn.addEventListener("click", () => {
         banner.style.display = "none";
+        window.api.send("invocation-banner-visibility-changed");
     });
 }
 
