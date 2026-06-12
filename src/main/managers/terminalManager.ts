@@ -4,8 +4,10 @@ import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 import { logInfo, logWarn } from "../../common/logger";
 
-const ALLOWED_TERMINAL_EXECUTABLES = new Set(["pac", "npm", "npx"]);
+const ALLOWED_TERMINAL_COMMAND_NAMES = new Set(["pac", "npm", "npx"]);
 const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
+const BLOCKED_NPX_FLAGS = new Set(["-c", "--call", "-s", "--shell"]);
+const BLOCKED_NPM_SUBCOMMANDS = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
 
 interface ParsedTerminalCommand {
     executable: string;
@@ -111,7 +113,7 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         throw new Error("Terminal command cannot be empty.");
     }
 
-    if (/[\r\n]/.test(trimmedCommand)) {
+    if (/[\r\n\u000b\u000c\u2028\u2029]/.test(trimmedCommand)) {
         throw new Error("Multi-line terminal commands are not allowed.");
     }
 
@@ -121,18 +123,17 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
     }
 
     const executable = tokens[0].toLowerCase();
-    if (!ALLOWED_TERMINAL_EXECUTABLES.has(executable)) {
-        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Allowed commands: ${Array.from(ALLOWED_TERMINAL_EXECUTABLES).join(", ")}.`);
+    if (!ALLOWED_TERMINAL_COMMAND_NAMES.has(executable)) {
+        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Allowed commands: ${Array.from(ALLOWED_TERMINAL_COMMAND_NAMES).join(", ")}.`);
     }
 
-    if (executable === "npx" && tokens.slice(1).some((arg) => arg.toLowerCase() === "-c" || arg.toLowerCase() === "--call")) {
+    if (executable === "npx" && tokens.slice(1).some((arg) => BLOCKED_NPX_FLAGS.has(arg.toLowerCase()))) {
         throw new Error("Blocked unsafe npx invocation. Shell execution flags are not allowed.");
     }
 
     if (executable === "npm") {
-        const blockedNpmSubcommands = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
         const subcommand = tokens[1]?.toLowerCase();
-        if (subcommand && blockedNpmSubcommands.has(subcommand)) {
+        if (subcommand && BLOCKED_NPM_SUBCOMMANDS.has(subcommand)) {
             throw new Error(`Blocked unsafe npm subcommand "${tokens[1]}".`);
         }
     }
