@@ -1857,15 +1857,15 @@ export function initializeCalleeToolListeners(): void {
         }
 
         // Determine the instance number for the display name.
-        const existingInstances = Array.from(openTools.values()).filter((t) => !t.isDetailTab && t.toolId === (tool as any).id);
+        const existingInstances = Array.from(openTools.values()).filter((t) => !t.isDetailTab && t.toolId === tool.id);
         const instanceNumber = existingInstances.length + 1;
 
         // Register the callee in the open-tools map so all tab management
         // functions (close, pin, context menu, session save, etc.) work correctly.
         openTools.set(calleeInstanceId, {
             instanceId: calleeInstanceId,
-            toolId: (tool as any).id,
-            tool: tool as any,
+            toolId: tool.id,
+            tool: tool,
             isPinned: false,
             connectionId: primaryConnectionId,
             secondaryConnectionId: secondaryConnectionId,
