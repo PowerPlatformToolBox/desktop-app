@@ -14,6 +14,12 @@ interface ParsedTerminalCommand {
     args: string[];
 }
 
+interface QueuedCommand {
+    parsedCommand: ParsedTerminalCommand;
+    commandId: string;
+    resolve: (result: TerminalCommandResult) => void;
+}
+
 interface SanitizedTerminalEnv {
     env?: Record<string, string>;
     strippedKeys: string[];
@@ -61,7 +67,7 @@ function tokenizeTerminalCommand(command: string): string[] {
             const nextChar = command[index + 1];
             // Commands are executed with shell:false, so tokenization only needs to preserve quoted
             // arguments and escaped whitespace/quotes without emulating full shell parsing.
-            if (nextChar === '"' || nextChar === "'" || nextChar === "\\" || (nextChar && /\s/.test(nextChar))) {
+            if (nextChar === '"' || nextChar === "'" || nextChar === "\\" || /\s/.test(nextChar || "")) {
                 isEscaped = true;
                 continue;
             }
@@ -97,7 +103,7 @@ function tokenizeTerminalCommand(command: string): string[] {
     }
 
     if (isEscaped) {
-        currentToken += "\\";
+        throw new Error("Terminal command ends with an incomplete escape sequence.");
     }
 
     if (currentToken) {
@@ -113,7 +119,7 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         throw new Error("Terminal command cannot be empty.");
     }
 
-    if (/[\r\n\u000b\u000c\u2028\u2029]/.test(trimmedCommand)) {
+    if (/[\r\n\u2028\u2029]/.test(trimmedCommand) || trimmedCommand.includes("\u000b") || trimmedCommand.includes("\u000c")) {
         throw new Error("Multi-line terminal commands are not allowed.");
     }
 
@@ -348,7 +354,7 @@ class TerminalInstance extends EventEmitter {
     public terminal: Terminal;
     private process: ChildProcessWithoutNullStreams | null = null;
     private env?: Record<string, string>;
-    private commandQueue: Array<{ parsedCommand: ParsedTerminalCommand; commandId: string; resolve: (result: TerminalCommandResult) => void }> = [];
+    private commandQueue: QueuedCommand[] = [];
     private isProcessing = false;
 
     constructor(terminal: Terminal, env?: Record<string, string>) {
@@ -388,7 +394,7 @@ class TerminalInstance extends EventEmitter {
             COLORTERM: process.env.COLORTERM || "truecolor",
         };
 
-        logInfo(`[Terminal ${this.terminal.id}] Executing ${queueItem.parsedCommand.executable} ${queueItem.parsedCommand.args.join(" ")}`.trim());
+        logInfo(`[Terminal ${this.terminal.id}] Executing ${queueItem.parsedCommand.executable}`);
         logInfo(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
 
         this.process = spawn(queueItem.parsedCommand.executable, queueItem.parsedCommand.args, {
