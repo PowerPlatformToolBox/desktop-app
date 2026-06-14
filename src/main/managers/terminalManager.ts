@@ -553,6 +553,9 @@ class TerminalInstance extends EventEmitter {
             const afterSentinel = this.pendingCommand.stderrBuffer.substring(sentinelIdx + sentinel.length);
             const exitCodeMatch = afterSentinel.match(/^(\d+)/);
             // Default to 1 (failure) if the exit code portion is malformed or missing
+            if (!exitCodeMatch) {
+                logWarn(`Malformed command sentinel for command ${this.pendingCommand.commandId} in terminal ${this.terminal.id}; defaulting exit code to 1`);
+            }
             const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
             this.resolvePendingCommand(exitCode);
         } else {
