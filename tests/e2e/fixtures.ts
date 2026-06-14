@@ -35,9 +35,14 @@ export const test = base.extend<AppFixtures>({
     },
 
     window: async ({ electronApp }, use) => {
-        // Wait for the first BrowserWindow to be visible
         const win = await electronApp.firstWindow();
-        await win.waitForLoadState("domcontentloaded");
+        // firstWindow() may return while the BrowserWindow is still on about:blank
+        // (before loadFile() navigates to index.html).  waitForURL ensures we're on
+        // the actual renderer HTML before assertions run.
+        await win.waitForURL(/index\.html/, { timeout: 30_000 });
+        // Wait for all resources (CSS, JS) to finish loading so elements have
+        // correct dimensions and are considered visible by Playwright.
+        await win.waitForLoadState("load");
         await use(win);
     },
 });

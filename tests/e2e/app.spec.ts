@@ -11,7 +11,7 @@ import { test, expect } from "./fixtures";
 
 test.describe("App launch", () => {
     test("main window is visible after launch", async ({ window }) => {
-        await expect(window).toHaveTitle(/Power Platform ToolBox/i);
+        await expect(window).toHaveTitle(/Power Platform ToolBox/i, { timeout: 30_000 });
     });
 
     test("main window has content (body is not empty)", async ({ window }) => {
