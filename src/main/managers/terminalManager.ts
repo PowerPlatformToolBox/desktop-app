@@ -199,7 +199,8 @@ function getShellType(shell: string): ShellType {
 
 function getShellInteractiveArgs(shellType: ShellType): string[] {
     if (shellType === "pwsh") return ["-NoLogo"];
-    if (shellType === "cmd") return ["/K"];
+    // cmd.exe with no args starts an interactive session that reads from stdin
+    if (shellType === "cmd") return [];
     return ["-i"];
 }
 
@@ -207,25 +208,30 @@ function getShellInteractiveArgs(shellType: ShellType): string[] {
  * Builds the text written to the shell's stdin to execute a validated command.
  * A unique sentinel marker is written to stderr after the command so the caller
  * can detect completion and extract the exit code without polluting visible output.
+ *
+ * All arguments are shell-quoted before writing to prevent injection via argument values.
  */
 function buildShellCommandInput(parsedCommand: ParsedTerminalCommand, commandId: string, shellType: ShellType): string {
     const quoteArg = (arg: string): string => {
         if (shellType === "pwsh") return `'${arg.replace(/'/g, "''")}'`;
+        // CMD.exe: wrap in double quotes and double any embedded double quotes (standard cmd quoting)
         if (shellType === "cmd") return `"${arg.replace(/"/g, '""')}"`;
-        return `'${arg.replace(/'/g, "'\\''")}'`; // POSIX single-quote escaping
+        // POSIX: close the current single-quoted string, escape the quote, reopen single-quoted string
+        return `'${arg.replace(/'/g, "'\\''")}'`;
     };
     const argStr = parsedCommand.args.length > 0 ? " " + parsedCommand.args.map(quoteArg).join(" ") : "";
     const cmd = `${parsedCommand.executable}${argStr}`;
     const sentinel = `PPTB_CMD_END_${commandId}`;
 
     if (shellType === "pwsh") {
-        // Write sentinel to stderr so stdout stays clean for the caller
-        return `${cmd}\n$__pptb__ = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } elseif ($?) { 0 } else { 1 }; [Console]::Error.WriteLine("${sentinel}_$__pptb__")\n`;
+        // Capture $? and $LASTEXITCODE immediately before any conditional to prevent them being overwritten
+        return `${cmd}\n$__pptb_ok__ = $?; $__pptb_lec__ = $LASTEXITCODE; $__pptb__ = if ($null -ne $__pptb_lec__) { $__pptb_lec__ } elseif ($__pptb_ok__) { 0 } else { 1 }; [Console]::Error.WriteLine("${sentinel}_$__pptb__")\n`;
     }
     if (shellType === "cmd") {
-        return `${cmd}\r\necho ${sentinel}_%ERRORLEVEL% 1>&2\r\n`;
+        // Use >&2 (without the explicit 1) for stdout-to-stderr redirection in cmd.exe
+        return `${cmd}\r\necho ${sentinel}_%ERRORLEVEL% >&2\r\n`;
     }
-    // POSIX: write sentinel to stderr using printf to avoid echo quirks
+    // POSIX: capture $? immediately after the command; write sentinel to stderr via printf
     return `${cmd}\n__pptb__=$?; printf '%s\\n' "${sentinel}_$__pptb__" >&2\n`;
 }
 
@@ -234,6 +240,12 @@ function buildShellCommandInput(parsedCommand: ParsedTerminalCommand, commandId:
  * default if the requested shell cannot be found on the current machine.
  */
 function resolveShell(requestedShell: string, defaultShell: string, terminalId: string): string {
+    // Reject paths containing null bytes or obvious shell metacharacters to prevent injection
+    if (/[\0;&|<>]/.test(requestedShell)) {
+        logWarn(`Requested shell "${requestedShell}" contains invalid characters for terminal ${terminalId}; falling back to ${defaultShell}`);
+        return defaultShell;
+    }
+
     if (isAbsolute(requestedShell)) {
         if (existsSync(requestedShell)) {
             return requestedShell;
@@ -540,7 +552,8 @@ class TerminalInstance extends EventEmitter {
             }
             const afterSentinel = this.pendingCommand.stderrBuffer.substring(sentinelIdx + sentinel.length);
             const exitCodeMatch = afterSentinel.match(/^(\d+)/);
-            const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 0;
+            // Default to 1 (failure) if the exit code portion is malformed or missing
+            const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
             this.resolvePendingCommand(exitCode);
         } else {
             // Sentinel not yet received; emit complete stderr lines in real-time
