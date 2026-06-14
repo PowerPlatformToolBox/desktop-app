@@ -1,0 +1,97 @@
+name: Test
+
+on:
+    pull_request:
+        branches:
+            - main
+            - dev
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    # -------------------------------------------------------------------------
+    # Unit tests — Jest, no display required
+    # -------------------------------------------------------------------------
+    unit-tests:
+        name: Unit Tests (Jest)
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Install dependencies
+              run: pnpm install
+
+            - name: Run unit tests
+              run: pnpm run test:unit
+
+            - name: Upload coverage
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: unit-coverage
+                  path: coverage/
+                  retention-days: 7
+
+    # -------------------------------------------------------------------------
+    # E2e tests — Playwright + Electron, requires a virtual display (xvfb)
+    # -------------------------------------------------------------------------
+    e2e-tests:
+        name: E2e Tests (Playwright)
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Install pnpm
+              run: npm install -g pnpm@10.18.3
+
+            - name: Install dependencies
+              run: pnpm install
+
+            - name: Install Playwright browsers
+              run: pnpm exec playwright install --with-deps chromium
+
+            - name: Install Linux display dependencies
+              run: sudo apt-get install -y xvfb libgtk-3-0 libnotify-dev libnss3 libxss1 libasound2t64
+
+            - name: Build application
+              env:
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
+                  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+              run: pnpm run build
+
+            - name: Run e2e tests
+              run: xvfb-run --auto-servernum pnpm run test:e2e
+              env:
+                  CI: true
+
+            - name: Upload Playwright report
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-report
+                  path: test-results/
+                  retention-days: 7
