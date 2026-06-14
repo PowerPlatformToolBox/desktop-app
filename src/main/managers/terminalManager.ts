@@ -734,18 +734,25 @@ class TerminalInstance extends EventEmitter {
         }
     }
 
+    /**
+     * Flushes any remaining buffered stdout, filtering sentinel echo lines.
+     * Called before a pending command is resolved or failed so no output is lost.
+     */
+    private flushStdoutBuffer(): void {
+        if (!this.stdoutLineBuffer || !this.pendingCommand) return;
+        const remaining = this.stdoutLineBuffer;
+        this.stdoutLineBuffer = "";
+        if (!this.isSentinelEchoLine(remaining)) {
+            this.emit("output", remaining);
+            this.pendingCommand.output += remaining;
+        }
+    }
+
     private resolvePendingCommand(exitCode: number): void {
         if (!this.pendingCommand) return;
 
         // Flush any stdout that arrived after the last newline boundary.
-        if (this.stdoutLineBuffer) {
-            const remaining = this.stdoutLineBuffer;
-            this.stdoutLineBuffer = "";
-            if (!this.isSentinelEchoLine(remaining)) {
-                this.emit("output", remaining);
-                this.pendingCommand.output += remaining;
-            }
-        }
+        this.flushStdoutBuffer();
 
         const pending = this.pendingCommand;
         this.pendingCommand = null;
@@ -766,14 +773,7 @@ class TerminalInstance extends EventEmitter {
         if (!this.pendingCommand) return;
 
         // Flush any stdout that arrived after the last newline boundary.
-        if (this.stdoutLineBuffer) {
-            const remaining = this.stdoutLineBuffer;
-            this.stdoutLineBuffer = "";
-            if (!this.isSentinelEchoLine(remaining)) {
-                this.emit("output", remaining);
-                this.pendingCommand.output += remaining;
-            }
-        }
+        this.flushStdoutBuffer();
 
         const pending = this.pendingCommand;
         this.pendingCommand = null;
