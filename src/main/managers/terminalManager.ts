@@ -34,13 +34,14 @@ const BLOCKED_TERMINAL_COMMANDS = new Set([
 ]);
 const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
 const BLOCKED_NPX_FLAGS = new Set(["-c", "--call", "-s", "--shell"]);
-const BLOCKED_NPM_SUBCOMMANDS = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
 
 type ShellType = "posix" | "pwsh" | "cmd";
 
 interface ParsedTerminalCommand {
     executable: string;
     args: string[];
+    /** The validated command string as entered by the user (leading/trailing whitespace trimmed), written verbatim to the shell's stdin. */
+    rawCommand: string;
 }
 
 interface QueuedCommand {
@@ -149,6 +150,136 @@ function tokenizeTerminalCommand(command: string): string[] {
     return tokens;
 }
 
+/**
+ * Checks for unquoted command substitution patterns ($(…) and backticks) that could
+ * be used to execute blocked commands indirectly when the raw command string is passed
+ * directly to the shell's stdin.
+ */
+function checkNoUnquotedSubstitution(command: string): void {
+    let activeQuote: '"' | "'" | null = null;
+    let isEscaped = false;
+
+    for (let i = 0; i < command.length; i++) {
+        const char = command[i];
+        const nextChar = command[i + 1];
+
+        if (isEscaped) {
+            isEscaped = false;
+            continue;
+        }
+
+        if (char === "\\" && activeQuote !== "'") {
+            isEscaped = true;
+            continue;
+        }
+
+        if (activeQuote) {
+            if (char === activeQuote) activeQuote = null;
+            continue;
+        }
+
+        if (char === '"' || char === "'") {
+            activeQuote = char;
+            continue;
+        }
+
+        if (char === "`") {
+            throw new Error("Terminal command contains unquoted command substitution.");
+        }
+        if (char === "$" && nextChar === "(") {
+            throw new Error("Terminal command contains unquoted command substitution.");
+        }
+    }
+}
+
+/**
+ * Splits a command string on unquoted shell sequence/pipe operators: &&, ||, ;, |
+ * Respects single and double quoted strings.  Returns trimmed, non-empty segments.
+ */
+function splitCompoundCommand(command: string): string[] {
+    const segments: string[] = [];
+    let current = "";
+    let activeQuote: '"' | "'" | null = null;
+    let isEscaped = false;
+
+    for (let i = 0; i < command.length; i++) {
+        const char = command[i];
+        const nextChar = command[i + 1];
+
+        if (isEscaped) {
+            current += char;
+            isEscaped = false;
+            continue;
+        }
+
+        if (char === "\\" && activeQuote !== "'") {
+            isEscaped = true;
+            current += char;
+            continue;
+        }
+
+        if (activeQuote) {
+            if (char === activeQuote) activeQuote = null;
+            current += char;
+            continue;
+        }
+
+        if (char === '"' || char === "'") {
+            activeQuote = char;
+            current += char;
+            continue;
+        }
+
+        // && or || (two-character operators)
+        if ((char === "&" && nextChar === "&") || (char === "|" && nextChar === "|")) {
+            if (current.trim()) segments.push(current.trim());
+            current = "";
+            i++; // skip the second operator character
+            continue;
+        }
+
+        // Single | (pipe) or ; (sequence)
+        if (char === "|" || char === ";") {
+            if (current.trim()) segments.push(current.trim());
+            current = "";
+            continue;
+        }
+
+        current += char;
+    }
+
+    if (current.trim()) segments.push(current.trim());
+    return segments.length > 0 ? segments : [command.trim()];
+}
+
+/**
+ * Validates a single command segment (executable + args) against the blocklist.
+ * A "segment" is one command from a compound expression, e.g. `git status` from
+ * `cd /tmp && git status`.
+ */
+function validateCommandSegment(segment: string): void {
+    const trimmed = segment.trim();
+    if (!trimmed) return;
+
+    const tokens = tokenizeTerminalCommand(trimmed);
+    if (tokens.length === 0) return;
+
+    const rawExecutable = tokens[0];
+    const executable = rawExecutable.toLowerCase();
+
+    if (/[;&|<>]/.test(rawExecutable)) {
+        throw new Error(`Terminal command executable "${rawExecutable}" contains shell metacharacters.`);
+    }
+
+    if (BLOCKED_TERMINAL_COMMANDS.has(executable)) {
+        throw new Error(`Blocked unsafe terminal command "${rawExecutable}". Shell interpreters and privilege-escalation tools are not allowed.`);
+    }
+
+    if (executable === "npx" && tokens.slice(1).some((arg) => BLOCKED_NPX_FLAGS.has(arg.toLowerCase()))) {
+        throw new Error("Blocked unsafe npx invocation. Shell execution flags are not allowed.");
+    }
+}
+
 function parseTerminalCommand(command: string): ParsedTerminalCommand {
     const trimmedCommand = command.trim();
     if (!trimmedCommand) {
@@ -159,34 +290,22 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         throw new Error("Multi-line terminal commands are not allowed.");
     }
 
-    const tokens = tokenizeTerminalCommand(trimmedCommand);
-    if (tokens.length === 0) {
-        throw new Error("Terminal command cannot be empty.");
+    // Reject unquoted command substitution so blocked commands cannot be reached via $() or backticks.
+    checkNoUnquotedSubstitution(trimmedCommand);
+
+    // Split on compound operators and validate every constituent command.
+    const segments = splitCompoundCommand(trimmedCommand);
+    for (const segment of segments) {
+        validateCommandSegment(segment);
     }
 
-    const executable = tokens[0].toLowerCase();
-    if (/[;&|<>]/.test(tokens[0])) {
-        throw new Error(`Terminal command executable "${tokens[0]}" contains shell metacharacters.`);
-    }
-
-    if (BLOCKED_TERMINAL_COMMANDS.has(executable)) {
-        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Shell interpreters and privilege-escalation tools are not allowed.`);
-    }
-
-    if (executable === "npx" && tokens.slice(1).some((arg) => BLOCKED_NPX_FLAGS.has(arg.toLowerCase()))) {
-        throw new Error("Blocked unsafe npx invocation. Shell execution flags are not allowed.");
-    }
-
-    if (executable === "npm") {
-        const subcommand = tokens[1]?.toLowerCase();
-        if (subcommand && BLOCKED_NPM_SUBCOMMANDS.has(subcommand)) {
-            throw new Error(`Blocked unsafe npm subcommand "${tokens[1]}".`);
-        }
-    }
-
+    // Extract the first segment's executable for logging; the raw command string is passed
+    // verbatim to the shell so that operators like && and || are handled natively.
+    const firstTokens = tokenizeTerminalCommand(segments[0]);
     return {
-        executable,
-        args: tokens.slice(1),
+        executable: firstTokens[0].toLowerCase(),
+        args: firstTokens.slice(1),
+        rawCommand: trimmedCommand,
     };
 }
 
@@ -206,21 +325,13 @@ function getShellInteractiveArgs(shellType: ShellType): string[] {
 
 /**
  * Builds the text written to the shell's stdin to execute a validated command.
+ * The raw command string is passed verbatim so that shell operators (&&, ||, ;, |)
+ * are handled natively by the persistent shell process.
  * A unique sentinel marker is written to stderr after the command so the caller
  * can detect completion and extract the exit code without polluting visible output.
- *
- * All arguments are shell-quoted before writing to prevent injection via argument values.
  */
 function buildShellCommandInput(parsedCommand: ParsedTerminalCommand, commandId: string, shellType: ShellType): string {
-    const quoteArg = (arg: string): string => {
-        if (shellType === "pwsh") return `'${arg.replace(/'/g, "''")}'`;
-        // CMD.exe: wrap in double quotes and double any embedded double quotes (standard cmd quoting)
-        if (shellType === "cmd") return `"${arg.replace(/"/g, '""')}"`;
-        // POSIX: close the current single-quoted string, escape the quote, reopen single-quoted string
-        return `'${arg.replace(/'/g, "'\\''")}'`;
-    };
-    const argStr = parsedCommand.args.length > 0 ? " " + parsedCommand.args.map(quoteArg).join(" ") : "";
-    const cmd = `${parsedCommand.executable}${argStr}`;
+    const cmd = parsedCommand.rawCommand;
     const sentinel = `PPTB_CMD_END_${commandId}`;
 
     if (shellType === "pwsh") {
