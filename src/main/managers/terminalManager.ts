@@ -580,6 +580,8 @@ class TerminalInstance extends EventEmitter {
     private isProcessing = false;
     private pendingCommand: PendingCommand | null = null;
     private shellType: ShellType;
+    /** Holds partial stdout data while a command is executing so sentinel echo lines can be filtered out before display. */
+    private stdoutLineBuffer: string = "";
 
     constructor(terminal: Terminal, env?: Record<string, string>) {
         super();
@@ -610,11 +612,7 @@ class TerminalInstance extends EventEmitter {
         });
 
         this.shellProcess.stdout.on("data", (data: Buffer) => {
-            const text = data.toString();
-            this.emit("output", text);
-            if (this.pendingCommand) {
-                this.pendingCommand.output += text;
-            }
+            this.handleStdoutChunk(data.toString());
         });
 
         this.shellProcess.stderr.on("data", (data: Buffer) => {
@@ -636,6 +634,61 @@ class TerminalInstance extends EventEmitter {
                 this.failPendingCommand("Shell process exited unexpectedly.");
             }
         });
+    }
+
+    /**
+     * Handle a chunk of stdout output from the shell.
+     * When a command is executing, stdout is buffered by line so that any echoed sentinel
+     * command text (written to stdin for exit-code tracking) can be stripped before display.
+     * When no command is in flight the data is forwarded immediately.
+     */
+    private handleStdoutChunk(text: string): void {
+        if (!this.pendingCommand) {
+            // No command in flight — pass through immediately.
+            this.emit("output", text);
+            return;
+        }
+
+        // Buffer and filter sentinel echoes while a command is executing.
+        this.stdoutLineBuffer += text;
+
+        const lastNewline = this.stdoutLineBuffer.lastIndexOf("\n");
+        if (lastNewline === -1) {
+            // No complete line yet; hold in buffer until the next chunk.
+            return;
+        }
+
+        const completeLines = this.stdoutLineBuffer.substring(0, lastNewline + 1);
+        this.stdoutLineBuffer = this.stdoutLineBuffer.substring(lastNewline + 1);
+
+        // Split on newlines, drop sentinel echo lines, then rejoin.
+        const filtered = completeLines
+            .split("\n")
+            .filter((line) => !this.isSentinelEchoLine(line))
+            .join("\n");
+
+        if (filtered) {
+            this.emit("output", filtered);
+            this.pendingCommand.output += filtered;
+        }
+    }
+
+    /**
+     * Returns true when a stdout line is the shell's echo of the internal sentinel command
+     * that was written to stdin for exit-code detection.  Such lines must not be shown to
+     * the user because they are an implementation detail of the terminal manager.
+     */
+    private isSentinelEchoLine(line: string): boolean {
+        // Strip a trailing \r so both \n and \r\n line endings are handled.
+        const trimmed = line.replace(/\r$/, "");
+        if (this.shellType === "pwsh") {
+            return trimmed.startsWith("$__pptb_ok__ = $?;");
+        }
+        if (this.shellType === "cmd") {
+            return trimmed.startsWith("echo PPTB_CMD_END_");
+        }
+        // posix
+        return trimmed.startsWith("__pptb__=$?;");
     }
 
     /**
@@ -683,6 +736,17 @@ class TerminalInstance extends EventEmitter {
 
     private resolvePendingCommand(exitCode: number): void {
         if (!this.pendingCommand) return;
+
+        // Flush any stdout that arrived after the last newline boundary.
+        if (this.stdoutLineBuffer) {
+            const remaining = this.stdoutLineBuffer;
+            this.stdoutLineBuffer = "";
+            if (!this.isSentinelEchoLine(remaining)) {
+                this.emit("output", remaining);
+                this.pendingCommand.output += remaining;
+            }
+        }
+
         const pending = this.pendingCommand;
         this.pendingCommand = null;
         this.isProcessing = false;
@@ -700,6 +764,17 @@ class TerminalInstance extends EventEmitter {
 
     private failPendingCommand(errorMsg: string): void {
         if (!this.pendingCommand) return;
+
+        // Flush any stdout that arrived after the last newline boundary.
+        if (this.stdoutLineBuffer) {
+            const remaining = this.stdoutLineBuffer;
+            this.stdoutLineBuffer = "";
+            if (!this.isSentinelEchoLine(remaining)) {
+                this.emit("output", remaining);
+                this.pendingCommand.output += remaining;
+            }
+        }
+
         const pending = this.pendingCommand;
         this.pendingCommand = null;
         this.isProcessing = false;
