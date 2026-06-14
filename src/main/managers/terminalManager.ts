@@ -1,4 +1,6 @@
-import { ChildProcessWithoutNullStreams, spawn } from "child_process";
+import { ChildProcessWithoutNullStreams, spawn, execFileSync } from "child_process";
+import { existsSync } from "fs";
+import { basename, isAbsolute } from "path";
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
@@ -34,6 +36,8 @@ const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL"
 const BLOCKED_NPX_FLAGS = new Set(["-c", "--call", "-s", "--shell"]);
 const BLOCKED_NPM_SUBCOMMANDS = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
 
+type ShellType = "posix" | "pwsh" | "cmd";
+
 interface ParsedTerminalCommand {
     executable: string;
     args: string[];
@@ -43,6 +47,13 @@ interface QueuedCommand {
     parsedCommand: ParsedTerminalCommand;
     commandId: string;
     resolve: (result: TerminalCommandResult) => void;
+}
+
+interface PendingCommand {
+    commandId: string;
+    resolve: (result: TerminalCommandResult) => void;
+    output: string;
+    stderrBuffer: string;
 }
 
 interface SanitizedTerminalEnv {
@@ -154,6 +165,10 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
     }
 
     const executable = tokens[0].toLowerCase();
+    if (/[;&|<>]/.test(tokens[0])) {
+        throw new Error(`Terminal command executable "${tokens[0]}" contains shell metacharacters.`);
+    }
+
     if (BLOCKED_TERMINAL_COMMANDS.has(executable)) {
         throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Shell interpreters and privilege-escalation tools are not allowed.`);
     }
@@ -173,6 +188,68 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         executable,
         args: tokens.slice(1),
     };
+}
+
+function getShellType(shell: string): ShellType {
+    const name = basename(shell).toLowerCase().replace(/\.exe$/, "");
+    if (name === "pwsh" || name === "powershell") return "pwsh";
+    if (name === "cmd") return "cmd";
+    return "posix";
+}
+
+function getShellInteractiveArgs(shellType: ShellType): string[] {
+    if (shellType === "pwsh") return ["-NoLogo"];
+    if (shellType === "cmd") return ["/K"];
+    return ["-i"];
+}
+
+/**
+ * Builds the text written to the shell's stdin to execute a validated command.
+ * A unique sentinel marker is written to stderr after the command so the caller
+ * can detect completion and extract the exit code without polluting visible output.
+ */
+function buildShellCommandInput(parsedCommand: ParsedTerminalCommand, commandId: string, shellType: ShellType): string {
+    const quoteArg = (arg: string): string => {
+        if (shellType === "pwsh") return `'${arg.replace(/'/g, "''")}'`;
+        if (shellType === "cmd") return `"${arg.replace(/"/g, '""')}"`;
+        return `'${arg.replace(/'/g, "'\\''")}'`; // POSIX single-quote escaping
+    };
+    const argStr = parsedCommand.args.length > 0 ? " " + parsedCommand.args.map(quoteArg).join(" ") : "";
+    const cmd = `${parsedCommand.executable}${argStr}`;
+    const sentinel = `PPTB_CMD_END_${commandId}`;
+
+    if (shellType === "pwsh") {
+        // Write sentinel to stderr so stdout stays clean for the caller
+        return `${cmd}\n$__pptb__ = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } elseif ($?) { 0 } else { 1 }; [Console]::Error.WriteLine("${sentinel}_$__pptb__")\n`;
+    }
+    if (shellType === "cmd") {
+        return `${cmd}\r\necho ${sentinel}_%ERRORLEVEL% 1>&2\r\n`;
+    }
+    // POSIX: write sentinel to stderr using printf to avoid echo quirks
+    return `${cmd}\n__pptb__=$?; printf '%s\\n' "${sentinel}_$__pptb__" >&2\n`;
+}
+
+/**
+ * Resolves the preferred shell requested by a tool, falling back to the system
+ * default if the requested shell cannot be found on the current machine.
+ */
+function resolveShell(requestedShell: string, defaultShell: string, terminalId: string): string {
+    if (isAbsolute(requestedShell)) {
+        if (existsSync(requestedShell)) {
+            return requestedShell;
+        }
+        logWarn(`Requested shell "${requestedShell}" not found for terminal ${terminalId}; falling back to ${defaultShell}`);
+        return defaultShell;
+    }
+
+    try {
+        const finder = process.platform === "win32" ? "where" : "which";
+        execFileSync(finder, [requestedShell], { encoding: "utf8", timeout: 3000 });
+        return requestedShell;
+    } catch {
+        logWarn(`Requested shell "${requestedShell}" not found in PATH for terminal ${terminalId}; falling back to ${defaultShell}`);
+        return defaultShell;
+    }
 }
 
 /**
@@ -204,12 +281,7 @@ export class TerminalManager extends EventEmitter {
      */
     async createTerminal(toolId: string, toolInstanceId: string | null, options: TerminalOptions): Promise<Terminal> {
         const terminalId = randomUUID();
-        const shell = this.defaultShell;
-
-        if (options.shell && options.shell !== this.defaultShell) {
-            logWarn(`Ignoring custom shell ${options.shell} for terminal ${terminalId}; using secure default shell ${this.defaultShell}`);
-        }
-
+        const shell = options.shell ? resolveShell(options.shell, this.defaultShell, terminalId) : this.defaultShell;
         const cwd = options.cwd || process.cwd();
 
         // Default to visible unless explicitly set to false
@@ -373,45 +445,32 @@ export class TerminalManager extends EventEmitter {
 }
 
 /**
- * Internal terminal instance that manages secured command execution
+ * Internal terminal instance that owns a persistent shell process.
+ * Commands are written to the shell's stdin and completion is detected
+ * via a unique sentinel marker written to stderr.
  */
 class TerminalInstance extends EventEmitter {
     public terminal: Terminal;
-    private process: ChildProcessWithoutNullStreams | null = null;
+    private shellProcess: ChildProcessWithoutNullStreams | null = null;
     private env?: Record<string, string>;
     private commandQueue: QueuedCommand[] = [];
     private isProcessing = false;
+    private pendingCommand: PendingCommand | null = null;
+    private shellType: ShellType;
 
     constructor(terminal: Terminal, env?: Record<string, string>) {
         super();
         this.terminal = terminal;
         this.env = env;
+        this.shellType = getShellType(terminal.shell);
+        this.startShellProcess();
     }
 
     /**
-     * Execute a command in the terminal
+     * Start the persistent shell process so the terminal is not blank when a tool loads.
+     * Wires up stdout/stderr for display output and sentinel-based command completion.
      */
-    async executeCommand(parsedCommand: ParsedTerminalCommand): Promise<TerminalCommandResult> {
-        const commandId = randomUUID();
-
-        return new Promise<TerminalCommandResult>((resolve) => {
-            this.commandQueue.push({ parsedCommand, commandId, resolve });
-            this.processQueue();
-        });
-    }
-
-    /**
-     * Process the command queue
-     */
-    private processQueue(): void {
-        if (this.isProcessing || this.commandQueue.length === 0) {
-            return;
-        }
-
-        this.isProcessing = true;
-        const queueItem = this.commandQueue.shift()!;
-        let output = "";
-        let isCompleted = false;
+    startShellProcess(): void {
         const processEnv = {
             ...process.env,
             ...this.env,
@@ -419,68 +478,170 @@ class TerminalInstance extends EventEmitter {
             COLORTERM: process.env.COLORTERM || "truecolor",
         };
 
-        logInfo(`[Terminal ${this.terminal.id}] Executing ${queueItem.parsedCommand.executable}`);
-        logInfo(`[Terminal ${this.terminal.id}] Working directory: ${this.terminal.cwd}`);
+        logInfo(`[Terminal ${this.terminal.id}] Starting shell: ${this.terminal.shell}`);
 
-        this.process = spawn(queueItem.parsedCommand.executable, queueItem.parsedCommand.args, {
+        this.shellProcess = spawn(this.terminal.shell, getShellInteractiveArgs(this.shellType), {
             cwd: this.terminal.cwd,
             env: processEnv,
             shell: false,
         });
 
-        const complete = (result: TerminalCommandResult): void => {
-            if (isCompleted) {
-                return;
+        this.shellProcess.stdout.on("data", (data: Buffer) => {
+            const text = data.toString();
+            this.emit("output", text);
+            if (this.pendingCommand) {
+                this.pendingCommand.output += text;
             }
-
-            isCompleted = true;
-            this.process = null;
-            this.isProcessing = false;
-            queueItem.resolve(result);
-            this.emit("command:completed", result);
-            this.processQueue();
-        };
-
-        this.process.stdout.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            output += chunk;
-            this.emit("output", chunk);
         });
 
-        this.process.stderr.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            output += chunk;
-            this.emit("output", chunk);
+        this.shellProcess.stderr.on("data", (data: Buffer) => {
+            this.handleStderrChunk(data.toString());
         });
 
-        this.process.on("error", (error: Error) => {
+        this.shellProcess.on("error", (error: Error) => {
+            logWarn(`[Terminal ${this.terminal.id}] Shell process error: ${error.message}`);
             this.emit("error", error.message);
-            complete({
-                terminalId: this.terminal.id,
-                commandId: queueItem.commandId,
-                output,
-                exitCode: 1,
-                error: error.message,
-            });
+            if (this.pendingCommand) {
+                this.failPendingCommand(error.message);
+            }
         });
 
-        this.process.on("close", (code: number | null) => {
-            complete({
-                terminalId: this.terminal.id,
-                commandId: queueItem.commandId,
-                output,
-                exitCode: code ?? undefined,
-            });
+        this.shellProcess.on("close", () => {
+            logInfo(`[Terminal ${this.terminal.id}] Shell process exited`);
+            this.shellProcess = null;
+            if (this.pendingCommand) {
+                this.failPendingCommand("Shell process exited unexpectedly.");
+            }
         });
     }
 
     /**
-     * Close the terminal
+     * Handle a chunk of stderr output from the shell.
+     * Normal stderr lines are forwarded to the terminal display.
+     * Sentinel lines (written after each command) are used to detect completion
+     * and extract the exit code without polluting the visible output.
+     */
+    private handleStderrChunk(text: string): void {
+        if (!this.pendingCommand) {
+            this.emit("output", text);
+            return;
+        }
+
+        this.pendingCommand.stderrBuffer += text;
+        const sentinel = `PPTB_CMD_END_${this.pendingCommand.commandId}_`;
+        const sentinelIdx = this.pendingCommand.stderrBuffer.indexOf(sentinel);
+
+        if (sentinelIdx !== -1) {
+            // Emit any stderr output that preceded the sentinel line
+            const beforeSentinel = this.pendingCommand.stderrBuffer.substring(0, sentinelIdx);
+            if (beforeSentinel) {
+                this.emit("output", beforeSentinel);
+                this.pendingCommand.output += beforeSentinel;
+            }
+            const afterSentinel = this.pendingCommand.stderrBuffer.substring(sentinelIdx + sentinel.length);
+            const exitCodeMatch = afterSentinel.match(/^(\d+)/);
+            const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 0;
+            this.resolvePendingCommand(exitCode);
+        } else {
+            // Sentinel not yet received; emit complete stderr lines in real-time
+            const lastNewline = this.pendingCommand.stderrBuffer.lastIndexOf("\n");
+            if (lastNewline !== -1) {
+                const safeToEmit = this.pendingCommand.stderrBuffer.substring(0, lastNewline + 1);
+                this.emit("output", safeToEmit);
+                this.pendingCommand.output += safeToEmit;
+                this.pendingCommand.stderrBuffer = this.pendingCommand.stderrBuffer.substring(lastNewline + 1);
+            }
+        }
+    }
+
+    private resolvePendingCommand(exitCode: number): void {
+        if (!this.pendingCommand) return;
+        const pending = this.pendingCommand;
+        this.pendingCommand = null;
+        this.isProcessing = false;
+
+        const result: TerminalCommandResult = {
+            terminalId: this.terminal.id,
+            commandId: pending.commandId,
+            output: pending.output,
+            exitCode,
+        };
+        pending.resolve(result);
+        this.emit("command:completed", result);
+        this.processQueue();
+    }
+
+    private failPendingCommand(errorMsg: string): void {
+        if (!this.pendingCommand) return;
+        const pending = this.pendingCommand;
+        this.pendingCommand = null;
+        this.isProcessing = false;
+
+        const result: TerminalCommandResult = {
+            terminalId: this.terminal.id,
+            commandId: pending.commandId,
+            output: pending.output,
+            exitCode: 1,
+            error: errorMsg,
+        };
+        pending.resolve(result);
+        this.emit("command:completed", result);
+        this.processQueue();
+    }
+
+    /**
+     * Execute a validated command by writing it to the shell's stdin.
+     */
+    async executeCommand(parsedCommand: ParsedTerminalCommand): Promise<TerminalCommandResult> {
+        const commandId = randomUUID();
+        return new Promise<TerminalCommandResult>((resolve) => {
+            this.commandQueue.push({ parsedCommand, commandId, resolve });
+            this.processQueue();
+        });
+    }
+
+    /**
+     * Dequeue the next command and write it to the shell's stdin.
+     */
+    private processQueue(): void {
+        if (this.isProcessing || this.commandQueue.length === 0) {
+            return;
+        }
+
+        const queueItem = this.commandQueue.shift()!;
+
+        if (!this.shellProcess || this.shellProcess.stdin.destroyed) {
+            const result: TerminalCommandResult = {
+                terminalId: this.terminal.id,
+                commandId: queueItem.commandId,
+                exitCode: 1,
+                error: "Shell process is not running.",
+            };
+            queueItem.resolve(result);
+            this.emit("command:completed", result);
+            this.processQueue();
+            return;
+        }
+
+        this.isProcessing = true;
+        this.pendingCommand = {
+            commandId: queueItem.commandId,
+            resolve: queueItem.resolve,
+            output: "",
+            stderrBuffer: "",
+        };
+
+        logInfo(`[Terminal ${this.terminal.id}] Executing: ${queueItem.parsedCommand.executable}`);
+        this.shellProcess.stdin.write(buildShellCommandInput(queueItem.parsedCommand, queueItem.commandId, this.shellType));
+    }
+
+    /**
+     * Kill the shell process and clean up.
      */
     close(): void {
-        if (this.process) {
-            this.process.kill();
-            this.process = null;
+        if (this.shellProcess) {
+            this.shellProcess.kill();
+            this.shellProcess = null;
         }
     }
 }

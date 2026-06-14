@@ -581,7 +581,7 @@ Core platform features organized into namespaces:
 
 - **create(options: TerminalOptions)**: Promise<Terminal>
     - Creates a new terminal attached to the tool (tool ID is auto-determined)
-    - Uses the app's secure default shell even if a custom shell is requested
+    - Uses the preferred shell specified via `TerminalOptions.shell` if it is installed on the machine, otherwise falls back to the system default shell
 
 - **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
     - Executes a command in the specified terminal and returns its result
