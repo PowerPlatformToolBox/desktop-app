@@ -257,7 +257,7 @@ const terminal = await toolboxAPI.terminal.create({
     cwd: "/path/to/directory",
 });
 
-// Execute an allowed command (pac, npm, npx)
+// Execute a command (most commands are allowed; shells and privilege-escalation tools are blocked)
 const result = await toolboxAPI.terminal.execute(terminal.id, "pac auth list");
 console.log("Exit code:", result.exitCode);
 console.log("Output:", result.output);
@@ -585,7 +585,8 @@ Core platform features organized into namespaces:
 
 - **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
     - Executes a command in the specified terminal and returns its result
-    - Only allowlisted commands (`pac`, `npm`, `npx`) are executed
+    - Only commands that are **not** on the blocked list are executed; blocked commands are shell interpreters (`bash`, `sh`, `powershell`, `cmd`, etc.) and privilege-escalation tools (`sudo`, `su`, `runas`, etc.)
+    - Additionally, `npm run/exec/start/…` and `npx --shell/-c` are blocked to prevent arbitrary script execution
 
 - **close(terminalId: string)**: Promise<void>
     - Closes the specified terminal

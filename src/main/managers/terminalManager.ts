@@ -4,7 +4,32 @@ import { EventEmitter } from "events";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 import { logInfo, logWarn } from "../../common/logger";
 
-const ALLOWED_TERMINAL_COMMAND_NAMES = new Set(["pac", "npm", "npx"]);
+// Shell interpreters and privilege-escalation tools that must never be invoked through the terminal API.
+// Everything else is permitted so that tools can use commands like cd, code, dotnet, git, pac, npm install, etc.
+const BLOCKED_TERMINAL_COMMANDS = new Set([
+    // Unix/macOS shells
+    "bash",
+    "sh",
+    "zsh",
+    "fish",
+    "csh",
+    "ksh",
+    "dash",
+    "tcsh",
+    // Windows shells and their .exe variants
+    "cmd",
+    "cmd.exe",
+    "powershell",
+    "powershell.exe",
+    "pwsh",
+    "pwsh.exe",
+    // Privilege escalation
+    "sudo",
+    "su",
+    "runas",
+    "doas",
+    "pkexec",
+]);
 const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
 const BLOCKED_NPX_FLAGS = new Set(["-c", "--call", "-s", "--shell"]);
 const BLOCKED_NPM_SUBCOMMANDS = new Set(["exec", "run", "run-script", "start", "stop", "restart", "test"]);
@@ -129,8 +154,8 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
     }
 
     const executable = tokens[0].toLowerCase();
-    if (!ALLOWED_TERMINAL_COMMAND_NAMES.has(executable)) {
-        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Allowed commands: ${Array.from(ALLOWED_TERMINAL_COMMAND_NAMES).join(", ")}.`);
+    if (BLOCKED_TERMINAL_COMMANDS.has(executable)) {
+        throw new Error(`Blocked unsafe terminal command "${tokens[0]}". Shell interpreters and privilege-escalation tools are not allowed.`);
     }
 
     if (executable === "npx" && tokens.slice(1).some((arg) => BLOCKED_NPX_FLAGS.has(arg.toLowerCase()))) {
