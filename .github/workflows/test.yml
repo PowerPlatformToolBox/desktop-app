@@ -45,10 +45,10 @@ jobs:
                   retention-days: 7
 
     # -------------------------------------------------------------------------
-    # E2e tests — Playwright + Electron, requires a virtual display (xvfb)
+    # E2E tests — Playwright + Electron, requires a virtual display (xvfb)
     # -------------------------------------------------------------------------
     e2e-tests:
-        name: E2e Tests (Playwright)
+        name: E2E Tests (Playwright)
         runs-on: ubuntu-latest
 
         steps:
