@@ -102,4 +102,5 @@ export interface ToolDetail {
     minAPI?: string; // Minimum ToolBox API version required
     maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
+    npmPackageName?: string; // npm package name used for pre-release version detection
 }

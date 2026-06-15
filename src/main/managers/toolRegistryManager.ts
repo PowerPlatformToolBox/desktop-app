@@ -352,6 +352,7 @@ export class ToolRegistryManager extends EventEmitter {
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                     minAPI: tool.min_api, // Include min API version from database
                     maxAPI: tool.max_api, // Include max API version from database
+                    npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
                 } as ToolRegistryEntry;
             });
 
@@ -1219,6 +1220,62 @@ export class ToolRegistryManager extends EventEmitter {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logWarn("[ToolRegistry] Failed to fetch capability tags from Supabase", { error: errorMessage });
             return null;
+        }
+    }
+
+    /**
+     * Check whether an npm package has a beta (pre-release) dist-tag on the npm registry.
+     * Uses the public npm registry REST API — no npm CLI required.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     * @returns an object with `hasBeta` flag and the `betaVersion` string when available
+     */
+    async checkBetaPackage(npmPackageName: string): Promise<{ hasBeta: boolean; betaVersion?: string }> {
+        if (!npmPackageName || typeof npmPackageName !== "string") {
+            return { hasBeta: false };
+        }
+
+        try {
+            logInfo(`[ToolRegistry] Checking for beta package: ${npmPackageName}`);
+
+            // encodeURIComponent handles both scoped (@org/name → %40org%2Fname) and plain names.
+            const encodedName = encodeURIComponent(npmPackageName);
+
+            const url = `https://registry.npmjs.org/-/package/${encodedName}/dist-tags`;
+
+            const rawJson = await new Promise<string>((resolve, reject) => {
+                https
+                    .get(url, { timeout: 10000 }, (res) => {
+                        if (res.statusCode === 404) {
+                            // Package not found on npm — no beta available
+                            resolve("{}");
+                            return;
+                        }
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`npm registry request failed: HTTP ${res.statusCode}`));
+                            return;
+                        }
+                        const chunks: Buffer[] = [];
+                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                        res.on("error", reject);
+                    })
+                    .on("error", reject)
+                    .on("timeout", () => reject(new Error("npm registry request timed out")));
+            });
+
+            const distTags = JSON.parse(rawJson) as Record<string, string>;
+            const betaVersion = distTags["beta"];
+
+            if (betaVersion && typeof betaVersion === "string") {
+                logInfo(`[ToolRegistry] Beta version found for ${npmPackageName}: ${betaVersion}`);
+                return { hasBeta: true, betaVersion };
+            }
+
+            logInfo(`[ToolRegistry] No beta version found for ${npmPackageName}`);
+            return { hasBeta: false };
+        } catch (error) {
+            logWarn(`[ToolRegistry] Failed to check beta package for ${npmPackageName}`, { error: error instanceof Error ? error.message : String(error) });
+            return { hasBeta: false };
         }
     }
 }

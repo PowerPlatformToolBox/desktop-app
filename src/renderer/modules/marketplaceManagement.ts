@@ -58,6 +58,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     minAPI: tool.minAPI, // Include min API version
                     maxAPI: tool.maxAPI, // Include max API version
                     isSupported: tool.isSupported, // Include compatibility status
+                    npmPackageName: tool.npmPackageName, // Include npm package name for pre-release detection
                 }) as ToolDetail,
         );
 
@@ -514,6 +515,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                     ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                     <div class="tool-detail-tab-actions">
                         <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${isInstalled ? 'style="display:none"' : ""} ${unsupportedAttr}>Install</button>
+                        <button id="tool-detail-prerelease-btn" class="fluent-button fluent-button-secondary" style="display:none">Install Pre-Release Version</button>
                         <span id="tool-detail-installed-badge" class="tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'}>✓ Installed</span>
                     </div>
                     ${linksMarkup}
@@ -543,6 +545,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
 
     // Wire up install button
     const installBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-install-btn");
+    const prereleaseBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
     const installedBadge = panel.querySelector<HTMLElement>("#tool-detail-installed-badge");
     installBtn?.addEventListener("click", async () => {
         if (!installBtn || installBtn.disabled) return;
@@ -551,6 +554,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         try {
             await window.toolboxAPI.installToolFromRegistry(tool.id);
             installBtn.style.display = "none";
+            if (prereleaseBtn) prereleaseBtn.style.display = "none";
             if (installedBadge) installedBadge.style.display = "inline-flex";
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Installed",
@@ -570,12 +574,71 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         }
     });
 
+    // Wire up pre-release install button
+    prereleaseBtn?.addEventListener("click", async () => {
+        if (!prereleaseBtn || prereleaseBtn.disabled) return;
+        if (!tool.npmPackageName) return;
+        prereleaseBtn.disabled = true;
+        prereleaseBtn.textContent = "Installing Pre-Release...";
+        try {
+            await window.toolboxAPI.installPrereleaseToolFromNpm(tool.npmPackageName);
+            if (installBtn) installBtn.style.display = "none";
+            prereleaseBtn.style.display = "none";
+            if (installedBadge) installedBadge.style.display = "inline-flex";
+            window.toolboxAPI.utils.showNotification({
+                title: "Pre-Release Tool Installed",
+                body: `Pre-release version of ${tool.name} has been installed successfully`,
+                type: "success",
+            });
+            await loadSidebarTools();
+        } catch (error) {
+            prereleaseBtn.disabled = false;
+            prereleaseBtn.textContent = "Install Pre-Release Version";
+            window.toolboxAPI.utils.showNotification({
+                title: "Installation Failed",
+                body: `Failed to install pre-release version: ${formatError(error)}`,
+                type: "error",
+            });
+        }
+    });
+
     // Apply icon masks for SVG icons
     applyToolIconMasks(panel);
 
     // Async README loading — pass the tabId so stale fetches are discarded
     const tabId = `tool-detail-${tool.id}`;
     void loadToolReadme(panel, tool.readmeUrl, tabId);
+
+    // Async pre-release check — show the button only when a beta version is available
+    if (tool.npmPackageName && !isInstalled) {
+        void checkAndShowPrereleaseButton(panel, tool.npmPackageName, tabId);
+    }
+}
+
+/**
+ * Async helper: query the npm registry for a beta dist-tag and, if found, show
+ * the "Install Pre-Release Version" button in the tool detail panel.
+ * Silently does nothing when no beta exists or the tab has already been navigated away from.
+ */
+async function checkAndShowPrereleaseButton(panel: HTMLElement, npmPackageName: string, tabId: string): Promise<void> {
+    try {
+        const result = await window.toolboxAPI.checkBetaPackage(npmPackageName);
+        if (!result?.hasBeta) return;
+
+        // Discard if the user switched away from this detail tab while the request was in flight
+        const detailPanel = document.getElementById("tool-detail-content-panel");
+        if (!detailPanel || detailPanel.getAttribute("data-tab-id") !== tabId) return;
+
+        const btn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
+        if (!btn) return;
+
+        if (result.betaVersion) {
+            btn.textContent = `Install Pre-Release Version (v${result.betaVersion})`;
+        }
+        btn.style.display = "inline-flex";
+    } catch (error) {
+        logWarn("Failed to check for pre-release version", error);
+    }
 }
 
 async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined, tabId: string): Promise<void> {

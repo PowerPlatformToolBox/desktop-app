@@ -847,6 +847,18 @@ class ToolBoxApp {
             return this.toolManager.isToolUpdating(toolId);
         });
 
+        // Check whether a beta (pre-release) npm package version is available
+        ipcMain.handle(TOOL_CHANNELS.CHECK_BETA_PACKAGE, async (_, npmPackageName: string) => {
+            return await this.toolManager.checkBetaPackage(npmPackageName);
+        });
+
+        // Install the beta (pre-release) npm package for a registry tool
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, async (_, npmPackageName: string) => {
+            const tool = await this.toolManager.installPrereleaseToolFromNpm(npmPackageName);
+            this.settingsManager.addInstalledTool(tool.id);
+            return tool;
+        });
+
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);

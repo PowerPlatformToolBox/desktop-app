@@ -483,6 +483,68 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Resolve the actual directory name for an npm package inside node_modules.
+     * Strips any trailing version/tag specifier so the path is valid on disk.
+     * Examples:
+     *   "@org/name@1.0.0"  → "@org/name"
+     *   "@org/name@beta"   → "@org/name"
+     *   "my-tool@beta"     → "my-tool"
+     *   "@org/name"        → "@org/name"  (unchanged)
+     *   "my-tool"          → "my-tool"    (unchanged)
+     */
+    private resolvePackageDirectoryName(packageName: string): string {
+        if (packageName.startsWith("@")) {
+            // Scoped package: @scope/name[@version]
+            // Find the '@' that separates the name from the version specifier.
+            const withoutLeadingAt = packageName.slice(1); // "scope/name@version"
+            const versionAtIndex = withoutLeadingAt.indexOf("@");
+            if (versionAtIndex !== -1) {
+                return "@" + withoutLeadingAt.slice(0, versionAtIndex);
+            }
+            return packageName;
+        } else {
+            // Regular package: name[@version]
+            const atIndex = packageName.indexOf("@");
+            if (atIndex !== -1) {
+                return packageName.slice(0, atIndex);
+            }
+            return packageName;
+        }
+    }
+
+    /**
+     * Check whether a beta (pre-release) npm package version is available.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     */
+    async checkBetaPackage(npmPackageName: string): Promise<{ hasBeta: boolean; betaVersion?: string }> {
+        return this.registryManager.checkBetaPackage(npmPackageName);
+    }
+
+    /**
+     * Install the beta (pre-release) version of a registry tool via npm.
+     * Installs the `@beta` dist-tag of the given npm package and loads it.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     */
+    async installPrereleaseToolFromNpm(npmPackageName: string): Promise<Tool> {
+        logInfo(`[ToolManager] Installing pre-release (beta) tool: ${npmPackageName}`);
+        const betaPackageSpec = `${npmPackageName}@beta`;
+        try {
+            await this.installToolForDebug(betaPackageSpec);
+        } catch (installError) {
+            const msg = installError instanceof Error ? installError.message : String(installError);
+            throw new Error(`Failed to install pre-release package '${betaPackageSpec}': ${msg}`);
+        }
+        // Use the base package name (no version specifier) to locate the installed directory.
+        try {
+            const tool = await this.loadNpmTool(npmPackageName);
+            return tool;
+        } catch (loadError) {
+            const msg = loadError instanceof Error ? loadError.message : String(loadError);
+            throw new Error(`Pre-release package '${betaPackageSpec}' was installed but could not be loaded: ${msg}`);
+        }
+    }
+
+    /**
      * Get installation instructions for package managers (debug mode only)
      */
     private getInstallInstructions(): string {
@@ -511,13 +573,18 @@ export class ToolManager extends EventEmitter {
     /**
      * Load an npm-installed tool from node_modules (DEBUG MODE ONLY)
      * This is called after installToolForDebug to register the tool in the tools map
-     * @param packageName - npm package name
+     * @param packageName - npm package name (may include a version/tag specifier like "@beta" or "@1.0.0")
      */
     async loadNpmTool(packageName: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
 
+        // Resolve the actual directory name in node_modules — strip any version/tag specifier.
+        // For scoped packages: @org/name@version → @org/name
+        // For regular packages: name@version → name
+        const packageDirName = this.resolvePackageDirectoryName(packageName);
+
         // Construct path to the installed package
-        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+        const toolPath = path.join(this.toolsDirectory, "node_modules", packageDirName);
 
         // Verify the path exists
         if (!fs.existsSync(toolPath)) {
