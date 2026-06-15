@@ -98,6 +98,7 @@ export interface ToolRegistryEntry {
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
     maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    npmPackageName?: string; // npm package name used for pre-release version detection
 }
 
 /**

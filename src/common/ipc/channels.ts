@@ -79,6 +79,10 @@ export const TOOL_CHANNELS = {
     IS_TOOL_UPDATING: "is-tool-updating",
     /** Fetch the list of registered capability tags from Supabase (with built-in fallback). */
     GET_KNOWN_CAPABILITY_TAGS: "get-known-capability-tags",
+    /** Check whether a beta (pre-release) npm package version exists for a given npm package name. */
+    CHECK_BETA_PACKAGE: "check-beta-package",
+    /** Install the beta (pre-release) npm package for a registry tool. */
+    INSTALL_PRERELEASE_TOOL: "install-prerelease-tool",
 } as const;
 
 // Tool Window-related IPC channels

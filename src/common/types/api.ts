@@ -220,6 +220,10 @@ export interface ToolboxAPI {
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;
+    /** Check whether a beta (pre-release) npm package version exists for the given npm package name. */
+    checkBetaPackage: (npmPackageName: string) => Promise<{ hasBeta: boolean; betaVersion?: string }>;
+    /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
+    installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
 
     // Utils namespace
     utils: UtilsAPI;
