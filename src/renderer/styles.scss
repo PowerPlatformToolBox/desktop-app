@@ -2202,6 +2202,8 @@ body.dark-theme .settings-vscode-item:hover {
     bottom: 0;
     background: var(--bg-color);
     z-index: 10;
+    justify-content: end;
+    flex-direction: row-reverse;
 }
 
 .tool-detail-tab-header {
@@ -2895,6 +2897,7 @@ img.tool-item-icon-img {
 
 .tool-item-update-btn {
     margin-top: 10px;
+    text-align: right;
 }
 
 .tool-item-delete-btn {
