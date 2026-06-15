@@ -1,10 +1,10 @@
-import { ChildProcessWithoutNullStreams, spawn, execFileSync } from "child_process";
-import { existsSync } from "fs";
-import { basename, isAbsolute } from "path";
+import { ChildProcessWithoutNullStreams, execFileSync, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
-import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
+import { existsSync } from "fs";
+import { basename, isAbsolute } from "path";
 import { logInfo, logWarn } from "../../common/logger";
+import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
 
 // Shell interpreters and privilege-escalation tools that must never be invoked through the terminal API.
 // Everything else is permitted so that tools can use commands like cd, code, dotnet, git, pac, npm install, etc.
@@ -310,7 +310,9 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
 }
 
 function getShellType(shell: string): ShellType {
-    const name = basename(shell).toLowerCase().replace(/\.exe$/, "");
+    const name = basename(shell)
+        .toLowerCase()
+        .replace(/\.exe$/, "");
     if (name === "pwsh" || name === "powershell") return "pwsh";
     if (name === "cmd") return "cmd";
     return "posix";
@@ -682,13 +684,13 @@ class TerminalInstance extends EventEmitter {
         // Strip a trailing \r so both \n and \r\n line endings are handled.
         const trimmed = line.replace(/\r$/, "");
         if (this.shellType === "pwsh") {
-            return trimmed.startsWith("$__pptb_ok__ = $?;");
+            return trimmed.includes("$__pptb_ok__ = $?;");
         }
         if (this.shellType === "cmd") {
-            return trimmed.startsWith("echo PPTB_CMD_END_");
+            return trimmed.includes("echo PPTB_CMD_END_");
         }
         // posix
-        return trimmed.startsWith("__pptb__=$?;");
+        return trimmed.includes("__pptb__=$?;");
     }
 
     /**
