@@ -257,8 +257,8 @@ const terminal = await toolboxAPI.terminal.create({
     cwd: "/path/to/directory",
 });
 
-// Execute a command
-const result = await toolboxAPI.terminal.execute(terminal.id, "npm install");
+// Execute a command (most commands are allowed; shells and privilege-escalation tools are blocked)
+const result = await toolboxAPI.terminal.execute(terminal.id, "pac auth list");
 console.log("Exit code:", result.exitCode);
 console.log("Output:", result.output);
 
@@ -581,9 +581,13 @@ Core platform features organized into namespaces:
 
 - **create(options: TerminalOptions)**: Promise<Terminal>
     - Creates a new terminal attached to the tool (tool ID is auto-determined)
+    - Uses the preferred shell specified via `TerminalOptions.shell` if it is installed on the machine, otherwise falls back to the system default shell
 
 - **execute(terminalId: string, command: string)**: Promise<TerminalCommandResult>
     - Executes a command in the specified terminal and returns its result
+    - Only commands that are **not** on the blocked list are executed; blocked commands are shell interpreters (`bash`, `sh`, `powershell`, `cmd`, etc.) and privilege-escalation tools (`sudo`, `su`, `runas`, etc.)
+    - `npx --shell/-c` flags are blocked to prevent shell pivot via npx; unquoted command substitution (`$(…)` and backticks) is also rejected
+    - Compound commands using `&&`, `||`, `;`, or `|` are supported — each segment is individually validated against the blocklist
 
 - **close(terminalId: string)**: Promise<void>
     - Closes the specified terminal

@@ -112,9 +112,9 @@ declare namespace ToolBoxAPI {
      */
     export interface TerminalOptions {
         name: string;
-        shell?: string;
+        shell?: string; // Preferred shell executable (e.g. "pwsh", "/bin/zsh"). Falls back to the system default if the requested shell is not found on the machine.
         cwd?: string;
-        env?: Record<string, string>;
+        env?: Record<string, string>; // PATH-like and shell bootstrap variables are filtered for tool security
         visible?: boolean; // Whether terminal should be visible initially (default: true)
     }
 
