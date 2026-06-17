@@ -10,6 +10,7 @@ import {
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
     MODAL_WINDOW_CHANNELS,
+    POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -37,6 +38,7 @@ import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -81,6 +83,7 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
@@ -127,6 +130,7 @@ class ToolBoxApp {
             this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
@@ -417,6 +421,9 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
+
+        // Power Platform handlers
+        ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
     }
 
     /**
@@ -1247,9 +1254,7 @@ class ToolBoxApp {
 
             // Resolve the connection linked to the calling tool window
             const isSecondary = connectionTarget === "secondary";
-            const connectionId = isSecondary
-                ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+            const connectionId = isSecondary ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id) : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
 
             const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
 
@@ -1432,6 +1437,51 @@ class ToolBoxApp {
                 minSupportedApiVersion: VersionManager.getMinSupportedApiVersion(),
             };
         });
+
+        // Power Platform API handlers
+        ipcMain.handle(
+            POWERPLATFORM_CHANNELS.REQUEST,
+            async (
+                event,
+                category:
+                    | "Analytics"
+                    | "AppManagement"
+                    | "Authorization"
+                    | "Connectivity"
+                    | "CopilotStudio"
+                    | "Dynamics"
+                    | "EnvironmentManagement"
+                    | "Governance"
+                    | "Licensing"
+                    | "PowerApps"
+                    | "PowerAutomate"
+                    | "PowerPages"
+                    | "ResourceQuery"
+                    | "UserManagement"
+                    | "WorkflowAgents",
+                method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+                relativePath = "",
+                body?: unknown,
+                customHeaders?: Record<string, string>,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+
+                    return await this.powerPlatformManager.request(connectionId, category, method, relativePath, body, customHeaders);
+                } catch (error) {
+                    throw new Error(`Power Platform request failed: ${(error as Error).message}`);
+                }
+            },
+        );
 
         // Dataverse API handlers
         // All handlers automatically get the connectionId from the calling tool's WebContents

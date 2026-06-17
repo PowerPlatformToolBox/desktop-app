@@ -3,10 +3,10 @@ import { BrowserWindow } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import { DataverseConnection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * Manages authentication for Power Platform connections
@@ -731,7 +731,7 @@ export class AuthManager {
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
         // Use user_impersonation scope for username/password flow (delegated access only)
         // For interactive flow, both .default and user_impersonation work
-        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
+        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`, "https://api.powerplatform.com/.default"];
 
         // Get the account from MSAL cache
         const account = await this.findMsalAccount(connection);
