@@ -1,46 +1,37 @@
-# Power Platform ToolBox 1.2.2
+# Power Platform ToolBox 1.2.3
 
 ## Highlights
 
-- Open external URLs using the active connection's browser profile for consistent session isolation
-- Keep the app accessible on macOS with a system tray icon when the window is closed
-- Sync zoom level between the main window and all open tool BrowserViews
-- Allow tools to open `mailto:` links with explicit user consent and URL validation
-- Improve protocol handler behavior for stable builds (single-instance lock and safer registration rules)
-- Make marketplace filtering clearer with an active-filter indicator and one-click clear
-- Improve tool update availability visibility with a clearer text-based indicator
+- Support beta and pre-release npm packages in tool discovery and installs
+- Enhanced inter-tool communications; both one-way (send and forget) and two-way (send and receive)
+- Let tools declare capabilities; and find tools by capabilities
+- Tighten terminal command blocking during tool execution
+- Sanitize version scopes before running npm install
 
 ## Fixes
 
-- Zoom: correct zoom-in accelerator keys and re-fit BrowserView bounds after zooming
-- Links: avoid lowercasing full URLs during `mailto:` scheme checks
-- Links: improve parse-failure logging with scheme context while avoiding PII
-- UI: fix notification layering/z-index issues in the renderer
-- Tools sidebar: improve empty-state hint behavior for better guidance
-- Marketplace: fix tool icon theming so icons adapt correctly in light/dark mode
-- URLs: add support for URLs ending in `mcas.ms` where applicable
-- macOS: ensure tray Quit fully exits the app (track `isQuitting` correctly)
+- Terminal: improve blocking rules and related command handling
+- Terminal: keep stdout processing stable while filtering sentinel output
+- Install flow: sanitize npm version scopes before invoking installs
+- Marketplace: keep prerelease package handling aligned with tool registry metadata
+- Tools: preserve capability metadata for npm and locally loaded tools
 
 ## Developer & Build
 
-- toolboxAPI: remove deprecated loading screen API and associated handlers
-- `pptb-validate`: validate `pptb.config.json` invocation with semver enforcement
-- Types: rename `PptbConfig` → `PPTBConfig` and `validatePptbConfig` → `validatePPTBConfig` for consistent casing
-- CI/CD: separate stable vs insider release channels (including channel-specific icons)
-- Windows packaging: sign app binaries before packaging into installers
-- Workflows: tighten merge automation with explicit permissions and concurrency
+- Tool registry and preload APIs now carry prerelease package support end to end
+- Terminal manager refactor expands the blocking pipeline and stdout handling internals
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-1.2.2-Setup.exe
-- macOS: Power-Platform-ToolBox-1.2.2.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-1.2.2.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-1.2.3-Setup.exe
+- macOS: Power-Platform-ToolBox-1.2.3.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-1.2.3.AppImage (chmod +x, then run)
 
 ## Notes
 
-- No manual migration needed; existing settings and connections continue to work.
-- Tool developers: `mailto:` opening may prompt for user consent; update config/type references to `PPTBConfig` if you used the older casing.
+- No manual migration needed.
+- Tool developers using prerelease packages should confirm their package metadata is published with the expected version scope.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.1...v1.2.2
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.2...v1.2.3
