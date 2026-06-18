@@ -2,9 +2,9 @@
 
 ## Highlights
 
-- Move the app from beta to the stable release channel
 - Support beta and pre-release npm packages in tool discovery and installs
-- Let npm-installed and locally loaded tools declare capabilities
+- Enhanced inter-tool communications; both one-way (send and forget) and two-way (send and receive)
+- Let tools declare capabilities; and find tools by capabilities
 - Tighten terminal command blocking during tool execution
 - Sanitize version scopes before running npm install
 
@@ -18,10 +18,8 @@
 
 ## Developer & Build
 
-- `packages/` now ships stable and insider package metadata separately
 - Tool registry and preload APIs now carry prerelease package support end to end
 - Terminal manager refactor expands the blocking pipeline and stdout handling internals
-- Version bumps were aligned through `package.json` and `packages/package.json` for the stable release
 
 ## Install
 
