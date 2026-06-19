@@ -107,11 +107,13 @@ export class PowerPlatformManager {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
         }
 
+        const getScopes = (): string[] => ["https://api.powerplatform.com/.default"];
+
         if (connection.authenticationType === "interactive" && connection.msalAccountId) {
             await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
 
             try {
-                const tokenResult = await this.authManager.acquireTokenSilently(connection);
+                const tokenResult = await this.authManager.acquirePowerPlatformToken(connection);
 
                 connection.accessToken = tokenResult.accessToken;
                 connection.tokenExpiry = tokenResult.expiresOn.toISOString();
@@ -119,7 +121,7 @@ export class PowerPlatformManager {
 
                 return { connection, accessToken: tokenResult.accessToken };
             } catch (error) {
-                logError("MSAL silent token acquisition failed", error);
+                logError("MSAL silent Power Platform token acquisition failed", error);
                 throw new Error(`Authentication expired for connection '${connection.name}'. Please reconnect to continue.`);
             }
         }
@@ -129,7 +131,8 @@ export class PowerPlatformManager {
 
             if (needsRefresh || !connection.accessToken) {
                 try {
-                    const authResult = await this.authManager.authenticateClientSecret(connection);
+                    const scopes = getScopes();
+                    const authResult = await this.authManager.authenticateClientSecret(connection, scopes);
 
                     connection.accessToken = authResult.accessToken;
                     connection.tokenExpiry = authResult.expiresOn.toISOString();
@@ -148,7 +151,7 @@ export class PowerPlatformManager {
                 await this.ensureMsalCacheOrClearTokens(connection, connectionId, `Token refresh failed for '${connection.name}'. Please re-enter your credentials.`);
 
                 try {
-                    const authResult = await this.authManager.acquireTokenSilently(connection);
+                    const authResult = await this.authManager.acquirePowerPlatformToken(connection);
 
                     this.connectionsManager.updateConnectionTokens(connectionId, {
                         accessToken: authResult.accessToken,
@@ -167,7 +170,7 @@ export class PowerPlatformManager {
             const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
             if (needsRefresh && connection.refreshToken) {
                 try {
-                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken, getScopes());
 
                     this.connectionsManager.updateConnectionTokens(connectionId, {
                         accessToken: authResult.accessToken,
@@ -188,7 +191,7 @@ export class PowerPlatformManager {
 
             if (needsRefresh) {
                 try {
-                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                    const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken, getScopes());
 
                     this.connectionsManager.updateConnectionTokens(connectionId, {
                         accessToken: authResult.accessToken,

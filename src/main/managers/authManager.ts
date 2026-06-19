@@ -407,20 +407,21 @@ export class AuthManager {
     /**
      * Authenticate using client ID and secret with automatic token caching
      * Uses ConfidentialClientApplication which handles token refresh automatically
+     * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async authenticateClientSecret(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateClientSecret(connection: DataverseConnection, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
 
         const confidentialApp = this.getConfidentialApp(connection.id, connection.clientId, connection.clientSecret, connection.tenantId);
-        const scopes = [`${connection.url}/.default`];
+        const requestedScopes = scopes || [`${connection.url}/.default`];
 
         try {
             // MSAL ConfidentialClientApplication automatically caches tokens
             // and only acquires new ones when expired
             const response = await confidentialApp.acquireTokenByClientCredential({
-                scopes: scopes,
+                scopes: requestedScopes,
             });
 
             if (!response) {
@@ -731,7 +732,7 @@ export class AuthManager {
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
         // Use user_impersonation scope for username/password flow (delegated access only)
         // For interactive flow, both .default and user_impersonation work
-        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`, "https://api.powerplatform.com/.default"];
+        const scopes = connection.authenticationType === "usernamePassword" ? [`${connection.url}/user_impersonation`] : [`${connection.url}/.default`];
 
         // Get the account from MSAL cache
         const account = await this.findMsalAccount(connection);
@@ -762,14 +763,50 @@ export class AuthManager {
     }
 
     /**
+     * Acquire access token for Power Platform API with scope https://api.powerplatform.com/.default
+     * This method should only be invoked when using Power Platform API methods
+     * @param connection The connection to acquire token for
+     * @returns Promise with access token (MSAL handles refresh internally)
+     */
+    async acquirePowerPlatformToken(connection: DataverseConnection): Promise<{ accessToken: string; expiresOn: Date }> {
+        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
+        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const scope = "https://api.powerplatform.com/.default";
+
+        // Get the account from MSAL cache
+        const account = await this.findMsalAccount(connection);
+
+        if (!account) {
+            throw new Error("No cached account found. Please authenticate again.");
+        }
+
+        try {
+            const response = await msalApp.acquireTokenSilent({
+                account: account,
+                scopes: [scope],
+            });
+
+            return {
+                accessToken: response.accessToken,
+                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+            };
+        } catch (error) {
+            logWarn("Power Platform token silent acquisition failed - re-authentication required");
+            throw new Error("Token refresh failed. Please authenticate again.");
+        }
+    }
+
+    /**
      * Refresh an access token using a refresh token
      * This is used for username/password flow and legacy interactive connections
      * For modern interactive connections, use acquireTokenSilently() instead
+     * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async refreshAccessToken(connection: DataverseConnection, refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async refreshAccessToken(connection: DataverseConnection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
-        const scope = `${connection.url}/.default`;
+        const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;
 
         const postData = new URLSearchParams({
             client_id: clientId,

@@ -657,15 +657,6 @@ Core platform features organized into namespaces:
         );
         ```
 
-- **showLoading(message?: string)**: Promise<void>
-    - Displays a loading overlay with spinner in the tool's context
-    - Optional message parameter (defaults to "Loading...")
-    - Example: `await toolboxAPI.utils.showLoading('Fetching records...');`
-
-- **hideLoading()**: Promise<void>
-    - Hides the loading overlay
-    - Should be called in a finally block to ensure it's always hidden
-
 #### Terminal
 
 - **create(options: TerminalOptions)**: Promise<Terminal>
