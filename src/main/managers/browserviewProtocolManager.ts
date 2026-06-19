@@ -1,10 +1,10 @@
 import { app, protocol } from "electron";
 import * as fs from "fs";
 import * as path from "path";
+import { logError, logInfo } from "../../common/logger";
 import { normalizeCspExceptionSource } from "../../common/types";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
-import { logInfo, logError } from "../../common/logger";
 
 /**
  * BrowserviewProtocolManager
@@ -196,8 +196,21 @@ export class BrowserviewProtocolManager {
             // Local development tool
             return tool.localPath;
         } else if (tool.npmPackageName) {
+            /**
+             * Cleanup any version suffix from the package name to get the correct directory
+             * Handle scoped packages (e.g., @scope/package) and version suffixes (e.g., package-1.0.0)
+             * Scope "@" is preserved, but version suffixes are removed
+             * Some packages may not have version suffixes, so we should check for both possibilities
+             * Example transformations:
+             * - "my-tool@1.0.0" => "my-tool"
+             * - "@scope/my-tool@1.0.0" => "@scope/my-tool"
+             * - "my-tool" => "my-tool"
+             * - "@scope/my-tool" => "@scope/my-tool"
+             */
+            const packageDirName = tool.npmPackageName.replace(/@?([^@]+)(?:@[\d.]+)?$/, "");
+
             // Npm-installed tool (debug mode)
-            return path.join(this.toolsDir, "node_modules", tool.npmPackageName);
+            return path.join(this.toolsDir, "node_modules", packageDirName);
         } else if (tool.id) {
             // Registry-installed tool
             return path.join(this.toolsDir, tool.id);

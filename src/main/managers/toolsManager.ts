@@ -3,11 +3,11 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CapabilityTagEntry, CspExceptions, Tool, ToolFeatures, ToolManifest, CommunityLinksCollection } from "../../common/types";
+import { logError, logInfo, logWarn } from "../../common/logger";
+import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
-import { logInfo, logError } from "../../common/logger";
 
 /**
  * Package.json structure for tool validation
@@ -274,7 +274,7 @@ export class ToolManager extends EventEmitter {
      */
     async fetchAvailableTools(): Promise<Tool[]> {
         const registryTools = await this.registryManager.fetchRegistry();
-        
+
         // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
         return registryTools.map((registryTool) => {
             const tool: Tool = {
@@ -624,6 +624,32 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with npm path metadata
         const toolId = `npm-${sanitizedToolId}`;
+
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(toolPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
+        // Validate declared capabilities against the known registry (warn on unknown tags)
+        if (capabilities && capabilities.length > 0) {
+            const knownTags = await this.getKnownCapabilityTags();
+            const knownTagSet = new Set(knownTags.map((t) => t.tag));
+            const unknownCaps = capabilities.filter((c) => !knownTagSet.has(c));
+            if (unknownCaps.length > 0) {
+                logWarn(`[ToolRegistry] Tool ${toolId} declares unrecognised capability tags: ${unknownCaps.join(", ")}. Ensure these tags exist in the capability registry or check for typos.`);
+            }
+        }
+
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -637,6 +663,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         this.tools.set(toolId, tool);
@@ -812,6 +839,32 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with local path metadata
         const toolId = `local-${sanitizedToolId}`;
+
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(localPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
+        // Validate declared capabilities against the known registry (warn on unknown tags)
+        if (capabilities && capabilities.length > 0) {
+            const knownTags = await this.getKnownCapabilityTags();
+            const knownTagSet = new Set(knownTags.map((t) => t.tag));
+            const unknownCaps = capabilities.filter((c) => !knownTagSet.has(c));
+            if (unknownCaps.length > 0) {
+                logWarn(`[ToolRegistry] Tool ${toolId} declares unrecognised capability tags: ${unknownCaps.join(", ")}. Ensure these tags exist in the capability registry or check for typos.`);
+            }
+        }
+
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -825,6 +878,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         this.tools.set(toolId, tool);

@@ -5,35 +5,7 @@ import { existsSync } from "fs";
 import { basename, isAbsolute } from "path";
 import { logInfo, logWarn } from "../../common/logger";
 import { Terminal, TerminalCommandResult, TerminalOptions } from "../../common/types";
-
-// Shell interpreters and privilege-escalation tools that must never be invoked through the terminal API.
-// Everything else is permitted so that tools can use commands like cd, code, dotnet, git, pac, npm install, etc.
-const BLOCKED_TERMINAL_COMMANDS = new Set([
-    // Unix/macOS shells
-    "bash",
-    "sh",
-    "zsh",
-    "fish",
-    "csh",
-    "ksh",
-    "dash",
-    "tcsh",
-    // Windows shells and their .exe variants
-    "cmd",
-    "cmd.exe",
-    "powershell",
-    "powershell.exe",
-    "pwsh",
-    "pwsh.exe",
-    // Privilege escalation
-    "sudo",
-    "su",
-    "runas",
-    "doas",
-    "pkexec",
-]);
-const BLOCKED_TERMINAL_ENV_KEYS = new Set(["PATH", "PATHEXT", "COMSPEC", "SHELL", "NODE_OPTIONS", "BASH_ENV", "ENV", "PROMPT_COMMAND", "ZDOTDIR"]);
-const BLOCKED_NPX_FLAGS = new Set(["-c", "--call", "-s", "--shell"]);
+import { BLOCKED_NPX_FLAGS, BLOCKED_TERMINAL_COMMANDS, BLOCKED_TERMINAL_ENV_KEYS } from "../constants";
 
 type ShellType = "posix" | "pwsh" | "cmd";
 
