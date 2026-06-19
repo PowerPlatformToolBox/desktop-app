@@ -178,7 +178,9 @@ export interface ToolboxAPI {
      * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
      * so the renderer can create a dedicated tab for the callee instance.
      */
-    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => void;
+    onCalleeToolOpened: (
+        callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void,
+    ) => void;
     /**
      * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
      * the main process so the renderer can remove the callee tab and return focus to the caller.

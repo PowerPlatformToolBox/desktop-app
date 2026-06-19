@@ -218,11 +218,7 @@ export class ToolWindowManager {
         // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
         ipcMain.handle(
             TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
-            async (
-                _event,
-                requestId: string,
-                result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null,
-            ) => {
+            async (_event, requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => {
                 const prompt = this.pendingConnectionPrompts.get(requestId);
                 if (!prompt) return;
                 this.pendingConnectionPrompts.delete(requestId);
@@ -551,12 +547,7 @@ export class ToolWindowManager {
             const isSecondaryRequired = multiConnectionMode === "required";
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
-                const connectionResult = await this.promptForInvocationConnections(
-                    requestId,
-                    tool.name,
-                    isSecondaryRequired,
-                    effectivePrimaryConnectionId,
-                );
+                const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
                 effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
             } catch (err) {
                 throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
@@ -789,6 +780,23 @@ export class ToolWindowManager {
             // If this was the active tool, hide the banner in the renderer
             if (this.activeToolId === null) {
                 this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+            }
+
+            // If the tool was launched by another tool (inter-tool invocation) and it closes
+            // without calling returnData, resolve the caller's Promise with null so the caller
+            // doesn't hang indefinitely.
+            const pending = this.pendingInvocations.get(instanceId);
+            if (pending) {
+                this.pendingInvocations.delete(instanceId);
+                // Notify the caller view (if still alive)
+                const callerView = this.toolViews.get(pending.callerInstanceId);
+                if (callerView && !callerView.webContents.isDestroyed()) {
+                    callerView.webContents.send("toolbox:invocation-result", {
+                        calleeInstanceId: instanceId,
+                        returnData: null,
+                    });
+                }
+                pending.resolve(null);
             }
 
             // Dispose any terminals created by this tool instance

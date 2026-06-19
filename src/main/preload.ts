@@ -72,8 +72,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
     findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
     /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
-    returnToCallerBanner: () =>
-        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
+    returnToCallerBanner: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },

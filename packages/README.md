@@ -116,14 +116,14 @@ The validator checks every field that the official review pipeline inspects:
 
 In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
 
-| Field                                   | Required | Rules                                                                                                                     |
-| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `invocation.version`                    | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
-| `invocation.capabilities`               | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`. |
-| `invocation.prefill`                    | ❌       | JSON-schema-style object describing data callers can pre-populate                                                         |
-| `invocation.prefill.properties`         | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
-| `invocation.returnTopic`                | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                              |
-| `invocation.returnTopic.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+| Field                               | Required | Rules                                                                                                                                            |
+| ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
+| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                    |
+| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                |
+| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
+| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                     |
+| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
 
 > \*\* Required only when the `invocation` object is present.
 
@@ -299,10 +299,7 @@ Tools can launch one another and pass data between them using the `invocation` n
 ```typescript
 // Tool A – launches the entity-picker tool and waits for a selection
 // The callee automatically inherits this tool's FXS connection
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",
-    { entityName: "account", allowMultiSelect: false },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", { entityName: "account", allowMultiSelect: false });
 
 if (result !== null) {
     console.log("Selected record id:", (result as { selectedId: string }).selectedId);
@@ -339,7 +336,7 @@ if (ctx) {
 }
 ```
 
-> **Tip:** A tool that was *not* launched by another tool receives `null` from `getLaunchContext()`.  
+> **Tip:** A tool that was _not_ launched by another tool receives `null` from `getLaunchContext()`.  
 > Use this to show a standalone UI or redirect accordingly.
 
 > **Auto-close**: after calling `returnData`, PPTB automatically closes the callee window. The callee does **not** need to close itself.
