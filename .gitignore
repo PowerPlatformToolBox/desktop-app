@@ -158,3 +158,6 @@ buildScripts/*/latest-mac.yml
 
 # macOS Finder metadata files
 .DS_Store
+
+# Kilo AI files
+.kilo/
