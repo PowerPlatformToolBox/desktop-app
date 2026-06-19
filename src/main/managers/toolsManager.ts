@@ -192,7 +192,8 @@ export class ToolManager extends EventEmitter {
     unloadTool(toolId: string): void {
         const tool = this.tools.get(toolId);
         if (tool) {
-            this.tools.delete(toolId);
+            // Too soon to delete it
+            //this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
     }
@@ -353,10 +354,29 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool from registry
+     * Uninstall a tool (handles registry, npm, and local tools)
      */
     async uninstallTool(toolId: string): Promise<void> {
-        await this.registryManager.uninstallTool(toolId);
+        const tool = this.tools.get(toolId);
+
+        if (tool) {
+            this.tools.delete(toolId);
+            this.emit("tool:unloaded", tool);
+        }
+
+        if (tool?.npmPackageName) {
+            const packageDir = this.resolvePackageDirectoryName(tool.npmPackageName);
+            const toolPath = path.join(this.toolsDirectory, "node_modules", packageDir);
+            if (fs.existsSync(toolPath)) {
+                fs.rmSync(toolPath, { recursive: true, force: true });
+            }
+        } else if (tool?.localPath) {
+            if (fs.existsSync(tool.localPath)) {
+                fs.rmSync(tool.localPath, { recursive: true, force: true });
+            }
+        } else {
+            await this.registryManager.uninstallTool(toolId);
+        }
     }
 
     /**
@@ -382,9 +402,7 @@ export class ToolManager extends EventEmitter {
      * Check if a package manager is available globally (debug mode only)
      */
     private buildEnv(): Record<string, string> {
-        const paths = [
-            ...(process.env.PATH || "").split(path.delimiter).filter(Boolean),
-        ];
+        const paths = [...(process.env.PATH || "").split(path.delimiter).filter(Boolean)];
 
         if (process.platform === "darwin") {
             paths.push("/usr/local/bin", "/opt/homebrew/bin");
