@@ -487,6 +487,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             return ipcInvoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS) as Promise<Array<{ tag: string; description: string }>>;
         },
     },
+
+    // Power Platform API - generic HTTP methods for all categories
+    powerplatform: powerPlatformApi,
 });
 
 // Also expose dataverseAPI as a direct alias (for tools that use it directly)

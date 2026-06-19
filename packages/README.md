@@ -8,7 +8,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Quick start](#quick-start)
         - [CLI options](#cli-options)
         - [What is validated](#what-is-validated)
-        - [pptb.config.json (optional)](#pptbconfigjson-optional)
+            - [pptb.config.json (optional)](#pptbconfigjson-optional)
     - [Overview](#overview)
     - [Usage](#usage)
         - [Include all type definitions](#include-all-type-definitions)
@@ -19,12 +19,22 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Terminal Operations](#terminal-operations)
         - [Events](#events)
         - [Inter-Tool Invocation](#inter-tool-invocation)
+            - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
+            - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery)
+            - [Callee: reading prefill data and returning a result](#callee-reading-prefill-data-and-returning-a-result)
+            - [Declaring your invocation contract](#declaring-your-invocation-contract)
     - [Dataverse API Examples](#dataverse-api-examples)
         - [CRUD Operations](#crud-operations)
         - [FetchXML Queries](#fetchxml-queries)
         - [Metadata Operations](#metadata-operations)
         - [Execute Actions/Functions](#execute-actionsfunctions)
         - [Deploy Solutions](#deploy-solutions)
+    - [Power Platform API Examples](#power-platform-api-examples)
+        - [Using Power Apps API](#using-power-apps-api)
+        - [Using Power Automate API](#using-power-automate-api)
+        - [Using Environment Management API](#using-environment-management-api)
+        - [Using Governance API](#using-governance-api)
+        - [Available Categories](#available-categories)
     - [API Reference](#api-reference)
         - [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
             - [Connections](#connections-1)
@@ -37,6 +47,8 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
             - [Query Operations](#query-operations)
             - [Metadata Operations](#metadata-operations-1)
             - [Advanced Operations](#advanced-operations)
+        - [Power Platform API (`window.powerplatformAPI`)](#power-platform-api-windowpowerplatformapi)
+            - [Category Methods](#category-methods)
         - [Security Notes](#security-notes)
     - [Publishing the package to npm](#publishing-the-package-to-npm)
     - [License](#license)
@@ -116,14 +128,14 @@ The validator checks every field that the official review pipeline inspects:
 
 In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
 
-| Field                                   | Required | Rules                                                                                                                     |
-| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `invocation.version`                    | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
-| `invocation.capabilities`               | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`. |
-| `invocation.prefill`                    | ❌       | JSON-schema-style object describing data callers can pre-populate                                                         |
-| `invocation.prefill.properties`         | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
-| `invocation.returnTopic`                | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                              |
-| `invocation.returnTopic.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                           |
+| Field                               | Required | Rules                                                                                                                                            |
+| ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
+| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                    |
+| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                |
+| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
+| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                     |
+| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
 
 > \*\* Required only when the `invocation` object is present.
 
@@ -153,10 +165,11 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 
 ## Overview
 
-The `@pptb/types` package provides TypeScript definitions for two main APIs:
+The `@pptb/types` package provides TypeScript definitions for three main APIs:
 
 1. **ToolBox API** (`window.toolboxAPI`) - Core platform features (connections, utilities, terminals, events)
 2. **Dataverse API** (`window.dataverseAPI`) - Microsoft Dataverse Web API operations
+3. **Power Platform API** (`window.powerplatformAPI`) - Power Platform Admin APIs with generic HTTP methods
 
 ## Usage
 
@@ -165,9 +178,10 @@ The `@pptb/types` package provides TypeScript definitions for two main APIs:
 ```typescript
 /// <reference types="@pptb/types" />
 
-// Both APIs are now available
+// All APIs are now available
 const toolbox = window.toolboxAPI;
 const dataverse = window.dataverseAPI;
+const powerplatform = window.powerplatformAPI;
 ```
 
 ### Include specific API types
@@ -178,6 +192,9 @@ const dataverse = window.dataverseAPI;
 
 // Only Dataverse API types
 /// <reference types="@pptb/types/dataverseAPI" />
+
+// Only Power Platform API types
+/// <reference types="@pptb/types/powerplatformAPI" />
 ```
 
 ## ToolBox API Examples
@@ -299,10 +316,7 @@ Tools can launch one another and pass data between them using the `invocation` n
 ```typescript
 // Tool A – launches the entity-picker tool and waits for a selection
 // The callee automatically inherits this tool's FXS connection
-const result = await toolboxAPI.invocation.launchTool(
-    "@my-org/entity-picker",
-    { entityName: "account", allowMultiSelect: false },
-);
+const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", { entityName: "account", allowMultiSelect: false });
 
 if (result !== null) {
     console.log("Selected record id:", (result as { selectedId: string }).selectedId);
@@ -339,7 +353,7 @@ if (ctx) {
 }
 ```
 
-> **Tip:** A tool that was *not* launched by another tool receives `null` from `getLaunchContext()`.  
+> **Tip:** A tool that was _not_ launched by another tool receives `null` from `getLaunchContext()`.  
 > Use this to show a standalone UI or redirect accordingly.
 
 > **Auto-close**: after calling `returnData`, PPTB automatically closes the callee window. The callee does **not** need to close itself.
@@ -523,9 +537,84 @@ await waitForImport(result.ImportJobId);
 
 > **Note:** `deploySolution` automatically supplies `PublishWorkflows` and `OverwriteUnmanagedCustomizations` with a default value of `false` when you do not specify them, aligning with Dataverse's ImportSolution requirements.
 
+## Power Platform API Examples
+
+The Power Platform API provides generic HTTP methods for all Power Platform Admin API categories:
+
+### Using Power Apps API
+
+```typescript
+// Get an admin app
+const app = await powerplatformAPI.PowerApps.Get("environments/{environmentId}/apps/{app}?api-version=2024-10-01");
+
+// List all apps in an environment
+const apps = await powerplatformAPI.PowerApps.Get("environments/{environmentId}/apps?api-version=2024-10-01");
+
+// Create a new app
+await powerplatformAPI.PowerApps.Post("environments/{environmentId}/apps?api-version=2024-10-01", {
+    name: "My App",
+    environmentId: "{environmentId}",
+});
+
+// Update an app
+await powerplatformAPI.PowerApps.Patch("environments/{environmentId}/apps/{appId}?api-version=2024-10-01", {
+    name: "Updated App Name",
+});
+
+// Delete an app
+await powerplatformAPI.PowerApps.Delete("environments/{environmentId}/apps/{appId}?api-version=2024-10-01");
+```
+
+### Using Power Automate API
+
+```typescript
+// List flows
+const flows = await powerplatformAPI.PowerAutomate.Get("environments/{environmentId}/flows?api-version=2024-10-01");
+
+// Get flow details
+const flow = await powerplatformAPI.PowerAutomate.Get("environments/{environmentId}/flows/{flowId}?api-version=2024-10-01");
+```
+
+### Using Environment Management API
+
+```typescript
+// List environments
+const environments = await powerplatformAPI.EnvironmentManagement.Get("environments?api-version=2024-10-01");
+
+// Get environment details
+const env = await powerplatformAPI.EnvironmentManagement.Get("environments/{environmentId}?api-version=2024-10-01");
+```
+
+### Using Governance API
+
+```typescript
+// Get governance data
+const data = await powerplatformAPI.Governance.Get("environments/{environmentId}/governance?api-version=2024-10-01");
+```
+
+### Available Categories
+
+The Power Platform API exposes the following categories, each with `Get`, `Post`, `Put`, `Patch`, and `Delete` methods:
+
+- **Analytics** - `https://api.powerplatform.com/analytics`
+- **AppManagement** - `https://api.powerplatform.com/appmanagement`
+- **Authorization** - `https://api.powerplatform.com/authorization`
+- **Connectivity** - `https://api.powerplatform.com/connectivity`
+- **CopilotStudio** - `https://api.powerplatform.com/copilotstudio`
+- **Dynamics** - `https://api.powerplatform.com/dynamics`
+- **EnvironmentManagement** - `https://api.powerplatform.com/environmentmanagement`
+- **Governance** - `https://api.powerplatform.com/governance`
+- **Licensing** - `https://api.powerplatform.com/licensing`
+- **PowerApps** - `https://api.powerplatform.com/powerapps`
+- **PowerAutomate** - `https://api.powerplatform.com/powerautomate`
+- **PowerPages** - `https://api.powerplatform.com/powerpages`
+- **ResourceQuery** - `https://api.powerplatform.com/resourcequery`
+- **UserManagement** - `https://api.powerplatform.com/usermanagement`
+- **WorkflowAgents** - `https://api.powerplatform.com/workflowagents`
+
 ## API Reference
 
-The Power Platform ToolBox exposes two main APIs to tools:
+The Power Platform ToolBox exposes three main APIs to tools:
 
 ### ToolBox API (`window.toolboxAPI`)
 
@@ -696,6 +785,50 @@ Complete HTTP client for interacting with Microsoft Dataverse:
     - Gets the status of a solution import job
     - Returns import job details including progress, completion status, and error information
     - Use to track the progress of a solution deployment initiated with deploySolution
+
+### Power Platform API (`window.powerplatformAPI`)
+
+Generic HTTP client for Power Platform Admin APIs covering all categories:
+
+#### Category Methods
+
+Each category (Analytics, AppManagement, Authorization, Connectivity, CopilotStudio, Dynamics, EnvironmentManagement, Governance, Licensing, PowerApps, PowerAutomate, PowerPages, ResourceQuery, UserManagement, WorkflowAgents) exposes:
+
+- **Get(path?, connectionTarget?, headers?)**: Promise<PowerPlatformResponse>
+    - Makes a GET request to the category endpoint
+    - Example: `powerplatformAPI.PowerApps.Get('environments/{environmentId}/apps/{app}?api-version=2024-10-01')`
+
+- **Post(path?, body?, connectionTarget?, headers?)**: Promise<PowerPlatformResponse>
+    - Makes a POST request to the category endpoint
+
+- **Put(path?, body?, connectionTarget?, headers?)**: Promise<PowerPlatformResponse>
+    - Makes a PUT request to the category endpoint
+
+- **Patch(path?, body?, connectionTarget?, headers?)**: Promise<PowerPlatformResponse>
+    - Makes a PATCH request to the category endpoint
+
+- **Delete(path?, connectionTarget?, headers?, body?)**: Promise<PowerPlatformResponse>
+    - Makes a DELETE request to the category endpoint
+
+Available categories and their base URLs:
+
+| Category              | Base URL                                              |
+| --------------------- | ----------------------------------------------------- |
+| Analytics             | `https://api.powerplatform.com/analytics`             |
+| AppManagement         | `https://api.powerplatform.com/appmanagement`         |
+| Authorization         | `https://api.powerplatform.com/authorization`         |
+| Connectivity          | `https://api.powerplatform.com/connectivity`          |
+| CopilotStudio         | `https://api.powerplatform.com/copilotstudio`         |
+| Dynamics              | `https://api.powerplatform.com/dynamics`              |
+| EnvironmentManagement | `https://api.powerplatform.com/environmentmanagement` |
+| Governance            | `https://api.powerplatform.com/governance`            |
+| Licensing             | `https://api.powerplatform.com/licensing`             |
+| PowerApps             | `https://api.powerplatform.com/powerapps`             |
+| PowerAutomate         | `https://api.powerplatform.com/powerautomate`         |
+| PowerPages            | `https://api.powerplatform.com/powerpages`            |
+| ResourceQuery         | `https://api.powerplatform.com/resourcequery`         |
+| UserManagement        | `https://api.powerplatform.com/usermanagement`        |
+| WorkflowAgents        | `https://api.powerplatform.com/workflowagents`        |
 
 ### Security Notes
 
