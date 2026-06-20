@@ -401,7 +401,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
             const calleeInstanceId = `${targetToolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-            const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
+            const primaryConnectionId = options?.primaryConnectionId !== undefined
+                ? options.primaryConnectionId
+                : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
             const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
             const noReturn = options?.noReturn ?? false;
 

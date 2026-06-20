@@ -34,18 +34,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import {
-    applyAppearanceSettings,
-    closeAllTools,
-    initializeCalleeToolListeners,
-    initializeInvocationBanner,
-    initializeInvocationConnectionsPrompt,
-    initializeTabScrollButtons,
-    launchTool,
-    restoreSession,
-    setupKeyboardShortcuts,
-    showHomePage,
-} from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, initializeCalleeToolListeners, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**

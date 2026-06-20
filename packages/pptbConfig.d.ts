@@ -49,7 +49,14 @@
  * | `plugin-inspector`   | Inspect or manage plugins and assemblies              |
  * | `pcf-control-builder`| Build or scaffold PCF controls                        |
  */
-export type KnownCapabilityTag = "fetchxml" | "entity-picker" | "record-selector" | "solution-selector" | "webresource-editor" | "plugin-inspector" | "pcf-control-builder";
+export type KnownCapabilityTag =
+    | "fetchxml"
+    | "entity-picker"
+    | "record-selector"
+    | "solution-selector"
+    | "webresource-editor"
+    | "plugin-inspector"
+    | "pcf-control-builder";
 
 /**
  * A capability tag string accepted by `invocation.capabilities` and

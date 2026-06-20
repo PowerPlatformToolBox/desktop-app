@@ -69,7 +69,15 @@ const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-
  * Node.js module that cannot import from the Electron/TypeScript source tree, both
  * lists must be updated together whenever a new tag is added.
  */
-const KNOWN_CAPABILITY_TAGS = ["fetchxml", "entity-picker", "record-selector", "solution-selector", "webresource-editor", "plugin-inspector", "pcf-control-builder"];
+const KNOWN_CAPABILITY_TAGS = [
+    "fetchxml",
+    "entity-picker",
+    "record-selector",
+    "solution-selector",
+    "webresource-editor",
+    "plugin-inspector",
+    "pcf-control-builder",
+];
 
 /**
  * Checks if a string is a valid URL.

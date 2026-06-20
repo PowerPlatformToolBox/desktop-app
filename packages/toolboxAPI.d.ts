@@ -498,11 +498,7 @@ declare namespace ToolBoxAPI {
          * @param prefillData  Data to pre-populate the target tool's state
          * @param options      Optional connection overrides and launch flags
          */
-        launchTool: (
-            targetToolId: string,
-            prefillData?: Record<string, unknown>,
-            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
-        ) => Promise<unknown>;
+        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean }) => Promise<unknown>;
 
         /**
          * Find installed tools that declare a given capability tag in their
