@@ -49,14 +49,7 @@
  * | `plugin-inspector`   | Inspect or manage plugins and assemblies              |
  * | `pcf-control-builder`| Build or scaffold PCF controls                        |
  */
-export type KnownCapabilityTag =
-    | "fetchxml"
-    | "entity-picker"
-    | "record-selector"
-    | "solution-selector"
-    | "webresource-editor"
-    | "plugin-inspector"
-    | "pcf-control-builder";
+export type KnownCapabilityTag = "fetchxml" | "entity-picker" | "record-selector" | "solution-selector" | "webresource-editor" | "plugin-inspector" | "pcf-control-builder";
 
 /**
  * A capability tag string accepted by `invocation.capabilities` and
@@ -72,7 +65,7 @@ export type KnownCapabilityTag =
  * { "invocation": { "version": "1.0.0", "capabilities": ["fetchxml", "entity-picker"] } }
  * ```
  */
-export type CapabilityTag = KnownCapabilityTag | (string & {});
+export type CapabilityTag = KnownCapabilityTag | string;
 
 /** A JSON-schema-style property descriptor used inside invocation definitions. */
 export interface JsonSchemaProperty {
@@ -130,6 +123,15 @@ export interface InvocationConfig {
      * ```
      */
     capabilities?: CapabilityTag[];
+    /**
+     * Whether this tool may be launched by an external (non-PPTB) automation agent.
+     *
+     * This is a stronger statement than `capabilities` – that field only means "another PPTB tool
+     * may launch me", whereas this field means "an external agent can launch me programmatically."
+     * The tool still opens visibly and still requires whatever UI interaction it normally does.
+     * A future "fully unattended/headless" capability will live in its own top-level section.
+     */
+    agentInvokable?: boolean;
 }
 
 /**

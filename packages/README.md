@@ -136,6 +136,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 | `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
 | `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                     |
 | `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
+| `invocation.agentInvokable`         | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                       |
 
 > \*\* Required only when the `invocation` object is present.
 

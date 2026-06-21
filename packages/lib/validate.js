@@ -38,6 +38,7 @@
  * @typedef {{ properties?: Record<string, JsonSchemaProperty> }} JsonSchemaObject
  * @typedef {{
  *   version: string;
+ *   agentInvokable?: boolean;
  *   capabilities: string[];
  *   prefill?: JsonSchemaObject;
  *   returnTopic?: JsonSchemaObject;
@@ -430,6 +431,13 @@ function validatePPTBConfig(config) {
                             );
                         }
                     });
+                }
+            }
+
+            // invocation.agentInvokable – optional boolean
+            if (inv.agentInvokable !== undefined) {
+                if (typeof inv.agentInvokable !== "boolean") {
+                    errors.push("invocation.agentInvokable must be a boolean (true or false)");
                 }
             }
         }
