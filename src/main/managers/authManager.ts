@@ -409,7 +409,11 @@ export class AuthManager {
      * Uses ConfidentialClientApplication which handles token refresh automatically
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async authenticateClientSecret(connection: DataverseConnection, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateClientSecret(
+        connection: DataverseConnection,
+        scopes?: string[],
+        skipValidateEnvAccess: boolean = false,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
@@ -434,8 +438,10 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
 
-            // Validate user has access to the environment by performing a WhoAmI check
-            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            if (!skipValidateEnvAccess) {
+                // Validate user has access to the environment by performing a WhoAmI check
+                await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            }
 
             return authResult;
         } catch (error) {

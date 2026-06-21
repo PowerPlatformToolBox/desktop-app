@@ -29,6 +29,9 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
         <div class="info-message">
             Please select a connection to connect to your Dataverse environment before using this tool.
         </div>
+        <div id="power-platform-api-info" class="modal-warning" style="display: none; margin-bottom: 12px;">
+            <span>Only connections enabled for Power Platform API are shown. Add a connection with Client ID/Secret authentication and enable "Enable for Power Platform API" to use it with this tool.</span>
+        </div>
         <div class="modal-search-container">
             <div class="modal-search-bar">
                 <div class="modal-search-input-wrapper">

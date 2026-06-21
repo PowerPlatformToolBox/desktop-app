@@ -49,6 +49,12 @@ export interface DataverseConnection {
     categoryColor?: string;
     // Import state: true when the connection was imported but is missing required secrets/credentials
     hasIncompleteCredentials?: boolean;
+    // Whether this connection can be used for Power Platform API operations
+    enabledForPowerPlatformAPI?: boolean;
+    // Separate access token for Power Platform API (https://api.powerplatform.com scope)
+    powerPlatformAccessToken?: string;
+    // Expiry for the Power Platform access token
+    powerPlatformTokenExpiry?: string;
 }
 
 /**
@@ -86,6 +92,7 @@ export interface UIConnectionData {
     environmentColor?: string;
     categoryColor?: string;
     hasIncompleteCredentials?: boolean;
+    enabledForPowerPlatformAPI?: boolean;
 }
 
 /**

@@ -216,7 +216,14 @@ async function main() {
             console.log(`  Icon        : ${info.icon}`);
         }
         if (info.features) {
-            console.log(`  Features    : multiConnection=${info.features.multiConnection}${info.features.minAPI ? `, minAPI=${info.features.minAPI}` : ""}`);
+            let featuresStr = `multiConnection=${info.features.multiConnection}`;
+            if (info.features.minAPI) {
+                featuresStr += `, minAPI=${info.features.minAPI}`;
+            }
+            if (info.features.enabledForPowerPlatformAPI !== undefined) {
+                featuresStr += `, enabledForPowerPlatformAPI=${info.features.enabledForPowerPlatformAPI}`;
+            }
+            console.log(`  Features    : ${featuresStr}`);
         }
         if (configResult !== null && configResult.packageInfo && configResult.packageInfo.invocation) {
             const inv = configResult.packageInfo.invocation;

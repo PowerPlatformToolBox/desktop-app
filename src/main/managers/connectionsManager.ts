@@ -7,12 +7,12 @@ import { logInfo } from "../../common/logger";
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
  */
-const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = ["clientId", "clientSecret", "accessToken", "refreshToken", "password"];
+const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = ["clientId", "clientSecret", "accessToken", "refreshToken", "password", "powerPlatformAccessToken"];
 
 /**
  * Fields that must NOT be included in connection exports (secrets/tokens)
  */
-const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = ["clientSecret", "password", "accessToken", "refreshToken", "tokenExpiry", "msalAccountId"];
+const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = ["clientSecret", "password", "accessToken", "refreshToken", "tokenExpiry", "msalAccountId", "powerPlatformAccessToken", "powerPlatformTokenExpiry"];
 
 /**
  * Fields required for a valid importable connection
@@ -61,6 +61,10 @@ export class ConnectionsManager {
                     break;
                 }
                 if (conn.accessToken && !this.isLikelyEncrypted(conn.accessToken)) {
+                    needsMigration = true;
+                    break;
+                }
+                if (conn.powerPlatformAccessToken && !this.isLikelyEncrypted(conn.powerPlatformAccessToken)) {
                     needsMigration = true;
                     break;
                 }
@@ -170,14 +174,18 @@ export class ConnectionsManager {
             throw new Error("Connection not found");
         }
 
-        // Clear all authentication tokens
+        this.clearTokensForConnection(connection);
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+    }
+
+    private clearTokensForConnection(connection: DataverseConnection): void {
         connection.accessToken = undefined;
         connection.refreshToken = undefined;
         connection.tokenExpiry = undefined;
         connection.msalAccountId = undefined;
-
-        this.store.set("connections", connections);
-        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+        connection.powerPlatformAccessToken = undefined;
+        connection.powerPlatformTokenExpiry = undefined;
     }
 
     /**
@@ -188,15 +196,63 @@ export class ConnectionsManager {
         const connections = this.store.get("connections");
 
         for (const connection of connections) {
-            // Clear all authentication tokens
-            connection.accessToken = undefined;
-            connection.refreshToken = undefined;
-            connection.tokenExpiry = undefined;
-            connection.msalAccountId = undefined;
+            this.clearTokensForConnection(connection);
         }
 
         this.store.set("connections", connections);
         logInfo(`[ConnectionsManager] Cleared tokens for all connections`);
+    }
+
+    /**
+     * Update Power Platform API tokens with encryption (called after Power Platform auth/refresh)
+     */
+    updatePowerPlatformTokens(id: string, authTokens: { accessToken: string; expiresOn: Date }): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        connection.lastUsedAt = new Date().toISOString();
+        connection.powerPlatformAccessToken = this.encryptionManager.encrypt(authTokens.accessToken);
+        connection.powerPlatformTokenExpiry = authTokens.expiresOn.toISOString();
+
+        this.store.set("connections", connections);
+    }
+
+    /**
+     * Clear Power Platform API tokens for a connection
+     */
+    clearPowerPlatformTokens(id: string): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        connection.powerPlatformAccessToken = undefined;
+        connection.powerPlatformTokenExpiry = undefined;
+
+        this.store.set("connections", connections);
+    }
+
+    /**
+     * Check if a connection's Power Platform token is expired
+     */
+    isPowerPlatformTokenExpired(connectionId: string): boolean {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === connectionId);
+
+        if (!connection || !connection.powerPlatformTokenExpiry) {
+            return false;
+        }
+
+        const expiryDate = new Date(connection.powerPlatformTokenExpiry);
+        const now = new Date();
+
+        return expiryDate.getTime() <= now.getTime();
     }
 
     /**
@@ -368,6 +424,7 @@ export class ConnectionsManager {
                 environmentColor: typeof entry.environmentColor === "string" ? entry.environmentColor : undefined,
                 categoryColor: typeof entry.categoryColor === "string" ? entry.categoryColor : undefined,
                 hasIncompleteCredentials,
+                enabledForPowerPlatformAPI: typeof entry.enabledForPowerPlatformAPI === "boolean" ? entry.enabledForPowerPlatformAPI : false,
             };
 
             // Encrypt sensitive fields and persist

@@ -142,11 +142,12 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
 
     const multiConnectionMode = targetTool.tool.features?.multiConnection || "none";
     const hasMultiConnection = multiConnectionMode === "required" || multiConnectionMode === "optional";
+    const requirePowerPlatformApi = targetTool.tool.features?.enabledForPowerPlatformAPI === true;
 
     try {
         if (hasMultiConnection) {
             const isSecondaryRequired = multiConnectionMode === "required";
-            const result = await openSelectMultiConnectionModal(isSecondaryRequired);
+            const result = await openSelectMultiConnectionModal(isSecondaryRequired, targetTool.tool.name, requirePowerPlatformApi);
 
             await setToolConnection(instanceId, result.primaryConnectionId);
             await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
@@ -163,7 +164,7 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
                 type: "success",
             });
         } else {
-            const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId);
+            const selectedConnectionId = await openSelectConnectionModal(targetTool.connectionId, targetTool.tool.name, requirePowerPlatformApi);
 
             if (!selectedConnectionId) {
                 return;
@@ -390,7 +391,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (missingPrimary || missingSecondary) {
                 try {
-                    const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name);
+                    const result = await openSelectMultiConnectionModal(isSecondaryRequired, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
                     primaryConnectionId = result.primaryConnectionId;
                     secondaryConnectionId = result.secondaryConnectionId;
                     logInfo("Multi-connections selected:", { primaryConnectionId, secondaryConnectionId });
@@ -416,7 +417,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 // Regular single-connection flow - prompt if no stored connection
                 logInfo("Showing connection selection modal for new instance...");
                 try {
-                    const selectedConnectionId = await openSelectConnectionModal(null, tool.name);
+                    const selectedConnectionId = await openSelectConnectionModal(null, tool.name, tool.features?.enabledForPowerPlatformAPI === true);
                     logInfo("Connection established. Continuing with tool launch...");
                     if (selectedConnectionId) {
                         primaryConnectionId = selectedConnectionId;

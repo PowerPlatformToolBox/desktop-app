@@ -53,6 +53,8 @@ export class ModalWindowManager {
                     if (!this.mainWindow.isDestroyed() && !this.mainWindow.webContents.isDestroyed()) {
                         this.mainWindow.webContents.send(EVENT_CHANNELS.MODAL_WINDOW_OPENED, { id: this.currentOptions?.id ?? null });
                     }
+                    // TODO: Testing; remove before check-in
+                    modalWindow.webContents.toggleDevTools();
                 }
             })
             .catch((error) => {

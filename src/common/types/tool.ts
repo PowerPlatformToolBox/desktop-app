@@ -35,6 +35,12 @@ export interface ToolFeatures {
      * @example "1.0.12"
      */
     minAPI?: string;
+    /**
+     * Whether this tool requires connections enabled for Power Platform API
+     * When true, only connections with Client ID/Secret authentication and
+     * enabledForPowerPlatformAPI=true will be shown in the connection selection modal.
+     */
+    enabledForPowerPlatformAPI?: boolean;
 }
 
 /**

@@ -121,6 +121,11 @@ export function getAddConnectionModalView(isDarkTheme: boolean): ModalViewTempla
                     </div>
                     <label for="connection-tenant-id-cs">Tenant ID</label>
                     <input type="text" id="connection-tenant-id-cs" class="modal-input" placeholder="tenant-id" />
+                    <div class="checkbox-wrapper" id="power-platform-api-wrapper" style="margin-top: 12px;">
+                        <input type="checkbox" id="connection-enabled-for-powerplatform-api" class="modal-checkbox" />
+                        <label for="connection-enabled-for-powerplatform-api" class="checkbox-label">Enable for Power Platform API</label>
+                    </div>
+                    <p class="helper-text" id="power-platform-api-help" style="margin-top: 8px;">Check this to allow this connection to be used for Power Platform API tools. Only connections with Client ID/Secret authentication can be enabled for Power Platform API.</p>
                 </div>
                 <div id="username-password-fields" class="field-group" style="display: none">
                     <span class="section-label">Username &amp; Password</span>

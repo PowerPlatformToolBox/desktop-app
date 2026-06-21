@@ -115,9 +115,12 @@ export class PowerPlatformManager {
             try {
                 const tokenResult = await this.authManager.acquirePowerPlatformToken(connection);
 
-                connection.accessToken = tokenResult.accessToken;
-                connection.tokenExpiry = tokenResult.expiresOn.toISOString();
-                this.connectionsManager.updateConnection(connection.id, connection);
+                connection.powerPlatformAccessToken = tokenResult.accessToken;
+                connection.powerPlatformTokenExpiry = tokenResult.expiresOn.toISOString();
+                this.connectionsManager.updatePowerPlatformTokens(connection.id, {
+                    accessToken: tokenResult.accessToken,
+                    expiresOn: tokenResult.expiresOn,
+                });
 
                 return { connection, accessToken: tokenResult.accessToken };
             } catch (error) {
@@ -127,16 +130,19 @@ export class PowerPlatformManager {
         }
 
         if (connection.authenticationType === "clientSecret") {
-            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+            const needsRefresh = this.connectionsManager.isPowerPlatformTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.powerPlatformTokenExpiry, 5 * 60 * 1000);
 
-            if (needsRefresh || !connection.accessToken) {
+            if (needsRefresh || !connection.powerPlatformAccessToken) {
                 try {
                     const scopes = getScopes();
-                    const authResult = await this.authManager.authenticateClientSecret(connection, scopes);
+                    const authResult = await this.authManager.authenticateClientSecret(connection, scopes, true);
 
-                    connection.accessToken = authResult.accessToken;
-                    connection.tokenExpiry = authResult.expiresOn.toISOString();
-                    this.connectionsManager.updateConnection(connection.id, connection);
+                    connection.powerPlatformAccessToken = authResult.accessToken;
+                    connection.powerPlatformTokenExpiry = authResult.expiresOn.toISOString();
+                    this.connectionsManager.updatePowerPlatformTokens(connection.id, {
+                        accessToken: authResult.accessToken,
+                        expiresOn: authResult.expiresOn,
+                    });
 
                     return { connection, accessToken: authResult.accessToken };
                 } catch (error) {
@@ -153,11 +159,9 @@ export class PowerPlatformManager {
                 try {
                     const authResult = await this.authManager.acquirePowerPlatformToken(connection);
 
-                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                    this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                         accessToken: authResult.accessToken,
-                        refreshToken: undefined,
                         expiresOn: authResult.expiresOn,
-                        msalAccountId: connection.msalAccountId,
                     });
 
                     return { connection, accessToken: authResult.accessToken };
@@ -167,14 +171,13 @@ export class PowerPlatformManager {
                 }
             }
 
-            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+            const needsRefresh = this.connectionsManager.isPowerPlatformTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.powerPlatformTokenExpiry, 5 * 60 * 1000);
             if (needsRefresh && connection.refreshToken) {
                 try {
                     const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken, getScopes());
 
-                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                    this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                         accessToken: authResult.accessToken,
-                        refreshToken: authResult.refreshToken,
                         expiresOn: authResult.expiresOn,
                     });
 
@@ -187,15 +190,14 @@ export class PowerPlatformManager {
         }
 
         if (connection.authenticationType === "interactive" && !connection.msalAccountId && connection.refreshToken) {
-            const needsRefresh = this.connectionsManager.isConnectionTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.tokenExpiry, 5 * 60 * 1000);
+            const needsRefresh = this.connectionsManager.isPowerPlatformTokenExpired(connectionId) || this.isTokenExpiringWithin(connection.powerPlatformTokenExpiry, 5 * 60 * 1000);
 
             if (needsRefresh) {
                 try {
                     const authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken, getScopes());
 
-                    this.connectionsManager.updateConnectionTokens(connectionId, {
+                    this.connectionsManager.updatePowerPlatformTokens(connectionId, {
                         accessToken: authResult.accessToken,
-                        refreshToken: authResult.refreshToken,
                         expiresOn: authResult.expiresOn,
                     });
 
@@ -207,11 +209,11 @@ export class PowerPlatformManager {
             }
         }
 
-        if (!connection.accessToken) {
+        if (!connection.powerPlatformAccessToken) {
             throw new Error(`No access token found for '${connection.name}'. Please reconnect to the environment.`);
         }
 
-        return { connection, accessToken: connection.accessToken };
+        return { connection, accessToken: connection.powerPlatformAccessToken };
     }
 
     private isTokenExpiringWithin(tokenExpiry: string | undefined, milliseconds: number): boolean {

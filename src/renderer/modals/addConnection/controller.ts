@@ -150,6 +150,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
+        enabledForPowerPlatformAPI: (document.getElementById("connection-enabled-for-powerplatform-api")?.checked) ?? false,
         category: (() => {
             const sel = document.getElementById("connection-category-select");
             if (!(sel instanceof HTMLSelectElement)) return "";

@@ -52,6 +52,7 @@ interface ConnectionFormPayload {
     category?: string;
     environmentColor?: string;
     categoryColor?: string;
+    enabledForPowerPlatformAPI?: boolean;
 }
 
 interface AuthenticateConnectionAction {
@@ -171,6 +172,9 @@ let highlightConnectionId: string | null = null;
 // Store the name of the tool requesting a connection (shown in the modal header)
 let requestingToolName: string | undefined = undefined;
 
+// Store whether the tool requires Power Platform API connections
+let requirePowerPlatformApi: boolean = false;
+
 // Store the connection ID being edited
 let editingConnectionId: string | null = null;
 
@@ -275,8 +279,9 @@ export function initializeSelectConnectionModalBridge(): void {
  * Returns a promise that resolves with the selected connectionId when a connection is selected and connected, or rejects if cancelled
  * @param toolConnectionId - Optional connection ID to highlight as active (for tool-specific selection)
  * @param toolName - Optional name of the tool requesting the connection (shown in modal header)
+ * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export async function openSelectConnectionModal(toolConnectionId?: string | null, toolName?: string): Promise<string> {
+export async function openSelectConnectionModal(toolConnectionId?: string | null, toolName?: string, enabledForPowerPlatformAPI: boolean = false): Promise<string> {
     return new Promise((resolve, reject) => {
         initializeSelectConnectionModalBridge();
 
@@ -285,6 +290,9 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
 
         // Store the tool name to display in the modal header
         requestingToolName = toolName;
+
+        // Store whether to require Power Platform API enabled connections
+        requirePowerPlatformApi = enabledForPowerPlatformAPI;
 
         // Store resolve/reject handlers for later use
         selectConnectionModalPromiseHandlers.resolve = resolve;
@@ -299,6 +307,7 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
                 selectConnectionModalPromiseHandlers.reject = null;
                 highlightConnectionId = null; // Clear highlight
                 requestingToolName = undefined; // Clear tool name
+                requirePowerPlatformApi = false; // Clear Power Platform API flag
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -308,7 +317,7 @@ export async function openSelectConnectionModal(toolConnectionId?: string | null
 
         showBrowserWindowModal({
             id: "select-connection-browser-modal",
-            html: buildSelectConnectionModalHtml(),
+            html: buildSelectConnectionModalHtml(requirePowerPlatformApi),
             width: SELECT_CONNECTION_MODAL_DIMENSIONS.width,
             height: SELECT_CONNECTION_MODAL_DIMENSIONS.height,
         }).catch(reject);
@@ -332,10 +341,10 @@ function handleSelectConnectionModalMessage(payload: ModalWindowMessagePayload):
     }
 }
 
-function buildSelectConnectionModalHtml(): string {
+function buildSelectConnectionModalHtml(enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectConnectionModalView(isDarkTheme, requestingToolName);
-    const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS);
+    const script = getSelectConnectionModalControllerScript(SELECT_CONNECTION_MODAL_CHANNELS, enabledForPowerPlatformAPI);
     return `${styles}\n${body}\n${script}`.trim();
 }
 
@@ -431,6 +440,7 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                         category: conn.category,
                         environmentColor: conn.environmentColor,
                         categoryColor: conn.categoryColor,
+                        enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
                     }),
                 ),
             },
@@ -462,13 +472,17 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * Returns a promise that resolves with both connection IDs, or rejects if cancelled
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
  * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
+ * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true, toolName?: string): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
+export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true, toolName?: string, enabledForPowerPlatformAPI: boolean = false): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
 
         // Store the tool name to display in the modal header
         requestingToolName = toolName;
+
+        // Store whether to require Power Platform API enabled connections
+        requirePowerPlatformApi = enabledForPowerPlatformAPI;
 
         // Store resolve/reject handlers for later use
         selectMultiConnectionModalPromiseHandlers.resolve = resolve;
@@ -482,6 +496,7 @@ export async function openSelectMultiConnectionModal(isSecondaryRequired: boolea
                 selectMultiConnectionModalPromiseHandlers.resolve = null;
                 selectMultiConnectionModalPromiseHandlers.reject = null;
                 requestingToolName = undefined; // Clear tool name
+                requirePowerPlatformApi = false; // Clear Power Platform API flag
                 // Remove the handler after first call
                 offBrowserWindowModalClosed(modalClosedHandler);
             }
@@ -491,7 +506,7 @@ export async function openSelectMultiConnectionModal(isSecondaryRequired: boolea
 
         showBrowserWindowModal({
             id: "select-multi-connection-browser-modal",
-            html: buildSelectMultiConnectionModalHtml(isSecondaryRequired),
+            html: buildSelectMultiConnectionModalHtml(isSecondaryRequired, enabledForPowerPlatformAPI),
             width: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.width,
             height: SELECT_MULTI_CONNECTION_MODAL_DIMENSIONS.height,
         }).catch(reject);
@@ -515,10 +530,10 @@ function handleSelectMultiConnectionModalMessage(payload: ModalWindowMessagePayl
     }
 }
 
-function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true): string {
+function buildSelectMultiConnectionModalHtml(isSecondaryRequired: boolean = true, enabledForPowerPlatformAPI: boolean = false): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const { styles, body } = getSelectMultiConnectionModalView(isDarkTheme, isSecondaryRequired, requestingToolName);
-    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired);
+    const script = getSelectMultiConnectionModalControllerScript(SELECT_MULTI_CONNECTION_MODAL_CHANNELS, isSecondaryRequired, enabledForPowerPlatformAPI);
     return `${styles}\n${body}\n${script}`.trim();
 }
 
@@ -632,6 +647,7 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
                     category: conn.category,
                     environmentColor: conn.environmentColor,
                     categoryColor: conn.categoryColor,
+                    enabledForPowerPlatformAPI: conn.enabledForPowerPlatformAPI,
                 })),
             },
         });
@@ -1609,6 +1625,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         authenticationType,
         createdAt: new Date().toISOString(),
         // Note: isActive is NOT part of DataverseConnection - it's a UI-level property
+        enabledForPowerPlatformAPI: formPayload.enabledForPowerPlatformAPI === true,
     };
 
     // Browser settings apply to all auth types (used for opening URLs with authentication)

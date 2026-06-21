@@ -713,5 +713,30 @@ export function getModalStyles(isDarkTheme: boolean): string {
     .connection-group-items.collapsed {
         display: none;
     }
+
+    .checkbox-wrapper {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .modal-checkbox {
+        margin-top: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)"};
+        cursor: pointer;
+        accent-color: #0e639c;
+    }
+
+    .checkbox-label {
+        font-size: 13px;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.8)"};
+        cursor: pointer;
+        user-select: none;
+    }
 </style>`;
 }
