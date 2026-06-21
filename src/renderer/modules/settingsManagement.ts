@@ -88,6 +88,12 @@ export async function loadSettings(): Promise<void> {
             environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
         }
 
+        // Load MCP access token (read-only display)
+        const mcpTokenInput = document.getElementById("sidebar-mcp-access-token") as HTMLInputElement | null;
+        if (mcpTokenInput) {
+            mcpTokenInput.value = await window.toolboxAPI.getMcpAccessToken();
+        }
+
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
 
         // Check if the font is a predefined option
@@ -296,6 +302,8 @@ function hasUnsavedChanges(): boolean {
         const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
         if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
     }
+
+    // MCP token is read-only, no unsaved changes tracking needed
 
     return false;
 }
@@ -513,6 +521,23 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
             </section>
 
+            <section id="settings-section-mcp" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">MCP Server</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">MCP Access Token</span>
+                        <p class="settings-vscode-item-description">Token used to authenticate MCP client connections. Include this token in the <code>X-MCP-Auth-Token</code> header with your requests.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" id="sidebar-mcp-access-token" class="fluent-input settings-vscode-input" readonly style="width: 200px; font-family: monospace;" />
+                            <button id="sidebar-copy-mcp-token-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <div class="settings-vscode-actions">
                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
                 <span class="settings-vscode-item-description">Changes apply instantly after saving.</span>
@@ -540,6 +565,20 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 .catch((err) => {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
+        });
+    }
+
+    // Wire up MCP token copy button
+    const copyMcpTokenBtn = panel.querySelector("#sidebar-copy-mcp-token-btn") as HTMLButtonElement | null;
+    const mcpTokenInput = panel.querySelector("#sidebar-mcp-access-token") as HTMLInputElement | null;
+    if (copyMcpTokenBtn && mcpTokenInput) {
+        copyMcpTokenBtn.addEventListener("click", () => {
+            window.toolboxAPI.utils.copyToClipboard(mcpTokenInput.value);
+            window.toolboxAPI.utils.showNotification({
+                title: "Copied",
+                body: "MCP access token copied to clipboard",
+                type: "success",
+            });
         });
     }
 

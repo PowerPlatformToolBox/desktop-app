@@ -48,6 +48,7 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -85,6 +86,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
+    private mcpServerManager: McpServerManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
@@ -132,6 +134,7 @@ class ToolBoxApp {
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager);
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -268,6 +271,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS);
         ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
         ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN);
 
         // Connection handlers
         ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
@@ -472,6 +476,11 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, (_, key, value) => {
             this.settingsManager.setSetting(key, value);
+        });
+
+        // MCP access token handler
+        ipcMain.handle(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN, () => {
+            return this.settingsManager.getMcpAccessToken();
         });
 
         // Favorite tools
@@ -3090,6 +3099,7 @@ class ToolBoxApp {
             this.protocolHandlerManager.initialize();
 
             await app.whenReady();
+            await this.mcpServerManager.start();
             logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
@@ -3182,11 +3192,13 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", () => {
+            app.on("before-quit", async () => {
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
                 this.trayManager?.destroy();
+                // Clean up MCP server
+                await this.mcpServerManager.stop();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks

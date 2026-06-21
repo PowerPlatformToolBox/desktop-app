@@ -1,5 +1,14 @@
 import Store from "electron-store";
 import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
+import { randomBytes } from "crypto";
+
+/**
+ * Generates a random authentication token for MCP server access
+ * Returns a 32-character hex string
+ */
+function generateMcpAccessToken(): string {
+    return randomBytes(16).toString("hex");
+}
 
 /**
  * Manages user settings using electron-store
@@ -315,6 +324,18 @@ export class SettingsManager {
         }
 
         return stored.map((entry) => this.normalizeLastUsedToolEntry(entry)).filter((entry): entry is LastUsedToolEntry => entry !== null);
+    }
+
+    /**
+     * Get the MCP access token, generating one if it doesn't exist
+     */
+    getMcpAccessToken(): string {
+        let token = this.store.get("mcpAccessToken");
+        if (!token) {
+            token = generateMcpAccessToken();
+            this.store.set("mcpAccessToken", token);
+        }
+        return token;
     }
 
     /**

@@ -37,6 +37,7 @@ export const SETTINGS_CHANNELS = {
     ADD_LAST_USED_TOOL: "add-last-used-tool",
     GET_LAST_USED_TOOLS: "get-last-used-tools",
     CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
+    GET_MCP_ACCESS_TOKEN: "get-mcp-access-token",
 } as const;
 
 // Connection-related IPC channels

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     updateUserSettings: (settings: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, settings),
     getSetting: (key: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_SETTING, key),
     setSetting: (key: string, value: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_SETTING, key, value),
+    getMcpAccessToken: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN),
 
     // Connections namespace - organized like in the iframe
     connections: {

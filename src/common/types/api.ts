@@ -119,6 +119,7 @@ export interface ToolboxAPI {
     updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
+    getMcpAccessToken: () => Promise<string>;
 
     // Connections namespace
     connections: ConnectionsAPI;
