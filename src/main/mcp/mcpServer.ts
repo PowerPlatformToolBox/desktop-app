@@ -1,8 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { CallToolResult, ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { logError, logInfo } from "../../common/logger";
 import { SettingsManager } from "../managers/settingsManager";
+import { ToolRegistryManager } from "../managers/toolRegistryManager";
+import { getAgentInvokableTools } from "./agentToolRegistry";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 
@@ -11,13 +14,42 @@ export class McpServerManager {
     private port: number;
     private host: string;
     private settingsManager: SettingsManager;
+    private toolRegistryManager: ToolRegistryManager;
     private expectedToken: string;
+    private agentToolsCache: { tools: { name: string; title: string; description: string; inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> }[] } | null = null;
 
-    constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager) {
+    constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager, toolRegistryManager: ToolRegistryManager) {
         this.port = port;
         this.host = host;
         this.settingsManager = settingsManager;
+        this.toolRegistryManager = toolRegistryManager;
         this.expectedToken = this.settingsManager.getMcpAccessToken();
+
+        this.toolRegistryManager.on("tool:installed", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool installed");
+        });
+
+        this.toolRegistryManager.on("tool:uninstalled", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool uninstalled");
+        });
+    }
+
+    private async getAgentTools(): Promise<{ name: string; title: string; description: string; inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> }[]> {
+        if (this.agentToolsCache === null) {
+            const agentTools = await getAgentInvokableTools(this.toolRegistryManager);
+            this.agentToolsCache = {
+                tools: agentTools.map((tool) => ({
+                    name: tool.toolId,
+                    title: tool.displayName,
+                    description: tool.description,
+                    inputSchema: tool.inputSchema,
+                    outputSchema: tool.outputSchema,
+                })),
+            };
+        }
+        return this.agentToolsCache.tools;
     }
 
     async start(): Promise<void> {
@@ -64,6 +96,25 @@ export class McpServerManager {
 
         const server = new McpServer({ name: "pptb-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+
+        const agentTools = await this.getAgentTools();
+
+        server.server.registerCapabilities({ tools: { listChanged: true } });
+        server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+            tools: agentTools.map((tool) => ({
+                name: tool.name,
+                title: tool.title,
+                description: tool.description,
+                inputSchema: tool.inputSchema,
+                outputSchema: tool.outputSchema,
+            })),
+        }));
+        server.server.setRequestHandler(CallToolRequestSchema, async (): Promise<CallToolResult> => {
+            return {
+                content: [{ type: "text", text: "not implemented" }],
+                isError: true,
+            };
+        });
 
         const cleanup = (): void => {
             transport.close();

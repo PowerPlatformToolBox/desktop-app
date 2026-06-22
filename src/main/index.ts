@@ -134,7 +134,7 @@ class ToolBoxApp {
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
-            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager);
+            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager());
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),

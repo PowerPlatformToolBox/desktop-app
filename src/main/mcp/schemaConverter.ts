@@ -1,6 +1,6 @@
 type JsonSchemaType = "string" | "number" | "boolean" | "array" | "object";
 
-type JsonObjectSchema = Record<string, unknown>;
+export type JsonObjectSchema = Record<string, unknown>;
 
 const jsonSchemaTypes: JsonSchemaType[] = ["string", "number", "boolean", "array", "object"];
 
