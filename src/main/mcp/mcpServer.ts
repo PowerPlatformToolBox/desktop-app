@@ -5,7 +5,9 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { logError, logInfo } from "../../common/logger";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
-import { getAgentInvokableTools } from "./agentToolRegistry";
+import { ToolManager } from "../managers/toolsManager";
+import { ToolWindowManager } from "../managers/toolWindowManager";
+import { AgentTool, getAgentInvokableTools } from "./agentToolRegistry";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 
@@ -15,14 +17,17 @@ export class McpServerManager {
     private host: string;
     private settingsManager: SettingsManager;
     private toolRegistryManager: ToolRegistryManager;
+    private toolManager: ToolManager;
+    private toolWindowManager: ToolWindowManager | null = null;
     private expectedToken: string;
-    private agentToolsCache: { tools: { name: string; title: string; description: string; inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> }[] } | null = null;
+    private agentToolsCache: { tools: AgentTool[] } | null = null;
 
-    constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager, toolRegistryManager: ToolRegistryManager) {
+    constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager, toolRegistryManager: ToolRegistryManager, toolManager: ToolManager) {
         this.port = port;
         this.host = host;
         this.settingsManager = settingsManager;
         this.toolRegistryManager = toolRegistryManager;
+        this.toolManager = toolManager;
         this.expectedToken = this.settingsManager.getMcpAccessToken();
 
         this.toolRegistryManager.on("tool:installed", () => {
@@ -36,18 +41,13 @@ export class McpServerManager {
         });
     }
 
-    private async getAgentTools(): Promise<{ name: string; title: string; description: string; inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> }[]> {
+    setToolWindowManager(twm: ToolWindowManager): void {
+        this.toolWindowManager = twm;
+    }
+
+    private async getAgentTools(): Promise<AgentTool[]> {
         if (this.agentToolsCache === null) {
-            const agentTools = await getAgentInvokableTools(this.toolRegistryManager);
-            this.agentToolsCache = {
-                tools: agentTools.map((tool) => ({
-                    name: tool.displayName.toLowerCase().replace(/\s+/g, "-"),
-                    title: tool.displayName,
-                    description: tool.description,
-                    inputSchema: tool.inputSchema,
-                    outputSchema: tool.outputSchema,
-                })),
-            };
+            this.agentToolsCache = { tools: await getAgentInvokableTools(this.toolRegistryManager) };
         }
         return this.agentToolsCache.tools;
     }
@@ -102,18 +102,106 @@ export class McpServerManager {
         server.server.registerCapabilities({ tools: { listChanged: true } });
         server.server.setRequestHandler(ListToolsRequestSchema, () => ({
             tools: agentTools.map((tool) => ({
-                name: tool.name,
-                title: tool.title,
+                name: tool.displayName,
+                title: tool.displayName,
                 description: tool.description,
                 inputSchema: tool.inputSchema,
                 outputSchema: tool.outputSchema,
             })),
         }));
-        server.server.setRequestHandler(CallToolRequestSchema, async (): Promise<CallToolResult> => {
-            return {
-                content: [{ type: "text", text: "not implemented" }],
-                isError: true,
-            };
+        server.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
+            const toolName = request.params.name;
+            const toolArgs = (request.params.arguments ?? {}) as Record<string, unknown>;
+
+            const agentTools = await this.getAgentTools();
+            const matchedTool = agentTools.find((t) => t.displayName === toolName);
+
+            if (!matchedTool) {
+                return {
+                    content: [{ type: "text", text: `Tool not found or not agent-invokable: ${toolName}` }],
+                    isError: true,
+                };
+            }
+
+            const executionMode = matchedTool.executionMode;
+
+            switch (executionMode) {
+                case "windowed": {
+                    if (!this.toolWindowManager) {
+                        return {
+                            content: [{ type: "text", text: "Tool window manager is not available" }],
+                            isError: true,
+                        };
+                    }
+
+                    const toolRecord = this.toolManager.getTool(matchedTool.toolId);
+                    if (!toolRecord) {
+                        return {
+                            content: [{ type: "text", text: `Tool manifest not found for: ${matchedTool.toolId}` }],
+                            isError: true,
+                        };
+                    }
+
+                    const callerInstanceId = `mcp-caller-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    const calleeInstanceId = `${matchedTool.toolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    const primaryConnectionId: string | null = null;
+                    const secondaryConnectionId: string | null = null;
+                    const prefillData = toolArgs;
+                    const noReturn = false;
+
+                    try {
+                        const result = await this.toolWindowManager.launchToolWithContext(
+                            callerInstanceId,
+                            calleeInstanceId,
+                            toolRecord,
+                            primaryConnectionId,
+                            secondaryConnectionId,
+                            prefillData,
+                            noReturn,
+                        );
+
+                        if (result === null) {
+                            return {
+                                content: [
+                                    {
+                                        type: "text",
+                                        text: JSON.stringify({
+                                            status: "no_result",
+                                            message: "User did not complete the action — the tool window was closed without returning data.",
+                                        }),
+                                    },
+                                ],
+                                isError: false,
+                            };
+                        }
+
+                        const payload = (result ?? undefined) as Record<string, unknown> | undefined;
+                        return {
+                            content: [{ type: "text", text: JSON.stringify(payload) }],
+                            structuredContent: payload,
+                            isError: false,
+                        };
+                    } catch (error) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `Failed to launch tool: ${error instanceof Error ? error.message : String(error)}`,
+                                },
+                            ],
+                            isError: true,
+                        };
+                    }
+                }
+
+                default: {
+                    logInfo(`[MCP] Unsupported executionMode "${executionMode}" for tool ${toolName}`);
+                    return {
+                        content: [{ type: "text", text: `Unsupported execution mode: ${executionMode}` }],
+                        isError: true,
+                    };
+                }
+            }
         });
 
         const cleanup = (): void => {

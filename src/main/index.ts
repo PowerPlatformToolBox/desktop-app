@@ -134,7 +134,13 @@ class ToolBoxApp {
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
-            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager());
+            this.mcpServerManager = new McpServerManager(
+                7339,
+                "127.0.0.1",
+                this.settingsManager,
+                this.toolManager.getRegistryManager(),
+                this.toolManager,
+            );
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -2634,6 +2640,8 @@ class ToolBoxApp {
             this.terminalManager,
             this.toolFilesystemAccessManager,
         );
+
+        this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
 
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
