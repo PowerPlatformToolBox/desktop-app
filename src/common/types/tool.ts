@@ -5,6 +5,20 @@
 import { CspExceptions } from "./common";
 
 /**
+ * A single entry from the capability tag registry.
+ *
+ * The registry is stored in the Supabase `capability_tags` table and fetched at
+ * startup (with a TTL-based cache). A built-in fallback list is used when Supabase
+ * is unavailable so the application always has a baseline set of known tags.
+ */
+export interface CapabilityTagEntry {
+    /** The capability tag string (e.g. `"fetchxml"`, `"entity-picker"`). */
+    tag: string;
+    /** Human-readable description of what the capability represents. */
+    description: string;
+}
+
+/**
  * Tool features configuration
  */
 export interface ToolFeatures {
@@ -52,6 +66,8 @@ export interface Tool {
     minAPI?: string; // Minimum ToolBox API version required
     maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
+    /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
+    capabilities?: string[];
 }
 
 /**
@@ -82,6 +98,7 @@ export interface ToolRegistryEntry {
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
     maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    npmPackageName?: string; // npm package name used for pre-release version detection
 }
 
 /**
@@ -113,6 +130,8 @@ export interface ToolManifest {
     createdAt?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
     maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
+    capabilities?: string[];
 }
 
 /**

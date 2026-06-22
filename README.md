@@ -1,6 +1,6 @@
 <p align="center">
     <p align="center">
-        <img src="assets/icon.png" height=200 width=200/>
+        <img src="icons/icon.png" height=200 width=200/>
     </p>
 </p>
 
@@ -23,8 +23,8 @@
     <a href="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml" alt="Prod Release">
       <img src="https://github.com/PowerPlatformToolBox/desktop-app/actions/workflows/prod-release.yml/badge.svg"/>
     </a>
-    <a href="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml" alt="Tool Update Status">
-      <img src="https://github.com/PowerPlatformToolBox/pptb-web/actions/workflows/check-updates.yml/badge.svg" />
+    <a href="https://github.com/PowerPlatformToolBox/tool-management/actions/workflows/check-updates.yml" alt="Tool Update Status">
+      <img src="https://github.com/PowerPlatformToolBox/tool-management/actions/workflows/check-updates.yml/badge.svg" />
     </a>
 </p>
 
@@ -96,11 +96,11 @@
 - [Known Issues](#known-issues)
 - [Features Overview](#features-overview)
 - [Releases \& Downloads](#releases--downloads)
-  - [Download Latest Release](#download-latest-release)
-  - [Building from Source](#building-from-source)
+    - [Download Latest Release](#download-latest-release)
+    - [Building from Source](#building-from-source)
 - [Development Configuration](#development-configuration)
-  - [Telemetry and Error Tracking](#telemetry-and-error-tracking)
-  - [Environment Variables](#environment-variables)
+    - [Telemetry and Error Tracking](#telemetry-and-error-tracking)
+    - [Environment Variables](#environment-variables)
 - [Discussions](#discussions)
 - [License](#license)
 - [Team](#team)

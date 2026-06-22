@@ -34,7 +34,7 @@ import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import { applyAppearanceSettings, closeAllTools, initializeCalleeToolListeners, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -244,6 +244,17 @@ function setupToolbarButtons(): void {
 
     // Initialize tab scroll buttons
     initializeTabScrollButtons();
+
+    // Initialize shell-level "Return to [CallerToolName]" banner for inter-tool invocations
+    initializeInvocationBanner();
+
+    // Handle multi-connection prompts triggered by invoked callee tools that require
+    // a secondary connection not present on the caller (e.g. FXS "Send To" → DMS)
+    initializeInvocationConnectionsPrompt();
+
+    // Create/remove tabs for callee tools launched via inter-tool invocation so they
+    // open in their own tab instead of replacing the caller's view.
+    initializeCalleeToolListeners();
 }
 
 /**
@@ -751,11 +762,25 @@ function setupToolPanelBoundsListener(): void {
 
         if (toolPanelContent) {
             const rect = toolPanelContent.getBoundingClientRect();
+            let adjustedY = Math.round(rect.top);
+            let adjustedHeight = Math.round(rect.height);
+
+            // If the invocation banner is visible it floats over the content area via
+            // position:absolute, but Electron BrowserViews are native OS views that CSS
+            // cannot push around.  Shrink the BrowserView bounds from the top so the
+            // tool content starts below the banner and is never hidden behind it.
+            const invocationBanner = document.getElementById("invocation-banner");
+            if (invocationBanner && invocationBanner.style.display !== "none") {
+                const bannerHeight = Math.round(invocationBanner.getBoundingClientRect().height);
+                adjustedY += bannerHeight;
+                adjustedHeight = Math.max(1, adjustedHeight - bannerHeight);
+            }
+
             const bounds = {
                 x: Math.round(rect.left),
-                y: Math.round(rect.top),
+                y: adjustedY,
                 width: Math.round(rect.width),
-                height: Math.round(rect.height),
+                height: adjustedHeight,
             };
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);

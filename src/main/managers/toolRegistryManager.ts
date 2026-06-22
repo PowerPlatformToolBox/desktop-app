@@ -6,7 +6,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { CspExceptions, ToolManifest, ToolRegistryEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem } from "../../common/types";
+import { CapabilityTagEntry, CspExceptions, ToolManifest, ToolRegistryEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { InstallIdManager } from "./installIdManager";
 import { logInfo, logWarn, logError } from "../../common/logger";
@@ -94,6 +94,35 @@ interface SupabaseCommunityLink {
 }
 
 /**
+ * Supabase capability_tags table row
+ */
+interface SupabaseCapabilityTagRow {
+    tag: string;
+    description: string;
+}
+
+/**
+ * Built-in fallback capability tags used when Supabase is unreachable.
+ * The authoritative list is stored in the Supabase `capability_tags` table and
+ * fetched at startup; this list ensures the app always has a baseline set of
+ * known tags so tools can be validated even in an offline scenario.
+ *
+ * **Keep in sync with `KNOWN_CAPABILITY_TAGS` in `packages/lib/validate.js`.**
+ * Since the validator is a standalone Node.js CLI that cannot import from the
+ * Electron/TypeScript source tree, both lists must be updated together whenever
+ * new tags are added to the Supabase `capability_tags` table.
+ */
+const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = [
+    { tag: "fetchxml", description: "Accept or process FetchXML queries" },
+    { tag: "entity-picker", description: "Browse and select a Dataverse entity (table)" },
+    { tag: "record-selector", description: "Browse and select a Dataverse record" },
+    { tag: "solution-selector", description: "Pick a Power Platform solution" },
+    { tag: "webresource-editor", description: "Edit or manage web resources" },
+    { tag: "plugin-inspector", description: "Inspect or manage plugins and assemblies" },
+    { tag: "pcf-control-builder", description: "Build or scaffold PCF controls" },
+];
+
+/**
  * Local registry JSON file structure
  */
 interface LocalRegistryFile {
@@ -148,9 +177,16 @@ export class ToolRegistryManager extends EventEmitter {
         source: "supabase" | "azureBlob" | "local";
     } | null = null;
 
+    // Capability tags cache (fetched from Supabase `capability_tags` table)
+    private capabilityTagsCache: CapabilityTagEntry[] | null = null;
+    private capabilityTagsFetchedAtMs = 0;
+
     // Multiple renderer modules request the registry during startup (homepage stats, marketplace, etc.).
     // Keep this short so the marketplace stays fresh, but long enough to prevent thrash.
     private static readonly REGISTRY_CACHE_TTL_MS = 30_000;
+
+    // Capability tags change rarely; use a longer TTL so the fetch happens at most once per session.
+    private static readonly CAPABILITY_TAGS_CACHE_TTL_MS = 300_000; // 5 minutes
 
     constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
         super();
@@ -316,6 +352,7 @@ export class ToolRegistryManager extends EventEmitter {
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                     minAPI: tool.min_api, // Include min API version from database
                     maxAPI: tool.max_api, // Include max API version from database
+                    npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
                 } as ToolRegistryEntry;
             });
 
@@ -626,6 +663,31 @@ export class ToolRegistryManager extends EventEmitter {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
 
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(toolPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
+        // Validate declared capabilities against the known registry (warn on unknown tags)
+        if (capabilities && capabilities.length > 0) {
+            const knownTags = await this.getKnownCapabilityTags();
+            const knownTagSet = new Set(knownTags.map((t) => t.tag));
+            const unknownCaps = capabilities.filter((c) => !knownTagSet.has(c));
+            if (unknownCaps.length > 0) {
+                logWarn(`[ToolRegistry] Tool ${toolId} declares unrecognised capability tags: ${unknownCaps.join(", ")}. Ensure these tags exist in the capability registry or check for typos.`);
+            }
+        }
+
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
         const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
@@ -671,6 +733,7 @@ export class ToolRegistryManager extends EventEmitter {
             publishedAt: tool.publishedAt,
             minAPI, // Minimum API version required
             maxAPI, // Maximum API version tested (from @pptb/types)
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         // Save to manifest file
@@ -1083,6 +1146,136 @@ export class ToolRegistryManager extends EventEmitter {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logWarn("[ToolRegistry] Failed to fetch community links from Supabase, caller should use local fallback", { error: errorMessage });
             return null;
+        }
+    }
+
+    /**
+     * Returns the list of known capability tags.
+     *
+     * On first call (or after the TTL expires) the list is fetched from the Supabase
+     * `capability_tags` table and cached.  When Supabase is unavailable the built-in
+     * fallback list (`BUILT_IN_CAPABILITY_TAGS`) is returned so validation and
+     * auto-complete still work in offline scenarios.
+     */
+    async getKnownCapabilityTags(): Promise<CapabilityTagEntry[]> {
+        const now = Date.now();
+        if (this.capabilityTagsCache && now - this.capabilityTagsFetchedAtMs < ToolRegistryManager.CAPABILITY_TAGS_CACHE_TTL_MS) {
+            return this.capabilityTagsCache;
+        }
+
+        try {
+            const tags = await this.fetchKnownCapabilityTagsFromSupabase();
+            if (tags !== null) {
+                this.capabilityTagsCache = tags;
+                this.capabilityTagsFetchedAtMs = now;
+                return tags;
+            }
+        } catch (error) {
+            logWarn("[ToolRegistry] Could not fetch capability tags from Supabase, using built-in fallback", { error: error instanceof Error ? error.message : String(error) });
+        }
+
+        // Supabase unavailable: update the timestamp so we do not retry on every subsequent call
+        // while Supabase is down (rate-limit retries to once per TTL interval).
+        // If a previous successful fetch populated the cache, keep returning it; otherwise fall back
+        // to the built-in list so callers always receive a non-empty result.
+        this.capabilityTagsFetchedAtMs = now;
+        return this.capabilityTagsCache ?? BUILT_IN_CAPABILITY_TAGS;
+    }
+
+    /**
+     * Fetches capability tags from the Supabase `capability_tags` table.
+     * Returns `null` when Supabase is not configured or the query fails.
+     */
+    private async fetchKnownCapabilityTagsFromSupabase(): Promise<CapabilityTagEntry[] | null> {
+        if (!this.supabase || this.useLocalFallback) {
+            return null;
+        }
+
+        try {
+            logInfo("[ToolRegistry] Fetching capability tags from Supabase");
+
+            const { data, error } = await this.supabase
+                .from("capability_tags")
+                .select("tag, description")
+                .eq("is_active", true)
+                .order("tag", { ascending: true });
+
+            if (error) {
+                throw new Error(`Supabase capability_tags query failed: ${error.message}`);
+            }
+
+            if (!data || data.length === 0) {
+                logInfo("[ToolRegistry] No capability tags found in Supabase, using built-in fallback");
+                return null;
+            }
+
+            const rows = data as SupabaseCapabilityTagRow[];
+            const tags: CapabilityTagEntry[] = rows
+                .filter((r) => typeof r.tag === "string" && r.tag.trim().length > 0)
+                .map((r) => ({ tag: r.tag.trim(), description: typeof r.description === "string" ? r.description : "" }));
+
+            logInfo(`[ToolRegistry] Fetched ${tags.length} capability tags from Supabase`);
+            return tags;
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logWarn("[ToolRegistry] Failed to fetch capability tags from Supabase", { error: errorMessage });
+            return null;
+        }
+    }
+
+    /**
+     * Check whether an npm package has a beta (pre-release) dist-tag on the npm registry.
+     * Uses the public npm registry REST API — no npm CLI required.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     * @returns an object with `hasBeta` flag and the `betaVersion` string when available
+     */
+    async checkBetaPackage(npmPackageName: string): Promise<{ hasBeta: boolean; betaVersion?: string }> {
+        if (!npmPackageName || typeof npmPackageName !== "string") {
+            return { hasBeta: false };
+        }
+
+        try {
+            logInfo(`[ToolRegistry] Checking for beta package: ${npmPackageName}`);
+
+            // encodeURIComponent handles both scoped (@org/name → %40org%2Fname) and plain names.
+            const encodedName = encodeURIComponent(npmPackageName);
+
+            const url = `https://registry.npmjs.org/-/package/${encodedName}/dist-tags`;
+
+            const rawJson = await new Promise<string>((resolve, reject) => {
+                https
+                    .get(url, { timeout: 10000 }, (res) => {
+                        if (res.statusCode === 404) {
+                            // Package not found on npm — no beta available
+                            resolve("{}");
+                            return;
+                        }
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`npm registry request failed: HTTP ${res.statusCode}`));
+                            return;
+                        }
+                        const chunks: Buffer[] = [];
+                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                        res.on("error", reject);
+                    })
+                    .on("error", reject)
+                    .on("timeout", () => reject(new Error("npm registry request timed out")));
+            });
+
+            const distTags = JSON.parse(rawJson) as Record<string, string>;
+            const betaVersion = distTags["beta"];
+
+            if (betaVersion && typeof betaVersion === "string") {
+                logInfo(`[ToolRegistry] Beta version found for ${npmPackageName}: ${betaVersion}`);
+                return { hasBeta: true, betaVersion };
+            }
+
+            logInfo(`[ToolRegistry] No beta version found for ${npmPackageName}`);
+            return { hasBeta: false };
+        } catch (error) {
+            logWarn(`[ToolRegistry] Failed to check beta package for ${npmPackageName}`, { error: error instanceof Error ? error.message : String(error) });
+            return { hasBeta: false };
         }
     }
 }

@@ -3,11 +3,11 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
-import { CspExceptions, Tool, ToolFeatures, ToolManifest, CommunityLinksCollection } from "../../common/types";
+import { logError, logInfo, logWarn } from "../../common/logger";
+import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
-import { logInfo, logError } from "../../common/logger";
 
 /**
  * Package.json structure for tool validation
@@ -79,6 +79,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -149,6 +150,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            capabilities: manifest.capabilities,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -190,7 +192,8 @@ export class ToolManager extends EventEmitter {
     unloadTool(toolId: string): void {
         const tool = this.tools.get(toolId);
         if (tool) {
-            this.tools.delete(toolId);
+            // Too soon to delete it
+            //this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
     }
@@ -272,7 +275,7 @@ export class ToolManager extends EventEmitter {
      */
     async fetchAvailableTools(): Promise<Tool[]> {
         const registryTools = await this.registryManager.fetchRegistry();
-        
+
         // Convert ToolRegistryEntry[] to Tool[] and add isSupported field
         return registryTools.map((registryTool) => {
             const tool: Tool = {
@@ -289,6 +292,13 @@ export class ToolManager extends EventEmitter {
      */
     async fetchCommunityLinks(): Promise<CommunityLinksCollection | null> {
         return this.registryManager.fetchCommunityLinks();
+    }
+
+    /**
+     * Returns the list of known capability tags from the registry (backed by Supabase with fallback).
+     */
+    async getKnownCapabilityTags(): Promise<CapabilityTagEntry[]> {
+        return this.registryManager.getKnownCapabilityTags();
     }
 
     /**
@@ -344,10 +354,29 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool from registry
+     * Uninstall a tool (handles registry, npm, and local tools)
      */
     async uninstallTool(toolId: string): Promise<void> {
-        await this.registryManager.uninstallTool(toolId);
+        const tool = this.tools.get(toolId);
+
+        if (tool) {
+            this.tools.delete(toolId);
+            this.emit("tool:unloaded", tool);
+        }
+
+        if (tool?.npmPackageName) {
+            const packageDir = this.resolvePackageDirectoryName(tool.npmPackageName);
+            const toolPath = path.join(this.toolsDirectory, "node_modules", packageDir);
+            if (fs.existsSync(toolPath)) {
+                fs.rmSync(toolPath, { recursive: true, force: true });
+            }
+        } else if (tool?.localPath) {
+            if (fs.existsSync(tool.localPath)) {
+                fs.rmSync(tool.localPath, { recursive: true, force: true });
+            }
+        } else {
+            await this.registryManager.uninstallTool(toolId);
+        }
     }
 
     /**
@@ -372,13 +401,34 @@ export class ToolManager extends EventEmitter {
     /**
      * Check if a package manager is available globally (debug mode only)
      */
+    private buildEnv(): Record<string, string> {
+        const paths = [...(process.env.PATH || "").split(path.delimiter).filter(Boolean)];
+
+        if (process.platform === "darwin") {
+            paths.push("/usr/local/bin", "/opt/homebrew/bin");
+        } else if (process.platform === "linux") {
+            paths.push("/usr/local/bin", path.join(process.env.HOME || "", ".local", "bin"));
+        }
+
+        const home = process.env.HOME || "";
+        if (home) {
+            paths.push(path.join(home, ".npm-global", "bin"));
+            paths.push(path.join(home, ".nvm", "versions", "node", process.version, "bin"));
+        }
+
+        return {
+            ...process.env,
+            PATH: [...new Set(paths)].join(path.delimiter),
+        };
+    }
+
     private async checkPackageManager(command: string): Promise<boolean> {
         return new Promise((resolve) => {
             const isWindows = process.platform === "win32";
             const cmd = isWindows ? `${command}.cmd` : command;
+            const env = this.buildEnv();
 
-            // Don't use shell to avoid issues with spaces in paths
-            const check = spawn(cmd, ["--version"]);
+            const check = spawn(cmd, ["--version"], { env });
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -394,19 +444,19 @@ export class ToolManager extends EventEmitter {
      * Get the available package manager (debug mode only)
      * Returns null if neither is available
      */
-    private async getAvailablePackageManager(): Promise<{ command: string; name: string } | null> {
+    private async getAvailablePackageManager(): Promise<{ command: string; name: string; env: Record<string, string> } | null> {
         // Check for pnpm first (preferred)
         const hasPnpm = await this.checkPackageManager("pnpm");
         if (hasPnpm) {
             logInfo(`[ToolManager] Found pnpm globally installed`);
-            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
+            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm", env: this.buildEnv() };
         }
 
         // Fallback to npm
         const hasNpm = await this.checkPackageManager("npm");
         if (hasNpm) {
             logInfo(`[ToolManager] Found npm globally installed`);
-            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
+            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm", env: this.buildEnv() };
         }
 
         logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
@@ -437,7 +487,7 @@ export class ToolManager extends EventEmitter {
 
             // Don't use shell: true to avoid issues with spaces in paths
             // The command array is already in the correct format for spawn
-            const install = spawn(pkgManager.command, args);
+            const install = spawn(pkgManager.command, args, { env: pkgManager.env });
 
             let stderr = "";
 
@@ -474,6 +524,68 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Resolve the actual directory name for an npm package inside node_modules.
+     * Strips any trailing version/tag specifier so the path is valid on disk.
+     * Examples:
+     *   "@org/name@1.0.0"  → "@org/name"
+     *   "@org/name@beta"   → "@org/name"
+     *   "my-tool@beta"     → "my-tool"
+     *   "@org/name"        → "@org/name"  (unchanged)
+     *   "my-tool"          → "my-tool"    (unchanged)
+     */
+    private resolvePackageDirectoryName(packageName: string): string {
+        if (packageName.startsWith("@")) {
+            // Scoped package: @scope/name[@version]
+            // Find the '@' that separates the name from the version specifier.
+            const withoutLeadingAt = packageName.slice(1); // "scope/name@version"
+            const versionAtIndex = withoutLeadingAt.indexOf("@");
+            if (versionAtIndex !== -1) {
+                return "@" + withoutLeadingAt.slice(0, versionAtIndex);
+            }
+            return packageName;
+        } else {
+            // Regular package: name[@version]
+            const atIndex = packageName.indexOf("@");
+            if (atIndex !== -1) {
+                return packageName.slice(0, atIndex);
+            }
+            return packageName;
+        }
+    }
+
+    /**
+     * Check whether a beta (pre-release) npm package version is available.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     */
+    async checkBetaPackage(npmPackageName: string): Promise<{ hasBeta: boolean; betaVersion?: string }> {
+        return this.registryManager.checkBetaPackage(npmPackageName);
+    }
+
+    /**
+     * Install the beta (pre-release) version of a registry tool via npm.
+     * Installs the `@beta` dist-tag of the given npm package and loads it.
+     * @param npmPackageName - the npm package name (e.g. "@pptoolbox/my-tool")
+     */
+    async installPrereleaseToolFromNpm(npmPackageName: string): Promise<Tool> {
+        logInfo(`[ToolManager] Installing pre-release (beta) tool: ${npmPackageName}`);
+        const betaPackageSpec = `${npmPackageName}@beta`;
+        try {
+            await this.installToolForDebug(betaPackageSpec);
+        } catch (installError) {
+            const msg = installError instanceof Error ? installError.message : String(installError);
+            throw new Error(`Failed to install pre-release package '${betaPackageSpec}': ${msg}`);
+        }
+        // Use the base package name (no version specifier) to locate the installed directory.
+        try {
+            const tool = await this.loadNpmTool(npmPackageName);
+            return tool;
+        } catch (loadError) {
+            const msg = loadError instanceof Error ? loadError.message : String(loadError);
+            throw new Error(`Pre-release package '${betaPackageSpec}' was installed but could not be loaded: ${msg}`);
+        }
+    }
+
+    /**
      * Get installation instructions for package managers (debug mode only)
      */
     private getInstallInstructions(): string {
@@ -502,13 +614,18 @@ export class ToolManager extends EventEmitter {
     /**
      * Load an npm-installed tool from node_modules (DEBUG MODE ONLY)
      * This is called after installToolForDebug to register the tool in the tools map
-     * @param packageName - npm package name
+     * @param packageName - npm package name (may include a version/tag specifier like "@beta" or "@1.0.0")
      */
     async loadNpmTool(packageName: string): Promise<Tool> {
         logInfo(`[ToolManager] [DEBUG] Loading npm tool: ${packageName}`);
 
+        // Resolve the actual directory name in node_modules — strip any version/tag specifier.
+        // For scoped packages: @org/name@version → @org/name
+        // For regular packages: name@version → name
+        const packageDirName = this.resolvePackageDirectoryName(packageName);
+
         // Construct path to the installed package
-        const toolPath = path.join(this.toolsDirectory, "node_modules", packageName);
+        const toolPath = path.join(this.toolsDirectory, "node_modules", packageDirName);
 
         // Verify the path exists
         if (!fs.existsSync(toolPath)) {
@@ -548,6 +665,32 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with npm path metadata
         const toolId = `npm-${sanitizedToolId}`;
+
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(toolPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
+        // Validate declared capabilities against the known registry (warn on unknown tags)
+        if (capabilities && capabilities.length > 0) {
+            const knownTags = await this.getKnownCapabilityTags();
+            const knownTagSet = new Set(knownTags.map((t) => t.tag));
+            const unknownCaps = capabilities.filter((c) => !knownTagSet.has(c));
+            if (unknownCaps.length > 0) {
+                logWarn(`[ToolRegistry] Tool ${toolId} declares unrecognised capability tags: ${unknownCaps.join(", ")}. Ensure these tags exist in the capability registry or check for typos.`);
+            }
+        }
+
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -561,6 +704,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         this.tools.set(toolId, tool);
@@ -736,6 +880,32 @@ export class ToolManager extends EventEmitter {
 
         // Create a tool object with local path metadata
         const toolId = `local-${sanitizedToolId}`;
+
+        // Read optional pptb.config.json for invocation capabilities
+        let capabilities: string[] | undefined;
+        const pptbConfigPath = path.join(localPath, "pptb.config.json");
+        if (fs.existsSync(pptbConfigPath)) {
+            try {
+                const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
+                const caps = pptbConfig?.invocation?.capabilities;
+                if (Array.isArray(caps) && caps.length > 0) {
+                    capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+            } catch (err) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            }
+        }
+
+        // Validate declared capabilities against the known registry (warn on unknown tags)
+        if (capabilities && capabilities.length > 0) {
+            const knownTags = await this.getKnownCapabilityTags();
+            const knownTagSet = new Set(knownTags.map((t) => t.tag));
+            const unknownCaps = capabilities.filter((c) => !knownTagSet.has(c));
+            if (unknownCaps.length > 0) {
+                logWarn(`[ToolRegistry] Tool ${toolId} declares unrecognised capability tags: ${unknownCaps.join(", ")}. Ensure these tags exist in the capability registry or check for typos.`);
+            }
+        }
+
         const tool: Tool = {
             id: toolId,
             name: packageJson.displayName || packageJson.name,
@@ -749,6 +919,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            capabilities, // Invocation capability tags from pptb.config.json
         };
 
         this.tools.set(toolId, tool);

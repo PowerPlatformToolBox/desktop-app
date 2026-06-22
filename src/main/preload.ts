@@ -61,7 +61,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
-    ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData),
+        noReturn?: boolean,
+    ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
     hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
@@ -69,6 +70,35 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
+    findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
+    /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
+    returnToCallerBanner: () =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
+    onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
+    },
+    /** Listen for multi-connection prompts triggered by an invocation that requires a secondary connection. */
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_PROMPT_CONNECTIONS, (_event, prompt) => callback(prompt));
+    },
+    /** Reply to a multi-connection prompt with the selected connection IDs (or null to cancel). */
+    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) =>
+        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS, requestId, result),
+    /**
+     * Listen for inter-tool callee launch notifications. Fired once the callee BrowserView
+     * is ready so the renderer can create a dedicated tab for the callee instance.
+     */
+    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: unknown; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, (_event, data) => callback(data));
+    },
+    /**
+     * Listen for inter-tool callee auto-close notifications. Fired after the callee is
+     * auto-closed by the main process so the renderer can remove the tab and return focus
+     * to the caller.
+     */
+    onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, (_event, data) => callback(data));
+    },
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
@@ -85,10 +115,13 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Registry-based tools (new primary method)
     fetchRegistryTools: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS),
     fetchCommunityLinks: () => ipcRenderer.invoke(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS),
+    getKnownCapabilityTags: () => ipcRenderer.invoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS),
     installToolFromRegistry: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY, toolId),
     checkToolUpdates: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_TOOL_UPDATES, toolId),
     updateTool: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.UPDATE_TOOL, toolId),
     isToolUpdating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.IS_TOOL_UPDATING, toolId),
+    checkBetaPackage: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_BETA_PACKAGE, npmPackageName),
+    installPrereleaseToolFromNpm: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, npmPackageName),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),

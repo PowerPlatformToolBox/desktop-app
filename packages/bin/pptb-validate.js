@@ -16,7 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { validatePackageJson, validatePPTBConfig } = require("../lib/validate");
+const { validatePackageJson, validatePPTBConfig, KNOWN_CAPABILITY_TAGS } = require("../lib/validate");
 
 // ANSI colour helpers – gracefully degrade when colours are unsupported
 const NO_COLOR = !process.stdout.isTTY || process.env.NO_COLOR;
@@ -219,8 +219,14 @@ async function main() {
             console.log(`  Features    : multiConnection=${info.features.multiConnection}${info.features.minAPI ? `, minAPI=${info.features.minAPI}` : ""}`);
         }
         if (configResult !== null && configResult.packageInfo && configResult.packageInfo.invocation) {
-            console.log(`  Invocation  : version=${configResult.packageInfo.invocation.version}`);
+            const inv = configResult.packageInfo.invocation;
+            console.log(`  Invocation  : version=${inv.version}`);
+            if (Array.isArray(inv.capabilities) && inv.capabilities.length > 0) {
+                console.log(`  Capabilities: ${inv.capabilities.join(", ")}`);
+            }
         }
+        console.log();
+        console.log(c.dim(`Known capability tags: ${KNOWN_CAPABILITY_TAGS.join(", ")}`));
         console.log();
     } else {
         console.log(c.red(c.bold("✖ Validation failed")));

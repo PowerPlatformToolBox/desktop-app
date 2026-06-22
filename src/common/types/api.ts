@@ -9,7 +9,7 @@ import { DataverseConnection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { Tool, ToolContext, ToolSettings } from "./tool";
+import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -154,6 +154,7 @@ export interface ToolboxAPI {
         primaryConnectionId: string | null,
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
+        noReturn?: boolean,
     ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
@@ -161,6 +162,28 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    /** Find installed tools that declare a given capability tag in their pptb.config.json. */
+    findToolsByCapability: (tag: string) => Promise<Tool[]>;
+    /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */
+    getKnownCapabilityTags: () => Promise<CapabilityTagEntry[]>;
+    /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
+    returnToCallerBanner: () => Promise<void>;
+    /** Subscribe to invocation banner state changes (main → renderer push). */
+    onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => void;
+    /** Subscribe to multi-connection prompts triggered when an invoked callee requires a secondary connection. */
+    onInvocationConnectionsPrompt: (callback: (prompt: { requestId: string; toolName: string; isSecondaryRequired: boolean; inheritedPrimaryConnectionId: string | null }) => void) => void;
+    /** Provide the selected connection IDs in response to an INVOCATION_PROMPT_CONNECTIONS request (or null to cancel). */
+    provideInvocationConnections: (requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => Promise<void>;
+    /**
+     * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
+     * so the renderer can create a dedicated tab for the callee instance.
+     */
+    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => void;
+    /**
+     * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
+     * the main process so the renderer can remove the callee tab and return focus to the caller.
+     */
+    onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => void;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
@@ -197,6 +220,10 @@ export interface ToolboxAPI {
     installToolFromRegistry: (toolId: string) => Promise<{ manifest: unknown; tool: Tool }>;
     checkToolUpdates: (toolId: string) => Promise<{ hasUpdate: boolean; latestVersion?: string }>;
     isToolUpdating: (toolId: string) => Promise<boolean>;
+    /** Check whether a beta (pre-release) npm package version exists for the given npm package name. */
+    checkBetaPackage: (npmPackageName: string) => Promise<{ hasBeta: boolean; betaVersion?: string }>;
+    /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
+    installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
 
     // Utils namespace
     utils: UtilsAPI;

@@ -82,7 +82,10 @@ declare namespace ToolBoxAPI {
         name: string;
         url: string;
         environment: "Dev" | "Test" | "UAT" | "Production";
-        createdAt: string;
+        category?: string;
+        environmentColor?: string;
+        categoryColor?: string;
+        createdAt?: string;
         lastUsedAt?: string;
         /**
          * @deprecated isActive is a legacy field that is no longer persisted.
@@ -109,9 +112,9 @@ declare namespace ToolBoxAPI {
      */
     export interface TerminalOptions {
         name: string;
-        shell?: string;
+        shell?: string; // Preferred shell executable (e.g. "pwsh", "/bin/zsh"). Falls back to the system default if the requested shell is not found on the machine.
         cwd?: string;
-        env?: Record<string, string>;
+        env?: Record<string, string>; // PATH-like and shell bootstrap variables are filtered for tool security
         visible?: boolean; // Whether terminal should be visible initially (default: true)
     }
 
@@ -455,9 +458,9 @@ declare namespace ToolBoxAPI {
          * Returns data back to the caller tool that launched this tool.
          *
          * The value resolves the `Promise` returned by the caller's
-         * `invocation.launchTool()` call.  After calling `returnData`, the PPTB host
-         * will notify the caller; it is the callee's responsibility to close itself (or
-         * update its UI) after the return.
+         * `invocation.launchTool()` call.  **After calling `returnData`, PPTB
+         * automatically closes the callee window** — the callee does not need to
+         * close itself.
          *
          * If this tool was not launched by another tool, the call is a no-op.
          *
@@ -469,17 +472,62 @@ declare namespace ToolBoxAPI {
          * Launch another tool from within this tool and (optionally) pass prefill data.
          *
          * Returns a Promise that resolves with the data the target tool sends via
-         * `invocation.returnData()`, or `null` if the target tool closes without
-         * returning any data.
+         * `invocation.returnData()`, or `null` if:
+         *  - the target tool closes without calling `returnData`, or
+         *  - the user clicks the "Return to [this tool]" banner before the callee finalises.
          *
-         * The target tool must be installed and its `pptb.config.json` must declare an
-         * `invocation.prefill` schema that matches the shape of `prefillData`.
+         * **One-at-a-time**: only one active callee per caller is supported. A second
+         * call while a callee is active throws `"A callee invocation is already in progress"`.
+         *
+         * **Connection auto-inheritance**: when `options.primaryConnectionId` is omitted,
+         * the callee automatically inherits the caller's active FXS connection.
+         *
+         * **Multi-connection auto-prompt**: when the callee declares
+         * `features.multiConnection: "required"` or `"optional"` and
+         * `options.secondaryConnectionId` is not provided, PPTB automatically shows
+         * the multi-connection selector before launching the callee. The Promise rejects
+         * if the user cancels the selector.
+         *
+         * **`noReturn`**: pass `true` when the caller does not expect the callee to
+         * return data (e.g. a "Send To" pattern where data is only sent one-way).
+         * When set, the "Return to [Caller]" banner is suppressed entirely for the callee.
+         * The invocation lifecycle is otherwise identical — the Promise still resolves
+         * with `null` when the callee closes.
          *
          * @param targetToolId The npm package name (toolId) of the tool to launch
          * @param prefillData  Data to pre-populate the target tool's state
-         * @param options      Optional connection overrides for the target tool
+         * @param options      Optional connection overrides and launch flags
          */
-        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null }) => Promise<unknown>;
+        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean }) => Promise<unknown>;
+
+        /**
+         * Find installed tools that declare a given capability tag in their
+         * `pptb.config.json` (`invocation.capabilities` array).
+         *
+         * Use a `KnownCapabilityTag` literal from `@pptb/types` for IDE auto-complete:
+         * ```ts
+         * import type { KnownCapabilityTag } from "@pptb/types/pptbConfig";
+         * const tools = await toolboxAPI.invocation.findToolsByCapability("fetchxml");
+         * ```
+         *
+         * @param tag  The capability tag to search for (e.g. `"entity-picker"`)
+         * @returns    Array of matching installed `ToolManifest` objects
+         */
+        findToolsByCapability: (tag: import("./pptbConfig").CapabilityTag) => Promise<unknown[]>;
+
+        /**
+         * Returns the list of known (registered) capability tags from the capability registry.
+         *
+         * The registry is stored in a Supabase `capability_tags` table and fetched at
+         * startup (cached for 5 minutes). When Supabase is unavailable a built-in
+         * fallback list is returned, so the result is never empty.
+         *
+         * Use this at runtime to populate a "capabilities" picker or to validate a tag
+         * before calling `findToolsByCapability`.
+         *
+         * @returns Array of `{ tag: string; description: string }` entries ordered by tag name.
+         */
+        getKnownCapabilityTags: () => Promise<Array<{ tag: string; description: string }>>;
     }
 
     /**

@@ -289,6 +289,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_REGISTRY_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.FETCH_COMMUNITY_LINKS);
+        ipcMain.removeHandler(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS);
         ipcMain.removeHandler(TOOL_CHANNELS.CHECK_TOOL_UPDATES);
         ipcMain.removeHandler(TOOL_CHANNELS.UPDATE_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.IS_TOOL_UPDATING);
@@ -818,6 +819,11 @@ class ToolBoxApp {
             return await this.toolManager.fetchCommunityLinks();
         });
 
+        // Fetch known capability tags from Supabase (with built-in fallback)
+        ipcMain.handle(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS, async () => {
+            return await this.toolManager.getKnownCapabilityTags();
+        });
+
         // Check for tool updates
         ipcMain.handle(TOOL_CHANNELS.CHECK_TOOL_UPDATES, async (_, toolId) => {
             // DEV MOCK: randomly flag ~50% of tools as having an update available
@@ -839,6 +845,18 @@ class ToolBoxApp {
         // Check if a tool is currently updating
         ipcMain.handle(TOOL_CHANNELS.IS_TOOL_UPDATING, (_, toolId) => {
             return this.toolManager.isToolUpdating(toolId);
+        });
+
+        // Check whether a beta (pre-release) npm package version is available
+        ipcMain.handle(TOOL_CHANNELS.CHECK_BETA_PACKAGE, async (_, npmPackageName: string) => {
+            return await this.toolManager.checkBetaPackage(npmPackageName);
+        });
+
+        // Install the beta (pre-release) npm package for a registry tool
+        ipcMain.handle(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, async (_, npmPackageName: string) => {
+            const tool = await this.toolManager.installPrereleaseToolFromNpm(npmPackageName);
+            this.settingsManager.addInstalledTool(tool.id);
+            return tool;
         });
 
         // Debug mode only - npm-based installation for tool developers

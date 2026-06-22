@@ -2202,6 +2202,8 @@ body.dark-theme .settings-vscode-item:hover {
     bottom: 0;
     background: var(--bg-color);
     z-index: 10;
+    justify-content: end;
+    flex-direction: row-reverse;
 }
 
 .tool-detail-tab-header {
@@ -2895,6 +2897,7 @@ img.tool-item-icon-img {
 
 .tool-item-update-btn {
     margin-top: 10px;
+    text-align: right;
 }
 
 .tool-item-delete-btn {
@@ -5737,4 +5740,72 @@ body.dark-theme .global-search-item-badge.badge-settings {
 
 .connection-group-items.collapsed {
     display: none;
+}
+
+/* ===========================
+   Inter-Tool Invocation Banner
+   Injected by PPTB shell when a callee tool is active.
+   Sits above tool content but below PPTB modals.
+   =========================== */
+.invocation-banner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--primary-color, #0078d4);
+    color: #fff;
+    font-size: 13px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.invocation-banner-text {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.invocation-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.invocation-banner-return-btn {
+    padding: 3px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.invocation-banner-return-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.invocation-banner-dismiss-btn {
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+    cursor: pointer;
+    line-height: 1;
+    border-radius: 3px;
+    transition: background 0.15s ease;
+}
+
+.invocation-banner-dismiss-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
