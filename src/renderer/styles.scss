@@ -11,6 +11,7 @@
     --text-color: #{$text-color};
     --text-primary: #{$text-color};
     --text-secondary: #605e5c;
+    --text-muted: #{$text-muted};
     --bg-color: #{$bg-color};
     --card-background: #{$bg-color};
     --input-background: #f3f2f1;
@@ -62,6 +63,7 @@ body.dark-theme {
     --text-color: #{$dark-text-color};
     --text-primary: #{$dark-text-color};
     --text-secondary: #c8c6c4;
+    --text-muted: #{$dark-text-muted};
     --bg-color: #{$dark-bg-color};
     --card-background: #2d2d30;
     --input-background: #1e1e1e;
@@ -5808,4 +5810,10 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .invocation-banner-dismiss-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: #fff;
+}
+
+.agent-log-subheader {
+    margin-top: 8px;
+    font-weight: normal;
+    text-transform: none;
 }

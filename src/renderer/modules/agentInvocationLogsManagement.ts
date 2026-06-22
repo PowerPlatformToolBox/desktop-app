@@ -1,5 +1,5 @@
 import { logError } from "../../common/logger";
-import { registerCloseGuard } from "./toolManagement";
+import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 
 /**
  * Render the agent invocation logs content into a panel
@@ -9,10 +9,12 @@ export function renderAgentInvocationLogsContent(panel: HTMLElement): void {
     panel.innerHTML = `
         <div class="settings-tab-content" id="agent-invocation-logs-tab">
             <div class="settings-vscode-section">
-                <h2 class="settings-vscode-section-title">Agent Invocation Logs</h2>
-                <p class="settings-vscode-item-description" style="margin-bottom: 16px;">
-                    History of tool invocations triggered through the MCP server by external agents.
-                </p>
+                <h2 class="settings-vscode-section-title">
+                    Agent Invocation Logs
+                    <p class="agent-log-subheader" style="margin-bottom: 16px;">
+                        History of tool invocations triggered through the MCP server by external agents.
+                    </p>
+                </h2>
                 <div id="agent-invocation-logs-container" class="invocation-logs-container">
                     <div class="empty-state" id="agent-invocation-logs-empty" style="display: none;">
                         <p>No agent invocations recorded yet.</p>
@@ -139,18 +141,5 @@ export async function openAgentInvocationLogsTab(): Promise<void> {
     registerCloseGuard("agent-invocation-logs", async () => {
         return true;
     });
-    await openToolDetailTab("agent-invocation-logs", "Agent Logs", renderAgentInvocationLogsContent, "");
-}
-
-/**
- * Import openToolDetailTab dynamically to avoid circular dependencies
- */
-async function openToolDetailTab(
-    tabId: string,
-    displayName: string,
-    renderContent: (panel: HTMLElement) => void,
-    tabLabelSuffix: string,
-): Promise<void> {
-    const { openToolDetailTab: fn } = await import("./toolManagement");
-    fn(tabId, displayName, renderContent, tabLabelSuffix);
+    await openLocalPageAsTab("agent-invocation-logs", "Agent Logs", renderAgentInvocationLogsContent, "");
 }

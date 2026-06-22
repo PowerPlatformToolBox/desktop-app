@@ -498,14 +498,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         if (options?.callerInstanceId) {
             // Intentionally fire-and-forget so the callee tool can open immediately while invocation result resolves later.
             void window.toolboxAPI
-                .launchToolWithContext(
-                    options.callerInstanceId,
-                    instanceId,
-                    tool,
-                    primaryConnectionId,
-                    secondaryConnectionId ?? null,
-                    options.prefillData ?? {},
-                )
+                .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})
                 .catch(async (error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
@@ -714,13 +707,13 @@ async function updateTabConnectionSubtext(instanceId: string): Promise<void> {
 }
 
 /**
- * Open a tool detail tab (shows tool details as a tab instead of a modal dialog)
+ * Open a a local page like tool details, settings, or other internal pages as a tab (shows content as a tab instead of a modal dialog)
  * @param tabId Unique identifier for the tab (e.g., "tool-detail-{toolId}")
  * @param displayName Name shown on the tab
  * @param renderContent Callback that populates the detail panel with content
  * @param tabLabelSuffix Text appended to the display name for the tab label and tooltip. Defaults to " - Details" to visually distinguish detail tabs from regular tool tabs.
  */
-export async function openToolDetailTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void, tabLabelSuffix = " - Details"): Promise<void> {
+export async function openLocalPageAsTab(tabId: string, displayName: string, renderContent: (panel: HTMLElement) => void, tabLabelSuffix = " - Details"): Promise<void> {
     // If this tool's detail tab is already open, just switch to it
     if (openTools.has(tabId)) {
         // Refresh content in case install state changed
