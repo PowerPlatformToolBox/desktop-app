@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolResult, ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { logError, logInfo } from "../../common/logger";
 import { SettingsManager } from "../managers/settingsManager";
@@ -41,7 +41,7 @@ export class McpServerManager {
             const agentTools = await getAgentInvokableTools(this.toolRegistryManager);
             this.agentToolsCache = {
                 tools: agentTools.map((tool) => ({
-                    name: tool.toolId,
+                    name: tool.displayName.toLowerCase().replace(/\s+/g, "-"),
                     title: tool.displayName,
                     description: tool.description,
                     inputSchema: tool.inputSchema,
