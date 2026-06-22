@@ -7,7 +7,8 @@ import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
-import { AgentTool, getAgentInvokableTools } from "./agentToolRegistry";
+import { logInvocation, type InvocationOutcome } from "./agentInvocationLogger";
+import { AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 
@@ -110,13 +111,21 @@ export class McpServerManager {
             })),
         }));
         server.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
-            const toolName = request.params.name;
+            const toolName = resolveToolId(request.params.name)!;
             const toolArgs = (request.params.arguments ?? {}) as Record<string, unknown>;
 
             const agentTools = await this.getAgentTools();
-            const matchedTool = agentTools.find((t) => t.displayName === toolName);
+            const matchedTool = agentTools.find((t) => t.toolId === toolName);
 
             if (!matchedTool) {
+                logInvocation({
+                    toolId: `unknown:${toolName}`,
+                    toolName,
+                    connectionId: null,
+                    prefillData: toolArgs,
+                    outcome: "rejected",
+                    error: "Tool not found or not agent-invokable",
+                });
                 return {
                     content: [{ type: "text", text: `Tool not found or not agent-invokable: ${toolName}` }],
                     isError: true,
@@ -124,18 +133,43 @@ export class McpServerManager {
             }
 
             const executionMode = matchedTool.executionMode;
+            const toolId = matchedTool.toolId;
+            const displayName = matchedTool.displayName;
+            const prefillData = toolArgs;
+            let outcome: InvocationOutcome = "completed";
+            let errorText: string | undefined;
 
             switch (executionMode) {
                 case "windowed": {
                     if (!this.toolWindowManager) {
+                        outcome = "rejected";
+                        errorText = "Tool window manager is not available";
+                        logInvocation({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome,
+                            error: errorText,
+                        });
                         return {
-                            content: [{ type: "text", text: "Tool window manager is not available" }],
+                            content: [{ type: "text", text: errorText }],
                             isError: true,
                         };
                     }
 
                     const toolRecord = this.toolManager.getTool(matchedTool.toolId);
                     if (!toolRecord) {
+                        outcome = "rejected";
+                        errorText = "Tool manifest not found";
+                        logInvocation({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome,
+                            error: errorText,
+                        });
                         return {
                             content: [{ type: "text", text: `Tool manifest not found for: ${matchedTool.toolId}` }],
                             isError: true,
@@ -146,7 +180,6 @@ export class McpServerManager {
                     const calleeInstanceId = `${matchedTool.toolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
                     const primaryConnectionId: string | null = null;
                     const secondaryConnectionId: string | null = null;
-                    const prefillData = toolArgs;
                     const noReturn = false;
 
                     try {
@@ -161,6 +194,14 @@ export class McpServerManager {
                         );
 
                         if (result === null) {
+                            outcome = "no-result";
+                            logInvocation({
+                                toolId,
+                                toolName: displayName,
+                                connectionId: primaryConnectionId,
+                                prefillData,
+                                outcome,
+                            });
                             return {
                                 content: [
                                     {
@@ -176,17 +217,34 @@ export class McpServerManager {
                         }
 
                         const payload = (result ?? undefined) as Record<string, unknown> | undefined;
+                        logInvocation({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: primaryConnectionId,
+                            prefillData,
+                            outcome,
+                        });
                         return {
                             content: [{ type: "text", text: JSON.stringify(payload) }],
                             structuredContent: payload,
                             isError: false,
                         };
                     } catch (error) {
+                        outcome = "rejected";
+                        errorText = error instanceof Error ? error.message : String(error);
+                        logInvocation({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: primaryConnectionId,
+                            prefillData,
+                            outcome,
+                            error: errorText,
+                        });
                         return {
                             content: [
                                 {
                                     type: "text",
-                                    text: `Failed to launch tool: ${error instanceof Error ? error.message : String(error)}`,
+                                    text: `Failed to launch tool: ${errorText}`,
                                 },
                             ],
                             isError: true,
@@ -195,9 +253,19 @@ export class McpServerManager {
                 }
 
                 default: {
+                    outcome = "rejected";
+                    errorText = `Unsupported execution mode: ${executionMode}`;
+                    logInvocation({
+                        toolId,
+                        toolName: displayName,
+                        connectionId: null,
+                        prefillData,
+                        outcome,
+                        error: errorText,
+                    });
                     logInfo(`[MCP] Unsupported executionMode "${executionMode}" for tool ${toolName}`);
                     return {
-                        content: [{ type: "text", text: `Unsupported execution mode: ${executionMode}` }],
+                        content: [{ type: "text", text: errorText }],
                         isError: true,
                     };
                 }

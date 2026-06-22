@@ -11,6 +11,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
+import { AGENT_INVOCATION_CHANNELS } from "../common/ipc/channels";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
 
 /**
@@ -395,6 +396,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget),
         deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, params, connectionTarget),
         orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
+    },
+
+    // Agent invocation logging - Only for PPTB UI
+    agentInvocation: {
+        getLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.GET_LOGS),
     },
 });
 

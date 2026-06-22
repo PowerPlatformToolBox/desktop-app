@@ -18,8 +18,12 @@ export interface GetAgentInvokableToolsOptions {
     requireVerified?: boolean;
 }
 
+const toolNameMap = new Map<string, string>(); // friendlyName → internalId
+
 export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryManager, options?: GetAgentInvokableToolsOptions): Promise<AgentTool[]> {
-    void options?.requireVerified;
+    toolNameMap.clear();
+
+    void options?.requireVerified; // for future use, currently unused
     const installedTools: ToolManifest[] = await toolRegistryManager.getInstalledTools();
     logInfo(installedTools.map((t) => `Installed tool: ${t.name} (version ${t.version})`).join("\n"));
 
@@ -27,6 +31,8 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
 
     for (const tool of installedTools) {
         const pptbConfigPath = path.join(tool.installPath, "pptb.config.json");
+        const friendlyName = tool.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"); // MCP tool names can't have spaces
+        toolNameMap.set(friendlyName, tool.id);
 
         if (!fs.existsSync(pptbConfigPath)) {
             continue;
@@ -47,7 +53,7 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
 
         result.push({
             toolId: tool.id,
-            displayName: tool.name,
+            displayName: friendlyName,
             description: tool.description || "",
             inputSchema: convertPPTBSchemaToJsonSchema(invocation.prefill),
             outputSchema: convertPPTBSchemaToJsonSchema(invocation.returnTopic),
@@ -56,4 +62,8 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
     }
 
     return result;
+}
+
+export function resolveToolId(friendlyName: string): string | undefined {
+    return toolNameMap.get(friendlyName);
 }

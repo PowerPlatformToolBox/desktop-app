@@ -242,6 +242,11 @@ export const PROTOCOL_CHANNELS = {
     PROTOCOL_INSTALL_TOOL: "protocol:install-tool",
 } as const;
 
+// Agent Invocation Logging channels
+export const AGENT_INVOCATION_CHANNELS = {
+    GET_LOGS: "agent-invocation:get-logs",
+} as const;
+
 // Event-related IPC channels (from main to renderer)
 export const EVENT_CHANNELS = {
     TOOLBOX_EVENT: "toolbox-event",

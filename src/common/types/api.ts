@@ -80,6 +80,26 @@ export interface EventsAPI {
 }
 
 /**
+ * Agent Invocation Log Entry
+ */
+export interface AgentInvocationLogEntry {
+    timestamp: string;
+    toolId: string;
+    toolName: string;
+    connectionId: string | null;
+    prefillSummary: string;
+    outcome: "completed" | "no-result" | "rejected";
+    error?: string;
+}
+
+/**
+ * Agent Invocation API namespace
+ */
+export interface AgentInvocationAPI {
+    getLogs: () => Promise<AgentInvocationLogEntry[]>;
+}
+
+/**
  * Troubleshooting API namespace
  */
 export interface TroubleshootingAPI {
@@ -292,4 +312,7 @@ export interface ToolboxAPI {
 
     // Dataverse namespace
     dataverse: DataverseAPI;
+
+    // Agent Invocation namespace
+    agentInvocation: AgentInvocationAPI;
 }
