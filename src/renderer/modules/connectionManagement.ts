@@ -4,7 +4,7 @@
  */
 
 import { logDebug, logError, logInfo, logWarn } from "../../common/logger";
-import type { ConnectionsSortOption, DataverseConnection, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
+import type { Connection, ConnectionsSortOption, ModalWindowClosedPayload, ModalWindowMessagePayload, UIConnectionData } from "../../common/types";
 import { parseConnectionString } from "../../common/types/connection";
 import { getAddConnectionModalControllerScript } from "../modals/addConnection/controller";
 import { getAddConnectionModalView } from "../modals/addConnection/view";
@@ -413,7 +413,7 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
         // Exclude connections with incomplete credentials from selection
-        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const usableConnections = connections.filter((c: Connection) => !c.hasIncompleteCredentials);
         const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
@@ -423,7 +423,7 @@ async function handlePopulateConnectionsRequest(): Promise<void> {
                 sortOption,
                 // Map persisted connections to UI-level data with isActive property
                 connections: sortedConnections.map(
-                    (conn: DataverseConnection): UIConnectionData => ({
+                    (conn: Connection): UIConnectionData => ({
                         id: conn.id,
                         name: conn.name,
                         url: conn.url,
@@ -628,7 +628,7 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
         const connections = await window.toolboxAPI.connections.getAll();
         const sortOption = await getConnectionsSortPreference();
         // Exclude connections with incomplete credentials from selection
-        const usableConnections = connections.filter((c: DataverseConnection) => !c.hasIncompleteCredentials);
+        const usableConnections = connections.filter((c: Connection) => !c.hasIncompleteCredentials);
         const sortedConnections = sortConnections(usableConnections, sortOption);
 
         // Send connections list to modal
@@ -636,7 +636,7 @@ async function handlePopulateMultiConnectionsRequest(): Promise<void> {
             channel: SELECT_MULTI_CONNECTION_MODAL_CHANNELS.populateConnections,
             data: {
                 sortOption,
-                connections: sortedConnections.map((conn: DataverseConnection) => ({
+                connections: sortedConnections.map((conn: Connection) => ({
                     id: conn.id,
                     name: conn.name,
                     url: conn.url,
@@ -772,7 +772,7 @@ export async function loadConnections(): Promise<void> {
                 <div class="connection-header">
                     <div>
                         <div class="connection-name">${conn.name}</div>
-                        ${getEnvBadgeMarkup(conn as DataverseConnection)}
+                        ${getEnvBadgeMarkup(conn as Connection)}
                     </div>
                     <div class="connection-actions">
                         ${
@@ -864,7 +864,7 @@ export async function connectToConnection(id: string): Promise<string> {
     try {
         // Verify the connection exists by getting all connections and finding it
         const connections = await window.toolboxAPI.connections.getAll();
-        const connection = connections.find((c: DataverseConnection) => c.id === id);
+        const connection = connections.find((c: Connection) => c.id === id);
         if (!connection) {
             throw new Error("Connection not found");
         }
@@ -1228,7 +1228,7 @@ export async function exportConnections(ids?: string[]): Promise<void> {
  * @param xmlContent Raw XML string from the XrmToolBox ConnectionsList file.
  * @returns A PPTB-compatible import payload ready to pass to `importConnections`.
  */
-function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedAt: string; connections: Partial<Connection>[] } {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
 
@@ -1250,7 +1250,7 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
     }
 
     const now = new Date().toISOString();
-    const connections: Partial<DataverseConnection>[] = [];
+    const connections: Partial<Connection>[] = [];
 
     for (const node of connectionNodes) {
         const getText = (tagName: string, parent: Element = node): string => parent.querySelector(tagName)?.textContent?.trim() ?? "";
@@ -1298,7 +1298,7 @@ function parseXtbXmlToImportPayload(xmlContent: string): { version: 1; exportedA
             environment = "Test";
         }
 
-        const conn: Partial<DataverseConnection> = {
+        const conn: Partial<Connection> = {
             name: getText("ConnectionName"),
             url,
             environment,
@@ -1547,7 +1547,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     return null;
 }
 
-function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): DataverseConnection {
+function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "add" | "edit" | "test"): Connection {
     const authenticationType = normalizeAuthenticationType(formPayload.authenticationType);
 
     // Handle connection string specially
@@ -1560,7 +1560,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         }
 
         // Build connection from parsed data
-        const connection: DataverseConnection = {
+        const connection: Connection = {
             id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
             name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
             url: parsed.url,
@@ -1580,7 +1580,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
         const browserType = sanitizeInput(formPayload.browserType);
         const browserProfile = sanitizeInput(formPayload.browserProfile);
         const browserProfileName = sanitizeInput(formPayload.browserProfileName);
-        connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+        connection.browserType = (browserType || "default") as Connection["browserType"];
         connection.browserProfile = browserProfile || undefined;
         connection.browserProfileName = browserProfileName || undefined;
 
@@ -1598,7 +1598,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     }
 
     // Standard connection building for non-connection-string types
-    const connection: DataverseConnection = {
+    const connection: Connection = {
         id: mode === "add" ? Date.now().toString() : mode === "edit" ? (formPayload.id ?? "") : "test",
         name: mode === "add" || mode === "edit" ? sanitizeInput(formPayload.name) : "Test Connection",
         url: sanitizeInput(formPayload.url),
@@ -1613,7 +1613,7 @@ function buildConnectionFromPayload(formPayload: ConnectionFormPayload, mode: "a
     const browserType = sanitizeInput(formPayload.browserType);
     const browserProfile = sanitizeInput(formPayload.browserProfile);
     const browserProfileName = sanitizeInput(formPayload.browserProfileName);
-    connection.browserType = (browserType || "default") as DataverseConnection["browserType"];
+    connection.browserType = (browserType || "default") as Connection["browserType"];
     connection.browserProfile = browserProfile || undefined;
     connection.browserProfileName = browserProfileName || undefined;
 
@@ -1683,7 +1683,7 @@ function formatAuthType(authType: "interactive" | "clientSecret" | "usernamePass
     return labels[authType] || authType;
 }
 
-function getBrowserBadgeMarkup(conn: DataverseConnection): string {
+function getBrowserBadgeMarkup(conn: Connection): string {
     const browserType = conn.browserType;
     if (!browserType || browserType === "default") {
         return "";
@@ -1710,7 +1710,7 @@ function getBrowserBadgeMarkup(conn: DataverseConnection): string {
     `;
 }
 
-function getEnvBadgeMarkup(conn: DataverseConnection): string {
+function getEnvBadgeMarkup(conn: Connection): string {
     const env = conn.environment || "Dev";
     const safeEnv = escapeHtml(env);
     if (conn.environmentColor && /^#[0-9A-Fa-f]{6}$/.test(conn.environmentColor)) {
@@ -1720,7 +1720,7 @@ function getEnvBadgeMarkup(conn: DataverseConnection): string {
     return `<span class="connection-env-badge env-${escapeHtml(env.toLowerCase())}">${safeEnv}</span>`;
 }
 
-function formatBrowserType(browserType: DataverseConnection["browserType"]): string {
+function formatBrowserType(browserType: Connection["browserType"]): string {
     const labels: Record<string, string> = {
         default: "Browser",
         chrome: "Chrome",
@@ -1729,7 +1729,7 @@ function formatBrowserType(browserType: DataverseConnection["browserType"]): str
     return labels[browserType || "default"] || "Browser";
 }
 
-function getBrowserIconPath(browserType: DataverseConnection["browserType"]): string | null {
+function getBrowserIconPath(browserType: Connection["browserType"]): string | null {
     switch (browserType) {
         case "chrome":
             return "icons/logos/chrome.png";
@@ -1777,7 +1777,7 @@ function closeActiveConnectionContextMenu(): void {
 /**
  * Show context menu for connection
  */
-function showConnectionContextMenu(conn: DataverseConnection, anchor: HTMLElement): void {
+function showConnectionContextMenu(conn: Connection, anchor: HTMLElement): void {
     // Toggle: if clicking the same anchor, close existing menu
     if (activeConnectionContextMenu && activeConnectionContextMenu.anchor === anchor) {
         closeActiveConnectionContextMenu();
@@ -1923,12 +1923,12 @@ export async function loadSidebarConnections(): Promise<void> {
         const categoryFilter = document.getElementById("connections-category-filter") as HTMLSelectElement | null;
         if (categoryFilter) {
             const allCategories = new Set<string>();
-            connections.forEach((conn: DataverseConnection) => {
+            connections.forEach((conn: Connection) => {
                 if (conn.category) allCategories.add(conn.category);
             });
             const currentCategoryValue = categoryFilter.value;
             // Rebuild options (keep "All Categories" + "__default__" if there are any uncategorized)
-            const hasDefault = connections.some((conn: DataverseConnection) => !conn.category);
+            const hasDefault = connections.some((conn: Connection) => !conn.category);
             let optionsHtml = '<option value="">All Categories</option>';
             if (hasDefault) {
                 optionsHtml += '<option value="__default__">Default (No Category)</option>';
@@ -1958,7 +1958,7 @@ export async function loadSidebarConnections(): Promise<void> {
         }
 
         // Apply filters
-        const filteredConnections = connections.filter((conn: DataverseConnection) => {
+        const filteredConnections = connections.filter((conn: Connection) => {
             // Search filter (name or URL)
             if (searchTerm) {
                 const haystacks: string[] = [conn.name || "", conn.url || ""];
@@ -2011,8 +2011,8 @@ export async function loadSidebarConnections(): Promise<void> {
         }
 
         // Group connections by category (empty string = uncategorized / "Default")
-        const groupMap = new Map<string, DataverseConnection[]>();
-        sortedConnections.forEach((conn: DataverseConnection) => {
+        const groupMap = new Map<string, Connection[]>();
+        sortedConnections.forEach((conn: Connection) => {
             const key = conn.category || "";
             if (!groupMap.has(key)) groupMap.set(key, []);
             groupMap.get(key)!.push(conn);
@@ -2025,7 +2025,7 @@ export async function loadSidebarConnections(): Promise<void> {
             return a.localeCompare(b);
         });
 
-        const renderConnectionItem = (conn: DataverseConnection): string => {
+        const renderConnectionItem = (conn: Connection): string => {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const moreIconPath = isDarkTheme ? "icons/dark/more-icon.svg" : "icons/light/more-icon.svg";
             const browserBadgeMarkup = getBrowserBadgeMarkup(conn);
@@ -2074,7 +2074,7 @@ export async function loadSidebarConnections(): Promise<void> {
                     const groupConns = groupMap.get(groupKey)!;
                     const displayKey = groupKey === "" ? "Default" : groupKey;
                     const escapedKey = escapeHtml(displayKey);
-                    const catColor = groupKey !== "" ? groupConns.find((c: DataverseConnection) => c.categoryColor)?.categoryColor || "" : "";
+                    const catColor = groupKey !== "" ? groupConns.find((c: Connection) => c.categoryColor)?.categoryColor || "" : "";
                     const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
                     const colorSwatchHtml =
                         groupKey !== ""
@@ -2110,7 +2110,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 const connectionId = target.getAttribute("data-connection-id");
                 if (!connectionId) return;
 
-                const conn = sortedConnections.find((c: DataverseConnection) => c.id === connectionId);
+                const conn = sortedConnections.find((c: Connection) => c.id === connectionId);
                 if (!conn) return;
 
                 showConnectionContextMenu(conn, target);
@@ -2126,7 +2126,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 // categoryKey is the raw key (empty string for Default)
                 const categoryConns = groupMap.get(categoryKey ?? "");
                 if (!categoryConns || categoryConns.length === 0) return;
-                const ids = categoryConns.map((c: DataverseConnection) => c.id);
+                const ids = categoryConns.map((c: Connection) => c.id);
                 await exportConnections(ids);
             });
         });
@@ -2146,9 +2146,7 @@ export async function loadSidebarConnections(): Promise<void> {
                 try {
                     const allConns = await window.toolboxAPI.connections.getAll();
                     await Promise.all(
-                        allConns
-                            .filter((c: DataverseConnection) => (c.category || "") === categoryKey)
-                            .map((c: DataverseConnection) => window.toolboxAPI.connections.update(c.id, { categoryColor: newColor })),
+                        allConns.filter((c: Connection) => (c.category || "") === categoryKey).map((c: Connection) => window.toolboxAPI.connections.update(c.id, { categoryColor: newColor })),
                     );
                     await loadConnections();
                 } catch (err) {

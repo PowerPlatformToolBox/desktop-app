@@ -1,6 +1,6 @@
 import * as https from "https";
 import { logError, logWarn } from "../../common/logger";
-import { DataverseConnection } from "../../common/types";
+import { Connection } from "../../common/types";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 
@@ -92,7 +92,7 @@ export class PowerPlatformManager {
         return `${baseUrl}/${cleanPath.replace(/^\/+/, "")}`;
     }
 
-    private async ensureMsalCacheOrClearTokens(connection: DataverseConnection, connectionId: string, errorMessage: string): Promise<void> {
+    private async ensureMsalCacheOrClearTokens(connection: Connection, connectionId: string, errorMessage: string): Promise<void> {
         const hasAccount = await this.authManager.hasAccountInCache(connection);
         if (!hasAccount) {
             this.connectionsManager.clearConnectionTokens(connectionId);
@@ -101,7 +101,7 @@ export class PowerPlatformManager {
         }
     }
 
-    private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
+    private async getConnectionWithToken(connectionId: string): Promise<{ connection: Connection; accessToken: string }> {
         const connection = this.connectionsManager.getConnectionById(connectionId);
         if (!connection) {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);

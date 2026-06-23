@@ -5,7 +5,7 @@
 
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
-import type { DataverseConnection } from "../../common/types/connection";
+import type { Connection } from "../../common/types/connection";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -153,8 +153,8 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
             await setToolSecondaryConnection(instanceId, result.secondaryConnectionId);
 
             const connections = await window.toolboxAPI.connections.getAll();
-            const primaryConnection = connections.find((item: DataverseConnection) => item.id === result.primaryConnectionId);
-            const secondaryConnection = result.secondaryConnectionId ? connections.find((item: DataverseConnection) => item.id === result.secondaryConnectionId) : null;
+            const primaryConnection = connections.find((item: Connection) => item.id === result.primaryConnectionId);
+            const secondaryConnection = result.secondaryConnectionId ? connections.find((item: Connection) => item.id === result.secondaryConnectionId) : null;
 
             const connectionDetails = secondaryConnection ? `${primaryConnection?.name || "Primary"} and ${secondaryConnection.name}` : primaryConnection?.name || "the selected connection";
 
@@ -173,7 +173,7 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
             await setToolConnection(instanceId, selectedConnectionId);
 
             const connections = await window.toolboxAPI.connections.getAll();
-            const connection = connections.find((item: DataverseConnection) => item.id === selectedConnectionId);
+            const connection = connections.find((item: Connection) => item.id === selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Connection Set",
                 body: `${targetTool.tool.name} is now connected to ${connection?.name || "the selected connection"}.`,
@@ -498,14 +498,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         if (options?.callerInstanceId) {
             // Intentionally fire-and-forget so the callee tool can open immediately while invocation result resolves later.
             void window.toolboxAPI
-                .launchToolWithContext(
-                    options.callerInstanceId,
-                    instanceId,
-                    tool,
-                    primaryConnectionId,
-                    secondaryConnectionId ?? null,
-                    options.prefillData ?? {},
-                )
+                .launchToolWithContext(options.callerInstanceId, instanceId, tool, primaryConnectionId, secondaryConnectionId ?? null, options.prefillData ?? {})
                 .catch(async (error) => {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     logError("Inter-tool invocation launch failed", { instanceId, error: errorMessage });
@@ -1668,7 +1661,7 @@ export async function openToolSecondaryConnectionModal(): Promise<void> {
 
             // Get connection from all connections list
             const connections = await window.toolboxAPI.connections.getAll();
-            const connection = connections.find((c: DataverseConnection) => c.id === selectedConnectionId);
+            const connection = connections.find((c: Connection) => c.id === selectedConnectionId);
             window.toolboxAPI.utils.showNotification({
                 title: "Secondary Connection Set",
                 body: `${activeTool.tool.name} secondary connection is now connected to ${connection?.name || "the selected connection"}.`,

@@ -4,7 +4,7 @@ import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { DataverseConnection } from "../../common/types";
+import { Connection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
 
@@ -112,7 +112,7 @@ export class AuthManager {
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -251,7 +251,7 @@ export class AuthManager {
     private async listenForAuthCodeAndValidate(
         port: number,
         authCodeUrl: string,
-        connection: DataverseConnection,
+        connection: Connection,
         scopes: string[],
         redirectUri: string,
         msalApp: PublicClientApplication,
@@ -430,11 +430,7 @@ export class AuthManager {
      * Uses ConfidentialClientApplication which handles token refresh automatically
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async authenticateClientSecret(
-        connection: DataverseConnection,
-        scopes?: string[],
-        skipValidateEnvAccess: boolean = false,
-    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateClientSecret(connection: Connection, scopes?: string[], skipValidateEnvAccess: boolean = false): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
@@ -483,7 +479,7 @@ export class AuthManager {
      * Note: This flow is not recommended and may not work with MFA-enabled accounts
      * Note: Only delegated access is supported - uses user_impersonation scope
      */
-    async authenticateUsernamePassword(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
@@ -560,7 +556,7 @@ export class AuthManager {
     /**
      * Test connection by verifying the URL and attempting a simple authenticated request
      */
-    async testConnection(connection: DataverseConnection): Promise<boolean> {
+    async testConnection(connection: Connection): Promise<boolean> {
         try {
             // First, validate the URL format
             if (!connection.url || !connection.url.startsWith("https://")) {
@@ -697,7 +693,7 @@ export class AuthManager {
      * @param accessToken The access token to use for the WhoAmI call
      * @throws Error if the user does not have access to the environment
      */
-    private async validateEnvironmentAccess(connection: DataverseConnection, accessToken: string): Promise<void> {
+    private async validateEnvironmentAccess(connection: Connection, accessToken: string): Promise<void> {
         try {
             const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
             const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
@@ -724,7 +720,7 @@ export class AuthManager {
      * @param connection The connection to find account for
      * @returns Promise with the account or undefined if not found
      */
-    private async findMsalAccount(connection: DataverseConnection): Promise<AccountInfo | undefined> {
+    private async findMsalAccount(connection: Connection): Promise<AccountInfo | undefined> {
         try {
             const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
             const tenantId = connection.tenantId || "organizations";
@@ -742,7 +738,7 @@ export class AuthManager {
      * @param connection The connection to check
      * @returns Promise<boolean> true if account exists in cache, false otherwise
      */
-    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+    async hasAccountInCache(connection: Connection): Promise<boolean> {
         const account = await this.findMsalAccount(connection);
         return account !== undefined;
     }
@@ -753,7 +749,7 @@ export class AuthManager {
      * @param connection The connection to acquire token for
      * @returns Promise with access token (MSAL handles refresh internally)
      */
-    async acquireTokenSilently(connection: DataverseConnection): Promise<{ accessToken: string; expiresOn: Date }> {
+    async acquireTokenSilently(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -795,7 +791,7 @@ export class AuthManager {
      * @param connection The connection to acquire token for
      * @returns Promise with access token (MSAL handles refresh internally)
      */
-    async acquirePowerPlatformToken(connection: DataverseConnection): Promise<{ accessToken: string; expiresOn: Date }> {
+    async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -829,7 +825,7 @@ export class AuthManager {
         }
     }
 
-    private async acquirePowerPlatformTokenInteractive(connection: DataverseConnection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date }> {
+    private async acquirePowerPlatformTokenInteractive(connection: Connection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date }> {
         const port = await this.findAvailablePort();
         const redirectUri = `http://localhost:${port}`;
         const scopes = ["https://api.powerplatform.com/.default"];
@@ -854,7 +850,7 @@ export class AuthManager {
      * For modern interactive connections, use acquireTokenSilently() instead
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async refreshAccessToken(connection: DataverseConnection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
         const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;

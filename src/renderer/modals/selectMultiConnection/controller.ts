@@ -496,14 +496,6 @@ ${sortingUtilities}
         console.warn("modalBridge.onMessage is not available");
     }
 
-    // Show Power Platform API info message if required
-    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
-        const ppApiInfo = document.getElementById("power-platform-api-info-multi");
-        if (ppApiInfo) {
-            ppApiInfo.style.display = "block";
-        }
-    }
-
     // Request connections list from main process
     modalBridge.send(CHANNELS.populateConnections, {});
 })();

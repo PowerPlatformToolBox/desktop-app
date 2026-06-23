@@ -117,9 +117,6 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
                 isSecondaryRequired ? "both connections" : "at least a primary connection"
             } to continue.
         </div>
-        <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
-            <span>Connections enabled for Power Platform API are marked with a PP API tag.</span>
-        </div>
         
         <div class="modal-search-container">
             <div class="modal-search-bar">

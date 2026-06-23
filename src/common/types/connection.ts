@@ -58,11 +58,6 @@ export interface Connection {
 }
 
 /**
- * @deprecated Use Connection instead.
- */
-export type DataverseConnection = Connection;
-
-/**
  * Type guard to check if an object is a valid Connection
  */
 export function isConnection(obj: unknown): obj is Connection {
