@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import Store from "electron-store";
+import { logInfo } from "../../common/logger";
 import { DataverseConnection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
-import { logInfo } from "../../common/logger";
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
@@ -12,7 +12,16 @@ const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = ["clientId", 
 /**
  * Fields that must NOT be included in connection exports (secrets/tokens)
  */
-const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = ["clientSecret", "password", "accessToken", "refreshToken", "tokenExpiry", "msalAccountId", "powerPlatformAccessToken", "powerPlatformTokenExpiry"];
+const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = [
+    "clientSecret",
+    "password",
+    "accessToken",
+    "refreshToken",
+    "tokenExpiry",
+    "msalAccountId",
+    "powerPlatformAccessToken",
+    "powerPlatformTokenExpiry",
+];
 
 /**
  * Fields required for a valid importable connection
@@ -44,48 +53,36 @@ export class ConnectionsManager {
     }
 
     /**
+     * Normalize a connection before persisting it.
+     * Values may come from the UI as plaintext or from IPC/storage as encrypted,
+     * so decrypt first and then encrypt for storage.
+     */
+    private normalizeConnectionForStorage(connection: DataverseConnection): DataverseConnection {
+        const decrypted = this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
+        return this.encryptionManager.encryptFields(decrypted, SENSITIVE_CONNECTION_FIELDS);
+    }
+
+    /**
      * Migrate existing plain-text connections to encrypted storage
-     * This is safe to call multiple times - it will only encrypt unencrypted data
+     * This is safe to call multiple times - it will not double-encrypt existing data.
      */
     private migrateConnectionsToEncrypted(): void {
         const connections = this.store.get("connections");
         let needsMigration = false;
 
-        // Check if any connection has unencrypted sensitive data
-        // We can detect this by checking if encryption is available and the data looks like plain text
         if (this.encryptionManager.isEncryptionAvailable()) {
-            for (const conn of connections) {
-                // If clientSecret exists and looks like plain text (not base64), it needs migration
-                if (conn.clientSecret && !this.isLikelyEncrypted(conn.clientSecret)) {
-                    needsMigration = true;
-                    break;
-                }
-                if (conn.accessToken && !this.isLikelyEncrypted(conn.accessToken)) {
-                    needsMigration = true;
-                    break;
-                }
-                if (conn.powerPlatformAccessToken && !this.isLikelyEncrypted(conn.powerPlatformAccessToken)) {
-                    needsMigration = true;
-                    break;
-                }
-            }
+            const decryptedConnections = connections.map((conn) => this.encryptionManager.decryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
+            const encryptedConnections = decryptedConnections.map((conn) => this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
+
+            needsMigration = encryptedConnections.some((encryptedConnection, index) => SENSITIVE_CONNECTION_FIELDS.some((field) => encryptedConnection[field] !== connections[index][field]));
         }
 
         if (needsMigration) {
             logInfo("Migrating connections to encrypted storage...");
-            const encryptedConnections = connections.map((conn) => this.encryptionManager.encryptFields(conn, SENSITIVE_CONNECTION_FIELDS));
+            const encryptedConnections = connections.map((conn) => this.normalizeConnectionForStorage(conn));
             this.store.set("connections", encryptedConnections);
             logInfo("Connection migration complete");
         }
-    }
-
-    /**
-     * Check if a string is likely to be encrypted (base64 encoded)
-     */
-    private isLikelyEncrypted(value: string): boolean {
-        // Base64 strings are typically much longer and contain only certain characters
-        // This is a heuristic, not perfect, but good enough for migration detection
-        return /^[A-Za-z0-9+/]+=*$/.test(value) && value.length > 100;
     }
 
     /**
@@ -94,8 +91,7 @@ export class ConnectionsManager {
     addConnection(connection: DataverseConnection): void {
         const connections = this.store.get("connections");
 
-        // Encrypt sensitive fields before storing
-        const encryptedConnection = this.encryptionManager.encryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
+        const encryptedConnection = this.normalizeConnectionForStorage(connection);
 
         connections.push(encryptedConnection);
         this.store.set("connections", connections);
@@ -108,10 +104,11 @@ export class ConnectionsManager {
         const connections = this.store.get("connections");
         const index = connections.findIndex((c) => c.id === id);
         if (index !== -1) {
-            // Encrypt any sensitive fields in the updates
-            const encryptedUpdates = this.encryptionManager.encryptFields(updates as DataverseConnection, SENSITIVE_CONNECTION_FIELDS);
+            const existingConnection = this.encryptionManager.decryptFields(connections[index], SENSITIVE_CONNECTION_FIELDS);
+            const decryptedUpdates = this.encryptionManager.decryptFields(updates as DataverseConnection, SENSITIVE_CONNECTION_FIELDS);
+            const mergedConnection = { ...existingConnection, ...decryptedUpdates };
 
-            connections[index] = { ...connections[index], ...encryptedUpdates };
+            connections[index] = this.normalizeConnectionForStorage(mergedConnection);
             this.store.set("connections", connections);
         }
     }
