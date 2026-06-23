@@ -175,6 +175,7 @@ type ToolSafeConnection = {
     category?: string;
     environmentColor?: string;
     categoryColor?: string;
+    enabledForPowerPlatformAPI?: boolean;
 };
 
 function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
@@ -204,6 +205,7 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
         category: typeof source.category === "string" ? source.category : undefined,
         environmentColor: typeof source.environmentColor === "string" ? source.environmentColor : undefined,
         categoryColor: typeof source.categoryColor === "string" ? source.categoryColor : undefined,
+        enabledForPowerPlatformAPI: typeof source.enabledForPowerPlatformAPI === "boolean" ? source.enabledForPowerPlatformAPI : undefined,
     };
 }
 

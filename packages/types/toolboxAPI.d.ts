@@ -75,9 +75,9 @@ declare namespace ToolBoxAPI {
     }
 
     /**
-     * Dataverse connection configuration
+     * Power Platform ToolBox connection configuration
      */
-    export interface DataverseConnection {
+    export interface Connection {
         id: string;
         name: string;
         url: string;
@@ -85,6 +85,7 @@ declare namespace ToolBoxAPI {
         category?: string;
         environmentColor?: string;
         categoryColor?: string;
+        enabledForPowerPlatformAPI?: boolean;
         createdAt?: string;
         lastUsedAt?: string;
         /**
@@ -94,6 +95,11 @@ declare namespace ToolBoxAPI {
          */
         isActive?: boolean;
     }
+
+    /**
+     * @deprecated Use Connection instead.
+     */
+    export type DataverseConnection = Connection;
 
     /**
      * Tool information
@@ -150,12 +156,12 @@ declare namespace ToolBoxAPI {
         /**
          * Get the currently active Dataverse connection
          */
-        getActiveConnection: () => Promise<DataverseConnection | null>;
+        getActiveConnection: () => Promise<Connection | null>;
 
         /**
          * Get the secondary connection for multi-connection tools
          */
-        getSecondaryConnection: () => Promise<DataverseConnection | null>;
+        getSecondaryConnection: () => Promise<Connection | null>;
     }
 
     /**
@@ -498,7 +504,11 @@ declare namespace ToolBoxAPI {
          * @param prefillData  Data to pre-populate the target tool's state
          * @param options      Optional connection overrides and launch flags
          */
-        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean }) => Promise<unknown>;
+        launchTool: (
+            targetToolId: string,
+            prefillData?: Record<string, unknown>,
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
+        ) => Promise<unknown>;
 
         /**
          * Find installed tools that declare a given capability tag in their

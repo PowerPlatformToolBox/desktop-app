@@ -622,8 +622,9 @@ Core platform features organized into namespaces:
 
 #### Connections
 
-- **getActiveConnection()**: Promise<DataverseConnection | null>
-    - Returns the currently active Dataverse connection or null if none is active
+- **getActiveConnection()**: Promise<Connection | null>
+    - Returns the currently active connection or null if none is active
+    - Includes `enabledForPowerPlatformAPI` so tools can decide whether to use Power Platform API
 
 #### Utils
 
