@@ -15,13 +15,13 @@ export type AuthenticationType = "interactive" | "clientSecret" | "usernamePassw
 export type BrowserType = "default" | "chrome" | "edge";
 
 /**
- * Dataverse connection configuration
+ * Power Platform ToolBox connection configuration
  *
  * Note: This interface represents the persisted connection data.
  * UI-level properties like 'isActive' are NOT part of this type and should be
  * added transiently when needed for rendering (e.g., in modals or lists).
  */
-export interface DataverseConnection {
+export interface Connection {
     id: string;
     name: string;
     url: string;
@@ -49,12 +49,18 @@ export interface DataverseConnection {
     categoryColor?: string;
     // Import state: true when the connection was imported but is missing required secrets/credentials
     hasIncompleteCredentials?: boolean;
+    // Whether this connection can be used for Power Platform API operations
+    enabledForPowerPlatformAPI?: boolean;
+    // Separate access token for Power Platform API (https://api.powerplatform.com scope)
+    powerPlatformAccessToken?: string;
+    // Expiry for the Power Platform access token
+    powerPlatformTokenExpiry?: string;
 }
 
 /**
- * Type guard to check if an object is a valid DataverseConnection
+ * Type guard to check if an object is a valid Connection
  */
-export function isDataverseConnection(obj: unknown): obj is DataverseConnection {
+export function isConnection(obj: unknown): obj is Connection {
     if (!obj || typeof obj !== "object") return false;
     const conn = obj as Record<string, unknown>;
     return (
@@ -67,14 +73,14 @@ export function isDataverseConnection(obj: unknown): obj is DataverseConnection 
 }
 
 /**
- * UI-level connection data that extends DataverseConnection with display properties
+ * UI-level connection data that extends Connection with display properties
  * Use this type when rendering connections in lists, modals, or other UI components
  */
 export interface UIConnectionData {
     id: string;
     name: string;
     url: string;
-    environment: DataverseConnection["environment"];
+    environment: Connection["environment"];
     authenticationType: AuthenticationType;
     isActive: boolean;
     lastUsedAt?: string;
@@ -86,6 +92,7 @@ export interface UIConnectionData {
     environmentColor?: string;
     categoryColor?: string;
     hasIncompleteCredentials?: boolean;
+    enabledForPowerPlatformAPI?: boolean;
 }
 
 /**
@@ -100,7 +107,7 @@ export interface UIConnectionData {
  * @param connectionString The connection string to parse
  * @returns Parsed connection properties or null if invalid
  */
-export function parseConnectionString(connectionString: string): Partial<DataverseConnection> | null {
+export function parseConnectionString(connectionString: string): Partial<Connection> | null {
     if (!connectionString || typeof connectionString !== "string") {
         return null;
     }
@@ -124,7 +131,7 @@ export function parseConnectionString(connectionString: string): Partial<Dataver
         return null;
     }
 
-    const result: Partial<DataverseConnection> = {
+    const result: Partial<Connection> = {
         url: url,
     };
 

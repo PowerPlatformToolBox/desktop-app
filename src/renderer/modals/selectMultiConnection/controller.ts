@@ -17,8 +17,13 @@ export interface ConnectionListData {
  * Returns the controller script that wires up DOM events for the select multi-connection modal.
  * @param channels - Channel IDs for IPC communication
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
+ * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export function getSelectMultiConnectionModalControllerScript(channels: SelectMultiConnectionModalChannelIds, isSecondaryRequired: boolean = true): string {
+export function getSelectMultiConnectionModalControllerScript(
+    channels: SelectMultiConnectionModalChannelIds,
+    isSecondaryRequired: boolean = true,
+    enabledForPowerPlatformAPI: boolean = false,
+): string {
     const serializedChannels = JSON.stringify(channels);
     const sortingUtilities = getConnectionSortingUtilitiesScript();
     return `
@@ -26,6 +31,7 @@ export function getSelectMultiConnectionModalControllerScript(channels: SelectMu
 (() => {
     const CHANNELS = ${serializedChannels};
     const IS_SECONDARY_REQUIRED = ${isSecondaryRequired};
+    const ENABLED_FOR_POWER_PLATFORM_API = ${enabledForPowerPlatformAPI};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
         console.warn("modalBridge API is unavailable");
@@ -206,6 +212,7 @@ ${sortingUtilities}
             const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
             const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
             const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
+            const ppApiBadgeMarkup = conn.enabledForPowerPlatformAPI === true ? '<span class="power-platform-api-badge">PP API</span>' : '';
             
             return \`
             <div class="connection-item \${isAuthenticated ? 'authenticated' : ''} \${isDisabled ? 'disabled' : ''}" 
@@ -225,6 +232,7 @@ ${sortingUtilities}
                     <div class="connection-item-meta-left">
                         <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${ppApiBadgeMarkup}
                         \${catBadgeMarkup}
                     </div>
                     \${browserBadge ? \`<div class="connection-item-meta-right">\${browserBadge}</div>\` : ''}
@@ -337,7 +345,7 @@ ${sortingUtilities}
 
             // The connectReady message handler will update the UI based on success/failure
         } catch (error) {
-            captureException('Error connecting:', error);
+            console.error('Error connecting:', error);
             button.disabled = false;
             button.textContent = originalText;
         }
@@ -476,7 +484,7 @@ ${sortingUtilities}
                         button.textContent = 'Connect';
                     }
                     // Optionally show an error message
-                    captureException('Authentication failed:', payload.data.error);
+                    console.error('Authentication failed:', payload.data.error);
                 }
             }
             

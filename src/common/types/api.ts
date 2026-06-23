@@ -5,7 +5,7 @@
 
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
-import { DataverseConnection } from "./connection";
+import { Connection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
@@ -15,16 +15,16 @@ import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
  * Connections API namespace
  */
 export interface ConnectionsAPI {
-    add: (connection: DataverseConnection) => Promise<void>;
-    update: (id: string, updates: Partial<DataverseConnection>) => Promise<void>;
+    add: (connection: Connection) => Promise<void>;
+    update: (id: string, updates: Partial<Connection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
-    getAll: () => Promise<DataverseConnection[]>;
-    getById: (connectionId: string) => Promise<DataverseConnection | null>;
-    test: (connection: DataverseConnection) => Promise<{ success: boolean; error?: string }>;
+    getAll: () => Promise<Connection[]>;
+    getById: (connectionId: string) => Promise<Connection | null>;
+    test: (connection: Connection) => Promise<{ success: boolean; error?: string }>;
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
     authenticate: (connectionId: string) => Promise<void>;
-    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] }>;
+    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
 }
 
@@ -178,7 +178,9 @@ export interface ToolboxAPI {
      * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
      * so the renderer can create a dedicated tab for the callee instance.
      */
-    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => void;
+    onCalleeToolOpened: (
+        callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void,
+    ) => void;
     /**
      * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
      * the main process so the renderer can remove the callee tab and return focus to the caller.

@@ -3,10 +3,10 @@ import { BrowserWindow } from "electron";
 import * as http from "http";
 import * as https from "https";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
-import { DataverseConnection } from "../../common/types";
+import { logError, logInfo, logWarn } from "../../common/logger";
+import { Connection } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { BrowserManager } from "./browserManager";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * Manages authentication for Power Platform connections
@@ -112,7 +112,7 @@ export class AuthManager {
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -142,7 +142,9 @@ export class AuthManager {
             const authCodeUrl = await msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for auth code, then validate before showing success
-            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp, async (accessToken) => {
+                await this.validateEnvironmentAccess(connection, accessToken);
+            });
 
             return authResult;
         } catch (error) {
@@ -249,10 +251,11 @@ export class AuthManager {
     private async listenForAuthCodeAndValidate(
         port: number,
         authCodeUrl: string,
-        connection: DataverseConnection,
+        connection: Connection,
         scopes: string[],
         redirectUri: string,
         msalApp: PublicClientApplication,
+        postTokenValidation?: (accessToken: string) => Promise<void>,
     ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
@@ -292,13 +295,13 @@ export class AuthManager {
                 }
 
                 if (code) {
-                    // Show a "Validating..." message while we check environment access
+                    // Show a status message while we complete sign-in and optional validation
                     res.writeHead(200, { "Content-Type": "text/html" });
                     res.write(`
             <html>
               <body style="font-family: system-ui; text-align: center; padding: 50px;">
-                <h1 style="color: #0078d4;">Validating Access...</h1>
-                <p>Please wait while we verify your permissions.</p>
+                                <h1 style="color: #0078d4;">Completing Sign-In...</h1>
+                                <p>Please wait while we finalize authentication.</p>
               </body>
             </html>
           `);
@@ -324,9 +327,10 @@ export class AuthManager {
                             msalAccountId: response.account.homeAccountId,
                         };
 
-                        // Validate user has access to the environment by performing a WhoAmI check
-                        // This happens BEFORE showing the success message
-                        await this.validateEnvironmentAccess(connection, authResult.accessToken);
+                        if (postTokenValidation) {
+                            // Optional validation before confirming success (used for Dataverse env access checks)
+                            await postTokenValidation(authResult.accessToken);
+                        }
 
                         // Validation successful - now show success page
                         res.write(`
@@ -404,23 +408,41 @@ export class AuthManager {
         }
     }
 
+    private isInteractionRequiredError(error: unknown): boolean {
+        if (!error || typeof error !== "object") {
+            return false;
+        }
+
+        const errorObj = error as { errorCode?: string; errorMessage?: string; message?: string };
+        const haystack = `${errorObj.errorCode || ""} ${errorObj.errorMessage || ""} ${errorObj.message || ""}`.toLowerCase();
+
+        return (
+            haystack.includes("interaction_required") ||
+            haystack.includes("consent_required") ||
+            haystack.includes("login_required") ||
+            haystack.includes("aadsts65001") ||
+            haystack.includes("aadsts50058")
+        );
+    }
+
     /**
      * Authenticate using client ID and secret with automatic token caching
      * Uses ConfidentialClientApplication which handles token refresh automatically
+     * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async authenticateClientSecret(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateClientSecret(connection: Connection, scopes?: string[], skipValidateEnvAccess: boolean = false): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
 
         const confidentialApp = this.getConfidentialApp(connection.id, connection.clientId, connection.clientSecret, connection.tenantId);
-        const scopes = [`${connection.url}/.default`];
+        const requestedScopes = scopes || [`${connection.url}/.default`];
 
         try {
             // MSAL ConfidentialClientApplication automatically caches tokens
             // and only acquires new ones when expired
             const response = await confidentialApp.acquireTokenByClientCredential({
-                scopes: scopes,
+                scopes: requestedScopes,
             });
 
             if (!response) {
@@ -433,8 +455,10 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
 
-            // Validate user has access to the environment by performing a WhoAmI check
-            await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            if (!skipValidateEnvAccess) {
+                // Validate user has access to the environment by performing a WhoAmI check
+                await this.validateEnvironmentAccess(connection, authResult.accessToken);
+            }
 
             return authResult;
         } catch (error) {
@@ -455,7 +479,7 @@ export class AuthManager {
      * Note: This flow is not recommended and may not work with MFA-enabled accounts
      * Note: Only delegated access is supported - uses user_impersonation scope
      */
-    async authenticateUsernamePassword(connection: DataverseConnection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
@@ -532,7 +556,7 @@ export class AuthManager {
     /**
      * Test connection by verifying the URL and attempting a simple authenticated request
      */
-    async testConnection(connection: DataverseConnection): Promise<boolean> {
+    async testConnection(connection: Connection): Promise<boolean> {
         try {
             // First, validate the URL format
             if (!connection.url || !connection.url.startsWith("https://")) {
@@ -669,7 +693,7 @@ export class AuthManager {
      * @param accessToken The access token to use for the WhoAmI call
      * @throws Error if the user does not have access to the environment
      */
-    private async validateEnvironmentAccess(connection: DataverseConnection, accessToken: string): Promise<void> {
+    private async validateEnvironmentAccess(connection: Connection, accessToken: string): Promise<void> {
         try {
             const whoAmIUrl = `${connection.url}/api/data/${DATAVERSE_API_VERSION}/WhoAmI`;
             const response = await this.makeAuthenticatedRequest(whoAmIUrl, accessToken);
@@ -696,7 +720,7 @@ export class AuthManager {
      * @param connection The connection to find account for
      * @returns Promise with the account or undefined if not found
      */
-    private async findMsalAccount(connection: DataverseConnection): Promise<AccountInfo | undefined> {
+    private async findMsalAccount(connection: Connection): Promise<AccountInfo | undefined> {
         try {
             const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
             const tenantId = connection.tenantId || "organizations";
@@ -714,7 +738,7 @@ export class AuthManager {
      * @param connection The connection to check
      * @returns Promise<boolean> true if account exists in cache, false otherwise
      */
-    async hasAccountInCache(connection: DataverseConnection): Promise<boolean> {
+    async hasAccountInCache(connection: Connection): Promise<boolean> {
         const account = await this.findMsalAccount(connection);
         return account !== undefined;
     }
@@ -725,7 +749,7 @@ export class AuthManager {
      * @param connection The connection to acquire token for
      * @returns Promise with access token (MSAL handles refresh internally)
      */
-    async acquireTokenSilently(connection: DataverseConnection): Promise<{ accessToken: string; expiresOn: Date }> {
+    async acquireTokenSilently(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -762,14 +786,74 @@ export class AuthManager {
     }
 
     /**
+     * Acquire access token for Power Platform API with scope https://api.powerplatform.com/.default
+     * This method should only be invoked when using Power Platform API methods
+     * @param connection The connection to acquire token for
+     * @returns Promise with access token (MSAL handles refresh internally)
+     */
+    async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
+        const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
+        const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
+        const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
+        const scope = "https://api.powerplatform.com/.default";
+
+        // Get the account from MSAL cache
+        const account = await this.findMsalAccount(connection);
+
+        if (!account) {
+            throw new Error("No cached account found. Please authenticate again.");
+        }
+
+        try {
+            const response = await msalApp.acquireTokenSilent({
+                account: account,
+                scopes: [scope],
+            });
+
+            return {
+                accessToken: response.accessToken,
+                expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+            };
+        } catch (error) {
+            if (this.isInteractionRequiredError(error)) {
+                logInfo("Power Platform token requires interactive consent/sign-in; starting interactive flow");
+                return await this.acquirePowerPlatformTokenInteractive(connection, msalApp);
+            }
+
+            logWarn("Power Platform token silent acquisition failed - re-authentication required");
+            throw new Error("Token refresh failed. Please authenticate again.");
+        }
+    }
+
+    private async acquirePowerPlatformTokenInteractive(connection: Connection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date }> {
+        const port = await this.findAvailablePort();
+        const redirectUri = `http://localhost:${port}`;
+        const scopes = ["https://api.powerplatform.com/.default"];
+
+        const authCodeUrl = await msalApp.getAuthCodeUrl({
+            scopes,
+            redirectUri,
+            loginHint: connection.username,
+        });
+
+        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
+
+        return {
+            accessToken: authResult.accessToken,
+            expiresOn: authResult.expiresOn,
+        };
+    }
+
+    /**
      * Refresh an access token using a refresh token
      * This is used for username/password flow and legacy interactive connections
      * For modern interactive connections, use acquireTokenSilently() instead
+     * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async refreshAccessToken(connection: DataverseConnection, refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
-        const scope = `${connection.url}/.default`;
+        const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;
 
         const postData = new URLSearchParams({
             client_id: clientId,

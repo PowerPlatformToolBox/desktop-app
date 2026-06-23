@@ -1,23 +1,32 @@
 import { randomUUID } from "crypto";
 import Store from "electron-store";
 import { logInfo } from "../../common/logger";
-import { DataverseConnection } from "../../common/types";
+import { Connection } from "../../common/types";
 import { EncryptionManager } from "./encryptionManager";
 
 /**
  * Sensitive fields that should be encrypted in DataverseConnection objects
  */
-const SENSITIVE_CONNECTION_FIELDS: (keyof DataverseConnection)[] = ["clientId", "clientSecret", "accessToken", "refreshToken", "password"];
+const SENSITIVE_CONNECTION_FIELDS: (keyof Connection)[] = ["clientId", "clientSecret", "accessToken", "refreshToken", "password", "powerPlatformAccessToken"];
 
 /**
  * Fields that must NOT be included in connection exports (secrets/tokens)
  */
-const EXPORT_EXCLUDED_FIELDS: (keyof DataverseConnection)[] = ["clientSecret", "password", "accessToken", "refreshToken", "tokenExpiry", "msalAccountId"];
+const EXPORT_EXCLUDED_FIELDS: (keyof Connection)[] = [
+    "clientSecret",
+    "password",
+    "accessToken",
+    "refreshToken",
+    "tokenExpiry",
+    "msalAccountId",
+    "powerPlatformAccessToken",
+    "powerPlatformTokenExpiry",
+];
 
 /**
  * Fields required for a valid importable connection
  */
-const REQUIRED_IMPORT_FIELDS: (keyof DataverseConnection)[] = ["name", "url", "environment", "authenticationType"];
+const REQUIRED_IMPORT_FIELDS: (keyof Connection)[] = ["name", "url", "environment", "authenticationType"];
 
 const VALID_ENVIRONMENTS = new Set(["Dev", "Test", "UAT", "Production"]);
 const VALID_AUTH_TYPES = new Set(["interactive", "clientSecret", "usernamePassword", "connectionString"]);
@@ -26,13 +35,13 @@ const VALID_AUTH_TYPES = new Set(["interactive", "clientSecret", "usernamePasswo
  * Manages Dataverse connections with encryption for sensitive data
  */
 export class ConnectionsManager {
-    private store: Store<{ connections: DataverseConnection[] }>;
+    private store: Store<{ connections: Connection[] }>;
     private encryptionManager: EncryptionManager;
 
     constructor() {
         this.encryptionManager = new EncryptionManager();
 
-        this.store = new Store<{ connections: DataverseConnection[] }>({
+        this.store = new Store<{ connections: Connection[] }>({
             name: "connections",
             defaults: {
                 connections: [],
@@ -48,7 +57,7 @@ export class ConnectionsManager {
      * Values may come from the UI as plaintext or from IPC/storage as encrypted,
      * so decrypt first and then encrypt for storage.
      */
-    private normalizeConnectionForStorage(connection: DataverseConnection): DataverseConnection {
+    private normalizeConnectionForStorage(connection: Connection): Connection {
         const decrypted = this.encryptionManager.decryptFields(connection, SENSITIVE_CONNECTION_FIELDS);
         return this.encryptionManager.encryptFields(decrypted, SENSITIVE_CONNECTION_FIELDS);
     }
@@ -79,7 +88,7 @@ export class ConnectionsManager {
     /**
      * Add a Dataverse connection with encrypted sensitive fields
      */
-    addConnection(connection: DataverseConnection): void {
+    addConnection(connection: Connection): void {
         const connections = this.store.get("connections");
 
         const encryptedConnection = this.normalizeConnectionForStorage(connection);
@@ -91,12 +100,12 @@ export class ConnectionsManager {
     /**
      * Update a Dataverse connection with encryption for sensitive fields
      */
-    updateConnection(id: string, updates: Partial<DataverseConnection>): void {
+    updateConnection(id: string, updates: Partial<Connection>): void {
         const connections = this.store.get("connections");
         const index = connections.findIndex((c) => c.id === id);
         if (index !== -1) {
             const existingConnection = this.encryptionManager.decryptFields(connections[index], SENSITIVE_CONNECTION_FIELDS);
-            const decryptedUpdates = this.encryptionManager.decryptFields(updates as DataverseConnection, SENSITIVE_CONNECTION_FIELDS);
+            const decryptedUpdates = this.encryptionManager.decryptFields(updates as Connection, SENSITIVE_CONNECTION_FIELDS);
             const mergedConnection = { ...existingConnection, ...decryptedUpdates };
 
             connections[index] = this.normalizeConnectionForStorage(mergedConnection);
@@ -116,7 +125,7 @@ export class ConnectionsManager {
     /**
      * Get all connections with decrypted sensitive fields
      */
-    getConnections(): DataverseConnection[] {
+    getConnections(): Connection[] {
         const connections = this.store.get("connections");
 
         // Decrypt sensitive fields for each connection
@@ -162,14 +171,18 @@ export class ConnectionsManager {
             throw new Error("Connection not found");
         }
 
-        // Clear all authentication tokens
+        this.clearTokensForConnection(connection);
+        this.store.set("connections", connections);
+        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+    }
+
+    private clearTokensForConnection(connection: Connection): void {
         connection.accessToken = undefined;
         connection.refreshToken = undefined;
         connection.tokenExpiry = undefined;
         connection.msalAccountId = undefined;
-
-        this.store.set("connections", connections);
-        logInfo(`[ConnectionsManager] Cleared tokens for connection: ${connection.name}`);
+        connection.powerPlatformAccessToken = undefined;
+        connection.powerPlatformTokenExpiry = undefined;
     }
 
     /**
@@ -180,11 +193,7 @@ export class ConnectionsManager {
         const connections = this.store.get("connections");
 
         for (const connection of connections) {
-            // Clear all authentication tokens
-            connection.accessToken = undefined;
-            connection.refreshToken = undefined;
-            connection.tokenExpiry = undefined;
-            connection.msalAccountId = undefined;
+            this.clearTokensForConnection(connection);
         }
 
         this.store.set("connections", connections);
@@ -192,9 +201,61 @@ export class ConnectionsManager {
     }
 
     /**
+     * Update Power Platform API tokens with encryption (called after Power Platform auth/refresh)
+     */
+    updatePowerPlatformTokens(id: string, authTokens: { accessToken: string; expiresOn: Date }): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        connection.lastUsedAt = new Date().toISOString();
+        connection.powerPlatformAccessToken = this.encryptionManager.encrypt(authTokens.accessToken);
+        connection.powerPlatformTokenExpiry = authTokens.expiresOn.toISOString();
+
+        this.store.set("connections", connections);
+    }
+
+    /**
+     * Clear Power Platform API tokens for a connection
+     */
+    clearPowerPlatformTokens(id: string): void {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === id);
+
+        if (!connection) {
+            throw new Error("Connection not found");
+        }
+
+        connection.powerPlatformAccessToken = undefined;
+        connection.powerPlatformTokenExpiry = undefined;
+
+        this.store.set("connections", connections);
+    }
+
+    /**
+     * Check if a connection's Power Platform token is expired
+     */
+    isPowerPlatformTokenExpired(connectionId: string): boolean {
+        const connections = this.store.get("connections");
+        const connection = connections.find((c) => c.id === connectionId);
+
+        if (!connection || !connection.powerPlatformTokenExpiry) {
+            return false;
+        }
+
+        const expiryDate = new Date(connection.powerPlatformTokenExpiry);
+        const now = new Date();
+
+        return expiryDate.getTime() <= now.getTime();
+    }
+
+    /**
      * Get connection by ID with decrypted sensitive fields
      */
-    getConnectionById(id: string): DataverseConnection | null {
+    getConnectionById(id: string): Connection | null {
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -228,12 +289,12 @@ export class ConnectionsManager {
      * @param ids Optional array of connection IDs to export. If omitted, all connections are exported.
      * @returns A JSON-serializable export payload.
      */
-    exportConnections(ids?: string[]): { version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] } {
+    exportConnections(ids?: string[]): { version: 1; exportedAt: string; connections: Partial<Connection>[] } {
         const decrypted = this.getConnections();
         const toExport = ids && ids.length > 0 ? decrypted.filter((c) => ids.includes(c.id)) : decrypted;
 
         const sanitized = toExport.map((conn) => {
-            const sanitizedConn = { ...conn } as Partial<DataverseConnection>;
+            const sanitizedConn = { ...conn } as Partial<Connection>;
             for (const field of EXPORT_EXCLUDED_FIELDS) {
                 delete sanitizedConn[field];
             }
@@ -341,25 +402,26 @@ export class ConnectionsManager {
             }
             existingIds.add(newId);
 
-            const newConnection: DataverseConnection = {
+            const newConnection: Connection = {
                 id: newId,
                 name: entry.name as string,
                 url: entry.url as string,
-                environment: entry.environment as DataverseConnection["environment"],
-                authenticationType: entry.authenticationType as DataverseConnection["authenticationType"],
+                environment: entry.environment as Connection["environment"],
+                authenticationType: entry.authenticationType as Connection["authenticationType"],
                 createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date().toISOString(),
                 clientId: typeof entry.clientId === "string" ? entry.clientId : undefined,
                 clientSecret: typeof entry.clientSecret === "string" ? entry.clientSecret : undefined,
                 tenantId: typeof entry.tenantId === "string" ? entry.tenantId : undefined,
                 username: typeof entry.username === "string" ? entry.username : undefined,
                 password: typeof entry.password === "string" ? entry.password : undefined,
-                browserType: typeof entry.browserType === "string" ? (entry.browserType as DataverseConnection["browserType"]) : undefined,
+                browserType: typeof entry.browserType === "string" ? (entry.browserType as Connection["browserType"]) : undefined,
                 browserProfile: typeof entry.browserProfile === "string" ? entry.browserProfile : undefined,
                 browserProfileName: typeof entry.browserProfileName === "string" ? entry.browserProfileName : undefined,
                 category: typeof entry.category === "string" ? entry.category : undefined,
                 environmentColor: typeof entry.environmentColor === "string" ? entry.environmentColor : undefined,
                 categoryColor: typeof entry.categoryColor === "string" ? entry.categoryColor : undefined,
                 hasIncompleteCredentials,
+                enabledForPowerPlatformAPI: typeof entry.enabledForPowerPlatformAPI === "boolean" ? entry.enabledForPowerPlatformAPI : false,
             };
 
             // Encrypt sensitive fields and persist

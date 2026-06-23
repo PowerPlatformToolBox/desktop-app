@@ -9,7 +9,7 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string }} Features */
+/** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -38,6 +38,7 @@
  * @typedef {{ properties?: Record<string, JsonSchemaProperty> }} JsonSchemaObject
  * @typedef {{
  *   version: string;
+ *   capabilities: string[];
  *   prefill?: JsonSchemaObject;
  *   returnTopic?: JsonSchemaObject;
  * }} InvocationConfig
@@ -69,15 +70,7 @@ const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-
  * Node.js module that cannot import from the Electron/TypeScript source tree, both
  * lists must be updated together whenever a new tag is added.
  */
-const KNOWN_CAPABILITY_TAGS = [
-    "fetchxml",
-    "entity-picker",
-    "record-selector",
-    "solution-selector",
-    "webresource-editor",
-    "plugin-inspector",
-    "pcf-control-builder",
-];
+const KNOWN_CAPABILITY_TAGS = ["fetchxml", "entity-picker", "record-selector", "solution-selector", "webresource-editor", "plugin-inspector", "pcf-control-builder"];
 
 /**
  * Checks if a string is a valid URL.
@@ -311,9 +304,9 @@ async function validatePackageJson(packageJson, options = {}) {
         const features = packageJson.features;
 
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection' and 'minAPI' properties");
+            errors.push("features must be a non-array object with optional 'multiConnection', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI"];
+            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI", "enabledForPowerPlatformAPI"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
@@ -330,6 +323,12 @@ async function validatePackageJson(packageJson, options = {}) {
             if (features.minAPI !== undefined) {
                 if (typeof features.minAPI !== "string" || !SEMVER_REGEX.test(features.minAPI)) {
                     errors.push("features.minAPI must be a valid semantic version string (e.g., '1.0.0')");
+                }
+            }
+
+            if (features.enabledForPowerPlatformAPI !== undefined) {
+                if (typeof features.enabledForPowerPlatformAPI !== "boolean") {
+                    errors.push("features.enabledForPowerPlatformAPI must be a boolean (true or false)");
                 }
             }
         }
