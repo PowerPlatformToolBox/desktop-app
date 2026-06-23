@@ -474,7 +474,11 @@ export function initializeSelectMultiConnectionModalBridge(): void {
  * @param toolName - Optional name of the tool requesting the connections (shown in modal header)
  * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
  */
-export async function openSelectMultiConnectionModal(isSecondaryRequired: boolean = true, toolName?: string, enabledForPowerPlatformAPI: boolean = false): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
+export async function openSelectMultiConnectionModal(
+    isSecondaryRequired: boolean = true,
+    toolName?: string,
+    enabledForPowerPlatformAPI: boolean = false,
+): Promise<{ primaryConnectionId: string; secondaryConnectionId: string | null }> {
     return new Promise((resolve, reject) => {
         initializeSelectMultiConnectionModalBridge();
 
@@ -939,13 +943,11 @@ export async function handleReauthentication(connectionId: string): Promise<void
 }
 
 async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): Promise<void> {
+    await setAddConnectionTestFeedback("");
+
     const validationMessage = validateConnectionPayload(formPayload, "add");
     if (validationMessage) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Invalid Input",
-            body: validationMessage,
-            type: "error",
-        });
+        await setAddConnectionTestFeedback(validationMessage);
         await signalAddConnectionSubmitReady();
         return;
     }
@@ -963,11 +965,7 @@ async function handleAddConnectionSubmit(formPayload?: ConnectionFormPayload): P
         await loadConnections();
     } catch (error) {
         logError("Error adding connection", error);
-        await window.toolboxAPI.utils.showNotification({
-            title: "Failed to Add Connection",
-            body: (error as Error).message,
-            type: "error",
-        });
+        await setAddConnectionTestFeedback((error as Error).message);
         await signalAddConnectionSubmitReady();
     }
 }
@@ -981,11 +979,6 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
 
     const validationMessage = validateConnectionPayload(formPayload, "test");
     if (validationMessage) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Invalid Input",
-            body: validationMessage,
-            type: "error",
-        });
         if (editingConnectionId !== null) {
             await setEditConnectionTestFeedback(validationMessage);
             await signalEditConnectionTestReady();
@@ -1001,22 +994,12 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
     try {
         const result = await window.toolboxAPI.connections.test(testConn);
         if (result.success) {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Connection Successful",
-                body: "Successfully connected to the environment!",
-                type: "success",
-            });
             if (editingConnectionId !== null) {
-                await setEditConnectionTestFeedback("");
+                await setEditConnectionTestFeedback("Connection test succeeded.");
             } else {
-                await setAddConnectionTestFeedback("");
+                await setAddConnectionTestFeedback("Connection test succeeded.");
             }
         } else {
-            await window.toolboxAPI.utils.showNotification({
-                title: "Connection Failed",
-                body: result.error || "Failed to connect to the environment.",
-                type: "error",
-            });
             if (editingConnectionId !== null) {
                 await setEditConnectionTestFeedback(result.error || "Failed to connect to the environment.");
             } else {
@@ -1024,11 +1007,6 @@ async function handleTestConnectionRequest(formPayload?: ConnectionFormPayload):
             }
         }
     } catch (error) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Connection Test Failed",
-            body: (error as Error).message,
-            type: "error",
-        });
         if (editingConnectionId !== null) {
             await setEditConnectionTestFeedback((error as Error).message);
         } else {
@@ -1128,23 +1106,17 @@ async function handlePopulateEditConnectionRequest(): Promise<void> {
 }
 
 async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): Promise<void> {
+    await setEditConnectionTestFeedback("");
+
     const validationMessage = validateConnectionPayload(formPayload, "edit");
     if (validationMessage) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Invalid Input",
-            body: validationMessage,
-            type: "error",
-        });
+        await setEditConnectionTestFeedback(validationMessage);
         await signalEditConnectionSubmitReady();
         return;
     }
 
     if (!editingConnectionId) {
-        await window.toolboxAPI.utils.showNotification({
-            title: "Error",
-            body: "No connection ID found for editing.",
-            type: "error",
-        });
+        await setEditConnectionTestFeedback("No connection ID found for editing.");
         await signalEditConnectionSubmitReady();
         return;
     }
@@ -1164,11 +1136,7 @@ async function handleEditConnectionSubmit(formPayload?: ConnectionFormPayload): 
         await loadSidebarConnections();
     } catch (error) {
         logError("Error updating connection", error);
-        await window.toolboxAPI.utils.showNotification({
-            title: "Failed to Update Connection",
-            body: (error as Error).message,
-            type: "error",
-        });
+        await setEditConnectionTestFeedback((error as Error).message);
         await signalEditConnectionSubmitReady();
     }
 }
@@ -1511,6 +1479,7 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     }
 
     const authType = normalizeAuthenticationType(formPayload.authenticationType);
+    const requiresPowerPlatformClientId = formPayload.enabledForPowerPlatformAPI === true;
 
     // Special validation for connection string
     if (authType === "connectionString") {
@@ -1523,6 +1492,10 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
         const parsed = parseConnectionString(connectionString);
         if (!parsed || !parsed.url) {
             return "Invalid connection string format. Please ensure it includes at least a URL parameter.";
+        }
+
+        if (requiresPowerPlatformClientId && !sanitizeInput(parsed.clientId)) {
+            return "Client ID is required when Power Platform API is enabled.";
         }
 
         // Validate URL format (commercial, GCC High, and DoD environments)
@@ -1560,6 +1533,14 @@ function validateConnectionPayload(formPayload: ConnectionFormPayload | undefine
     } else if (authType === "usernamePassword") {
         if (!sanitizeInput(formPayload.username) || !sanitizeInput(formPayload.password)) {
             return "Username and Password are required for Username/Password authentication.";
+        }
+
+        if (requiresPowerPlatformClientId && !sanitizeInput(formPayload.usernamePasswordClientId)) {
+            return "Client ID is required for Username/Password authentication when Power Platform API is enabled.";
+        }
+    } else if (authType === "interactive") {
+        if (requiresPowerPlatformClientId && !sanitizeInput(formPayload.optionalClientId)) {
+            return "Client ID is required for Microsoft Login (OAuth) when Power Platform API is enabled.";
         }
     }
 

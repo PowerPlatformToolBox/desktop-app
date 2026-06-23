@@ -1087,6 +1087,17 @@ body.dark-theme .settings-section-card {
     font-size: 11px;
 }
 
+.power-platform-api-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    color: var(--primary-color);
+    border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 .connection-actions {
     display: flex;
     gap: 8px;

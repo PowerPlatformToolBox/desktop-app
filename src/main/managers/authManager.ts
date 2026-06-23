@@ -142,7 +142,9 @@ export class AuthManager {
             const authCodeUrl = await msalApp.getAuthCodeUrl(authCodeUrlParameters);
 
             // Start local HTTP server and wait for auth code, then validate before showing success
-            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
+            const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp, async (accessToken) => {
+                await this.validateEnvironmentAccess(connection, accessToken);
+            });
 
             return authResult;
         } catch (error) {
@@ -253,6 +255,7 @@ export class AuthManager {
         scopes: string[],
         redirectUri: string,
         msalApp: PublicClientApplication,
+        postTokenValidation?: (accessToken: string) => Promise<void>,
     ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
@@ -292,13 +295,13 @@ export class AuthManager {
                 }
 
                 if (code) {
-                    // Show a "Validating..." message while we check environment access
+                    // Show a status message while we complete sign-in and optional validation
                     res.writeHead(200, { "Content-Type": "text/html" });
                     res.write(`
             <html>
               <body style="font-family: system-ui; text-align: center; padding: 50px;">
-                <h1 style="color: #0078d4;">Validating Access...</h1>
-                <p>Please wait while we verify your permissions.</p>
+                                <h1 style="color: #0078d4;">Completing Sign-In...</h1>
+                                <p>Please wait while we finalize authentication.</p>
               </body>
             </html>
           `);
@@ -324,9 +327,10 @@ export class AuthManager {
                             msalAccountId: response.account.homeAccountId,
                         };
 
-                        // Validate user has access to the environment by performing a WhoAmI check
-                        // This happens BEFORE showing the success message
-                        await this.validateEnvironmentAccess(connection, authResult.accessToken);
+                        if (postTokenValidation) {
+                            // Optional validation before confirming success (used for Dataverse env access checks)
+                            await postTokenValidation(authResult.accessToken);
+                        }
 
                         // Validation successful - now show success page
                         res.write(`
@@ -402,6 +406,23 @@ export class AuthManager {
         if (parentWindow) {
             parentWindow.webContents.send(EVENT_CHANNELS.SHOW_AUTH_ERROR_DIALOG, message);
         }
+    }
+
+    private isInteractionRequiredError(error: unknown): boolean {
+        if (!error || typeof error !== "object") {
+            return false;
+        }
+
+        const errorObj = error as { errorCode?: string; errorMessage?: string; message?: string };
+        const haystack = `${errorObj.errorCode || ""} ${errorObj.errorMessage || ""} ${errorObj.message || ""}`.toLowerCase();
+
+        return (
+            haystack.includes("interaction_required") ||
+            haystack.includes("consent_required") ||
+            haystack.includes("login_required") ||
+            haystack.includes("aadsts65001") ||
+            haystack.includes("aadsts50058")
+        );
     }
 
     /**
@@ -798,9 +819,33 @@ export class AuthManager {
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
             };
         } catch (error) {
+            if (this.isInteractionRequiredError(error)) {
+                logInfo("Power Platform token requires interactive consent/sign-in; starting interactive flow");
+                return await this.acquirePowerPlatformTokenInteractive(connection, msalApp);
+            }
+
             logWarn("Power Platform token silent acquisition failed - re-authentication required");
             throw new Error("Token refresh failed. Please authenticate again.");
         }
+    }
+
+    private async acquirePowerPlatformTokenInteractive(connection: DataverseConnection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date }> {
+        const port = await this.findAvailablePort();
+        const redirectUri = `http://localhost:${port}`;
+        const scopes = ["https://api.powerplatform.com/.default"];
+
+        const authCodeUrl = await msalApp.getAuthCodeUrl({
+            scopes,
+            redirectUri,
+            loginHint: connection.username,
+        });
+
+        const authResult = await this.listenForAuthCodeAndValidate(port, authCodeUrl, connection, scopes, redirectUri, msalApp);
+
+        return {
+            accessToken: authResult.accessToken,
+            expiresOn: authResult.expiresOn,
+        };
     }
 
     /**

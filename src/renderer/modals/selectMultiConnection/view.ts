@@ -1,5 +1,5 @@
-import { getModalStyles } from "../sharedStyles";
 import { escapeHtml } from "../../utils/toolIconResolver";
+import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -99,9 +99,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     }
 </style>`;
 
-    const toolNameHtml = toolName
-        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
-        : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
+    const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
 
     const body = `
 
@@ -116,11 +114,11 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     <div class="modal-body">
         <div class="info-message">
             This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
-        isSecondaryRequired ? "both connections" : "at least a primary connection"
-    } to continue.
+                isSecondaryRequired ? "both connections" : "at least a primary connection"
+            } to continue.
         </div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
-            <span>Only connections enabled for Power Platform API are shown. Add a connection with Client ID/Secret authentication and enable "Enable for Power Platform API" to use it with this tool.</span>
+            <span>Connections enabled for Power Platform API are marked with a PP API tag.</span>
         </div>
         
         <div class="modal-search-container">

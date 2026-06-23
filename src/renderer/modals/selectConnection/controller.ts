@@ -96,7 +96,6 @@ ${sortingUtilities}
         const selectedAuth = authFilter?.value || "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
-        const requirePowerPlatformApi = ENABLED_FOR_POWER_PLATFORM_API === true;
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -124,11 +123,6 @@ ${sortingUtilities}
                 } else if (conn.category !== selectedCategory) {
                     return false;
                 }
-            }
-
-            // Power Platform API filter - only show connections enabled for Power Platform API
-            if (requirePowerPlatformApi && conn.enabledForPowerPlatformAPI !== true) {
-                return false;
             }
 
             return true;
@@ -197,6 +191,7 @@ ${sortingUtilities}
             const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
             const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
             const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
+            const ppApiBadgeMarkup = conn.enabledForPowerPlatformAPI === true ? '<span class="power-platform-api-badge">PP API</span>' : '';
             return \`
             <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${escapeHtml(conn.id)}">
                 <div class="connection-header">
@@ -207,6 +202,7 @@ ${sortingUtilities}
                     <div class="connection-item-meta-left">
                         <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${ppApiBadgeMarkup}
                         \${catBadgeMarkup}
                         \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
