@@ -192,7 +192,8 @@ export class ToolManager extends EventEmitter {
     unloadTool(toolId: string): void {
         const tool = this.tools.get(toolId);
         if (tool) {
-            this.tools.delete(toolId);
+            // Too soon to delete it
+            //this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
     }
@@ -353,10 +354,29 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
-     * Uninstall a tool from registry
+     * Uninstall a tool (handles registry, npm, and local tools)
      */
     async uninstallTool(toolId: string): Promise<void> {
-        await this.registryManager.uninstallTool(toolId);
+        const tool = this.tools.get(toolId);
+
+        if (tool) {
+            this.tools.delete(toolId);
+            this.emit("tool:unloaded", tool);
+        }
+
+        if (tool?.npmPackageName) {
+            const packageDir = this.resolvePackageDirectoryName(tool.npmPackageName);
+            const toolPath = path.join(this.toolsDirectory, "node_modules", packageDir);
+            if (fs.existsSync(toolPath)) {
+                fs.rmSync(toolPath, { recursive: true, force: true });
+            }
+        } else if (tool?.localPath) {
+            if (fs.existsSync(tool.localPath)) {
+                fs.rmSync(tool.localPath, { recursive: true, force: true });
+            }
+        } else {
+            await this.registryManager.uninstallTool(toolId);
+        }
     }
 
     /**
@@ -381,13 +401,34 @@ export class ToolManager extends EventEmitter {
     /**
      * Check if a package manager is available globally (debug mode only)
      */
+    private buildEnv(): Record<string, string> {
+        const paths = [...(process.env.PATH || "").split(path.delimiter).filter(Boolean)];
+
+        if (process.platform === "darwin") {
+            paths.push("/usr/local/bin", "/opt/homebrew/bin");
+        } else if (process.platform === "linux") {
+            paths.push("/usr/local/bin", path.join(process.env.HOME || "", ".local", "bin"));
+        }
+
+        const home = process.env.HOME || "";
+        if (home) {
+            paths.push(path.join(home, ".npm-global", "bin"));
+            paths.push(path.join(home, ".nvm", "versions", "node", process.version, "bin"));
+        }
+
+        return {
+            ...process.env,
+            PATH: [...new Set(paths)].join(path.delimiter),
+        };
+    }
+
     private async checkPackageManager(command: string): Promise<boolean> {
         return new Promise((resolve) => {
             const isWindows = process.platform === "win32";
             const cmd = isWindows ? `${command}.cmd` : command;
+            const env = this.buildEnv();
 
-            // Don't use shell to avoid issues with spaces in paths
-            const check = spawn(cmd, ["--version"]);
+            const check = spawn(cmd, ["--version"], { env });
 
             check.on("close", (code: number) => {
                 resolve(code === 0);
@@ -403,19 +444,19 @@ export class ToolManager extends EventEmitter {
      * Get the available package manager (debug mode only)
      * Returns null if neither is available
      */
-    private async getAvailablePackageManager(): Promise<{ command: string; name: string } | null> {
+    private async getAvailablePackageManager(): Promise<{ command: string; name: string; env: Record<string, string> } | null> {
         // Check for pnpm first (preferred)
         const hasPnpm = await this.checkPackageManager("pnpm");
         if (hasPnpm) {
             logInfo(`[ToolManager] Found pnpm globally installed`);
-            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm" };
+            return { command: process.platform === "win32" ? "pnpm.cmd" : "pnpm", name: "pnpm", env: this.buildEnv() };
         }
 
         // Fallback to npm
         const hasNpm = await this.checkPackageManager("npm");
         if (hasNpm) {
             logInfo(`[ToolManager] Found npm globally installed`);
-            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm" };
+            return { command: process.platform === "win32" ? "npm.cmd" : "npm", name: "npm", env: this.buildEnv() };
         }
 
         logError(`[ToolManager] Neither pnpm nor npm found globally installed`);
@@ -446,7 +487,7 @@ export class ToolManager extends EventEmitter {
 
             // Don't use shell: true to avoid issues with spaces in paths
             // The command array is already in the correct format for spawn
-            const install = spawn(pkgManager.command, args);
+            const install = spawn(pkgManager.command, args, { env: pkgManager.env });
 
             let stderr = "";
 
