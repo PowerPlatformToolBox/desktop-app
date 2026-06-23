@@ -4,14 +4,14 @@
  * marketplace tools, connections, and settings.
  */
 
-import type { DataverseConnection } from "../../common/types/connection";
+import { logError, logInfo } from "../../common/logger";
+import type { Connection } from "../../common/types/connection";
 import type { Tool } from "../../common/types/tool";
 import type { ToolDetail } from "../types/index";
 import { escapeHtml } from "../utils/toolIconResolver";
 import { getToolLibrary, openToolDetail } from "./marketplaceManagement";
-import { logInfo, logError } from "../../common/logger";
-import { switchSidebar } from "./sidebarManagement";
 import { openSettingsTab } from "./settingsManagement";
+import { switchSidebar } from "./sidebarManagement";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -243,7 +243,7 @@ async function runSearch(query: string): Promise<void> {
 
         // 3. Connections
         const connectionsRaw = await window.toolboxAPI.connections.getAll();
-        const connections = connectionsRaw as DataverseConnection[];
+        const connections = connectionsRaw as Connection[];
         for (const conn of connections) {
             if (matches(q, conn.name, conn.url, conn.environment)) {
                 results.push({
@@ -537,4 +537,3 @@ export function initializeGlobalSearch(): void {
 
     logInfo("Global search initialized", {});
 }
-

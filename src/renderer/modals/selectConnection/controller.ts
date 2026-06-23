@@ -197,6 +197,7 @@ ${sortingUtilities}
             const envBadgeClass = envColor ? 'connection-env-badge' : \`connection-env-badge env-\${escapeHtml(conn.environment.toLowerCase())}\`;
             const catColor = conn.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(conn.categoryColor) ? conn.categoryColor : null;
             const catBadgeMarkup = conn.category ? \`<span class="category-badge" \${catColor ? \`style="background-color:\${catColor}1a;color:\${catColor};border:1px solid \${catColor}4d"\` : ''}>\${escapeHtml(conn.category)}</span>\` : '';
+            const ppApiBadgeMarkup = conn.enabledForPowerPlatformAPI === true ? '<span class="power-platform-api-badge">PP API</span>' : '';
             return \`
             <div class="connection-item \${conn.isActive ? 'active' : ''}" data-connection-id="\${escapeHtml(conn.id)}">
                 <div class="connection-header">
@@ -207,6 +208,7 @@ ${sortingUtilities}
                     <div class="connection-item-meta-left">
                         <span class="\${envBadgeClass}"\${envBadgeStyle}>\${escapeHtml(conn.environment)}</span>
                         <span class="auth-type-badge">\${formatAuthType(conn.authenticationType)}</span>
+                        \${ppApiBadgeMarkup}
                         \${catBadgeMarkup}
                         \${conn.isActive ? '<span style="color: #107c10; font-size: 11px;">✓ Active</span>' : ''}
                     </div>
@@ -425,14 +427,6 @@ ${sortingUtilities}
         console.warn("modalBridge.onMessage is not available");
     }
     
-    // Show Power Platform API info message if required
-    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
-        const ppApiInfo = document.getElementById("power-platform-api-info");
-        if (ppApiInfo) {
-            ppApiInfo.style.display = "block";
-        }
-    }
-
     // Request connections list from main process
     modalBridge.send(CHANNELS.populateConnections, {});
 })();

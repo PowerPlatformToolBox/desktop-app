@@ -136,7 +136,7 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
 | `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
 | `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                     |
 | `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
-| `invocation.agentInvokable`         | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                       |
+| `invocation.agentInvokable`         | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                         |
 
 > \*\* Required only when the `invocation` object is present.
 
@@ -623,8 +623,9 @@ Core platform features organized into namespaces:
 
 #### Connections
 
-- **getActiveConnection()**: Promise<DataverseConnection | null>
-    - Returns the currently active Dataverse connection or null if none is active
+- **getActiveConnection()**: Promise<Connection | null>
+    - Returns the currently active connection or null if none is active
+    - Includes `enabledForPowerPlatformAPI` so tools can decide whether to use Power Platform API
 
 #### Utils
 

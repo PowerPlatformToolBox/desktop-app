@@ -17,7 +17,6 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { AGENT_INVOCATION_CHANNELS } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
 import {
     AttributeMetadataType,
@@ -50,7 +49,6 @@ import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
 import { McpServerManager } from "./mcp/mcpServer";
-import { readLogEntries } from "./mcp/agentInvocationLogger";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -136,13 +134,7 @@ class ToolBoxApp {
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
-            this.mcpServerManager = new McpServerManager(
-                7339,
-                "127.0.0.1",
-                this.settingsManager,
-                this.toolManager.getRegistryManager(),
-                this.toolManager,
-            );
+            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -433,9 +425,6 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
-
-        // Agent invocation logs handler
-        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
@@ -1457,9 +1446,6 @@ class ToolBoxApp {
                 minSupportedApiVersion: VersionManager.getMinSupportedApiVersion(),
             };
         });
-
-        // Agent invocation logs handler
-        ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => readLogEntries());
 
         // Power Platform API handlers
         ipcMain.handle(

@@ -443,6 +443,21 @@ export function getModalStyles(isDarkTheme: boolean): string {
         font-size: 11px;
     }
 
+    .power-platform-api-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        background: ${isDarkTheme ? "rgba(14, 99, 156, 0.22)" : "rgba(14, 99, 156, 0.14)"};
+        color: ${isDarkTheme ? "#89d7ff" : "#0e639c"};
+        border: 1px solid ${isDarkTheme ? "rgba(76, 194, 255, 0.35)" : "rgba(14, 99, 156, 0.35)"};
+    }
+
     .fluent-button:disabled {
         opacity: 0.5;
         cursor: not-allowed;

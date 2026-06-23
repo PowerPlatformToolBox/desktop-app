@@ -3,7 +3,7 @@
  */
 
 import { Theme } from "./common";
-import { DataverseConnection } from "./connection";
+import { Connection } from "./connection";
 
 /**
  * Sort options for installed tools
@@ -33,7 +33,7 @@ export type ToolDisplayMode = "standard" | "compact";
 export interface LastUsedToolConnectionInfo {
     id: string | null;
     name?: string;
-    environment?: DataverseConnection["environment"];
+    environment?: Connection["environment"];
     url?: string;
 }
 
@@ -75,7 +75,7 @@ export interface UserSettings {
     deprecatedToolsVisibility?: DeprecatedToolsVisibility;
     toolDisplayMode?: ToolDisplayMode;
     lastUsedTools: LastUsedToolEntry[];
-    connections: DataverseConnection[];
+    connections: Connection[];
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
     cspConsents: { [toolId: string]: CspConsentRecord }; // CSP consent records per tool
