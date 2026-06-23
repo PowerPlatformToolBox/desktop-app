@@ -403,6 +403,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         /**
          * Returns the prefill data that was passed by the caller tool when it launched this tool,
          * or null if this tool was not launched via an inter-tool invocation.
+         *
+         * If available, invocation metadata is exposed under `__pptb`.
          */
         getLaunchContext: async (): Promise<Record<string, unknown> | null> => {
             await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
@@ -413,7 +415,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             if (prefillData === null || prefillData === undefined || typeof prefillData !== "object" || Array.isArray(prefillData)) {
                 return null;
             }
-            return prefillData as Record<string, unknown>;
+
+            const launchContext = { ...(prefillData as Record<string, unknown>) };
+            const invocationContext = toolContext.invocationContext;
+            if (invocationContext && typeof invocationContext === "object" && !Array.isArray(invocationContext)) {
+                launchContext.__pptb = invocationContext;
+            }
+
+            return launchContext;
         },
 
         /**

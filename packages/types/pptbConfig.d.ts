@@ -12,7 +12,6 @@
  *   "invocation": {
  *     "version": "1.0.0",
  *     "capabilities": ["fetchxml"],
- *     "agentInvokable": true,
  *     "prefill": {
  *       "properties": {
  *         "entityName": { "type": "string" },
@@ -26,6 +25,13 @@
  *         "error": { "type": "string" }
  *       }
  *     }
+ *   },
+ *   "agents": {
+ *     "version": "1.0.0",
+ *     "invokable": true,
+ *     "modes": ["one-way", "two-way"],
+ *     "defaultMode": "two-way",
+ *     "timeoutMS": 12000
  *   }
  * }
  * ```
@@ -95,6 +101,22 @@ export interface JsonSchemaObject {
  * - `returnTopic` describes the data this tool will resolve back to its caller
  *   when it finishes.
  */
+export type AgentInvocationMode = "one-way" | "two-way";
+
+/** Agent-specific launch contract for external automation callers. */
+export interface AgentsConfig {
+    /** Semantic version of this agent contract. */
+    version: string;
+    /** Whether the tool may be invoked by an external agent. */
+    invokable?: boolean;
+    /** Invocation modes supported by the tool when called by an agent. */
+    modes?: AgentInvocationMode[];
+    /** Default mode used when an agent does not request a mode explicitly. */
+    defaultMode?: AgentInvocationMode;
+    /** Optional timeout hint, in milliseconds, for agent-driven two-way calls. */
+    timeoutMS?: number;
+}
+
 export interface InvocationConfig {
     /**
      * Semantic version of this invocation contract (e.g. "1.0.0").
@@ -106,33 +128,6 @@ export interface InvocationConfig {
     prefill?: JsonSchemaObject;
     /** Schema of the data this tool returns to its caller on completion. */
     returnTopic?: JsonSchemaObject;
-    /**
-     * Capability tags declared by this tool.
-     *
-     * Callers use `toolboxAPI.invocation.findToolsByCapability(tag)` to discover tools
-     * that advertise a given capability. Prefer `KnownCapabilityTag` values for IDE
-     * auto-complete; custom strings are accepted but will produce a `pptb-validate`
-     * warning unless the tag is present in the official capability registry.
-     *
-     * Use `toolboxAPI.invocation.getKnownCapabilityTags()` at runtime to retrieve the
-     * full list from the registry (backed by a configurable Supabase table so new tags
-     * can be added without an app update).
-     *
-     * @example
-     * ```json
-     * { "invocation": { "version": "1.0.0", "capabilities": ["entity-picker", "fetchxml"] } }
-     * ```
-     */
-    capabilities?: CapabilityTag[];
-    /**
-     * Whether this tool may be launched by an external (non-PPTB) automation agent.
-     *
-     * This is a stronger statement than `capabilities` – that field only means "another PPTB tool
-     * may launch me", whereas this field means "an external agent can launch me programmatically."
-     * The tool still opens visibly and still requires whatever UI interaction it normally does.
-     * A future "fully unattended/headless" capability will live in its own top-level section.
-     */
-    agentInvokable?: boolean;
 }
 
 /**
@@ -145,4 +140,6 @@ export interface InvocationConfig {
 export interface PPTBConfig {
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
+    /** Agent contract – how this tool can be called by external automation. */
+    agents?: AgentsConfig;
 }

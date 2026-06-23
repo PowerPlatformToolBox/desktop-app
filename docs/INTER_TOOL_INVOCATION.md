@@ -439,6 +439,8 @@ async function openEntityPicker(entityName: string) {
 
 ---
 
+For agent/MCP-specific invocation behavior, see [MCP Implementation](MCP_IMPLEMENTATION.md).
+
 ## End-to-End Scenario: FXS "Send To" Flyout
 
 This section illustrates a concrete real-world scenario where **FetchXML Studio (FXS)** exposes a "Send To ▾" flyout button that lets users push the current FetchXML query directly into another installed tool — such as **DRB** (Dataverse Rest Builder) or **DMS** (Data Migration Studio) — without expecting a return value.

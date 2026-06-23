@@ -5,6 +5,7 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import {
+    AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
@@ -48,6 +49,7 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
@@ -428,6 +430,9 @@ class ToolBoxApp {
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
+
+        // Agent invocation logging handlers
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
     }
 
     /**
@@ -486,6 +491,11 @@ class ToolBoxApp {
         // Favorite tools
         ipcMain.handle(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.addFavoriteTool(toolId);
+        });
+
+        // Agent invocation logs (main UI only)
+        ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
+            return readLogEntries();
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {

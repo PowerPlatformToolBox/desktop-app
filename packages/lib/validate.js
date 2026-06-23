@@ -38,13 +38,20 @@
  * @typedef {{ properties?: Record<string, JsonSchemaProperty> }} JsonSchemaObject
  * @typedef {{
  *   version: string;
- *   agentInvokable?: boolean;
  *   capabilities: string[];
  *   prefill?: JsonSchemaObject;
  *   returnTopic?: JsonSchemaObject;
  * }} InvocationConfig
  * @typedef {{
+ *   version: string;
+ *   invokable?: boolean;
+ *   modes?: ("one-way" | "two-way")[];
+ *   defaultMode?: "one-way" | "two-way";
+ *   timeoutMS?: number;
+ * }} AgentsConfig
+ * @typedef {{
  *   invocation?: InvocationConfig;
+ *   agents?: AgentsConfig;
  * }} PPTBConfig
  */
 
@@ -375,7 +382,7 @@ function validatePPTBConfig(config) {
         return { valid: false, errors, warnings };
     }
 
-    const VALID_ROOT_KEYS = ["invocation"];
+    const VALID_ROOT_KEYS = ["invocation", "agents"];
     const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
     if (unknownRootKeys.length > 0) {
         warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
@@ -433,11 +440,50 @@ function validatePPTBConfig(config) {
                     });
                 }
             }
+        }
+    }
 
-            // invocation.agentInvokable – optional boolean
-            if (inv.agentInvokable !== undefined) {
-                if (typeof inv.agentInvokable !== "boolean") {
-                    errors.push("invocation.agentInvokable must be a boolean (true or false)");
+    if (config.agents !== undefined) {
+        const agents = config.agents;
+
+        if (agents === null || typeof agents !== "object" || Array.isArray(agents)) {
+            errors.push("agents must be a non-array object");
+        } else {
+            if (agents.version === undefined || agents.version === null) {
+                errors.push("agents.version is required");
+            } else if (typeof agents.version !== "string") {
+                errors.push("agents.version must be a string");
+            } else if (!SEMVER_REGEX.test(agents.version)) {
+                errors.push(`agents.version "${agents.version}" is not a valid semantic version string (e.g. "1.0.0")`);
+            }
+
+            if (agents.invokable !== undefined && typeof agents.invokable !== "boolean") {
+                errors.push("agents.invokable must be a boolean (true or false)");
+            }
+
+            if (agents.modes !== undefined) {
+                if (!Array.isArray(agents.modes)) {
+                    errors.push("agents.modes must be an array");
+                } else {
+                    agents.modes.forEach((mode, idx) => {
+                        if (mode !== "one-way" && mode !== "two-way") {
+                            errors.push(`agents.modes[${idx}] must be either \"one-way\" or \"two-way\"`);
+                        }
+                    });
+                }
+            }
+
+            if (agents.defaultMode !== undefined) {
+                if (agents.defaultMode !== "one-way" && agents.defaultMode !== "two-way") {
+                    errors.push('agents.defaultMode must be either "one-way" or "two-way"');
+                } else if (agents.modes !== undefined && Array.isArray(agents.modes) && !agents.modes.includes(agents.defaultMode)) {
+                    errors.push("agents.defaultMode must be included in agents.modes");
+                }
+            }
+
+            if (agents.timeoutMS !== undefined) {
+                if (typeof agents.timeoutMS !== "number" || !Number.isFinite(agents.timeoutMS) || agents.timeoutMS <= 0) {
+                    errors.push("agents.timeoutMS must be a positive number");
                 }
             }
         }
@@ -452,6 +498,7 @@ function validatePPTBConfig(config) {
         packageInfo: valid
             ? {
                   invocation: config.invocation,
+                  agents: config.agents,
               }
             : undefined,
     };

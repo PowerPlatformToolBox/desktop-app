@@ -23,6 +23,8 @@ export interface AgentInvocationLogEntry {
     connectionId: string | null;
     prefillSummary: string;
     outcome: InvocationOutcome;
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
     error?: string;
 }
 
@@ -185,6 +187,8 @@ export function logInvocation(params: {
     connectionId: string | null;
     prefillData?: Record<string, unknown>;
     outcome: InvocationOutcome;
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
     error?: string;
 }): void {
     rotateLogIfNeeded();
@@ -196,6 +200,8 @@ export function logInvocation(params: {
         connectionId: params.connectionId,
         prefillSummary: getPrefillSummary(params.prefillData),
         outcome: params.outcome,
+        ...(params.invocationMode ? { invocationMode: params.invocationMode } : {}),
+        ...(params.correlationId ? { correlationId: params.correlationId } : {}),
         ...(params.error ? { error: params.error } : {}),
     };
 

@@ -7,10 +7,150 @@ import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
-import { logInvocation, type InvocationOutcome } from "./agentInvocationLogger";
-import { AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
+import { logInvocation } from "./agentInvocationLogger";
+import { AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
+const MCP_INVOCATION_META_KEY = "__pptb";
+const DEFAULT_TWO_WAY_TIMEOUT_MS = 120000;
+
+interface InvocationMeta {
+    mode?: AgentInvocationMode;
+    timeoutMs?: number;
+}
+
+type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
+};
+
+function logInvocationWithMeta(params: InvocationLogParams): void {
+    // Some TS language-service states may resolve a narrower logInvocation type.
+    // Preserve metadata when supported while keeping call-sites type-safe.
+    logInvocation(params as Parameters<typeof logInvocation>[0]);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
+    const raw = args[MCP_INVOCATION_META_KEY];
+    if (!isRecord(raw)) {
+        return {};
+    }
+
+    const mode = raw.mode === "one-way" || raw.mode === "two-way" ? raw.mode : undefined;
+    const timeoutMs = typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs) && raw.timeoutMs > 0 ? Math.floor(raw.timeoutMs) : undefined;
+
+    return {
+        ...(mode ? { mode } : {}),
+        ...(timeoutMs ? { timeoutMs } : {}),
+    };
+}
+
+function stripInvocationMeta(args: Record<string, unknown>): Record<string, unknown> {
+    const clone = { ...args };
+    delete clone[MCP_INVOCATION_META_KEY];
+    return clone;
+}
+
+function createInvocationError(text: string): CallToolResult {
+    return {
+        content: [{ type: "text", text }],
+        isError: true,
+    };
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+            timeoutHandle = undefined;
+            reject(new Error(timeoutMessage));
+        }, timeoutMs);
+    });
+
+    return Promise.race([
+        promise.then(
+            (value) => {
+                if (timeoutHandle) {
+                    clearTimeout(timeoutHandle);
+                }
+                return value;
+            },
+            (error) => {
+                if (timeoutHandle) {
+                    clearTimeout(timeoutHandle);
+                }
+                throw error;
+            },
+        ),
+        timeoutPromise,
+    ]);
+}
+
+function validateAgainstSchema(value: unknown, schema: unknown, path = "$"): string[] {
+    if (!isRecord(schema)) {
+        return [];
+    }
+
+    const errors: string[] = [];
+    const schemaType = typeof schema.type === "string" ? schema.type : undefined;
+
+    if (schemaType === "object") {
+        if (!isRecord(value)) {
+            errors.push(`${path}: expected object`);
+            return errors;
+        }
+
+        const required = Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === "string") : [];
+        for (const requiredKey of required) {
+            if (!(requiredKey in value)) {
+                errors.push(`${path}.${requiredKey}: required field is missing`);
+            }
+        }
+
+        if (isRecord(schema.properties)) {
+            for (const [key, childSchema] of Object.entries(schema.properties)) {
+                if (!(key in value)) {
+                    continue;
+                }
+                errors.push(...validateAgainstSchema(value[key], childSchema, `${path}.${key}`));
+            }
+        }
+
+        return errors;
+    }
+
+    if (schemaType === "array") {
+        if (!Array.isArray(value)) {
+            errors.push(`${path}: expected array`);
+            return errors;
+        }
+        if (schema.items !== undefined) {
+            for (let i = 0; i < value.length; i++) {
+                errors.push(...validateAgainstSchema(value[i], schema.items, `${path}[${i}]`));
+            }
+        }
+        return errors;
+    }
+
+    if (schemaType === "string" && typeof value !== "string") {
+        errors.push(`${path}: expected string`);
+    } else if (schemaType === "number" && typeof value !== "number") {
+        errors.push(`${path}: expected number`);
+    } else if (schemaType === "boolean" && typeof value !== "boolean") {
+        errors.push(`${path}: expected boolean`);
+    }
+
+    if (Array.isArray(schema.enum) && schema.enum.length > 0 && !schema.enum.includes(value)) {
+        errors.push(`${path}: value must be one of [${schema.enum.join(", ")}]`);
+    }
+
+    return errors;
+}
 
 export class McpServerManager {
     private httpServer: ReturnType<typeof createServer> | null = null;
@@ -53,6 +193,28 @@ export class McpServerManager {
         return this.agentToolsCache.tools;
     }
 
+    private inferMode(tool: AgentTool, payload: Record<string, unknown>, requestedMode: AgentInvocationMode | undefined): AgentInvocationMode {
+        if (requestedMode && tool.invocationModes.includes(requestedMode)) {
+            return requestedMode;
+        }
+
+        if (requestedMode && !tool.invocationModes.includes(requestedMode)) {
+            throw new Error(`Requested mode '${requestedMode}' is not supported. Supported modes: ${tool.invocationModes.join(", ")}`);
+        }
+
+        if (tool.outputSchema.type !== "object" || !isRecord(tool.outputSchema.properties) || Object.keys(tool.outputSchema.properties).length === 0) {
+            if (tool.invocationModes.includes("one-way")) {
+                return "one-way";
+            }
+        }
+
+        if (tool.invocationModes.includes(tool.defaultInvocationMode)) {
+            return tool.defaultInvocationMode;
+        }
+
+        return tool.invocationModes[0] ?? "two-way";
+    }
+
     async start(): Promise<void> {
         if (this.httpServer) {
             logInfo("[MCP] Server already started");
@@ -84,8 +246,6 @@ export class McpServerManager {
     }
 
     private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-        console.log(req.method, req.url);
-
         const providedToken = req.headers[MCP_AUTH_HEADER] as string | undefined;
 
         if (!providedToken || providedToken !== this.expectedToken) {
@@ -105,85 +265,122 @@ export class McpServerManager {
             tools: agentTools.map((tool) => ({
                 name: tool.displayName,
                 title: tool.displayName,
-                description: tool.description,
-                inputSchema: tool.inputSchema,
+                description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}]`,
+                inputSchema: {
+                    ...tool.inputSchema,
+                    properties: {
+                        ...(isRecord(tool.inputSchema.properties) ? tool.inputSchema.properties : {}),
+                        [MCP_INVOCATION_META_KEY]: {
+                            type: "object",
+                            properties: {
+                                mode: {
+                                    type: "string",
+                                    enum: tool.invocationModes,
+                                },
+                                timeoutMs: {
+                                    type: "number",
+                                },
+                            },
+                        },
+                    },
+                },
                 outputSchema: tool.outputSchema,
             })),
         }));
+
         server.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
-            const toolName = resolveToolId(request.params.name)!;
-            const toolArgs = (request.params.arguments ?? {}) as Record<string, unknown>;
+            const toolIdFromName = resolveToolId(request.params.name);
+            const toolArgs = isRecord(request.params.arguments) ? request.params.arguments : {};
+            const invocationMeta = parseInvocationMeta(toolArgs);
+            const prefillData = stripInvocationMeta(toolArgs);
 
             const agentTools = await this.getAgentTools();
-            const matchedTool = agentTools.find((t) => t.toolId === toolName);
+            const matchedTool = agentTools.find((tool) => tool.toolId === toolIdFromName);
 
-            if (!matchedTool) {
-                logInvocation({
-                    toolId: `unknown:${toolName}`,
-                    toolName,
+            if (!matchedTool || !toolIdFromName) {
+                logInvocationWithMeta({
+                    toolId: `unknown:${request.params.name}`,
+                    toolName: request.params.name,
                     connectionId: null,
-                    prefillData: toolArgs,
+                    prefillData,
                     outcome: "rejected",
                     error: "Tool not found or not agent-invokable",
                 });
-                return {
-                    content: [{ type: "text", text: `Tool not found or not agent-invokable: ${toolName}` }],
-                    isError: true,
-                };
+                return createInvocationError(`Tool not found or not agent-invokable: ${request.params.name}`);
+            }
+
+            const toolId = matchedTool.toolId;
+            const displayName = matchedTool.displayName;
+            const inputValidationErrors = validateAgainstSchema(prefillData, matchedTool.inputSchema);
+            if (inputValidationErrors.length > 0) {
+                const errorText = `Input validation failed: ${inputValidationErrors.join("; ")}`;
+                logInvocationWithMeta({
+                    toolId,
+                    toolName: displayName,
+                    connectionId: null,
+                    prefillData,
+                    outcome: "rejected",
+                    error: errorText,
+                });
+                return createInvocationError(errorText);
             }
 
             const executionMode = matchedTool.executionMode;
-            const toolId = matchedTool.toolId;
-            const displayName = matchedTool.displayName;
-            const prefillData = toolArgs;
-            let outcome: InvocationOutcome = "completed";
-            let errorText: string | undefined;
+            let invocationMode: AgentInvocationMode;
+
+            try {
+                invocationMode = this.inferMode(matchedTool, prefillData, invocationMeta.mode);
+            } catch (error) {
+                const errorText = error instanceof Error ? error.message : String(error);
+                logInvocationWithMeta({
+                    toolId,
+                    toolName: displayName,
+                    connectionId: null,
+                    prefillData,
+                    outcome: "rejected",
+                    error: errorText,
+                });
+                return createInvocationError(errorText);
+            }
 
             switch (executionMode) {
                 case "windowed": {
                     if (!this.toolWindowManager) {
-                        outcome = "rejected";
-                        errorText = "Tool window manager is not available";
-                        logInvocation({
+                        const errorText = "Tool window manager is not available";
+                        logInvocationWithMeta({
                             toolId,
                             toolName: displayName,
                             connectionId: null,
                             prefillData,
-                            outcome,
+                            outcome: "rejected",
                             error: errorText,
                         });
-                        return {
-                            content: [{ type: "text", text: errorText }],
-                            isError: true,
-                        };
+                        return createInvocationError(errorText);
                     }
 
                     const toolRecord = this.toolManager.getTool(matchedTool.toolId);
                     if (!toolRecord) {
-                        outcome = "rejected";
-                        errorText = "Tool manifest not found";
-                        logInvocation({
+                        const errorText = `Tool manifest not found for: ${matchedTool.toolId}`;
+                        logInvocationWithMeta({
                             toolId,
                             toolName: displayName,
                             connectionId: null,
                             prefillData,
-                            outcome,
+                            outcome: "rejected",
                             error: errorText,
                         });
-                        return {
-                            content: [{ type: "text", text: `Tool manifest not found for: ${matchedTool.toolId}` }],
-                            isError: true,
-                        };
+                        return createInvocationError(errorText);
                     }
 
-                    const callerInstanceId = `mcp-caller-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    const correlationId = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    const callerInstanceId = `mcp-caller-${correlationId}`;
                     const calleeInstanceId = `${matchedTool.toolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
                     const primaryConnectionId: string | null = null;
                     const secondaryConnectionId: string | null = null;
-                    const noReturn = false;
+                    const noReturn = invocationMode === "one-way";
 
                     try {
-                        const result = await this.toolWindowManager.launchToolWithContext(
+                        const launchPromise = this.toolWindowManager.launchToolWithContext(
                             callerInstanceId,
                             calleeInstanceId,
                             toolRecord,
@@ -191,16 +388,59 @@ export class McpServerManager {
                             secondaryConnectionId,
                             prefillData,
                             noReturn,
+                            {
+                                source: "mcp",
+                                mode: invocationMode,
+                                correlationId,
+                                timeoutMs: invocationMeta.timeoutMs,
+                                expectsResponse: invocationMode === "two-way",
+                            },
                         );
 
-                        if (result === null) {
-                            outcome = "no-result";
-                            logInvocation({
+                        if (invocationMode === "one-way") {
+                            launchPromise.catch((error) => {
+                                const errorText = error instanceof Error ? error.message : String(error);
+                                logInvocationWithMeta({
+                                    toolId,
+                                    toolName: displayName,
+                                    connectionId: primaryConnectionId,
+                                    prefillData,
+                                    outcome: "rejected",
+                                    error: errorText,
+                                });
+                            });
+
+                            logInvocationWithMeta({
                                 toolId,
                                 toolName: displayName,
                                 connectionId: primaryConnectionId,
                                 prefillData,
-                                outcome,
+                                outcome: "completed",
+                            });
+
+                            const responsePayload = {
+                                status: "accepted",
+                                mode: invocationMode,
+                                correlationId,
+                            };
+
+                            return {
+                                content: [{ type: "text", text: JSON.stringify(responsePayload) }],
+                                structuredContent: responsePayload,
+                                isError: false,
+                            };
+                        }
+
+                        const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
+                        const result = await withTimeout(launchPromise, effectiveTimeoutMs, `Timed out waiting for '${displayName}' to return data after ${effectiveTimeoutMs} ms`);
+
+                        if (result === null) {
+                            logInvocationWithMeta({
+                                toolId,
+                                toolName: displayName,
+                                connectionId: primaryConnectionId,
+                                prefillData,
+                                outcome: "no-result",
                             });
                             return {
                                 content: [
@@ -208,6 +448,7 @@ export class McpServerManager {
                                         type: "text",
                                         text: JSON.stringify({
                                             status: "no_result",
+                                            correlationId,
                                             message: "User did not complete the action — the tool window was closed without returning data.",
                                         }),
                                     },
@@ -216,13 +457,27 @@ export class McpServerManager {
                             };
                         }
 
+                        const outputValidationErrors = validateAgainstSchema(result, matchedTool.outputSchema);
+                        if (outputValidationErrors.length > 0) {
+                            const errorText = `Output validation failed: ${outputValidationErrors.join("; ")}`;
+                            logInvocationWithMeta({
+                                toolId,
+                                toolName: displayName,
+                                connectionId: primaryConnectionId,
+                                prefillData,
+                                outcome: "rejected",
+                                error: errorText,
+                            });
+                            return createInvocationError(errorText);
+                        }
+
                         const payload = (result ?? undefined) as Record<string, unknown> | undefined;
-                        logInvocation({
+                        logInvocationWithMeta({
                             toolId,
                             toolName: displayName,
                             connectionId: primaryConnectionId,
                             prefillData,
-                            outcome,
+                            outcome: "completed",
                         });
                         return {
                             content: [{ type: "text", text: JSON.stringify(payload) }],
@@ -230,44 +485,31 @@ export class McpServerManager {
                             isError: false,
                         };
                     } catch (error) {
-                        outcome = "rejected";
-                        errorText = error instanceof Error ? error.message : String(error);
-                        logInvocation({
+                        const errorText = error instanceof Error ? error.message : String(error);
+                        logInvocationWithMeta({
                             toolId,
                             toolName: displayName,
                             connectionId: primaryConnectionId,
                             prefillData,
-                            outcome,
+                            outcome: "rejected",
                             error: errorText,
                         });
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Failed to launch tool: ${errorText}`,
-                                },
-                            ],
-                            isError: true,
-                        };
+                        return createInvocationError(`Failed to launch tool: ${errorText}`);
                     }
                 }
 
                 default: {
-                    outcome = "rejected";
-                    errorText = `Unsupported execution mode: ${executionMode}`;
-                    logInvocation({
+                    const errorText = `Unsupported execution mode: ${executionMode}`;
+                    logInvocationWithMeta({
                         toolId,
                         toolName: displayName,
                         connectionId: null,
                         prefillData,
-                        outcome,
+                        outcome: "rejected",
                         error: errorText,
                     });
-                    logInfo(`[MCP] Unsupported executionMode "${executionMode}" for tool ${toolName}`);
-                    return {
-                        content: [{ type: "text", text: errorText }],
-                        isError: true,
-                    };
+                    logInfo(`[MCP] Unsupported executionMode '${executionMode}' for tool ${toolId}`);
+                    return createInvocationError(errorText);
                 }
             }
         });

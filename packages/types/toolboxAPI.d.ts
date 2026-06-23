@@ -16,6 +16,13 @@ declare namespace ToolBoxAPI {
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
         secondaryConnectionId?: string | null;
+        invocationContext?: {
+            source?: "tool" | "mcp";
+            mode?: "one-way" | "two-way";
+            correlationId?: string;
+            timeoutMs?: number;
+            expectsResponse?: boolean;
+        };
     }
 
     /**
