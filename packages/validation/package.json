@@ -1,0 +1,56 @@
+{
+  "name": "@pptb/validate",
+  "version": "0.0.7",
+  "description": "Validation utilities for Power Platform ToolBox tool packages",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "keywords": [
+    "powerplatform",
+    "pptb",
+    "toolbox",
+    "validate",
+    "typescript",
+    "dataverse"
+  ],
+  "author": "Power Platform ToolBox",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PowerPlatformToolBox/desktop-app.git",
+    "directory": "packages"
+  },
+  "packageManager": "pnpm@10.18.3",
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./cli": "./dist/cli.js",
+    "./npm": {
+      "default": "./dist/npm.js",
+      "types": "./dist/npm.d.ts"
+    }
+  },
+  "bin": {
+    "pptb-validate": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "version:beta": "pnpm version prerelease --preid beta --no-git-tag-version",
+    "version:stable": "pnpm version patch --no-git-tag-version",
+    "publish:stable": "pnpm publish --access public --tag latest --no-git-checks",
+    "publish:beta": "pnpm publish --access public --tag beta --no-git-checks"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.21",
+    "@types/tar": "^7.0.87",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "tar": "^7.5.16"
+  }
+}

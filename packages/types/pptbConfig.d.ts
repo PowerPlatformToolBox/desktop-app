@@ -12,6 +12,7 @@
  *   "invocation": {
  *     "version": "1.0.0",
  *     "capabilities": ["fetchxml"],
+ *     "agentInvokable": true,
  *     "prefill": {
  *       "properties": {
  *         "entityName": { "type": "string" },
