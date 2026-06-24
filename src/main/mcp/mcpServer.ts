@@ -1,7 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { promises as fs } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import os from "os";
+import path from "path";
 import { logError, logInfo } from "../../common/logger";
 import { Connection } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
@@ -19,6 +22,17 @@ const MCP_AUTH_HEADER = "x-mcp-auth-token";
 const MCP_AUTH_HEADER_DISPLAY_NAME = "X-MCP-Auth-Token";
 const MCP_INVOCATION_META_KEY = "__pptb";
 const DEFAULT_TWO_WAY_TIMEOUT_MS = 120000;
+const MCP_SERVER_CONFIG_KEY = "pptb";
+
+type SupportedClient = "claude-desktop" | "vscode";
+type SupportedOs = "macos" | "windows" | "linux";
+
+interface McpClientConfigWriteResult {
+    client: SupportedClient;
+    os: SupportedOs;
+    filePath: string;
+    serverName: string;
+}
 
 interface InvocationMeta {
     mode?: AgentInvocationMode;
@@ -248,6 +262,98 @@ export class McpServerManager {
             authHeaderValue: this.expectedToken,
             isRunning: this.isRunning(),
         };
+    }
+
+    async configureClient(client: SupportedClient): Promise<McpClientConfigWriteResult> {
+        const resolvedOs = this.resolveHostOS();
+        const filePath = this.getClientConfigPath(client, resolvedOs);
+        const serverDetails = this.getServerDetails();
+        const serverEntry = {
+            type: "http",
+            url: `${serverDetails.address}/mcp`,
+            headers: {
+                [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
+            },
+        };
+
+        const root = await this.readJsonObject(filePath);
+        if (client === "claude-desktop") {
+            const mcpServers = isRecord(root.mcpServers) ? root.mcpServers : {};
+            mcpServers[MCP_SERVER_CONFIG_KEY] = serverEntry;
+            root.mcpServers = mcpServers;
+        } else {
+            const servers = isRecord(root.servers) ? root.servers : {};
+            servers[MCP_SERVER_CONFIG_KEY] = serverEntry;
+            root.servers = servers;
+        }
+
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, `${JSON.stringify(root, null, 4)}\n`, "utf-8");
+
+        logInfo("[MCP] Updated client configuration", {
+            client,
+            os: resolvedOs,
+            filePath,
+            serverName: MCP_SERVER_CONFIG_KEY,
+        });
+
+        return {
+            client,
+            os: resolvedOs,
+            filePath,
+            serverName: MCP_SERVER_CONFIG_KEY,
+        };
+    }
+
+    private resolveHostOS(): SupportedOs {
+        switch (process.platform) {
+            case "darwin":
+                return "macos";
+            case "win32":
+                return "windows";
+            default:
+                return "linux";
+        }
+    }
+
+    private getClientConfigPath(client: SupportedClient, hostOs: SupportedOs): string {
+        const homeDir = os.homedir();
+        if (client === "claude-desktop") {
+            if (hostOs === "macos") {
+                return path.join(homeDir, "Library", "Application Support", "Claude", "claude_desktop_config.json");
+            }
+            if (hostOs === "windows") {
+                const appDataDir = process.env.APPDATA || path.join(homeDir, "AppData", "Roaming");
+                return path.join(appDataDir, "Claude", "claude_desktop_config.json");
+            }
+            return path.join(homeDir, ".config", "Claude", "claude_desktop_config.json");
+        }
+
+        if (hostOs === "macos") {
+            return path.join(homeDir, "Library", "Application Support", "Code", "User", "mcp.json");
+        }
+        if (hostOs === "windows") {
+            const appDataDir = process.env.APPDATA || path.join(homeDir, "AppData", "Roaming");
+            return path.join(appDataDir, "Code", "User", "mcp.json");
+        }
+        return path.join(homeDir, ".config", "Code", "User", "mcp.json");
+    }
+
+    private async readJsonObject(filePath: string): Promise<Record<string, unknown>> {
+        try {
+            const raw = await fs.readFile(filePath, "utf-8");
+            const parsed: unknown = JSON.parse(raw);
+            if (!isRecord(parsed)) {
+                throw new Error(`Expected JSON object at root in '${filePath}'`);
+            }
+            return parsed;
+        } catch (error) {
+            const nodeError = error as NodeJS.ErrnoException;
+            if (nodeError.code === "ENOENT") {
+                return {};
+            }
+            throw error;
+        }
     }
 
     private async getAgentTools(): Promise<AgentTool[]> {

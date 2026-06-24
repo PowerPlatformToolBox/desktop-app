@@ -2,16 +2,16 @@ import { logError } from "../../common/logger";
 import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 
 /**
- * Render the agent invocation logs content into a panel
+ * Render the MCP server content into a panel
  */
-export function renderAgentInvocationLogsContent(panel: HTMLElement): void {
+export function renderMCPServerContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
-        <div class="settings-tab-content" id="agent-invocation-logs-tab">
+        <div class="settings-tab-content" id="mcp-tab">
             <div class="settings-vscode-section">
                 <h2 class="settings-vscode-section-title">
                     MCP Server
-                    <p class="agent-log-subheader" style="margin-bottom: 16px;">
+                    <p class="mcp-subheader" style="margin-bottom: 16px;">
                         Server connection details and invocation history for MCP-triggered tool launches.
                     </p>
                 </h2>
@@ -76,6 +76,20 @@ export function renderAgentInvocationLogsContent(panel: HTMLElement): void {
                                 </svg>
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item" style="margin-bottom: 16px;">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Quick Connect</span>
+                        <p class="settings-vscode-item-description">Create or update local MCP config files for supported clients using this server's URL and auth header/token.</p>
+                    </div>
+                    <div class="settings-vscode-item-control mcp-server-item-control">
+                        <div class="mcp-client-connect-row">
+                            <button id="connect-claude-desktop-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to Claude Desktop</button>
+                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
+                        </div>
+                        <div id="mcp-client-config-status" class="settings-vscode-item-description" style="margin-top: 6px; display: none;"></div>
                     </div>
                 </div>
 
@@ -157,6 +171,7 @@ async function loadAndRenderLogs(): Promise<void> {
         wireCopyButton("copy-mcp-server-address-btn", () => serverDetails.address, "MCP server address copied");
         wireCopyButton("copy-mcp-auth-header-name-btn", () => serverDetails.authHeaderName, "MCP auth header name copied");
         wireCopyButton("copy-mcp-auth-header-value-btn", () => serverDetails.authHeaderValue, "MCP auth token copied");
+        wireClientConfigButtons();
 
         if (logs.length === 0) {
             emptyState.style.display = "block";
@@ -191,6 +206,68 @@ async function loadAndRenderLogs(): Promise<void> {
         if (container) {
             container.innerHTML = `<div class="empty-state"><p>Error loading logs</p><p class="empty-state-hint">${escapeHtml(error instanceof Error ? error.message : String(error))}</p></div>`;
         }
+    }
+}
+
+function wireClientConfigButtons(): void {
+    const claudeBtn = document.getElementById("connect-claude-desktop-btn") as HTMLButtonElement | null;
+    const vscodeBtn = document.getElementById("connect-vscode-btn") as HTMLButtonElement | null;
+    const statusEl = document.getElementById("mcp-client-config-status") as HTMLDivElement | null;
+
+    if (!claudeBtn || !vscodeBtn || !statusEl) {
+        return;
+    }
+
+    const setButtonsEnabled = (enabled: boolean): void => {
+        claudeBtn.disabled = !enabled;
+        vscodeBtn.disabled = !enabled;
+    };
+
+    const showStatus = (message: string, isError: boolean): void => {
+        statusEl.textContent = message;
+        statusEl.style.display = "block";
+        statusEl.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-muted, rgba(0,0,0,0.65))";
+    };
+
+    const writeConfig = async (target: "claude" | "vscode"): Promise<void> => {
+        try {
+            setButtonsEnabled(false);
+            showStatus(`Configuring ${target === "claude" ? "Claude Desktop" : "VSCode"}...`, false);
+
+            const result = target === "claude" ? await window.toolboxAPI.mcpServer.configureClaudeDesktop() : await window.toolboxAPI.mcpServer.configureVSCode();
+
+            showStatus(`Updated ${target === "claude" ? "Claude Desktop" : "VSCode"} config at ${result.filePath} (${result.os}).`, false);
+            await window.toolboxAPI.utils.showNotification({
+                title: "MCP Config Updated",
+                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName}.`,
+                type: "success",
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            showStatus(`Failed to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}: ${message}`, true);
+            await window.toolboxAPI.utils.showNotification({
+                title: "MCP Config Failed",
+                body: `Unable to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}.`,
+                type: "error",
+            });
+            logError("Failed to write MCP client config", error);
+        } finally {
+            setButtonsEnabled(true);
+        }
+    };
+
+    if (claudeBtn.dataset.bound !== "true") {
+        claudeBtn.dataset.bound = "true";
+        claudeBtn.addEventListener("click", () => {
+            void writeConfig("claude");
+        });
+    }
+
+    if (vscodeBtn.dataset.bound !== "true") {
+        vscodeBtn.dataset.bound = "true";
+        vscodeBtn.addEventListener("click", () => {
+            void writeConfig("vscode");
+        });
     }
 }
 
@@ -247,5 +324,5 @@ export async function openAgentInvocationLogsTab(): Promise<void> {
     registerCloseGuard("agent-invocation-logs", async () => {
         return true;
     });
-    await openLocalPageAsTab("agent-invocation-logs", "MCP Server", renderAgentInvocationLogsContent, "");
+    await openLocalPageAsTab("agent-invocation-logs", "MCP Server", renderMCPServerContent, "");
 }
