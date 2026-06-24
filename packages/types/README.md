@@ -128,21 +128,26 @@ The validator checks every field that the official review pipeline inspects:
 
 In addition to `package.json`, the validator automatically checks a `pptb.config.json` file if one is present in the same directory. This file declares tool-to-tool communication contracts and other PPTB-specific metadata.
 
-| Field                               | Required | Rules                                                                                                                                            |
-| ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes. |
-| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                    |
-| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                |
-| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
-| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                     |
-| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                  |
+| Field                               | Required | Rules                                                                                                                                                       |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invocation.version`                | ✅\*\*   | Must be a valid **semantic version** string (e.g. `"1.0.0"`). Tool developers own this version and bump it when the invocation contract changes.            |
+| `invocation.capabilities`           | ❌       | Array of non-empty string tags (e.g. `["entity-picker"]`). Used by callers to discover this tool via `findToolsByCapability`.                               |
+| `invocation.prefill`                | ❌       | JSON-schema-style object describing data callers can pre-populate                                                                                           |
+| `invocation.prefill.properties`     | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                             |
+| `invocation.returnTopic`            | ❌       | JSON-schema-style object describing the data this tool returns to its caller                                                                                |
+| `invocation.returnTopic.properties` | ❌       | Map of property names to `{ type?, enum?, items? }` descriptors                                                                                             |
+| `agents`                            | ❌       | Top-level agent contract for external automation; when present, must include `version` and may include `invokable`, `modes`, `defaultMode`, and `timeoutMS` |
+| `agents.version`                    | ✅       | Must be a valid semantic version string (e.g. `1.0.0`)                                                                                                      |
+| `agents.invokable`                  | ❌       | Boolean indicating whether an external (non-PPTB) automation agent may launch this tool programmatically                                                    |
+| `agents.modes`                      | ❌       | Array of supported invocation modes (`"one-way"`, `"two-way"`)                                                                                              |
+| `agents.defaultMode`                | ❌       | Default mode when the agent does not request one explicitly                                                                                                 |
+| `agents.timeoutMS`                  | ❌       | Optional timeout hint in milliseconds for two-way calls                                                                                                     |
 
 > \*\* Required only when the `invocation` object is present.
 
 **Example `pptb.config.json`:**
 
 ```json
-{
     "invocation": {
         "version": "1.0.0",
         "capabilities": ["entity-picker"],
@@ -159,6 +164,13 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
                 "error": { "type": "string" }
             }
         }
+    },
+    "agents": {
+        "version": "1.0.0",
+        "invokable": true,
+        "modes": ["one-way", "two-way"],
+        "defaultMode": "two-way",
+        "timeoutMS": 12000
     }
 }
 ```

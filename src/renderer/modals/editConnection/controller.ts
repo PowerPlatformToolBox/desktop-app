@@ -329,6 +329,11 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-client-id", connection.clientId);
             setInputValue("connection-client-secret", connection.clientSecret);
             setInputValue("connection-tenant-id-cs", connection.tenantId);
+            // Populate Power Platform API checkbox for client secret auth
+            const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
+            if (ppApiCheckbox instanceof HTMLInputElement) {
+                ppApiCheckbox.checked = connection.enabledForPowerPlatformAPI === true;
+            }
         } else if (connection.authenticationType === "usernamePassword") {
             setInputValue("connection-username-up", connection.username);
             setInputValue("connection-password", connection.password);

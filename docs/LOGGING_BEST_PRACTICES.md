@@ -351,6 +351,14 @@ logWarn("Connection expired", { connectionId }); // Console + Sentry always
 // Don't use captureMessage for info - it creates Issues
 ```
 
+## Invocation Log Redaction
+
+Agent invocation logs must not store raw connection identifiers or sensitive launch metadata.
+
+- Redact `connectionId`, `primaryConnectionId`, `secondaryConnectionId`, and similar fields before writing logs.
+- Redact nested prefill data fields whose names include `connection`, `token`, `secret`, `password`, `credential`, `auth`, or `refresh`.
+- Keep correlation IDs and tool names so the log still supports diagnostics without exposing secrets.
+
 ## Questions?
 
 For questions about logging:

@@ -104,6 +104,7 @@ ${sortingUtilities}
         const selectedAuth = authFilter?.value || "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
+        const requirePowerPlatformApi = ENABLED_FOR_POWER_PLATFORM_API === true;
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -131,6 +132,11 @@ ${sortingUtilities}
                 } else if (conn.category !== selectedCategory) {
                     return false;
                 }
+            }
+
+            // Power Platform API filter - only show connections enabled for Power Platform API
+            if (requirePowerPlatformApi && conn.enabledForPowerPlatformAPI !== true) {
+                return false;
             }
 
             return true;
@@ -494,6 +500,14 @@ ${sortingUtilities}
         });
     } else {
         console.warn("modalBridge.onMessage is not available");
+    }
+
+    // Show Power Platform API info message if required
+    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
+        const ppApiInfo = document.getElementById("power-platform-api-info-multi");
+        if (ppApiInfo) {
+            ppApiInfo.style.display = "block";
+        }
     }
 
     // Request connections list from main process

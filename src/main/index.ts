@@ -5,10 +5,12 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import {
+    AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    MCP_SERVER_CHANNELS,
     MODAL_WINDOW_CHANNELS,
     POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
@@ -48,6 +50,8 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { readLogEntries } from "./mcp/agentInvocationLogger";
+import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -85,6 +89,7 @@ class ToolBoxApp {
     private dataverseManager: DataverseManager;
     private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
+    private mcpServerManager: McpServerManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
@@ -132,9 +137,19 @@ class ToolBoxApp {
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
+                () => this.mcpServerManager.isRunning(),
+                async () => {
+                    if (this.mcpServerManager.isRunning()) {
+                        await this.mcpServerManager.stop();
+                        return;
+                    }
+
+                    await this.mcpServerManager.start();
+                },
             );
 
             this.setupEventListeners();
@@ -268,6 +283,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS);
         ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
         ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN);
 
         // Connection handlers
         ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
@@ -424,6 +440,12 @@ class ToolBoxApp {
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
+
+        // Agent invocation logging handlers
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
+
+        // MCP server handlers
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
     }
 
     /**
@@ -474,9 +496,23 @@ class ToolBoxApp {
             this.settingsManager.setSetting(key, value);
         });
 
+        // MCP access token handler
+        ipcMain.handle(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN, () => {
+            return this.settingsManager.getMcpAccessToken();
+        });
+
         // Favorite tools
         ipcMain.handle(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.addFavoriteTool(toolId);
+        });
+
+        // Agent invocation logs (main UI only)
+        ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
+            return readLogEntries();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
+            return this.mcpServerManager.getServerDetails();
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {
@@ -2626,6 +2662,8 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager,
         );
 
+        this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
+
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
             this.debouncedCreateMenu();
@@ -2654,6 +2692,15 @@ class ToolBoxApp {
         if (process.env.NODE_ENV === "development") {
             this.mainWindow.webContents.openDevTools({ mode: "detach" });
         }
+
+        this.mainWindow.on("close", (event) => {
+            if (this.isQuitting) {
+                return;
+            }
+
+            event.preventDefault();
+            this.mainWindow?.hide();
+        });
 
         this.mainWindow.on("closed", () => {
             this.toolWindowManager?.destroy();
@@ -3090,6 +3137,7 @@ class ToolBoxApp {
             this.protocolHandlerManager.initialize();
 
             await app.whenReady();
+            await this.mcpServerManager.start();
             logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
@@ -3182,11 +3230,13 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", () => {
+            app.on("before-quit", async () => {
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
                 this.trayManager?.destroy();
+                // Clean up MCP server
+                await this.mcpServerManager.stop();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks

@@ -1,9 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+    AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    MCP_SERVER_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -23,6 +25,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     updateUserSettings: (settings: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, settings),
     getSetting: (key: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_SETTING, key),
     setSetting: (key: string, value: unknown) => ipcRenderer.invoke(SETTINGS_CHANNELS.SET_SETTING, key, value),
+    getMcpAccessToken: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN),
 
     // Connections namespace - organized like in the iframe
     connections: {
@@ -72,8 +75,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
     findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
     /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
-    returnToCallerBanner: () =>
-        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
+    returnToCallerBanner: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },
@@ -394,6 +396,16 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         updateOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE, params, connectionTarget),
         deleteOptionValue: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE, params, connectionTarget),
         orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
+    },
+
+    // Agent invocation logging - Only for PPTB UI
+    agentInvocation: {
+        getLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.GET_LOGS),
+    },
+
+    // MCP server details - Only for PPTB UI
+    mcpServer: {
+        getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
     },
 });
 

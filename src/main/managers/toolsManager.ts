@@ -55,6 +55,10 @@ export class ToolManager extends EventEmitter {
         });
     }
 
+    getRegistryManager(): ToolRegistryManager {
+        return this.registryManager;
+    }
+
     private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
         const tool: Tool = {
             id: manifest.id,

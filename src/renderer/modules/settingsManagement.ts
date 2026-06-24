@@ -18,7 +18,7 @@ import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, openToolDetailTab, registerCloseGuard } from "./toolManagement";
+import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
@@ -625,5 +625,5 @@ export async function openSettingsTab(): Promise<void> {
         if (!hasUnsavedChanges()) return true;
         return window.confirm("You have unsaved settings changes. Close anyway and discard them?");
     });
-    await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
+    await openLocalPageAsTab("app-settings", "Settings", renderSettingsContent, "");
 }

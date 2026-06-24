@@ -117,6 +117,9 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
                 isSecondaryRequired ? "both connections" : "at least a primary connection"
             } to continue.
         </div>
+        <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
+            <span>Only connections enabled for Power Platform API are shown. Add a connection with Client ID/Secret authentication and select "Enable for Power Platform API" to use it with this tool.</span>
+        </div>
         
         <div class="modal-search-container">
             <div class="modal-search-bar">

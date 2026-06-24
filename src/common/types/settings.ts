@@ -94,4 +94,5 @@ export interface UserSettings {
     showEnvironmentColor?: boolean; // Show/hide the environment color border around the tool panel
     categoryColorThickness?: number; // Thickness in pixels of the category color border under the tab
     environmentColorThickness?: number; // Thickness in pixels of the environment color border around the tool panel
+    mcpAccessToken?: string; // Access token for local MCP server authentication
 }

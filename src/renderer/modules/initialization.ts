@@ -28,6 +28,7 @@ import {
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { openAgentInvocationLogsTab } from "./agentInvocationLogsManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
@@ -225,6 +226,16 @@ function setupActivityBar(): void {
     if (settingsActivityBtn) {
         settingsActivityBtn.addEventListener("click", () => {
             openSettingsTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
+
+    // Agent invocation logs button opens a tab
+    const agentInvocationLogsBtn = document.getElementById("agent-invocation-logs-btn");
+    if (agentInvocationLogsBtn) {
+        agentInvocationLogsBtn.addEventListener("click", () => {
+            openAgentInvocationLogsTab().catch((err) => {
                 logError(err instanceof Error ? err : new Error(String(err)));
             });
         });

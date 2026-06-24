@@ -11,6 +11,14 @@ import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
 
+interface InvocationContextMetadata {
+    source?: "tool" | "mcp";
+    mode?: "one-way" | "two-way";
+    correlationId?: string;
+    timeoutMs?: number;
+    expectsResponse?: boolean;
+}
+
 /**
  * ToolWindowManager
  *
@@ -67,6 +75,7 @@ export class ToolWindowManager {
             resolved: boolean;
             /** When true the caller does not expect return data; banner shows a "nothing returned" warning. */
             noReturn?: boolean;
+            invocationContext?: InvocationContextMetadata;
         }
     > = new Map();
     /**
@@ -218,11 +227,7 @@ export class ToolWindowManager {
         // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
         ipcMain.handle(
             TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
-            async (
-                _event,
-                requestId: string,
-                result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null,
-            ) => {
+            async (_event, requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => {
                 const prompt = this.pendingConnectionPrompts.get(requestId);
                 if (!prompt) return;
                 this.pendingConnectionPrompts.delete(requestId);
@@ -466,6 +471,7 @@ export class ToolWindowManager {
                     ? {
                           callerInstanceId: pending.callerInstanceId,
                           prefillData: pending.prefillData,
+                          invocationContext: pending.invocationContext,
                       }
                     : {}),
                 ...(prefillData && !pending ? { prefillData } : {}),
@@ -532,6 +538,7 @@ export class ToolWindowManager {
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
         noReturn?: boolean,
+        invocationContext?: InvocationContextMetadata,
     ): Promise<unknown> {
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
@@ -539,7 +546,7 @@ export class ToolWindowManager {
         }
 
         // FXS connection auto-inheritance: use caller's primary connection when none is specified
-        const effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
+        let effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
 
         // Multi-connection: if the callee requires a secondary connection but none was provided,
         // ask the main renderer to show the multi-connection selector before launching the tool.
@@ -551,12 +558,8 @@ export class ToolWindowManager {
             const isSecondaryRequired = multiConnectionMode === "required";
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
-                const connectionResult = await this.promptForInvocationConnections(
-                    requestId,
-                    tool.name,
-                    isSecondaryRequired,
-                    effectivePrimaryConnectionId,
-                );
+                const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
+                effectivePrimaryConnectionId = connectionResult.primaryConnectionId;
                 effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
             } catch (err) {
                 throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
@@ -571,6 +574,7 @@ export class ToolWindowManager {
                 reject,
                 resolved: false,
                 noReturn: noReturn ?? false,
+                invocationContext,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
 

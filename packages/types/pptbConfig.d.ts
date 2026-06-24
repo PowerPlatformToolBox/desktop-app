@@ -25,6 +25,13 @@
  *         "error": { "type": "string" }
  *       }
  *     }
+ *   },
+ *   "agents": {
+ *     "version": "1.0.0",
+ *     "invokable": true,
+ *     "modes": ["one-way", "two-way"],
+ *     "defaultMode": "two-way",
+ *     "timeoutMS": 12000
  *   }
  * }
  * ```
@@ -49,14 +56,7 @@
  * | `plugin-inspector`   | Inspect or manage plugins and assemblies              |
  * | `pcf-control-builder`| Build or scaffold PCF controls                        |
  */
-export type KnownCapabilityTag =
-    | "fetchxml"
-    | "entity-picker"
-    | "record-selector"
-    | "solution-selector"
-    | "webresource-editor"
-    | "plugin-inspector"
-    | "pcf-control-builder";
+export type KnownCapabilityTag = "fetchxml" | "entity-picker" | "record-selector" | "solution-selector" | "webresource-editor" | "plugin-inspector" | "pcf-control-builder";
 
 /**
  * A capability tag string accepted by `invocation.capabilities` and
@@ -72,7 +72,7 @@ export type KnownCapabilityTag =
  * { "invocation": { "version": "1.0.0", "capabilities": ["fetchxml", "entity-picker"] } }
  * ```
  */
-export type CapabilityTag = KnownCapabilityTag | (string & {});
+export type CapabilityTag = KnownCapabilityTag | string;
 
 /** A JSON-schema-style property descriptor used inside invocation definitions. */
 export interface JsonSchemaProperty {
@@ -101,6 +101,30 @@ export interface JsonSchemaObject {
  * - `returnTopic` describes the data this tool will resolve back to its caller
  *   when it finishes.
  */
+export type AgentInvocationMode = "one-way" | "two-way";
+
+/**
+ * Agent-specific launch contract for external automation callers.
+ *
+ * - `version`: semantic version for the agent-facing contract.
+ * - `invokable`: opt-in flag that exposes the tool to the MCP server.
+ * - `modes`: supported MCP invocation modes for this tool.
+ * - `defaultMode`: fallback mode when the caller does not specify one.
+ * - `timeoutMS`: optional timeout hint, in milliseconds, for two-way calls.
+ */
+export interface AgentsConfig {
+    /** Semantic version of this agent contract. */
+    version: string;
+    /** Whether the tool may be invoked by an external agent. */
+    invokable?: boolean;
+    /** Invocation modes supported by the tool when called by an agent. */
+    modes?: AgentInvocationMode[];
+    /** Default mode used when an agent does not request a mode explicitly. */
+    defaultMode?: AgentInvocationMode;
+    /** Optional timeout hint, in milliseconds, for agent-driven two-way calls. */
+    timeoutMS?: number;
+}
+
 export interface InvocationConfig {
     /**
      * Semantic version of this invocation contract (e.g. "1.0.0").
@@ -142,4 +166,6 @@ export interface InvocationConfig {
 export interface PPTBConfig {
     /** Invocation contract – how this tool can be called by other tools. */
     invocation?: InvocationConfig;
+    /** Agent contract – how this tool can be called by external automation. */
+    agents?: AgentsConfig;
 }

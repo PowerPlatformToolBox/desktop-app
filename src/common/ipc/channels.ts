@@ -37,6 +37,7 @@ export const SETTINGS_CHANNELS = {
     ADD_LAST_USED_TOOL: "add-last-used-tool",
     GET_LAST_USED_TOOLS: "get-last-used-tools",
     CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
+    GET_MCP_ACCESS_TOKEN: "get-mcp-access-token",
 } as const;
 
 // Connection-related IPC channels
@@ -239,6 +240,16 @@ export const POWERPLATFORM_CHANNELS = {
 // Protocol handler-related IPC channels
 export const PROTOCOL_CHANNELS = {
     PROTOCOL_INSTALL_TOOL: "protocol:install-tool",
+} as const;
+
+// Agent Invocation Logging channels
+export const AGENT_INVOCATION_CHANNELS = {
+    GET_LOGS: "agent-invocation:get-logs",
+} as const;
+
+// MCP server status/details channels
+export const MCP_SERVER_CHANNELS = {
+    GET_DETAILS: "mcp-server:get-details",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

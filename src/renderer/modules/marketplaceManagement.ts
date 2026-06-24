@@ -9,7 +9,7 @@ import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
-import { openToolDetailTab } from "./toolManagement";
+import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 interface InstalledTool {
@@ -466,7 +466,7 @@ function isToolNew(tool: ToolDetail): boolean {
  */
 export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
     const tabId = `tool-detail-${tool.id}`;
-    await openToolDetailTab(tabId, tool.name, (panel: HTMLElement) => {
+    await openLocalPageAsTab(tabId, tool.name, (panel: HTMLElement) => {
         renderToolDetailContent(panel, tool, isInstalled);
     });
 }

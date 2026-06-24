@@ -80,6 +80,45 @@ export interface EventsAPI {
 }
 
 /**
+ * Agent Invocation Log Entry
+ */
+export interface AgentInvocationLogEntry {
+    timestamp: string;
+    toolId: string;
+    toolName: string;
+    connectionId: string | null;
+    prefillSummary: string;
+    outcome: "completed" | "no-result" | "rejected";
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
+    error?: string;
+}
+
+/**
+ * Agent Invocation API namespace
+ */
+export interface AgentInvocationAPI {
+    getLogs: () => Promise<AgentInvocationLogEntry[]>;
+}
+
+/**
+ * MCP server details shown in the renderer UI
+ */
+export interface McpServerDetails {
+    address: string;
+    authHeaderName: string;
+    authHeaderValue: string;
+    isRunning: boolean;
+}
+
+/**
+ * MCP server API namespace
+ */
+export interface McpServerAPI {
+    getDetails: () => Promise<McpServerDetails>;
+}
+
+/**
  * Troubleshooting API namespace
  */
 export interface TroubleshootingAPI {
@@ -119,6 +158,7 @@ export interface ToolboxAPI {
     updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
+    getMcpAccessToken: () => Promise<string>;
 
     // Connections namespace
     connections: ConnectionsAPI;
@@ -293,4 +333,10 @@ export interface ToolboxAPI {
 
     // Dataverse namespace
     dataverse: DataverseAPI;
+
+    // Agent Invocation namespace
+    agentInvocation: AgentInvocationAPI;
+
+    // MCP server namespace
+    mcpServer: McpServerAPI;
 }
