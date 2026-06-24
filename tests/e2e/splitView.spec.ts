@@ -1,6 +1,14 @@
 import { expect, test } from "./fixtures";
 
 /**
+ * Minimum wrapper width (px) required for the resize-drag test to produce a
+ * measurable delta.  Viewports narrower than this skip the width-change assertion
+ * because a 80px drag on a sub-100px wrapper would be clamped to 0 by the
+ * MIN/MAX panel ratio guards.
+ */
+const MIN_WRAPPER_WIDTH_FOR_DRAG_TEST = 100;
+
+/**
  * E2E: split view (side-by-side tool panels).
  *
  * Verifies that:
@@ -226,15 +234,13 @@ test.describe("Split view — UI activation & teardown", () => {
             btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
         });
 
-        // The close button's listener calls closeSplitView() which may be
-        // async; give the UI a moment to settle.
-        await window.waitForTimeout(200);
-
-        // Even if the IPC side-effect is unavailable in the test environment
-        // the UI should end up without the split-view class after the button
-        // is pressed (closeSplitView early-returns when no secondary is tracked
-        // by the renderer state and still calls removeSplitViewUI).
-        // We verify the DOM was cleaned up.
+        // In the test environment no real IPC channel is connected to the main process, so the
+        // toolboxAPI.closeSplitView() call inside closeSplitView() will be a no-op.  However,
+        // removeSplitViewUI() is unconditionally called regardless of the IPC result, so the
+        // DOM teardown (hiding the panel, removing the split-view class) is the authoritative
+        // observable side-effect we can assert on here.
+        // Wait explicitly for the wrapper class to be removed rather than using a fixed timeout.
+        await expect(window.locator("#tool-panel-content-wrapper")).not.toHaveClass(/split-view/, { timeout: 3_000 });
         await expect(window.locator("#tool-panel-content-secondary")).toBeHidden({ timeout: 3_000 });
     });
 
@@ -272,7 +278,7 @@ test.describe("Split view — UI activation & teardown", () => {
         const wrapper = window.locator("#tool-panel-content-wrapper");
         const wrapperWidth = await wrapper.evaluate((el) => el.getBoundingClientRect().width);
 
-        if (wrapperWidth > 100) {
+        if (wrapperWidth > MIN_WRAPPER_WIDTH_FOR_DRAG_TEST) {
             // Only assert on viewports large enough for the drag to register
             expect(Math.abs(finalPrimaryWidth - initialPrimaryWidth)).toBeGreaterThan(0);
         }

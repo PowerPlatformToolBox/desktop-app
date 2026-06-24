@@ -24,9 +24,9 @@ import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageMan
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
 const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
 const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
-const SPLIT_VIEW_MIN_PANEL_RATIO = 0.2; // Minimum panel width as fraction of total width
-const SPLIT_VIEW_MAX_PANEL_RATIO = 0.8; // Maximum panel width as fraction of total width
-const SPLIT_VIEW_HANDLE_FALLBACK_WIDTH = 5; // Fallback resize handle width in px
+const SPLIT_VIEW_MIN_PANEL_RATIO = 0.2; // Minimum panel width as a fraction of wrapper width (20% ensures usability on small screens)
+const SPLIT_VIEW_MAX_PANEL_RATIO = 0.8; // Maximum panel width as a fraction of wrapper width (80% keeps the secondary panel visible)
+const SPLIT_VIEW_HANDLE_FALLBACK_WIDTH = 5; // Fallback resize-handle width in px, used when getBoundingClientRect returns 0 (e.g. hidden element)
 
 export interface LaunchToolOptions {
     source?: string;
@@ -278,8 +278,11 @@ function removeSplitViewUI(): void {
         // Clear any inline flex-basis set during resize
         const primaryPanel = document.getElementById("tool-panel-content");
         const secondaryPanel = document.getElementById("tool-panel-content-secondary");
-        if (primaryPanel) primaryPanel.style.flexBasis = "";
-        if (primaryPanel) primaryPanel.style.flex = "";
+        if (primaryPanel) {
+            // Clear both the inline flex-basis and flex shorthand set during resize
+            primaryPanel.style.flexBasis = "";
+            primaryPanel.style.flex = "";
+        }
         if (secondaryPanel) {
             secondaryPanel.style.flexBasis = "";
             secondaryPanel.style.flex = "";
@@ -380,9 +383,15 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     const closableOtherTabIds = getClosableTabIds(instanceId);
     const closableTabIds = getClosableTabIds();
     // Split view: can only open in split view if there are at least 2 tools open, the tab is a real tool,
-    // and it's not already the secondary tool
-    const canOpenSplitView = canManageTab && openTools.size >= 2 && instanceId !== activeToolId && instanceId !== splitViewSecondaryId;
-    const canSwitchSplitSecondary = canManageTab && splitViewSecondaryId !== null && instanceId !== splitViewSecondaryId && instanceId !== activeToolId;
+    // and it's not already the secondary tool.
+    // Exclude the currently active tab: the active tool is always the primary (left) panel, so putting
+    // it in the right panel too would just duplicate the same view.  The user should right-click a
+    // *different* tab to choose what appears on the right.
+    const hasMinimumToolsForSplit = openTools.size >= 2;
+    const isNotAlreadySecondary = instanceId !== splitViewSecondaryId;
+    const isNotActiveTool = instanceId !== activeToolId;
+    const canOpenSplitView = canManageTab && hasMinimumToolsForSplit && isNotActiveTool && isNotAlreadySecondary;
+    const canSwitchSplitSecondary = canManageTab && splitViewSecondaryId !== null && isNotAlreadySecondary && isNotActiveTool;
     let action: string | null = null;
     try {
         action = await window.toolboxAPI.utils.showContextMenu({

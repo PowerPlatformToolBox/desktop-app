@@ -19,6 +19,9 @@ interface InvocationContextMetadata {
     expectsResponse?: boolean;
 }
 
+/** Timeout (ms) before applying a fallback bounds update when no bounds response arrives from the renderer. */
+const BOUNDS_UPDATE_TIMEOUT_MS = 300;
+
 /**
  * ToolWindowManager
  *
@@ -733,11 +736,10 @@ export class ToolWindowManager {
                 // Split view mode: show both the primary (left) and secondary (right) views.
                 // Use addBrowserView so both can be visible simultaneously; clear any
                 // existing attached views first to avoid stale entries.
-                // NOTE: BrowserWindow.getBrowserViews() is available in Electron ≥ 8 and is
-                // present at runtime in Electron 28, but the bundled type definitions do not
-                // always include it, hence the cast to `any`. We guard with optional-chaining
-                // so that if the method is absent we fall back to setBrowserView(null).
-                const attached = (this.mainWindow as any).getBrowserViews?.() as BrowserView[] | undefined;
+                // getBrowserViews() is typed on BrowserWindow in Electron 28; use it directly to
+                // list all currently attached views so we can detach them before re-attaching in
+                // the desired order.  We guard with optional-chaining for forward compatibility.
+                const attached = this.mainWindow.getBrowserViews?.();
                 if (attached) {
                     for (const v of attached) {
                         try {
@@ -1062,10 +1064,10 @@ export class ToolWindowManager {
                 } finally {
                     this.boundsUpdatePending = false;
                 }
-            }, 300);
+            }, BOUNDS_UPDATE_TIMEOUT_MS);
 
             // Cancel fallback if we receive the proper bounds
-            (ipcMain as any).once?.("get-tool-panel-bounds-response", () => {
+            ipcMain.once("get-tool-panel-bounds-response", () => {
                 clearTimeout(fallbackTimer);
             });
         } catch (error) {
@@ -1088,8 +1090,8 @@ export class ToolWindowManager {
             this.mainWindow.webContents.send("get-secondary-tool-panel-bounds-request");
             const fallbackTimer = setTimeout(() => {
                 this.secondaryBoundsUpdatePending = false;
-            }, 300);
-            (ipcMain as any).once?.("get-secondary-tool-panel-bounds-response", () => {
+            }, BOUNDS_UPDATE_TIMEOUT_MS);
+            ipcMain.once("get-secondary-tool-panel-bounds-response", () => {
                 clearTimeout(fallbackTimer);
             });
         } catch (error) {
@@ -1168,8 +1170,8 @@ export class ToolWindowManager {
 
             this.secondaryToolId = secondaryInstanceId;
 
-            // Attach both views to the window
-            const attached = (this.mainWindow as any).getBrowserViews?.() as BrowserView[] | undefined;
+            // Attach both views to the window; detach any existing views first
+            const attached = this.mainWindow.getBrowserViews?.();
             if (attached) {
                 for (const v of attached) {
                     try {
