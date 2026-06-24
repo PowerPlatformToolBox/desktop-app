@@ -120,6 +120,7 @@ export class PowerPlatformManager {
                 this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                     accessToken: tokenResult.accessToken,
                     expiresOn: tokenResult.expiresOn,
+                    scopesForPowerPlatformAPI: tokenResult.scopes,
                 });
 
                 return { connection, accessToken: tokenResult.accessToken };
@@ -142,6 +143,7 @@ export class PowerPlatformManager {
                     this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                         accessToken: authResult.accessToken,
                         expiresOn: authResult.expiresOn,
+                        scopesForPowerPlatformAPI: authResult.scopes,
                     });
 
                     return { connection, accessToken: authResult.accessToken };
@@ -162,6 +164,7 @@ export class PowerPlatformManager {
                     this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                         accessToken: authResult.accessToken,
                         expiresOn: authResult.expiresOn,
+                        scopesForPowerPlatformAPI: authResult.scopes,
                     });
 
                     return { connection, accessToken: authResult.accessToken };
@@ -179,6 +182,7 @@ export class PowerPlatformManager {
                     this.connectionsManager.updatePowerPlatformTokens(connection.id, {
                         accessToken: authResult.accessToken,
                         expiresOn: authResult.expiresOn,
+                        scopesForPowerPlatformAPI: authResult.scopes,
                     });
 
                     return { connection, accessToken: authResult.accessToken };
@@ -199,6 +203,7 @@ export class PowerPlatformManager {
                     this.connectionsManager.updatePowerPlatformTokens(connectionId, {
                         accessToken: authResult.accessToken,
                         expiresOn: authResult.expiresOn,
+                        scopesForPowerPlatformAPI: authResult.scopes,
                     });
 
                     return { connection, accessToken: authResult.accessToken };

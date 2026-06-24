@@ -176,6 +176,7 @@ type ToolSafeConnection = {
     environmentColor?: string;
     categoryColor?: string;
     enabledForPowerPlatformAPI?: boolean;
+    scopesForPowerPlatformAPI?: string[];
 };
 
 function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
@@ -206,6 +207,8 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
         environmentColor: typeof source.environmentColor === "string" ? source.environmentColor : undefined,
         categoryColor: typeof source.categoryColor === "string" ? source.categoryColor : undefined,
         enabledForPowerPlatformAPI: typeof source.enabledForPowerPlatformAPI === "boolean" ? source.enabledForPowerPlatformAPI : undefined,
+        scopesForPowerPlatformAPI:
+            Array.isArray(source.scopesForPowerPlatformAPI) && source.scopesForPowerPlatformAPI.every((scope) => typeof scope === "string") ? source.scopesForPowerPlatformAPI : undefined,
     };
 }
 

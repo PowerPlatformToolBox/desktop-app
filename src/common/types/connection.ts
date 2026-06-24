@@ -51,6 +51,8 @@ export interface Connection {
     hasIncompleteCredentials?: boolean;
     // Whether this connection can be used for Power Platform API operations
     enabledForPowerPlatformAPI?: boolean;
+    // Granted scopes for Power Platform API authentication
+    scopesForPowerPlatformAPI?: string[];
     // Separate access token for Power Platform API (https://api.powerplatform.com scope)
     powerPlatformAccessToken?: string;
     // Expiry for the Power Platform access token
