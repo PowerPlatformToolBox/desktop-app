@@ -111,11 +111,20 @@ export interface McpServerDetails {
     isRunning: boolean;
 }
 
+export interface McpClientConfigWriteResult {
+    client: "claude-desktop" | "vscode";
+    os: "macos" | "windows" | "linux";
+    filePath: string;
+    serverName: string;
+}
+
 /**
  * MCP server API namespace
  */
 export interface McpServerAPI {
     getDetails: () => Promise<McpServerDetails>;
+    configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    configureVSCode: () => Promise<McpClientConfigWriteResult>;
 }
 
 /**

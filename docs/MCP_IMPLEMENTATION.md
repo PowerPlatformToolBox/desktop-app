@@ -10,13 +10,14 @@ This document covers how Power Platform ToolBox exposes tools to external automa
     - [Agent Contract](#agent-contract)
     - [MCP Invocation Envelope](#mcp-invocation-envelope)
     - [Mode Semantics](#mode-semantics)
+    - [Execution Mode Semantics](#execution-mode-semantics)
     - [Tool Runtime Context](#tool-runtime-context)
     - [Implementation Notes](#implementation-notes)
     - [Validation and Troubleshooting](#validation-and-troubleshooting)
 
 ## Overview
 
-External automation agents can invoke selected PPTB tools through the MCP server. PPTB keeps the execution windowed for now, but the agent boundary is explicit and separate from PPTB-to-PPTB tool invocation.
+External automation agents can invoke selected PPTB tools through the MCP server. PPTB supports windowed execution and now includes a headless execution contract for unattended flows.
 
 ## Agent Contract
 
@@ -75,12 +76,74 @@ MCP callers can pass PPTB-specific invocation metadata under `arguments.__pptb`.
 Supported metadata:
 
 - `mode`: `"one-way"` or `"two-way"`.
+- `executionMode`: `"windowed"` or `"headless"`.
 - `timeoutMs`: positive number in milliseconds.
+- `authToken`: optional caller-provided token for headless execution contexts.
+- `connectionName`: optional saved PPTB connection name. MCP resolves and refreshes tokens server-side when possible.
 
 ## Mode Semantics
 
 - `two-way`: MCP waits for the callee to call `returnData(...)` and validates the result against `returnTopic`.
 - `one-way`: MCP returns an immediate accepted response and does not wait for a payload from the callee.
+
+## Execution Mode Semantics
+
+- `windowed`: existing BrowserView launch behavior.
+- `headless`: MCP returns a job acknowledgement with `jobId` and `jobStatusPath`.
+
+For headless + invocation `mode`:
+
+- `headless` + `two-way`: MCP waits for job completion and returns the final tool payload directly (schema-aligned) when successful.
+- `headless` + `one-way`: MCP returns immediate acceptance metadata (`jobId`, `statusUrl`) and callers poll status endpoints as needed.
+
+Headless runtime contract:
+
+- Tool package must expose `invokeHeadless(input, context)` from a discovered entry file.
+- Entry discovery order:
+    1. `agents.headlessEntry` in `pptb.config.json`
+    2. `dist/headless.js`
+    3. `headless.js`
+    4. `package.json.main`
+- `invokeHeadless` must return a JSON object payload matching `returnTopic` when two-way semantics are expected.
+
+Example headless acceptance payload:
+
+```json
+{
+    "status": "accepted",
+    "executionMode": "headless",
+    "mode": "two-way",
+    "jobId": "f5a79f96-3d4f-4f60-a151-4d2d3069f2ef",
+    "jobStatusPath": "/mcp/jobs/f5a79f96-3d4f-4f60-a151-4d2d3069f2ef",
+    "statusUrl": "/mcp/jobs/f5a79f96-3d4f-4f60-a151-4d2d3069f2ef/status",
+    "jobStatus": "pending",
+    "timeoutMs": 120000,
+    "hasAuthToken": true,
+    "authSource": "provided-token",
+    "connectionName": "optional-when-using-connection-name"
+}
+```
+
+Job status endpoint:
+
+- `GET /mcp/jobs/{jobId}` or `GET /mcp/jobs/{jobId}/status` (requires `X-MCP-Auth-Token`)
+- Returns job state (`pending`, `in_progress`, `completed`, `failed`) and result/error fields when available.
+
+Headless `context` shape passed to `invokeHeadless`:
+
+```json
+{
+    "toolId": "tool-id",
+    "toolName": "friendly-name",
+    "invocationMode": "one-way|two-way",
+    "authToken": "optional-token",
+    "updateProgress": "function(percent, message)",
+    "logger": {
+        "info": "function(message)",
+        "error": "function(message)"
+    }
+}
+```
 
 ## Tool Runtime Context
 

@@ -28,14 +28,25 @@ import {
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
-import { openAgentInvocationLogsTab } from "./agentInvocationLogsManagement";
+import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeCalleeToolListeners, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import {
+    applyAppearanceSettings,
+    closeAllTools,
+    initializeCalleeToolListeners,
+    initializeInvocationBanner,
+    initializeInvocationConnectionsPrompt,
+    initializeTabScrollButtons,
+    launchTool,
+    restoreSession,
+    setupKeyboardShortcuts,
+    showHomePage,
+} from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**

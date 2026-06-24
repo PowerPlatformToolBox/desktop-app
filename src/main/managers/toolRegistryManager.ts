@@ -6,10 +6,10 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
-import { CapabilityTagEntry, CspExceptions, ToolManifest, ToolRegistryEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem } from "../../common/types";
+import { logError, logInfo, logWarn } from "../../common/logger";
+import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { InstallIdManager } from "./installIdManager";
-import { logInfo, logWarn, logError } from "../../common/logger";
 
 /**
  * Supabase database types
@@ -760,7 +760,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         // Remove tool directory
-        if (fs.existsSync(manifest.installPath)) {
+        if (fs.existsSync(manifest.installPath) && (manifest.source === "registry" || manifest.source === "npm")) {
             fs.rmSync(manifest.installPath, { recursive: true, force: true });
         }
 
@@ -1194,11 +1194,7 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo("[ToolRegistry] Fetching capability tags from Supabase");
 
-            const { data, error } = await this.supabase
-                .from("capability_tags")
-                .select("tag, description")
-                .eq("is_active", true)
-                .order("tag", { ascending: true });
+            const { data, error } = await this.supabase.from("capability_tags").select("tag, description").eq("is_active", true).order("tag", { ascending: true });
 
             if (error) {
                 throw new Error(`Supabase capability_tags query failed: ${error.message}`);

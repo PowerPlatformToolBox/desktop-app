@@ -250,6 +250,8 @@ export const AGENT_INVOCATION_CHANNELS = {
 // MCP server status/details channels
 export const MCP_SERVER_CHANNELS = {
     GET_DETAILS: "mcp-server:get-details",
+    CONFIGURE_CLAUDE_DESKTOP: "mcp-server:configure-claude-desktop",
+    CONFIGURE_VSCODE: "mcp-server:configure-vscode",
 } as const;
 
 // Event-related IPC channels (from main to renderer)

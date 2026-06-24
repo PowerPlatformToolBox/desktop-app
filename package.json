@@ -3,9 +3,13 @@
   "version": "1.2.4",
   "description": "A universal desktop app that contains multiple tools to ease the customization and configuration of Power Platform",
   "main": "dist/main/index.js",
+  "bin": {
+    "pptb-cli": "dist/cli/index.js"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json",
-    "build": "pnpm run typecheck && vite build",
+    "build": "pnpm run typecheck && vite build && pnpm run build:cli",
+    "build:cli": "tsc -p tsconfig.cli.json",
     "build:debug": "vite build --mode development",
     "dev": "vite",
     "watch": "vite build --watch",

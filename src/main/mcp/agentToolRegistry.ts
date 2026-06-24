@@ -6,6 +6,7 @@ import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { convertPPTBSchemaToJsonSchema, JsonObjectSchema } from "./schemaConverter";
 
 export type AgentInvocationMode = "one-way" | "two-way";
+export type AgentExecutionMode = "windowed" | "headless";
 
 export interface AgentTool {
     toolId: string;
@@ -13,7 +14,8 @@ export interface AgentTool {
     description: string;
     inputSchema: JsonObjectSchema;
     outputSchema: JsonObjectSchema;
-    executionMode: "windowed";
+    executionModes: AgentExecutionMode[];
+    defaultExecutionMode: AgentExecutionMode;
     invocationModes: AgentInvocationMode[];
     defaultInvocationMode: AgentInvocationMode;
     timeoutMs?: number;
@@ -25,6 +27,7 @@ export interface GetAgentInvokableToolsOptions {
 
 const toolNameMap = new Map<string, string>(); // friendlyName → internalId
 const FALLBACK_INVOCATION_MODES: AgentInvocationMode[] = ["two-way"];
+const FALLBACK_EXECUTION_MODES: AgentExecutionMode[] = ["windowed"];
 
 function isAgentInvocationMode(value: unknown): value is AgentInvocationMode {
     return value === "one-way" || value === "two-way";
@@ -32,6 +35,10 @@ function isAgentInvocationMode(value: unknown): value is AgentInvocationMode {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAgentExecutionMode(value: unknown): value is AgentExecutionMode {
+    return value === "windowed" || value === "headless";
 }
 
 function normalizeAgentModes(value: unknown): AgentInvocationMode[] {
@@ -90,6 +97,19 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
         const parsedModes = normalizeAgentModes(invocationModesRaw);
         const invocationModes: AgentInvocationMode[] = parsedModes.length > 0 ? parsedModes : FALLBACK_INVOCATION_MODES;
 
+        const supportsHeadless = agentConfig?.headless === true;
+        const executionModesRaw = agentConfig?.executionModes;
+        const configuredExecutionModes = Array.isArray(executionModesRaw) ? executionModesRaw.filter((mode): mode is AgentExecutionMode => isAgentExecutionMode(mode)) : [];
+        const executionModes: AgentExecutionMode[] =
+            configuredExecutionModes.length > 0 ? configuredExecutionModes : supportsHeadless ? (["windowed", "headless"] as AgentExecutionMode[]) : FALLBACK_EXECUTION_MODES;
+        const defaultExecutionModeRaw = agentConfig?.defaultExecutionMode;
+        const defaultExecutionMode: AgentExecutionMode =
+            isAgentExecutionMode(defaultExecutionModeRaw) && executionModes.includes(defaultExecutionModeRaw)
+                ? defaultExecutionModeRaw
+                : executionModes.includes("windowed")
+                  ? "windowed"
+                  : (executionModes[0] ?? "windowed");
+
         const defaultInvocationModeRaw = agentConfig?.defaultMode;
         let defaultInvocationMode: AgentInvocationMode;
         if (isAgentInvocationMode(defaultInvocationModeRaw) && invocationModes.includes(defaultInvocationModeRaw)) {
@@ -109,7 +129,8 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
             description: tool.description || "",
             inputSchema: convertPPTBSchemaToJsonSchema(schemaSource.prefill),
             outputSchema: convertPPTBSchemaToJsonSchema(schemaSource.returnTopic),
-            executionMode: "windowed",
+            executionModes,
+            defaultExecutionMode,
             invocationModes,
             defaultInvocationMode,
             ...(timeoutMs ? { timeoutMs } : {}),

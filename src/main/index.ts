@@ -138,6 +138,7 @@ class ToolBoxApp {
             this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
+            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -446,6 +447,8 @@ class ToolBoxApp {
 
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE);
     }
 
     /**
@@ -513,6 +516,14 @@ class ToolBoxApp {
 
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
             return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP, async () => {
+            return await this.mcpServerManager.configureClient("claude-desktop");
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE, async () => {
+            return await this.mcpServerManager.configureClient("vscode");
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {

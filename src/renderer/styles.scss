@@ -2205,6 +2205,12 @@ body.dark-theme .settings-vscode-item:hover {
     height: 16px;
 }
 
+.mcp-client-connect-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* Checkbox with label */
 .settings-vscode-checkbox-label {
     display: inline-flex;
@@ -5852,7 +5858,7 @@ body.dark-theme .global-search-item-badge.badge-settings {
     color: #fff;
 }
 
-.agent-log-subheader {
+.mcp-subheader {
     margin-top: 8px;
     font-weight: normal;
     text-transform: none;
