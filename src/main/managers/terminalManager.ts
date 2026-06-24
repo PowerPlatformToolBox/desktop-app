@@ -296,6 +296,13 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
     };
 }
 
+// Test-only helpers used by unit tests to validate command hardening behavior without spawning a shell process.
+export const terminalManagerTestUtils = {
+    parseTerminalCommand,
+    validateCommandSegment,
+    getNormalizedExecutableCandidates,
+};
+
 function getShellType(shell: string): ShellType {
     const name = basename(shell)
         .toLowerCase()
