@@ -89,6 +89,8 @@ export interface AgentInvocationLogEntry {
     connectionId: string | null;
     prefillSummary: string;
     outcome: "completed" | "no-result" | "rejected";
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
     error?: string;
 }
 
@@ -97,6 +99,23 @@ export interface AgentInvocationLogEntry {
  */
 export interface AgentInvocationAPI {
     getLogs: () => Promise<AgentInvocationLogEntry[]>;
+}
+
+/**
+ * MCP server details shown in the renderer UI
+ */
+export interface McpServerDetails {
+    address: string;
+    authHeaderName: string;
+    authHeaderValue: string;
+    isRunning: boolean;
+}
+
+/**
+ * MCP server API namespace
+ */
+export interface McpServerAPI {
+    getDetails: () => Promise<McpServerDetails>;
 }
 
 /**
@@ -317,4 +336,7 @@ export interface ToolboxAPI {
 
     // Agent Invocation namespace
     agentInvocation: AgentInvocationAPI;
+
+    // MCP server namespace
+    mcpServer: McpServerAPI;
 }

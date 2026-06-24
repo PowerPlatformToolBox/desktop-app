@@ -11,6 +11,7 @@ import { logInvocation } from "./agentInvocationLogger";
 import { AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
+const MCP_AUTH_HEADER_DISPLAY_NAME = "X-MCP-Auth-Token";
 const MCP_INVOCATION_META_KEY = "__pptb";
 const DEFAULT_TWO_WAY_TIMEOUT_MS = 120000;
 
@@ -192,6 +193,24 @@ export class McpServerManager {
 
     setToolWindowManager(twm: ToolWindowManager): void {
         this.toolWindowManager = twm;
+    }
+
+    isRunning(): boolean {
+        return this.httpServer !== null;
+    }
+
+    getServerDetails(): {
+        address: string;
+        authHeaderName: string;
+        authHeaderValue: string;
+        isRunning: boolean;
+    } {
+        return {
+            address: `http://${this.host}:${this.port}`,
+            authHeaderName: MCP_AUTH_HEADER_DISPLAY_NAME,
+            authHeaderValue: this.expectedToken,
+            isRunning: this.isRunning(),
+        };
     }
 
     private async getAgentTools(): Promise<AgentTool[]> {

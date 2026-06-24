@@ -2176,6 +2176,35 @@ body.dark-theme .settings-vscode-item:hover {
     align-self: flex-start;
 }
 
+.mcp-server-item-control {
+    width: 320px;
+}
+
+.mcp-server-control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 8px;
+}
+
+.mcp-server-value-input {
+    flex: 1;
+    min-width: 0;
+    font-family: monospace;
+}
+
+.mcp-copy-icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.mcp-copy-icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
 /* Checkbox with label */
 .settings-vscode-checkbox-label {
     display: inline-flex;

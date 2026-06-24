@@ -247,6 +247,11 @@ export const AGENT_INVOCATION_CHANNELS = {
     GET_LOGS: "agent-invocation:get-logs",
 } as const;
 
+// MCP server status/details channels
+export const MCP_SERVER_CHANNELS = {
+    GET_DETAILS: "mcp-server:get-details",
+} as const;
+
 // Event-related IPC channels (from main to renderer)
 export const EVENT_CHANNELS = {
     TOOLBOX_EVENT: "toolbox-event",

@@ -10,6 +10,7 @@ import {
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    MCP_SERVER_CHANNELS,
     MODAL_WINDOW_CHANNELS,
     POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
@@ -140,6 +141,15 @@ class ToolBoxApp {
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
+                () => this.mcpServerManager.isRunning(),
+                async () => {
+                    if (this.mcpServerManager.isRunning()) {
+                        await this.mcpServerManager.stop();
+                        return;
+                    }
+
+                    await this.mcpServerManager.start();
+                },
             );
 
             this.setupEventListeners();
@@ -433,6 +443,9 @@ class ToolBoxApp {
 
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
+
+        // MCP server handlers
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
     }
 
     /**
@@ -496,6 +509,10 @@ class ToolBoxApp {
         // Agent invocation logs (main UI only)
         ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
             return readLogEntries();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
+            return this.mcpServerManager.getServerDetails();
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {
@@ -2675,6 +2692,15 @@ class ToolBoxApp {
         if (process.env.NODE_ENV === "development") {
             this.mainWindow.webContents.openDevTools({ mode: "detach" });
         }
+
+        this.mainWindow.on("close", (event) => {
+            if (this.isQuitting) {
+                return;
+            }
+
+            event.preventDefault();
+            this.mainWindow?.hide();
+        });
 
         this.mainWindow.on("closed", () => {
             this.toolWindowManager?.destroy();

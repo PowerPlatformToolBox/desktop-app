@@ -1,9 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+    AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    MCP_SERVER_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -11,7 +13,6 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import { AGENT_INVOCATION_CHANNELS } from "../common/ipc/channels";
 import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
 
 /**
@@ -74,8 +75,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
     findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
     /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
-    returnToCallerBanner: () =>
-        ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
+    returnToCallerBanner: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
     onInvocationBannerState: (callback: (state: { visible: boolean; callerToolName?: string }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, (_event, state) => callback(state));
     },
@@ -401,6 +401,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Agent invocation logging - Only for PPTB UI
     agentInvocation: {
         getLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.GET_LOGS),
+    },
+
+    // MCP server details - Only for PPTB UI
+    mcpServer: {
+        getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
     },
 });
 
