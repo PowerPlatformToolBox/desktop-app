@@ -105,6 +105,12 @@ test.describe("Split view — UI activation & teardown", () => {
             // Manually apply the same DOM changes that applySplitViewUI() would
             // perform so we can test the visual result without needing live
             // BrowserView instances.
+
+            // #tool-panel is hidden by default (shown only when tools are open);
+            // make it visible so its children can be inspected by Playwright.
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) toolPanel.style.display = "flex";
+
             const wrapper = document.getElementById("tool-panel-content-wrapper");
             if (wrapper) wrapper.classList.add("split-view");
 
@@ -121,6 +127,10 @@ test.describe("Split view — UI activation & teardown", () => {
 
     async function closeSplitViewViaDOM(page: import("playwright").Page): Promise<void> {
         await page.evaluate(() => {
+            // Restore #tool-panel to its default hidden state
+            const toolPanel = document.getElementById("tool-panel");
+            if (toolPanel) toolPanel.style.display = "none";
+
             const wrapper = document.getElementById("tool-panel-content-wrapper");
             if (wrapper) wrapper.classList.remove("split-view");
 
