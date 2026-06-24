@@ -29,9 +29,14 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const testButton = document.getElementById("test-connection-btn");
     const addButton = document.getElementById("confirm-connection-btn");
     const testFeedback = document.getElementById("connection-test-feedback");
+    const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
     const browserTypeSelect = document.getElementById("connection-browser-type");
     const browserProfileSelect = document.getElementById("connection-browser-profile");
     const browserWarning = document.getElementById("browser-not-installed-warning");
+    const interactiveClientIdInput = document.getElementById("connection-optional-client-id");
+    const usernamePasswordClientIdInput = document.getElementById("connection-optional-client-id-up");
+    const interactiveClientIdLabel = document.getElementById("connection-optional-client-id-label");
+    const usernamePasswordClientIdLabel = document.getElementById("connection-optional-client-id-up-label");
     const getBrowserProfileSelection = () => {
         const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
         if (!select) {
@@ -54,6 +59,24 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
         if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
         if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
+    };
+
+    const updatePowerPlatformClientIdRequirement = () => {
+        const requiresClientId = ppApiCheckbox instanceof HTMLInputElement ? ppApiCheckbox.checked : false;
+
+        if (interactiveClientIdInput instanceof HTMLInputElement) {
+            interactiveClientIdInput.required = requiresClientId;
+        }
+        if (usernamePasswordClientIdInput instanceof HTMLInputElement) {
+            usernamePasswordClientIdInput.required = requiresClientId;
+        }
+
+        if (interactiveClientIdLabel) {
+            interactiveClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+        }
+        if (usernamePasswordClientIdLabel) {
+            usernamePasswordClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+        }
     };
 
     const loadBrowserProfiles = async () => {
@@ -150,6 +173,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
+        enabledForPowerPlatformAPI: (document.getElementById("connection-enabled-for-powerplatform-api")?.checked) ?? false,
         category: (() => {
             const sel = document.getElementById("connection-category-select");
             if (!(sel instanceof HTMLSelectElement)) return "";
@@ -204,6 +228,9 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    ppApiCheckbox?.addEventListener("change", updatePowerPlatformClientIdRequirement);
+    updatePowerPlatformClientIdRequirement();
 
     // Environment default colors per env type
     const ENV_COLORS = { Dev: "#2e7d32", Test: "#0288d1", UAT: "#f57c00", Production: "#c62828" };

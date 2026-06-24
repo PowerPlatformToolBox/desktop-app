@@ -1,5 +1,5 @@
-import { getModalStyles } from "../sharedStyles";
 import { escapeHtml } from "../../utils/toolIconResolver";
+import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -11,9 +11,7 @@ export interface ModalViewTemplate {
  */
 export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string): ModalViewTemplate {
     const styles = getModalStyles(isDarkTheme);
-    const toolNameHtml = toolName
-        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
-        : `<p class="modal-eyebrow">Connections</p>`;
+    const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Connections</p>`;
 
     const body = `
 

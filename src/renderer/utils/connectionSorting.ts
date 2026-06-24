@@ -1,4 +1,4 @@
-import { DataverseConnection, UIConnectionData } from "../../common/types/connection";
+import { Connection, UIConnectionData } from "../../common/types/connection";
 import { ConnectionsSortOption } from "../../common/types/settings";
 
 /**
@@ -22,7 +22,7 @@ const UNKNOWN_ENVIRONMENT_SORT_ORDER = 999;
  * Falls back to createdAt if lastUsedAt is not available or invalid.
  * Returns 0 if neither timestamp is available.
  */
-export function getLastUsedTimestamp(conn: DataverseConnection | UIConnectionData): number {
+export function getLastUsedTimestamp(conn: Connection | UIConnectionData): number {
     if (conn.lastUsedAt) {
         const parsedLastUsed = Date.parse(conn.lastUsedAt);
         if (!Number.isNaN(parsedLastUsed)) {
@@ -42,7 +42,7 @@ export function getLastUsedTimestamp(conn: DataverseConnection | UIConnectionDat
  * Sort connections based on the specified sort option.
  * Returns a new sorted array without modifying the original.
  */
-export function sortConnections<T extends DataverseConnection | UIConnectionData>(connections: T[], sortOption: ConnectionsSortOption): T[] {
+export function sortConnections<T extends Connection | UIConnectionData>(connections: T[], sortOption: ConnectionsSortOption): T[] {
     return [...connections].sort((a, b) => {
         switch (sortOption) {
             case "last-used": {
@@ -72,12 +72,12 @@ export function sortConnections<T extends DataverseConnection | UIConnectionData
 /**
  * Returns the JavaScript code for connection sorting utilities.
  * This is used for inline scripts in modal controllers.
- * 
+ *
  * The generated code includes:
  * - `ENVIRONMENT_SORT_ORDER` - Environment priority map
  * - `getLastUsedTimestamp(conn)` - Extract timestamp for sorting
  * - `sortConnections(a, b, sortOption)` - Comparator function for Array.sort()
- * 
+ *
  * Note: The sortConnections comparator expects a pre-sanitized sortOption parameter
  * (one of: "last-used", "name-asc", "name-desc", "environment").
  * Modal controllers must validate/sanitize the sort option before calling.

@@ -1,9 +1,10 @@
 {
   "name": "@pptb/types",
-  "version": "1.2.3",
+  "version": "1.2.4-beta.6",
   "description": "Type definitions for Power Platform ToolBox APIs and validity checks for tool packages",
   "main": "index.d.ts",
   "types": "index.d.ts",
+  "packageManager": "pnpm@10.18.3",
   "keywords": [
     "powerplatform",
     "pptb",
@@ -22,13 +23,16 @@
   "bin": {
     "pptb-validate": "./bin/pptb-validate.js"
   },
+  "dependencies": {
+    "@pptb/validate": "^0.0.2"
+  },
   "files": [
     "index.d.ts",
     "toolboxAPI.d.ts",
     "dataverseAPI.d.ts",
+    "powerplatformAPI.d.ts",
     "pptbConfig.d.ts",
     "bin/",
-    "lib/",
     "README.md"
   ],
   "scripts": {

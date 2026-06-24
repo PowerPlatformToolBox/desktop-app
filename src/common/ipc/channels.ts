@@ -231,6 +231,11 @@ export const DATAVERSE_CHANNELS = {
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
 } as const;
 
+// Power Platform API-related IPC channels
+export const POWERPLATFORM_CHANNELS = {
+    REQUEST: "powerplatform.request",
+} as const;
+
 // Protocol handler-related IPC channels
 export const PROTOCOL_CHANNELS = {
     PROTOCOL_INSTALL_TOOL: "protocol:install-tool",

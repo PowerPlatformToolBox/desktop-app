@@ -16,6 +16,7 @@ import {
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -105,6 +106,64 @@ function ipcInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
     return ipcRenderer.invoke(channel, ...args);
 }
 
+type PowerPlatformCategory =
+    | "Analytics"
+    | "AppManagement"
+    | "Authorization"
+    | "Connectivity"
+    | "CopilotStudio"
+    | "Dynamics"
+    | "EnvironmentManagement"
+    | "Governance"
+    | "Licensing"
+    | "PowerApps"
+    | "PowerAutomate"
+    | "PowerPages"
+    | "ResourceQuery"
+    | "UserManagement"
+    | "WorkflowAgents";
+
+type PowerPlatformMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+const POWER_PLATFORM_CATEGORIES: PowerPlatformCategory[] = [
+    "Analytics",
+    "AppManagement",
+    "Authorization",
+    "Connectivity",
+    "CopilotStudio",
+    "Dynamics",
+    "EnvironmentManagement",
+    "Governance",
+    "Licensing",
+    "PowerApps",
+    "PowerAutomate",
+    "PowerPages",
+    "ResourceQuery",
+    "UserManagement",
+    "WorkflowAgents",
+];
+
+const buildPowerPlatformCategoryClient = (category: PowerPlatformCategory) => ({
+    Get: (path = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "GET" as PowerPlatformMethod, path, undefined, headers, connectionTarget),
+    Post: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "POST" as PowerPlatformMethod, path, body, headers, connectionTarget),
+    Put: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "PUT" as PowerPlatformMethod, path, body, headers, connectionTarget),
+    Patch: (path = "", body?: unknown, connectionTarget?: "primary" | "secondary", headers?: Record<string, string>) =>
+        ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "PATCH" as PowerPlatformMethod, path, body, headers, connectionTarget),
+    Delete: (path = "", connectionTarget?: "primary" | "secondary", headers?: Record<string, string>, body?: unknown) =>
+        ipcInvoke(POWERPLATFORM_CHANNELS.REQUEST, category, "DELETE" as PowerPlatformMethod, path, body, headers, connectionTarget),
+});
+
+const powerPlatformApi = POWER_PLATFORM_CATEGORIES.reduce(
+    (acc, category) => {
+        acc[category] = buildPowerPlatformCategoryClient(category);
+        return acc;
+    },
+    {} as Record<PowerPlatformCategory, ReturnType<typeof buildPowerPlatformCategoryClient>>,
+);
+
 type ToolSafeConnection = {
     id: string;
     name: string;
@@ -116,6 +175,8 @@ type ToolSafeConnection = {
     category?: string;
     environmentColor?: string;
     categoryColor?: string;
+    enabledForPowerPlatformAPI?: boolean;
+    scopesForPowerPlatformAPI?: string[];
 };
 
 function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
@@ -145,6 +206,9 @@ function toToolSafeConnection(connection: unknown): ToolSafeConnection | null {
         category: typeof source.category === "string" ? source.category : undefined,
         environmentColor: typeof source.environmentColor === "string" ? source.environmentColor : undefined,
         categoryColor: typeof source.categoryColor === "string" ? source.categoryColor : undefined,
+        enabledForPowerPlatformAPI: typeof source.enabledForPowerPlatformAPI === "boolean" ? source.enabledForPowerPlatformAPI : undefined,
+        scopesForPowerPlatformAPI:
+            Array.isArray(source.scopesForPowerPlatformAPI) && source.scopesForPowerPlatformAPI.every((scope) => typeof scope === "string") ? source.scopesForPowerPlatformAPI : undefined,
     };
 }
 
@@ -401,9 +465,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
             const calleeInstanceId = `${targetToolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-            const primaryConnectionId = options?.primaryConnectionId !== undefined
-                ? options.primaryConnectionId
-                : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
+            const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
             const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;
             const noReturn = options?.noReturn ?? false;
 
@@ -430,6 +492,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             return ipcInvoke(TOOL_CHANNELS.GET_KNOWN_CAPABILITY_TAGS) as Promise<Array<{ tag: string; description: string }>>;
         },
     },
+
+    // Power Platform API - generic HTTP methods for all categories
+    powerplatform: powerPlatformApi,
 });
 
 // Also expose dataverseAPI as a direct alias (for tools that use it directly)
@@ -516,4 +581,6 @@ contextBridge.exposeInMainWorld("dataverseAPI", {
     orderOption: (params: Record<string, unknown>, connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.ORDER_OPTION, params, connectionTarget),
 });
 
-logInfo("[ToolPreloadBridge] Initialized - toolboxAPI and dataverseAPI exposed");
+contextBridge.exposeInMainWorld("powerplatformAPI", powerPlatformApi);
+
+logInfo("[ToolPreloadBridge] Initialized - toolboxAPI, dataverseAPI, and powerplatformAPI exposed");

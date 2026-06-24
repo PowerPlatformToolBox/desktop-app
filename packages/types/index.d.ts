@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/triple-slash-reference */
 /**
  * Power Platform ToolBox API Type Definitions
  *
@@ -16,9 +17,11 @@
 
 /// <reference path="./toolboxAPI.d.ts" />
 /// <reference path="./dataverseAPI.d.ts" />
+/// <reference path="./powerplatformAPI.d.ts" />
 /// <reference path="./pptbConfig.d.ts" />
 
 // Re-export all namespaces for convenience
 export * from "./dataverseAPI";
-export * from "./toolboxAPI";
+export * from "./powerplatformAPI";
 export * from "./pptbConfig";
+export * from "./toolboxAPI";
