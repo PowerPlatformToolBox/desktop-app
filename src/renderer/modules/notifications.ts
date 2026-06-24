@@ -12,6 +12,64 @@ interface CallbackEntry {
     expiresAt: number;
 }
 
+/** A single entry in the persistent notification history */
+export interface NotificationHistoryEntry {
+    title: string;
+    body: string;
+    type: "info" | "success" | "warning" | "error";
+    timestamp: Date;
+}
+
+/** Maximum number of notifications kept in history */
+const MAX_HISTORY_SIZE = 100;
+
+/** In-memory notification history (newest first) */
+const notificationHistory: NotificationHistoryEntry[] = [];
+
+/** Number of notifications added since the last time the history panel was opened */
+let unreadCount = 0;
+
+/** Listeners to be called whenever the history or unread count changes */
+const historyUpdateListeners: Array<() => void> = [];
+
+/**
+ * Register a callback to be invoked whenever the notification history changes
+ * (new notification added or history cleared).
+ */
+export function onHistoryUpdate(callback: () => void): void {
+    historyUpdateListeners.push(callback);
+}
+
+/** Notify all registered listeners that the history has changed */
+function notifyHistoryUpdate(): void {
+    for (const listener of historyUpdateListeners) {
+        listener();
+    }
+}
+
+/** Return a shallow copy of the notification history (newest first) */
+export function getNotificationHistory(): NotificationHistoryEntry[] {
+    return [...notificationHistory];
+}
+
+/** Return the current count of unread notifications */
+export function getUnreadCount(): number {
+    return unreadCount;
+}
+
+/** Mark all current notifications as read (reset unread counter) */
+export function markAllAsRead(): void {
+    unreadCount = 0;
+    notifyHistoryUpdate();
+}
+
+/** Clear all notifications from the history */
+export function clearNotificationHistory(): void {
+    notificationHistory.length = 0;
+    unreadCount = 0;
+    notifyHistoryUpdate();
+}
+
 const notificationCallbacks = new Map<string, CallbackEntry>();
 
 // TTL buffer added to notification duration for callback cleanup
@@ -94,9 +152,25 @@ function setupNotificationActionListener(): void {
 
 /**
  * Show PPTB notification using dedicated BrowserWindow
- * Notifications are displayed in an always-on-top frameless window above the BrowserView
+ * Notifications are displayed in an always-on-top frameless window above the BrowserView.
+ * Every notification is also recorded in the persistent history.
  */
 export function showPPTBNotification(options: NotificationOptions): void {
+    // Record in persistent history
+    const VALID_TYPES: ReadonlyArray<NotificationHistoryEntry["type"]> = ["info", "success", "warning", "error"];
+    const rawType = options.type;
+    const entry: NotificationHistoryEntry = {
+        title: options.title,
+        body: options.body,
+        type: (rawType && (VALID_TYPES as readonly string[]).includes(rawType) ? rawType : "info") as NotificationHistoryEntry["type"],
+        timestamp: new Date(),
+    };
+    notificationHistory.unshift(entry);
+    if (notificationHistory.length > MAX_HISTORY_SIZE) {
+        notificationHistory.pop();
+    }
+    unreadCount++;
+    notifyHistoryUpdate();
     // Ensure the action listener is set up
     setupNotificationActionListener();
 

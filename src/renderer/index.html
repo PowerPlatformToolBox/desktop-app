@@ -605,8 +605,24 @@
                     <span class="footer-terminal-toggle-label">Show Terminal</span>
                 </button>
                 <span id="secondary-connection-status" class="secondary-connection-status"></span>
+                <button type="button" class="footer-bell-btn" id="footer-notification-bell-btn" title="Notifications" aria-label="Notifications" aria-pressed="false" aria-haspopup="true">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M10 2a6 6 0 0 0-6 6v2.586l-.707.707A1 1 0 0 0 4 13h12a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6zM10 18a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z"/>
+                    </svg>
+                    <span class="notification-badge" id="notification-badge" hidden aria-label="unread notifications">0</span>
+                </button>
             </div>
         </footer>
+
+        <!-- Notification History Panel -->
+        <div id="notification-history-panel" class="notification-history-panel" hidden role="dialog" aria-label="Notification history" aria-expanded="false">
+            <div class="notification-history-header">
+                <span class="notification-history-title">Notifications</span>
+                <button type="button" class="notification-clear-all-btn" id="notification-clear-all-btn" title="Clear all notifications">Clear All</button>
+            </div>
+            <div class="notification-history-list" id="notification-history-list" role="list"></div>
+            <div class="notification-history-empty" id="notification-history-empty">No notifications yet</div>
+        </div>
 
         <!-- Add Connection Modal -->
         <div id="add-connection-modal" class="modal">

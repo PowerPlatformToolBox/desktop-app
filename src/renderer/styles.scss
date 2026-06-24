@@ -5863,3 +5863,213 @@ body.dark-theme .global-search-item-badge.badge-settings {
     font-weight: normal;
     text-transform: none;
 }
+
+/* ── Notification Bell Button ───────────────────────────────────────────── */
+
+.footer-bell-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+}
+
+.footer-bell-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-color);
+}
+
+.dark-theme .footer-bell-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.footer-bell-btn[aria-pressed="true"] {
+    color: var(--accent-color, #0078d4);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: #d13438;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    pointer-events: none;
+}
+
+/* ── Notification History Panel ─────────────────────────────────────────── */
+
+.notification-history-panel {
+    position: fixed;
+    bottom: calc(var(--app-footer-height) + 8px);
+    right: 16px;
+    width: 380px;
+    max-height: 480px;
+    background: var(--panel-bg, var(--sidebar-bg));
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.notification-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.notification-history-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.notification-clear-all-btn {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.notification-clear-all-btn:hover {
+    color: var(--text-color);
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.dark-theme .notification-clear-all-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.notification-history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.notification-history-empty {
+    padding: 24px 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ── Individual History Entry ───────────────────────────────────────────── */
+
+.notification-history-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    border-left: 3px solid transparent;
+    transition: background 0.12s ease;
+}
+
+.notification-history-entry:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.dark-theme .notification-history-entry:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.notification-history-entry + .notification-history-entry {
+    border-top: 1px solid var(--border-color);
+}
+
+.notification-history-entry--info {
+    border-left-color: #0078d4;
+}
+
+.notification-history-entry--success {
+    border-left-color: #107c10;
+}
+
+.notification-history-entry--warning {
+    border-left-color: #c17a00;
+}
+
+.notification-history-entry--error {
+    border-left-color: #d13438;
+}
+
+.notification-history-entry__icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.notification-history-entry--info .notification-history-entry__icon {
+    color: #0078d4;
+}
+
+.notification-history-entry--success .notification-history-entry__icon {
+    color: #107c10;
+}
+
+.notification-history-entry--warning .notification-history-entry__icon {
+    color: #c17a00;
+}
+
+.notification-history-entry--error .notification-history-entry__icon {
+    color: #d13438;
+}
+
+.notification-history-entry__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-history-entry__title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.notification-history-entry__message {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.notification-history-entry__time {
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    margin-top: 2px;
+    white-space: nowrap;
+}

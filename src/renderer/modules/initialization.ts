@@ -31,6 +31,7 @@ import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, load
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { initNotificationHistoryPanel } from "./notificationHistoryManagement";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -159,6 +160,9 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up terminal toggle button
         setupTerminalPanel();
+
+        // Set up notification history panel (bell icon in footer)
+        initNotificationHistoryPanel();
 
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
