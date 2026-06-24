@@ -86,6 +86,7 @@ declare namespace ToolBoxAPI {
         environmentColor?: string;
         categoryColor?: string;
         enabledForPowerPlatformAPI?: boolean;
+        scopesForPowerPlatformAPI?: string[];
         createdAt?: string;
         lastUsedAt?: string;
         /**
