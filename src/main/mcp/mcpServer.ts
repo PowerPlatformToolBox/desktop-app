@@ -3,12 +3,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { logError, logInfo } from "../../common/logger";
+import { HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
-import { AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
+import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
+import { createHeadlessLogger, invokeHeadlessTool } from "./headlessToolRuntime";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 const MCP_AUTH_HEADER_DISPLAY_NAME = "X-MCP-Auth-Token";
@@ -18,6 +20,8 @@ const DEFAULT_TWO_WAY_TIMEOUT_MS = 120000;
 interface InvocationMeta {
     mode?: AgentInvocationMode;
     timeoutMs?: number;
+    executionMode?: AgentExecutionMode;
+    authToken?: string;
 }
 
 type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
@@ -50,11 +54,15 @@ function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
     }
 
     const mode = raw.mode === "one-way" || raw.mode === "two-way" ? raw.mode : undefined;
+    const executionMode = raw.executionMode === "windowed" || raw.executionMode === "headless" ? raw.executionMode : undefined;
     const timeoutMs = typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs) && raw.timeoutMs > 0 ? Math.floor(raw.timeoutMs) : undefined;
+    const authToken = typeof raw.authToken === "string" && raw.authToken.trim().length > 0 ? raw.authToken.trim() : undefined;
 
     return {
         ...(mode ? { mode } : {}),
+        ...(executionMode ? { executionMode } : {}),
         ...(timeoutMs ? { timeoutMs } : {}),
+        ...(authToken ? { authToken } : {}),
     };
 }
 
@@ -68,6 +76,14 @@ function createInvocationError(text: string): CallToolResult {
     return {
         content: [{ type: "text", text }],
         isError: true,
+    };
+}
+
+function createStructuredSuccess(payload: Record<string, unknown>): CallToolResult {
+    return {
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload,
+        isError: false,
     };
 }
 
@@ -171,6 +187,7 @@ export class McpServerManager {
     private toolWindowManager: ToolWindowManager | null = null;
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
+    private headlessInvocationManager: HeadlessToolInvocationManager;
 
     constructor(port = 7339, host = "127.0.0.1", settingsManager: SettingsManager, toolRegistryManager: ToolRegistryManager, toolManager: ToolManager) {
         this.port = port;
@@ -179,6 +196,7 @@ export class McpServerManager {
         this.toolRegistryManager = toolRegistryManager;
         this.toolManager = toolManager;
         this.expectedToken = this.settingsManager.getMcpAccessToken();
+        this.headlessInvocationManager = new HeadlessToolInvocationManager();
 
         this.toolRegistryManager.on("tool:installed", () => {
             this.agentToolsCache = null;
@@ -242,6 +260,22 @@ export class McpServerManager {
         return tool.invocationModes[0] ?? "two-way";
     }
 
+    private inferExecutionMode(tool: AgentTool, requestedExecutionMode: AgentExecutionMode | undefined): AgentExecutionMode {
+        if (requestedExecutionMode && tool.executionModes.includes(requestedExecutionMode)) {
+            return requestedExecutionMode;
+        }
+
+        if (requestedExecutionMode && !tool.executionModes.includes(requestedExecutionMode)) {
+            throw new Error(`Requested execution mode '${requestedExecutionMode}' is not supported. Supported execution modes: ${tool.executionModes.join(", ")}`);
+        }
+
+        if (tool.executionModes.includes(tool.defaultExecutionMode)) {
+            return tool.defaultExecutionMode;
+        }
+
+        return tool.executionModes[0] ?? "windowed";
+    }
+
     async start(): Promise<void> {
         if (this.httpServer) {
             logInfo("[MCP] Server already started");
@@ -269,6 +303,7 @@ export class McpServerManager {
 
         await this.httpServer.close();
         this.httpServer = null;
+        this.headlessInvocationManager.dispose();
         logInfo("[MCP] Server stopped");
     }
 
@@ -280,6 +315,24 @@ export class McpServerManager {
             res.writeHead(401, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Unauthorized: valid MCP access token required" }));
             return;
+        }
+
+        if (req.method === "GET" && req.url) {
+            const statusPathMatch = req.url.match(/^\/mcp\/jobs\/([a-zA-Z0-9-]+)$/);
+            if (statusPathMatch?.[1]) {
+                const jobId = statusPathMatch[1];
+                const job = this.headlessInvocationManager.getJob(jobId);
+
+                if (!job) {
+                    res.writeHead(404, { "Content-Type": "application/json" });
+                    res.end(JSON.stringify({ error: "Job not found" }));
+                    return;
+                }
+
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify(job));
+                return;
+            }
         }
 
         const server = new McpServer({ name: "pptb-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
@@ -306,9 +359,18 @@ export class McpServerManager {
                                     enum: tool.invocationModes,
                                     description: `Invocation mode. Defaults to '${tool.defaultInvocationMode}' when omitted.`,
                                 },
+                                executionMode: {
+                                    type: "string",
+                                    enum: tool.executionModes,
+                                    description: `Execution mode. Defaults to '${tool.defaultExecutionMode}' when omitted.`,
+                                },
                                 timeoutMs: {
                                     type: "number",
                                     description: "Optional timeout override in milliseconds for this call.",
+                                },
+                                authToken: {
+                                    type: "string",
+                                    description: "Optional caller-provided auth token for headless execution.",
                                 },
                             },
                         },
@@ -355,10 +417,11 @@ export class McpServerManager {
                 return createInvocationError(errorText);
             }
 
-            const executionMode = matchedTool.executionMode;
+            let executionMode: AgentExecutionMode;
             let invocationMode: AgentInvocationMode;
 
             try {
+                executionMode = this.inferExecutionMode(matchedTool, invocationMeta.executionMode);
                 invocationMode = this.inferMode(matchedTool, prefillData, invocationMeta.mode);
             } catch (error) {
                 const errorText = error instanceof Error ? error.message : String(error);
@@ -374,6 +437,84 @@ export class McpServerManager {
             }
 
             switch (executionMode) {
+                case "headless": {
+                    const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
+                    const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+
+                    if (!installedManifest) {
+                        const errorText = `Tool manifest not found for: ${toolId}`;
+                        logInvocationWithMeta({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome: "rejected",
+                            error: errorText,
+                            invocationMode,
+                        });
+                        return createInvocationError(errorText);
+                    }
+
+                    try {
+                        const job = await this.headlessInvocationManager.startJob({
+                            toolId,
+                            toolName: displayName,
+                            timeoutMs: effectiveTimeoutMs,
+                            execute: async (jobId) => {
+                                const result = await invokeHeadlessTool(installedManifest, prefillData, {
+                                    toolId,
+                                    toolName: displayName,
+                                    invocationMode,
+                                    authToken: invocationMeta.authToken,
+                                    updateProgress: (percent, message) => {
+                                        this.headlessInvocationManager.updateProgress(jobId, percent, message);
+                                    },
+                                    logger: createHeadlessLogger(toolId),
+                                });
+
+                                const outputValidationErrors = validateAgainstSchema(result, matchedTool.outputSchema);
+                                if (outputValidationErrors.length > 0) {
+                                    throw new Error(`Output validation failed: ${outputValidationErrors.join("; ")}`);
+                                }
+
+                                return result;
+                            },
+                        });
+
+                        logInvocationWithMeta({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome: "completed",
+                            invocationMode,
+                            correlationId: job.jobId,
+                        });
+
+                        return createStructuredSuccess({
+                            status: "accepted",
+                            executionMode,
+                            mode: invocationMode,
+                            jobId: job.jobId,
+                            jobStatusPath: `/mcp/jobs/${job.jobId}`,
+                            timeoutMs: effectiveTimeoutMs,
+                            hasAuthToken: Boolean(invocationMeta.authToken),
+                        });
+                    } catch (error) {
+                        const errorText = error instanceof Error ? error.message : String(error);
+                        logInvocationWithMeta({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome: "rejected",
+                            error: errorText,
+                            invocationMode,
+                        });
+                        return createInvocationError(`Failed to start headless execution: ${errorText}`);
+                    }
+                }
+
                 case "windowed": {
                     if (!this.toolWindowManager) {
                         const errorText = "Tool window manager is not available";
@@ -448,17 +589,14 @@ export class McpServerManager {
                                 outcome: "completed",
                             });
 
-                            const responsePayload = {
+                            const responsePayload: Record<string, unknown> = {
                                 status: "accepted",
+                                executionMode,
                                 mode: invocationMode,
                                 correlationId,
                             };
 
-                            return {
-                                content: [{ type: "text", text: JSON.stringify(responsePayload) }],
-                                structuredContent: responsePayload,
-                                isError: false,
-                            };
+                            return createStructuredSuccess(responsePayload);
                         }
 
                         const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
@@ -483,6 +621,12 @@ export class McpServerManager {
                                         }),
                                     },
                                 ],
+                                structuredContent: {
+                                    status: "no_result",
+                                    executionMode,
+                                    correlationId,
+                                    message: "User did not complete the action — the tool window was closed without returning data.",
+                                },
                                 isError: false,
                             };
                         }
@@ -509,11 +653,7 @@ export class McpServerManager {
                             prefillData,
                             outcome: "completed",
                         });
-                        return {
-                            content: [{ type: "text", text: JSON.stringify(payload) }],
-                            structuredContent: payload,
-                            isError: false,
-                        };
+                        return createStructuredSuccess(payload ?? {});
                     } catch (error) {
                         const errorText = error instanceof Error ? error.message : String(error);
                         logInvocationWithMeta({
