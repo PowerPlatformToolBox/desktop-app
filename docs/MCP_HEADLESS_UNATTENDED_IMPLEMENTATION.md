@@ -28,7 +28,7 @@ This initial implementation stage provides the CLI scaffold and build integratio
 - MCP `call-tool` accepts `executionMode: "headless"`.
 - Only tools explicitly declaring `agents.headless: true` are eligible.
 - A job-based response model returns `jobId` and status endpoint for polling.
-- Authentication token is supplied by MCP client request metadata/body (no external `connectionId` exposure).
+- Authentication supports either caller-provided token (`authToken`) or server-side resolution from saved `connectionName` (no external `connectionId` exposure).
 
 ## Reused Existing Architecture
 

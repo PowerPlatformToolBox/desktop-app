@@ -38,8 +38,9 @@ This plan adds a pure Node.js headless execution path for MCP-driven tool calls,
 ### Phase 4: Auth and Connection Strategy
 
 1. Do not expose `connectionId` externally.
-1. Accept caller-provided auth token in MCP request metadata/body.
-1. Inject token into a constrained headless tool API surface.
+1. Accept caller-provided auth token in MCP request metadata/body or connection name that is created in PPTB.
+1. If auth token is provided, inject token into a constrained headless tool API surface.
+1. If connection name is provided, authenticate using existing connection and inject token into headless tool API surface.
 
 ### Phase 5: Progress and Status
 
@@ -53,7 +54,7 @@ This plan adds a pure Node.js headless execution path for MCP-driven tool calls,
 1. Add dedicated net-new doc under `docs/` describing architecture changes.
 1. Add author guidance for implementing `invokeHeadless(...)` in tools.
 
-### Phase 7: Validation (MCP Inspector)
+### Phase 7: Validation (Manual validation)
 
 1. Start headless server via CLI.
 1. Validate `list-tools` includes headless-eligible tools only.

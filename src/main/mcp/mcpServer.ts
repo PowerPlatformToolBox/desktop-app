@@ -3,7 +3,10 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { logError, logInfo } from "../../common/logger";
-import { HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
+import { Connection } from "../../common/types";
+import { AuthManager } from "../managers/authManager";
+import { ConnectionsManager } from "../managers/connectionsManager";
+import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
@@ -22,6 +25,13 @@ interface InvocationMeta {
     timeoutMs?: number;
     executionMode?: AgentExecutionMode;
     authToken?: string;
+    connectionName?: string;
+}
+
+interface ResolvedHeadlessAuthContext {
+    authToken?: string;
+    source: "provided-token" | "connection-name" | "none";
+    connectionName?: string;
 }
 
 type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
@@ -57,12 +67,14 @@ function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
     const executionMode = raw.executionMode === "windowed" || raw.executionMode === "headless" ? raw.executionMode : undefined;
     const timeoutMs = typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs) && raw.timeoutMs > 0 ? Math.floor(raw.timeoutMs) : undefined;
     const authToken = typeof raw.authToken === "string" && raw.authToken.trim().length > 0 ? raw.authToken.trim() : undefined;
+    const connectionName = typeof raw.connectionName === "string" && raw.connectionName.trim().length > 0 ? raw.connectionName.trim() : undefined;
 
     return {
         ...(mode ? { mode } : {}),
         ...(executionMode ? { executionMode } : {}),
         ...(timeoutMs ? { timeoutMs } : {}),
         ...(authToken ? { authToken } : {}),
+        ...(connectionName ? { connectionName } : {}),
     };
 }
 
@@ -185,6 +197,8 @@ export class McpServerManager {
     private toolRegistryManager: ToolRegistryManager;
     private toolManager: ToolManager;
     private toolWindowManager: ToolWindowManager | null = null;
+    private connectionsManager: ConnectionsManager | null = null;
+    private authManager: AuthManager | null = null;
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
     private headlessInvocationManager: HeadlessToolInvocationManager;
@@ -211,6 +225,11 @@ export class McpServerManager {
 
     setToolWindowManager(twm: ToolWindowManager): void {
         this.toolWindowManager = twm;
+    }
+
+    setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager): void {
+        this.connectionsManager = connectionsManager;
+        this.authManager = authManager;
     }
 
     isRunning(): boolean {
@@ -276,6 +295,131 @@ export class McpServerManager {
         return tool.executionModes[0] ?? "windowed";
     }
 
+    private async waitForHeadlessJobCompletion(jobId: string, timeoutMs: number): Promise<HeadlessJobRecord> {
+        const deadlineMs = Date.now() + timeoutMs;
+
+        while (Date.now() <= deadlineMs) {
+            const job = this.headlessInvocationManager.getJob(jobId);
+            if (!job) {
+                throw new Error(`Headless job '${jobId}' not found while waiting for completion.`);
+            }
+
+            if (job.status === "completed" || job.status === "failed") {
+                return job;
+            }
+
+            await new Promise<void>((resolve) => {
+                setTimeout(resolve, 200);
+            });
+        }
+
+        throw new Error(`Timed out waiting for headless job '${jobId}' completion after ${timeoutMs} ms.`);
+    }
+
+    private getReusableAccessToken(connection: Connection): string | undefined {
+        if (!connection.accessToken) {
+            return undefined;
+        }
+
+        if (!connection.tokenExpiry) {
+            return connection.accessToken;
+        }
+
+        const expiry = new Date(connection.tokenExpiry).getTime();
+        const now = Date.now();
+
+        // Keep a small safety buffer to avoid near-expiry token use.
+        if (Number.isFinite(expiry) && expiry - now > 60_000) {
+            return connection.accessToken;
+        }
+
+        return undefined;
+    }
+
+    private async resolveHeadlessAuthContext(invocationMeta: InvocationMeta): Promise<ResolvedHeadlessAuthContext> {
+        if (invocationMeta.authToken) {
+            return {
+                authToken: invocationMeta.authToken,
+                source: "provided-token",
+            };
+        }
+
+        if (!invocationMeta.connectionName) {
+            return {
+                source: "none",
+            };
+        }
+
+        if (!this.connectionsManager || !this.authManager) {
+            throw new Error("Connection/auth managers are not configured for connectionName-based authentication.");
+        }
+
+        const matches = this.connectionsManager.getConnections().filter((c) => c.name.trim().toLowerCase() === invocationMeta.connectionName!.trim().toLowerCase());
+
+        if (matches.length === 0) {
+            throw new Error(`No saved connection found with name '${invocationMeta.connectionName}'.`);
+        }
+
+        if (matches.length > 1) {
+            throw new Error(`Multiple connections found with name '${invocationMeta.connectionName}'. Please make names unique.`);
+        }
+
+        const connection = matches[0];
+        const reusableToken = this.getReusableAccessToken(connection);
+        if (reusableToken) {
+            return {
+                authToken: reusableToken,
+                source: "connection-name",
+                connectionName: connection.name,
+            };
+        }
+
+        let authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string };
+
+        switch (connection.authenticationType) {
+            case "clientSecret":
+                authResult = await this.authManager.authenticateClientSecret(connection);
+                break;
+            case "usernamePassword":
+                if (connection.msalAccountId) {
+                    const silent = await this.authManager.acquireTokenSilently(connection);
+                    authResult = { accessToken: silent.accessToken, expiresOn: silent.expiresOn, msalAccountId: connection.msalAccountId };
+                } else if (connection.refreshToken) {
+                    authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                } else {
+                    authResult = await this.authManager.authenticateUsernamePassword(connection);
+                }
+                break;
+            case "interactive":
+                if (connection.msalAccountId) {
+                    const silent = await this.authManager.acquireTokenSilently(connection);
+                    authResult = { accessToken: silent.accessToken, expiresOn: silent.expiresOn, msalAccountId: connection.msalAccountId };
+                } else if (connection.refreshToken) {
+                    authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
+                } else {
+                    throw new Error(`Interactive connection '${connection.name}' has no reusable session. Reconnect this connection from UI first, then retry headless invocation.`);
+                }
+                break;
+            case "connectionString":
+                throw new Error(`Connection '${connection.name}' uses unsupported authenticationType 'connectionString' for headless token acquisition.`);
+            default:
+                throw new Error(`Unsupported authentication type for connection '${connection.name}'.`);
+        }
+
+        this.connectionsManager.updateConnectionTokens(connection.id, {
+            accessToken: authResult.accessToken,
+            refreshToken: authResult.refreshToken,
+            expiresOn: authResult.expiresOn,
+            msalAccountId: authResult.msalAccountId,
+        });
+
+        return {
+            authToken: authResult.accessToken,
+            source: "connection-name",
+            connectionName: connection.name,
+        };
+    }
+
     async start(): Promise<void> {
         if (this.httpServer) {
             logInfo("[MCP] Server already started");
@@ -318,7 +462,7 @@ export class McpServerManager {
         }
 
         if (req.method === "GET" && req.url) {
-            const statusPathMatch = req.url.match(/^\/mcp\/jobs\/([a-zA-Z0-9-]+)$/);
+            const statusPathMatch = req.url.match(/^\/mcp\/jobs\/([a-zA-Z0-9-]+)(?:\/status)?$/);
             if (statusPathMatch?.[1]) {
                 const jobId = statusPathMatch[1];
                 const job = this.headlessInvocationManager.getJob(jobId);
@@ -330,7 +474,12 @@ export class McpServerManager {
                 }
 
                 res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify(job));
+                res.end(
+                    JSON.stringify({
+                        ...job,
+                        statusUrl: `/mcp/jobs/${jobId}/status`,
+                    }),
+                );
                 return;
             }
         }
@@ -371,6 +520,10 @@ export class McpServerManager {
                                 authToken: {
                                     type: "string",
                                     description: "Optional caller-provided auth token for headless execution.",
+                                },
+                                connectionName: {
+                                    type: "string",
+                                    description: "Optional saved PPTB connection name. Used to resolve an auth token server-side when authToken is omitted.",
                                 },
                             },
                         },
@@ -440,6 +593,7 @@ export class McpServerManager {
                 case "headless": {
                     const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
                     const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+                    let resolvedAuthContext: ResolvedHeadlessAuthContext;
 
                     if (!installedManifest) {
                         const errorText = `Tool manifest not found for: ${toolId}`;
@@ -456,6 +610,22 @@ export class McpServerManager {
                     }
 
                     try {
+                        resolvedAuthContext = await this.resolveHeadlessAuthContext(invocationMeta);
+                    } catch (error) {
+                        const errorText = error instanceof Error ? error.message : String(error);
+                        logInvocationWithMeta({
+                            toolId,
+                            toolName: displayName,
+                            connectionId: null,
+                            prefillData,
+                            outcome: "rejected",
+                            error: errorText,
+                            invocationMode,
+                        });
+                        return createInvocationError(`Failed to resolve authentication context: ${errorText}`);
+                    }
+
+                    try {
                         const job = await this.headlessInvocationManager.startJob({
                             toolId,
                             toolName: displayName,
@@ -465,7 +635,7 @@ export class McpServerManager {
                                     toolId,
                                     toolName: displayName,
                                     invocationMode,
-                                    authToken: invocationMeta.authToken,
+                                    authToken: resolvedAuthContext.authToken,
                                     updateProgress: (percent, message) => {
                                         this.headlessInvocationManager.updateProgress(jobId, percent, message);
                                     },
@@ -480,6 +650,53 @@ export class McpServerManager {
                                 return result;
                             },
                         });
+
+                        if (invocationMode === "two-way") {
+                            const finalJob = await this.waitForHeadlessJobCompletion(job.jobId, effectiveTimeoutMs);
+
+                            if (finalJob.status === "failed") {
+                                const errorText = finalJob.error || `Headless execution failed for '${displayName}'.`;
+                                logInvocationWithMeta({
+                                    toolId,
+                                    toolName: displayName,
+                                    connectionId: null,
+                                    prefillData,
+                                    outcome: "rejected",
+                                    error: errorText,
+                                    invocationMode,
+                                    correlationId: job.jobId,
+                                });
+                                return createInvocationError(errorText);
+                            }
+
+                            const finalPayload = finalJob.result;
+                            if (!finalPayload) {
+                                const errorText = `Headless execution for '${displayName}' completed without a payload.`;
+                                logInvocationWithMeta({
+                                    toolId,
+                                    toolName: displayName,
+                                    connectionId: null,
+                                    prefillData,
+                                    outcome: "no-result",
+                                    error: errorText,
+                                    invocationMode,
+                                    correlationId: job.jobId,
+                                });
+                                return createInvocationError(errorText);
+                            }
+
+                            logInvocationWithMeta({
+                                toolId,
+                                toolName: displayName,
+                                connectionId: null,
+                                prefillData,
+                                outcome: "completed",
+                                invocationMode,
+                                correlationId: job.jobId,
+                            });
+
+                            return createStructuredSuccess(finalPayload);
+                        }
 
                         logInvocationWithMeta({
                             toolId,
@@ -497,8 +714,12 @@ export class McpServerManager {
                             mode: invocationMode,
                             jobId: job.jobId,
                             jobStatusPath: `/mcp/jobs/${job.jobId}`,
+                            statusUrl: `/mcp/jobs/${job.jobId}/status`,
+                            jobStatus: "pending",
                             timeoutMs: effectiveTimeoutMs,
-                            hasAuthToken: Boolean(invocationMeta.authToken),
+                            hasAuthToken: Boolean(resolvedAuthContext.authToken),
+                            authSource: resolvedAuthContext.source,
+                            connectionName: resolvedAuthContext.connectionName,
                         });
                     } catch (error) {
                         const errorText = error instanceof Error ? error.message : String(error);

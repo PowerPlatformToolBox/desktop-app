@@ -78,6 +78,7 @@ Supported metadata:
 - `executionMode`: `"windowed"` or `"headless"`.
 - `timeoutMs`: positive number in milliseconds.
 - `authToken`: optional caller-provided token for headless execution contexts.
+- `connectionName`: optional saved PPTB connection name. MCP resolves and refreshes tokens server-side when possible.
 
 ## Mode Semantics
 
@@ -88,6 +89,11 @@ Supported metadata:
 
 - `windowed`: existing BrowserView launch behavior.
 - `headless`: MCP returns a job acknowledgement with `jobId` and `jobStatusPath`.
+
+For headless + invocation `mode`:
+
+- `headless` + `two-way`: MCP waits for job completion and returns the final tool payload directly (schema-aligned) when successful.
+- `headless` + `one-way`: MCP returns immediate acceptance metadata (`jobId`, `statusUrl`) and callers poll status endpoints as needed.
 
 Headless runtime contract:
 
@@ -108,14 +114,18 @@ Example headless acceptance payload:
     "mode": "two-way",
     "jobId": "f5a79f96-3d4f-4f60-a151-4d2d3069f2ef",
     "jobStatusPath": "/mcp/jobs/f5a79f96-3d4f-4f60-a151-4d2d3069f2ef",
+    "statusUrl": "/mcp/jobs/f5a79f96-3d4f-4f60-a151-4d2d3069f2ef/status",
+    "jobStatus": "pending",
     "timeoutMs": 120000,
-    "hasAuthToken": true
+    "hasAuthToken": true,
+    "authSource": "provided-token",
+    "connectionName": "optional-when-using-connection-name"
 }
 ```
 
 Job status endpoint:
 
-- `GET /mcp/jobs/{jobId}` (requires `X-MCP-Auth-Token`)
+- `GET /mcp/jobs/{jobId}` or `GET /mcp/jobs/{jobId}/status` (requires `X-MCP-Auth-Token`)
 - Returns job state (`pending`, `in_progress`, `completed`, `failed`) and result/error fields when available.
 
 Headless `context` shape passed to `invokeHeadless`:
