@@ -125,6 +125,26 @@ export const TOOL_WINDOW_CHANNELS = {
      * the callee's tab and switches back to the caller tool.
      */
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
+    /**
+     * Sent from the renderer to the main process to activate split view with a
+     * given secondary tool instance shown in the right panel.
+     */
+    SPLIT_VIEW_SET: "tool-window:split-view-set",
+    /**
+     * Sent from the renderer to the main process to close the split view and
+     * return to a single-panel layout.
+     */
+    SPLIT_VIEW_CLOSE: "tool-window:split-view-close",
+    /**
+     * Sent from the renderer to the main process to switch the tool shown in
+     * the secondary (right) panel of the split view.
+     */
+    SPLIT_VIEW_SWITCH_SECONDARY: "tool-window:split-view-switch-secondary",
+    /**
+     * Pushed from the main process to the PPTB renderer when the split view
+     * state changes (activated or closed) so the renderer can update its UI.
+     */
+    SPLIT_VIEW_CHANGED: "tool-window:split-view-changed",
 } as const;
 
 // Terminal-related IPC channels

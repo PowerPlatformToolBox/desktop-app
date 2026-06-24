@@ -102,6 +102,18 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, (_event, data) => callback(data));
     },
 
+    // Split view APIs
+    /** Activate split view with the given tool as the secondary (right) panel. */
+    setSplitViewSecondary: (secondaryInstanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SET, secondaryInstanceId),
+    /** Close the secondary panel and return to single-view mode. */
+    closeSplitView: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CLOSE),
+    /** Switch the tool shown in the secondary (right) panel. */
+    switchSplitViewSecondary: (newSecondaryInstanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SWITCH_SECONDARY, newSecondaryInstanceId),
+    /** Listen for split view state changes pushed from the main process. */
+    onSplitViewChanged: (callback: (state: { active: boolean; secondaryInstanceId: string | null }) => void) => {
+        ipcRenderer.on(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CHANGED, (_event, state) => callback(state));
+    },
+
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),
     removeFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, toolId),

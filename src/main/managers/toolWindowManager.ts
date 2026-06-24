@@ -99,9 +99,13 @@ export class ToolWindowManager {
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
+    /** The instanceId of the tool shown in the secondary (right) panel during split view, or null if not in split view. */
+    private secondaryToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
+    private secondaryBoundsUpdatePending: boolean = false;
     private frameScheduled = false;
     private boundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
+    private secondaryBoundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
     private terminalVisibilityListener: () => void;
     private bannerVisibilityListener: () => void;
     private sidebarLayoutListener: () => void;
@@ -143,6 +147,20 @@ export class ToolWindowManager {
                 });
             } else {
                 this.boundsUpdatePending = false;
+            }
+        };
+
+        this.secondaryBoundsResponseListener = (event, bounds) => {
+            if (bounds && bounds.width > 0 && bounds.height > 0) {
+                const zoomFactor = this.mainWindow.webContents.getZoomFactor();
+                this.applySecondaryToolViewBounds({
+                    x: Math.round(bounds.x * zoomFactor),
+                    y: Math.round(bounds.y * zoomFactor),
+                    width: Math.round(bounds.width * zoomFactor),
+                    height: Math.round(bounds.height * zoomFactor),
+                });
+            } else {
+                this.secondaryBoundsUpdatePending = false;
             }
         };
 
@@ -188,6 +206,9 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SET);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SWITCH_SECONDARY);
     }
 
     /**
@@ -287,6 +308,7 @@ export class ToolWindowManager {
 
         // Hide all tool windows (used when showing tool detail tabs)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.HIDE_ALL, async () => {
+            this.secondaryToolId = null;
             this.mainWindow.setBrowserView(null);
             this.activeToolId = null;
             this.invokeActiveToolChangedCallback();
@@ -300,8 +322,24 @@ export class ToolWindowManager {
             return allTools.filter((t) => Array.isArray(t.capabilities) && t.capabilities.includes(tag));
         });
 
+        // Split view: set a secondary tool in the right panel
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SET, async (_event, secondaryInstanceId: string) => {
+            return this.activateSplitView(secondaryInstanceId);
+        });
+
+        // Split view: close the secondary panel and return to single-view mode
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CLOSE, async () => {
+            return this.deactivateSplitView();
+        });
+
+        // Split view: switch which tool is shown in the secondary (right) panel
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SWITCH_SECONDARY, async (_event, newSecondaryInstanceId: string) => {
+            return this.switchSplitViewSecondary(newSecondaryInstanceId);
+        });
+
         // Restore renderer-provided bounds flow
         ipcMain.on("get-tool-panel-bounds-response", this.boundsResponseListener);
+        ipcMain.on("get-secondary-tool-panel-bounds-response", this.secondaryBoundsResponseListener);
 
         // Handle renderer re-initialization (e.g. after Cmd+Shift+R reload).
         // When the renderer sends this signal it is starting fresh, so any stale
@@ -691,16 +729,49 @@ export class ToolWindowManager {
                 return false;
             }
 
-            // Hide current tool if any
-            if (this.activeToolId && this.activeToolId !== instanceId) {
-                const currentView = this.toolViews.get(this.activeToolId);
-                if (currentView && this.mainWindow.getBrowserView() === currentView) {
-                    // Don't remove, just hide by setting another view
+            if (this.secondaryToolId && this.secondaryToolId !== instanceId) {
+                // Split view mode: show both the primary (left) and secondary (right) views.
+                // Use addBrowserView so both can be visible simultaneously; clear any
+                // existing attached views first to avoid stale entries.
+                // NOTE: BrowserWindow.getBrowserViews() is available in Electron ≥ 8 and is
+                // present at runtime in Electron 28, but the bundled type definitions do not
+                // always include it, hence the cast to `any`. We guard with optional-chaining
+                // so that if the method is absent we fall back to setBrowserView(null).
+                const attached = (this.mainWindow as any).getBrowserViews?.() as BrowserView[] | undefined;
+                if (attached) {
+                    for (const v of attached) {
+                        try {
+                            this.mainWindow.removeBrowserView(v);
+                        } catch (_e) {
+                            // ignore removal errors
+                        }
+                    }
+                } else {
+                    try {
+                        this.mainWindow.setBrowserView(null);
+                    } catch (_e) {
+                        // ignore errors when clearing current view
+                    }
                 }
+                const secondaryView = this.toolViews.get(this.secondaryToolId);
+                if (secondaryView) {
+                    this.mainWindow.addBrowserView(toolView);
+                    this.mainWindow.addBrowserView(secondaryView);
+                } else {
+                    // Secondary view is gone; fall back to single view
+                    this.secondaryToolId = null;
+                    this.mainWindow.setBrowserView(toolView);
+                    this.notifySplitViewChanged();
+                }
+            } else {
+                if (this.secondaryToolId === instanceId) {
+                    // User switched primary to the same tool as secondary — exit split view
+                    this.secondaryToolId = null;
+                    this.notifySplitViewChanged();
+                }
+                this.mainWindow.setBrowserView(toolView);
             }
 
-            // Show the new tool instance
-            this.mainWindow.setBrowserView(toolView);
             // Enable auto-resize for robust behavior on window changes
             try {
                 (toolView as any).setAutoResize?.({ width: true, height: true });
@@ -751,11 +822,25 @@ export class ToolWindowManager {
                 return false;
             }
 
+            // If this tool is the secondary panel in a split view, deactivate split view first
+            if (this.secondaryToolId === instanceId) {
+                this.secondaryToolId = null;
+                this.notifySplitViewChanged();
+            }
+
             // If this is the active tool instance, clear it from window
             if (this.activeToolId === instanceId) {
                 this.mainWindow.setBrowserView(null);
                 this.activeToolId = null;
                 this.invokeActiveToolChangedCallback();
+            } else {
+                // If closing a non-active view that may be shown (e.g. secondary was already cleared above),
+                // ensure it is removed from the window
+                try {
+                    this.mainWindow.removeBrowserView(toolView);
+                } catch (_e) {
+                    // ignore if not attached
+                }
             }
 
             // Destroy the BrowserView's web contents
@@ -986,10 +1071,34 @@ export class ToolWindowManager {
         } catch (error) {
             this.boundsUpdatePending = false;
         }
+
+        // Also update secondary view bounds when in split view
+        if (this.secondaryToolId) {
+            this.updateSecondaryToolViewBounds();
+        }
+    }
+
+    private updateSecondaryToolViewBounds(): void {
+        if (!this.secondaryToolId || this.secondaryBoundsUpdatePending) return;
+        const secondaryView = this.toolViews.get(this.secondaryToolId);
+        if (!secondaryView) return;
+
+        try {
+            this.secondaryBoundsUpdatePending = true;
+            this.mainWindow.webContents.send("get-secondary-tool-panel-bounds-request");
+            const fallbackTimer = setTimeout(() => {
+                this.secondaryBoundsUpdatePending = false;
+            }, 300);
+            (ipcMain as any).once?.("get-secondary-tool-panel-bounds-response", () => {
+                clearTimeout(fallbackTimer);
+            });
+        } catch (error) {
+            this.secondaryBoundsUpdatePending = false;
+        }
     }
 
     /**
-     * Apply the bounds to the active tool view
+     * Apply the bounds to the active (primary/left) tool view
      */
     private applyToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
         if (!this.activeToolId) return;
@@ -1014,6 +1123,178 @@ export class ToolWindowManager {
     }
 
     /**
+     * Apply the bounds to the secondary (right-panel) tool view
+     */
+    private applySecondaryToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+        if (!this.secondaryToolId) return;
+
+        const toolView = this.toolViews.get(this.secondaryToolId);
+        if (!toolView) return;
+
+        try {
+            const content = this.mainWindow.getContentBounds();
+            const clamped = {
+                x: Math.max(0, Math.min(bounds.x, content.width - 1)),
+                y: Math.max(0, Math.min(bounds.y, content.height - 1)),
+                width: Math.max(1, Math.min(bounds.width, Math.max(1, content.width - Math.max(0, bounds.x)))),
+                height: Math.max(1, Math.min(bounds.height, Math.max(1, content.height - Math.max(0, bounds.y)))),
+            };
+            toolView.setBounds(clamped);
+            this.secondaryBoundsUpdatePending = false;
+        } catch (error) {
+            logError("[ToolWindowManager] Error applying secondary tool view bounds", error);
+        }
+    }
+
+    /**
+     * Activate split view by showing a second tool in the right panel.
+     * The primary (left) panel continues to show whatever tool is currently active.
+     */
+    private async activateSplitView(secondaryInstanceId: string): Promise<boolean> {
+        try {
+            const secondaryView = this.toolViews.get(secondaryInstanceId);
+            if (!secondaryView) {
+                logError(`[ToolWindowManager] Split view secondary tool not found: ${secondaryInstanceId}`);
+                return false;
+            }
+            if (!this.activeToolId) {
+                logWarn("[ToolWindowManager] Cannot activate split view without an active primary tool");
+                return false;
+            }
+            if (secondaryInstanceId === this.activeToolId) {
+                logWarn("[ToolWindowManager] Cannot split with the same tool as primary");
+                return false;
+            }
+
+            this.secondaryToolId = secondaryInstanceId;
+
+            // Attach both views to the window
+            const attached = (this.mainWindow as any).getBrowserViews?.() as BrowserView[] | undefined;
+            if (attached) {
+                for (const v of attached) {
+                    try {
+                        this.mainWindow.removeBrowserView(v);
+                    } catch (_e) {
+                        // ignore removal errors
+                    }
+                }
+            } else {
+                try {
+                    this.mainWindow.setBrowserView(null);
+                } catch (_e) {
+                    // ignore errors when clearing current view
+                }
+            }
+
+            const primaryView = this.toolViews.get(this.activeToolId);
+            if (primaryView) {
+                this.mainWindow.addBrowserView(primaryView);
+            }
+            this.mainWindow.addBrowserView(secondaryView);
+
+            this.notifySplitViewChanged();
+            this.scheduleBoundsUpdate();
+
+            logInfo(`[ToolWindowManager] Split view activated. Primary: ${this.activeToolId}, Secondary: ${secondaryInstanceId}`);
+            return true;
+        } catch (error) {
+            logError("[ToolWindowManager] Error activating split view", error);
+            return false;
+        }
+    }
+
+    /**
+     * Deactivate split view and return to single-panel layout.
+     */
+    private deactivateSplitView(): boolean {
+        try {
+            if (!this.secondaryToolId) {
+                return false;
+            }
+
+            const secondaryView = this.toolViews.get(this.secondaryToolId);
+            if (secondaryView) {
+                try {
+                    this.mainWindow.removeBrowserView(secondaryView);
+                } catch (_e) {
+                    // ignore removal errors
+                }
+            }
+
+            this.secondaryToolId = null;
+            this.secondaryBoundsUpdatePending = false;
+
+            // Re-set the primary view so it fills the entire panel again
+            if (this.activeToolId) {
+                const primaryView = this.toolViews.get(this.activeToolId);
+                if (primaryView) {
+                    this.mainWindow.setBrowserView(primaryView);
+                }
+            }
+
+            this.notifySplitViewChanged();
+            this.scheduleBoundsUpdate();
+
+            logInfo("[ToolWindowManager] Split view deactivated");
+            return true;
+        } catch (error) {
+            logError("[ToolWindowManager] Error deactivating split view", error);
+            return false;
+        }
+    }
+
+    /**
+     * Switch the tool shown in the secondary (right) panel without changing the primary.
+     */
+    private async switchSplitViewSecondary(newSecondaryInstanceId: string): Promise<boolean> {
+        try {
+            const newSecondaryView = this.toolViews.get(newSecondaryInstanceId);
+            if (!newSecondaryView) {
+                logError(`[ToolWindowManager] New secondary tool not found: ${newSecondaryInstanceId}`);
+                return false;
+            }
+            if (newSecondaryInstanceId === this.activeToolId) {
+                logWarn("[ToolWindowManager] Cannot use same tool as both primary and secondary in split view");
+                return false;
+            }
+
+            // Remove the old secondary view
+            if (this.secondaryToolId) {
+                const oldSecondaryView = this.toolViews.get(this.secondaryToolId);
+                if (oldSecondaryView) {
+                    try {
+                        this.mainWindow.removeBrowserView(oldSecondaryView);
+                    } catch (_e) {
+                        // ignore removal errors
+                    }
+                }
+            }
+
+            this.secondaryToolId = newSecondaryInstanceId;
+            this.mainWindow.addBrowserView(newSecondaryView);
+
+            this.notifySplitViewChanged();
+            this.scheduleBoundsUpdate();
+
+            logInfo(`[ToolWindowManager] Split view secondary switched to: ${newSecondaryInstanceId}`);
+            return true;
+        } catch (error) {
+            logError("[ToolWindowManager] Error switching split view secondary", error);
+            return false;
+        }
+    }
+
+    /**
+     * Push the current split view state to the renderer so it can update its UI.
+     */
+    private notifySplitViewChanged(): void {
+        this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CHANGED, {
+            active: this.secondaryToolId !== null,
+            secondaryInstanceId: this.secondaryToolId,
+        });
+    }
+
+    /**
      * Destroy all open BrowserViews and reset tool state without touching IPC/window listeners.
      * Called when the renderer re-initialises (e.g. after a force-reload) so that stale views
      * from the previous session are cleaned up before the new session creates fresh ones.
@@ -1026,7 +1307,9 @@ export class ToolWindowManager {
         }
 
         this.activeToolId = null;
+        this.secondaryToolId = null;
         this.boundsUpdatePending = false;
+        this.secondaryBoundsUpdatePending = false;
         this.frameScheduled = false;
         this.invokeActiveToolChangedCallback();
 
@@ -1162,8 +1445,12 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SET);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SWITCH_SECONDARY);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
+        if (this.secondaryBoundsResponseListener) ipcMain.removeListener("get-secondary-tool-panel-bounds-response", this.secondaryBoundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
         if (this.bannerVisibilityListener) ipcMain.removeListener("invocation-banner-visibility-changed", this.bannerVisibilityListener);
         if (this.sidebarLayoutListener) ipcMain.removeListener("sidebar-layout-changed", this.sidebarLayoutListener);

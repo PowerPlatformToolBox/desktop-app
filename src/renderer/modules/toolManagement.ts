@@ -24,6 +24,9 @@ import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageMan
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
 const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
 const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
+const SPLIT_VIEW_MIN_PANEL_RATIO = 0.2; // Minimum panel width as fraction of total width
+const SPLIT_VIEW_MAX_PANEL_RATIO = 0.8; // Maximum panel width as fraction of total width
+const SPLIT_VIEW_HANDLE_FALLBACK_WIDTH = 5; // Fallback resize handle width in px
 
 export interface LaunchToolOptions {
     source?: string;
@@ -38,6 +41,10 @@ export interface LaunchToolOptions {
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
 const openTools = new Map<string, OpenTool>();
 let activeToolId: string | null = null; // Now stores instanceId
+/** The instanceId of the tool shown in the secondary (right) panel during split view, or null. */
+let splitViewSecondaryId: string | null = null;
+/** AbortController used to detach the current split-view resize listeners when split view is closed or re-entered. */
+let splitViewResizeAbortController: AbortController | null = null;
 let draggedTab: HTMLElement | null = null;
 let hasWarnedAboutMissingContextMenuHandler = false;
 
@@ -185,11 +192,197 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
     }
 }
 
+/**
+ * Activate split view with the given tool instance shown in the right panel.
+ * The currently active tool stays in the left panel.
+ */
+async function enterSplitView(secondaryInstanceId: string): Promise<void> {
+    try {
+        await window.toolboxAPI.setSplitViewSecondary(secondaryInstanceId);
+        applySplitViewUI(secondaryInstanceId);
+    } catch (error) {
+        logError("Failed to activate split view", error instanceof Error ? error : new Error(String(error)));
+    }
+}
+
+/**
+ * Switch the tool shown in the secondary (right) panel.
+ */
+async function switchSplitViewSecondary(newSecondaryInstanceId: string): Promise<void> {
+    try {
+        await window.toolboxAPI.switchSplitViewSecondary(newSecondaryInstanceId);
+        updateSplitViewToolName(newSecondaryInstanceId);
+        splitViewSecondaryId = newSecondaryInstanceId;
+    } catch (error) {
+        logError("Failed to switch split view secondary", error instanceof Error ? error : new Error(String(error)));
+    }
+}
+
+/**
+ * Close the split view and return to single-panel layout.
+ */
+export async function closeSplitView(): Promise<void> {
+    // Guard: if split view is not currently active in the renderer, skip the IPC call
+    if (!splitViewSecondaryId) {
+        removeSplitViewUI();
+        return;
+    }
+    try {
+        await window.toolboxAPI.closeSplitView();
+    } catch (error) {
+        logError("Failed to close split view", error instanceof Error ? error : new Error(String(error)));
+    }
+    removeSplitViewUI();
+}
+
+/**
+ * Apply the split view DOM changes: add the split-view class and show the secondary panel.
+ */
+function applySplitViewUI(secondaryInstanceId: string): void {
+    splitViewSecondaryId = secondaryInstanceId;
+
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    if (wrapper) {
+        wrapper.classList.add("split-view");
+    }
+
+    const resizeHandle = document.getElementById("split-view-resize-handle");
+    if (resizeHandle) {
+        resizeHandle.style.display = "";
+    }
+
+    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+    if (secondaryPanel) {
+        secondaryPanel.style.display = "flex";
+    }
+
+    updateSplitViewToolName(secondaryInstanceId);
+    setupSplitViewResizeHandle();
+}
+
+/**
+ * Remove the split view DOM changes and return to single-panel layout.
+ */
+function removeSplitViewUI(): void {
+    splitViewSecondaryId = null;
+
+    // Abort any active resize event listeners
+    if (splitViewResizeAbortController) {
+        splitViewResizeAbortController.abort();
+        splitViewResizeAbortController = null;
+    }
+
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    if (wrapper) {
+        wrapper.classList.remove("split-view");
+        // Clear any inline flex-basis set during resize
+        const primaryPanel = document.getElementById("tool-panel-content");
+        const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+        if (primaryPanel) primaryPanel.style.flexBasis = "";
+        if (primaryPanel) primaryPanel.style.flex = "";
+        if (secondaryPanel) {
+            secondaryPanel.style.flexBasis = "";
+            secondaryPanel.style.flex = "";
+            secondaryPanel.style.display = "none";
+        }
+    }
+
+    const resizeHandle = document.getElementById("split-view-resize-handle");
+    if (resizeHandle) {
+        resizeHandle.style.display = "none";
+    }
+
+    // Notify main process that bounds changed so BrowserView is repositioned
+    window.api.send("sidebar-layout-changed");
+}
+
+/**
+ * Update the tool name displayed in the secondary panel header.
+ */
+function updateSplitViewToolName(instanceId: string): void {
+    const nameEl = document.getElementById("split-view-tool-name");
+    if (!nameEl) return;
+    const openTool = openTools.get(instanceId);
+    nameEl.textContent = openTool?.tool?.name ?? "";
+}
+
+/**
+ * Set up drag-to-resize behaviour for the split view handle.
+ * Called once when split view is activated; listeners are cleaned up via AbortController
+ * when split view is closed or re-entered.
+ */
+function setupSplitViewResizeHandle(): void {
+    const handle = document.getElementById("split-view-resize-handle");
+    const wrapper = document.getElementById("tool-panel-content-wrapper");
+    const primaryPanel = document.getElementById("tool-panel-content");
+    const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+
+    if (!handle || !wrapper || !primaryPanel || !secondaryPanel) return;
+
+    // Abort any previously registered listeners before attaching new ones
+    if (splitViewResizeAbortController) {
+        splitViewResizeAbortController.abort();
+    }
+    splitViewResizeAbortController = new AbortController();
+    const { signal } = splitViewResizeAbortController;
+
+    let isResizing = false;
+    let startX = 0;
+    let startPrimaryWidth = 0;
+
+    handle.addEventListener(
+        "mousedown",
+        (e: MouseEvent) => {
+            isResizing = true;
+            startX = e.clientX;
+            startPrimaryWidth = primaryPanel.getBoundingClientRect().width;
+            document.body.classList.add("resizing");
+            e.preventDefault();
+        },
+        { signal },
+    );
+
+    document.addEventListener(
+        "mousemove",
+        (e: MouseEvent) => {
+            if (!isResizing) return;
+            const totalWidth = wrapper.getBoundingClientRect().width;
+            const delta = e.clientX - startX;
+            const newPrimaryWidth = Math.min(Math.max(startPrimaryWidth + delta, totalWidth * SPLIT_VIEW_MIN_PANEL_RATIO), totalWidth * SPLIT_VIEW_MAX_PANEL_RATIO);
+            const handleWidth = handle.getBoundingClientRect().width || SPLIT_VIEW_HANDLE_FALLBACK_WIDTH;
+            const newSecondaryWidth = totalWidth - newPrimaryWidth - handleWidth;
+
+            primaryPanel.style.flexBasis = `${newPrimaryWidth}px`;
+            primaryPanel.style.flex = "none";
+            secondaryPanel.style.flexBasis = `${newSecondaryWidth}px`;
+            secondaryPanel.style.flex = "none";
+
+            // Notify backend to reposition both BrowserViews
+            window.api.send("sidebar-layout-changed");
+        },
+        { signal },
+    );
+
+    document.addEventListener(
+        "mouseup",
+        () => {
+            if (!isResizing) return;
+            isResizing = false;
+            document.body.classList.remove("resizing");
+        },
+        { signal },
+    );
+}
+
 async function showTabContextMenu(instanceId: string, clientX: number, clientY: number): Promise<void> {
     const canManageTab = canManageToolTab(instanceId);
     const canCloseCurrent = canCloseTab(instanceId);
     const closableOtherTabIds = getClosableTabIds(instanceId);
     const closableTabIds = getClosableTabIds();
+    // Split view: can only open in split view if there are at least 2 tools open, the tab is a real tool,
+    // and it's not already the secondary tool
+    const canOpenSplitView = canManageTab && openTools.size >= 2 && instanceId !== activeToolId && instanceId !== splitViewSecondaryId;
+    const canSwitchSplitSecondary = canManageTab && splitViewSecondaryId !== null && instanceId !== splitViewSecondaryId && instanceId !== activeToolId;
     let action: string | null = null;
     try {
         action = await window.toolboxAPI.utils.showContextMenu({
@@ -203,6 +396,9 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
                 { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
                 { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
                 { id: "change-connection", label: "Change Connection", enabled: canManageTab },
+                { type: "separator" },
+                { id: "open-split-view", label: "Open in Split View", enabled: canOpenSplitView },
+                { id: "switch-split-secondary", label: "Move to Right Panel", enabled: canSwitchSplitSecondary },
             ],
         });
     } catch (error) {
@@ -236,6 +432,16 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
 
     if (action === "change-connection") {
         await changeToolConnectionForInstance(instanceId);
+        return;
+    }
+
+    if (action === "open-split-view") {
+        await enterSplitView(instanceId);
+        return;
+    }
+
+    if (action === "switch-split-secondary") {
+        await switchSplitViewSecondary(instanceId);
         return;
     }
 
@@ -912,6 +1118,12 @@ export async function closeTool(instanceId: string): Promise<void> {
 
     // Clean up close guard
     closeGuards.delete(instanceId);
+
+    // If this tool is the secondary panel in split view, deactivate split view
+    if (splitViewSecondaryId === instanceId) {
+        removeSplitViewUI();
+        // The main process will be notified when closeToolWindow is called below
+    }
 
     if (openTool.isDetailTab) {
         // Detail tab: clean up render callback and hide detail panel if active

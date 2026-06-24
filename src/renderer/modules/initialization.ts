@@ -38,6 +38,7 @@ import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./theme
 import {
     applyAppearanceSettings,
     closeAllTools,
+    closeSplitView,
     initializeCalleeToolListeners,
     initializeInvocationBanner,
     initializeInvocationConnectionsPrompt,
@@ -263,6 +264,23 @@ function setupToolbarButtons(): void {
             await closeAllTools();
         });
     }
+
+    // Close split view button in the secondary panel header
+    const closeSplitViewBtn = document.getElementById("close-split-view");
+    if (closeSplitViewBtn) {
+        closeSplitViewBtn.addEventListener("click", () => {
+            void closeSplitView();
+        });
+    }
+
+    // Listen for split view state changes pushed from the main process (e.g. when
+    // the secondary tool is closed programmatically) so we can update the UI.
+    window.toolboxAPI.onSplitViewChanged((state) => {
+        if (!state.active) {
+            // Import is already done at top of file via toolManagement
+            void closeSplitView();
+        }
+    });
 
     // Initialize tab scroll buttons
     initializeTabScrollButtons();
@@ -808,6 +826,28 @@ function setupToolPanelBoundsListener(): void {
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
             logWarn("[Renderer] Tool panel content element not found");
+        }
+    });
+
+    // Secondary panel bounds (used when split view is active)
+    window.api.on("get-secondary-tool-panel-bounds-request", () => {
+        const secondaryPanel = document.getElementById("tool-panel-content-secondary");
+
+        if (secondaryPanel && secondaryPanel.style.display !== "none") {
+            const rect = secondaryPanel.getBoundingClientRect();
+            // Exclude the toolbar height at the top of the secondary panel
+            const toolbar = document.getElementById("split-view-toolbar");
+            const toolbarHeight = toolbar ? Math.round(toolbar.getBoundingClientRect().height) : 0;
+            const bounds = {
+                x: Math.round(rect.left),
+                y: Math.round(rect.top) + toolbarHeight,
+                width: Math.round(rect.width),
+                height: Math.max(1, Math.round(rect.height) - toolbarHeight),
+            };
+            logInfo("[Renderer] Sending secondary tool panel bounds:", bounds);
+            window.api.send("get-secondary-tool-panel-bounds-response", bounds);
+        } else {
+            logWarn("[Renderer] Secondary tool panel content element not found or hidden");
         }
     });
 }

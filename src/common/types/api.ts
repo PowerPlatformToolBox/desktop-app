@@ -236,6 +236,16 @@ export interface ToolboxAPI {
      */
     onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => void;
 
+    // Split view APIs
+    /** Activate split view with the given tool instance shown in the right panel. */
+    setSplitViewSecondary: (secondaryInstanceId: string) => Promise<boolean>;
+    /** Close the split view and return to single-panel layout. */
+    closeSplitView: () => Promise<boolean>;
+    /** Switch the tool shown in the secondary (right) panel. */
+    switchSplitViewSecondary: (newSecondaryInstanceId: string) => Promise<boolean>;
+    /** Subscribe to split view state changes pushed from the main process. */
+    onSplitViewChanged: (callback: (state: { active: boolean; secondaryInstanceId: string | null }) => void) => void;
+
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;
     removeFavoriteTool: (toolId: string) => Promise<void>;
