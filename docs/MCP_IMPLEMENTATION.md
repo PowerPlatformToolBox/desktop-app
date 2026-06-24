@@ -10,6 +10,7 @@ This document covers how Power Platform ToolBox exposes tools to external automa
     - [Agent Contract](#agent-contract)
     - [MCP Invocation Envelope](#mcp-invocation-envelope)
     - [Mode Semantics](#mode-semantics)
+    - [Execution Mode Semantics](#execution-mode-semantics)
     - [Tool Runtime Context](#tool-runtime-context)
     - [Implementation Notes](#implementation-notes)
     - [Validation and Troubleshooting](#validation-and-troubleshooting)

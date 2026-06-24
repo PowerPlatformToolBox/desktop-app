@@ -112,7 +112,7 @@ export class AuthManager {
     /**
      * Authenticate using interactive Microsoft login with Authorization Code Flow
      */
-    async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateInteractive(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Default Azure CLI client ID
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -256,12 +256,12 @@ export class AuthManager {
         redirectUri: string,
         msalApp: PublicClientApplication,
         postTokenValidation?: (accessToken: string) => Promise<void>,
-    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
         // Close any existing server before starting a new one
         await this.closeActiveServer();
 
         return new Promise((resolve, reject) => {
-            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }) => {
+            const cleanupAndResolve = (authResult: { accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }) => {
                 this.performImmediateCleanup("Authentication server closed after successful auth");
                 resolve(authResult);
             };
@@ -325,6 +325,7 @@ export class AuthManager {
                             refreshToken: undefined, // MSAL handles refresh internally via cache
                             expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
                             msalAccountId: response.account.homeAccountId,
+                            scopes: Array.isArray(response.scopes) ? response.scopes : scopes,
                         };
 
                         if (postTokenValidation) {
@@ -430,7 +431,11 @@ export class AuthManager {
      * Uses ConfidentialClientApplication which handles token refresh automatically
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async authenticateClientSecret(connection: Connection, scopes?: string[], skipValidateEnvAccess: boolean = false): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async authenticateClientSecret(
+        connection: Connection,
+        scopes?: string[],
+        skipValidateEnvAccess: boolean = false,
+    ): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; scopes?: string[] }> {
         if (!connection.clientId || !connection.clientSecret || !connection.tenantId) {
             throw new Error("Client ID, Client Secret, and Tenant ID are required for client secret authentication");
         }
@@ -453,6 +458,7 @@ export class AuthManager {
                 accessToken: response.accessToken,
                 refreshToken: undefined, // Client credentials flow doesn't provide refresh tokens
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                scopes: Array.isArray(response.scopes) ? response.scopes : requestedScopes,
             };
 
             if (!skipValidateEnvAccess) {
@@ -479,7 +485,7 @@ export class AuthManager {
      * Note: This flow is not recommended and may not work with MFA-enabled accounts
      * Note: Only delegated access is supported - uses user_impersonation scope
      */
-    async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string }> {
+    async authenticateUsernamePassword(connection: Connection): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; msalAccountId?: string; scopes?: string[] }> {
         if (!connection.username || !connection.password) {
             throw new Error("Username and password are required for password authentication");
         }
@@ -513,6 +519,7 @@ export class AuthManager {
                 refreshToken: undefined, // MSAL handles refresh internally via cache
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
                 msalAccountId: response.account?.homeAccountId, // Store for silent token acquisition
+                scopes: Array.isArray(response.scopes) ? response.scopes : scopes,
             };
         } catch (error) {
             logError("Username/password authentication failed", error);
@@ -791,7 +798,7 @@ export class AuthManager {
      * @param connection The connection to acquire token for
      * @returns Promise with access token (MSAL handles refresh internally)
      */
-    async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date }> {
+    async acquirePowerPlatformToken(connection: Connection): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tenantId = connection.tenantId || "organizations"; // Use 'organizations' for work/school accounts only
         const msalApp = this.getMsalApp(connection.id, clientId, tenantId);
@@ -813,6 +820,7 @@ export class AuthManager {
             return {
                 accessToken: response.accessToken,
                 expiresOn: response.expiresOn || new Date(Date.now() + 3600 * 1000),
+                scopes: Array.isArray(response.scopes) ? response.scopes : [scope],
             };
         } catch (error) {
             if (this.isInteractionRequiredError(error)) {
@@ -825,7 +833,7 @@ export class AuthManager {
         }
     }
 
-    private async acquirePowerPlatformTokenInteractive(connection: Connection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date }> {
+    private async acquirePowerPlatformTokenInteractive(connection: Connection, msalApp: PublicClientApplication): Promise<{ accessToken: string; expiresOn: Date; scopes?: string[] }> {
         const port = await this.findAvailablePort();
         const redirectUri = `http://localhost:${port}`;
         const scopes = ["https://api.powerplatform.com/.default"];
@@ -841,6 +849,7 @@ export class AuthManager {
         return {
             accessToken: authResult.accessToken,
             expiresOn: authResult.expiresOn,
+            scopes: authResult.scopes,
         };
     }
 
@@ -850,7 +859,7 @@ export class AuthManager {
      * For modern interactive connections, use acquireTokenSilently() instead
      * @param scopes Optional array of scopes to request. Defaults to `${connection.url}/.default`
      */
-    async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date }> {
+    async refreshAccessToken(connection: Connection, refreshToken: string, scopes?: string[]): Promise<{ accessToken: string; refreshToken?: string; expiresOn: Date; scopes?: string[] }> {
         const clientId = connection.clientId || "51f81489-12ee-4a9e-aaae-a2591f45987d";
         const tokenEndpoint = `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`;
         const scope = scopes ? scopes.join(" ") : `${connection.url}/.default`;
@@ -874,6 +883,7 @@ export class AuthManager {
                 accessToken: data.access_token,
                 refreshToken: data.refresh_token || refreshToken,
                 expiresOn: new Date(Date.now() + data.expires_in * 1000),
+                scopes: typeof data.scope === "string" ? data.scope.split(" ").filter((scope: string) => scope.length > 0) : scopes,
             };
         } catch (error) {
             logError("Token refresh failed", error);
