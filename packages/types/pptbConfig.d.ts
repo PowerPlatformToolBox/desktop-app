@@ -128,6 +128,24 @@ export interface InvocationConfig {
     prefill?: JsonSchemaObject;
     /** Schema of the data this tool returns to its caller on completion. */
     returnTopic?: JsonSchemaObject;
+    /**
+     * Capability tags declared by this tool.
+     *
+     * Callers use `toolboxAPI.invocation.findToolsByCapability(tag)` to discover tools
+     * that advertise a given capability. Prefer `KnownCapabilityTag` values for IDE
+     * auto-complete; custom strings are accepted but will produce a `pptb-validate`
+     * warning unless the tag is present in the official capability registry.
+     *
+     * Use `toolboxAPI.invocation.getKnownCapabilityTags()` at runtime to retrieve the
+     * full list from the registry (backed by a configurable Supabase table so new tags
+     * can be added without an app update).
+     *
+     * @example
+     * ```json
+     * { "invocation": { "version": "1.0.0", "capabilities": ["entity-picker", "fetchxml"] } }
+     * ```
+     */
+    capabilities?: CapabilityTag[];
 }
 
 /**

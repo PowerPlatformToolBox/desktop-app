@@ -34,6 +34,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasObjectProperties(schema: unknown): boolean {
+    if (!isRecord(schema) || !isRecord(schema.properties)) {
+        return false;
+    }
+
+    return Object.keys(schema.properties).length > 0;
+}
+
 function parseInvocationMeta(args: Record<string, unknown>): InvocationMeta {
     const raw = args[MCP_INVOCATION_META_KEY];
     if (!isRecord(raw)) {
@@ -265,20 +273,23 @@ export class McpServerManager {
             tools: agentTools.map((tool) => ({
                 name: tool.displayName,
                 title: tool.displayName,
-                description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}]`,
+                description: `${tool.description} [modes: ${tool.invocationModes.join(", ")}; default: ${tool.defaultInvocationMode}; returnsData: ${hasObjectProperties(tool.outputSchema) ? "yes" : "no"}]`,
                 inputSchema: {
                     ...tool.inputSchema,
                     properties: {
                         ...(isRecord(tool.inputSchema.properties) ? tool.inputSchema.properties : {}),
                         [MCP_INVOCATION_META_KEY]: {
                             type: "object",
+                            description: "Optional invocation metadata for MCP callers.",
                             properties: {
                                 mode: {
                                     type: "string",
                                     enum: tool.invocationModes,
+                                    description: `Invocation mode. Defaults to '${tool.defaultInvocationMode}' when omitted.`,
                                 },
                                 timeoutMs: {
                                     type: "number",
+                                    description: "Optional timeout override in milliseconds for this call.",
                                 },
                             },
                         },
