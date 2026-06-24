@@ -65,8 +65,8 @@ test.describe("Notification history panel", () => {
         const panel = window.locator("#notification-history-panel");
         await expect(panel).toBeVisible({ timeout: 5_000 });
 
-        // Click somewhere in the main content area, well away from the panel and bell
-        await window.locator(".app-container").click({ position: { x: 200, y: 200 }, force: true });
+        // Click the activity bar area (well away from the panel and bell button)
+        await window.locator("#activity-bar").click({ position: { x: 20, y: 100 } });
         await expect(panel).toBeHidden({ timeout: 5_000 });
     });
 
