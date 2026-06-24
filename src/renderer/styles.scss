@@ -5931,6 +5931,10 @@ body.dark-theme .global-search-item-badge.badge-settings {
     overflow: hidden;
 }
 
+.notification-history-panel[hidden] {
+    display: none !important;
+}
+
 .notification-history-header {
     display: flex;
     align-items: center;
