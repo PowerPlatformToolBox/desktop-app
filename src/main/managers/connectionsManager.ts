@@ -183,6 +183,7 @@ export class ConnectionsManager {
         connection.msalAccountId = undefined;
         connection.powerPlatformAccessToken = undefined;
         connection.powerPlatformTokenExpiry = undefined;
+        connection.scopesForPowerPlatformAPI = undefined;
     }
 
     /**
@@ -203,7 +204,7 @@ export class ConnectionsManager {
     /**
      * Update Power Platform API tokens with encryption (called after Power Platform auth/refresh)
      */
-    updatePowerPlatformTokens(id: string, authTokens: { accessToken: string; expiresOn: Date }): void {
+    updatePowerPlatformTokens(id: string, authTokens: { accessToken: string; expiresOn: Date; scopesForPowerPlatformAPI?: string[] }): void {
         const connections = this.store.get("connections");
         const connection = connections.find((c) => c.id === id);
 
@@ -214,6 +215,8 @@ export class ConnectionsManager {
         connection.lastUsedAt = new Date().toISOString();
         connection.powerPlatformAccessToken = this.encryptionManager.encrypt(authTokens.accessToken);
         connection.powerPlatformTokenExpiry = authTokens.expiresOn.toISOString();
+        connection.scopesForPowerPlatformAPI =
+            Array.isArray(authTokens.scopesForPowerPlatformAPI) && authTokens.scopesForPowerPlatformAPI.every((scope) => typeof scope === "string") ? authTokens.scopesForPowerPlatformAPI : undefined;
 
         this.store.set("connections", connections);
     }
@@ -231,6 +234,7 @@ export class ConnectionsManager {
 
         connection.powerPlatformAccessToken = undefined;
         connection.powerPlatformTokenExpiry = undefined;
+        connection.scopesForPowerPlatformAPI = undefined;
 
         this.store.set("connections", connections);
     }
