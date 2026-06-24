@@ -121,3 +121,6 @@ The runtime currently:
 - If a tool does not appear in MCP discovery, confirm `agents.invokable` is `true`.
 - If a call fails schema validation, compare the payload against `prefill` or `returnTopic`.
 - If a call times out, adjust `agents.timeoutMS` or the per-call `__pptb.timeoutMs` hint.
+- Use MCP Inspector as the manual test harness for this feature area.
+- Verify that `list-tools` shows the supported modes and that `call-tool` returns the expected one-way or two-way response.
+- Check that invocation logs redact connection-related identifiers and sensitive payload fields.

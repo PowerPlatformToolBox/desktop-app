@@ -127,6 +127,8 @@
 > [!IMPORTANT]
 > Full documentation of the toolbox including How tos, FAQs, architecture, design & security principles is available on our main website [https://docs.powerplatformtoolbox.com/](https://docs.powerplatformtoolbox.com/)
 
+For tool authors working on inter-tool or MCP-based invocation, start with [docs/INTER_TOOL_INVOCATION.md](docs/INTER_TOOL_INVOCATION.md), [docs/MCP_IMPLEMENTATION.md](docs/MCP_IMPLEMENTATION.md), and [docs/MCP_TOOL_AUTHOR_MIGRATION.md](docs/MCP_TOOL_AUTHOR_MIGRATION.md).
+
 ## Releases & Downloads
 
 Power Platform ToolBox releases are published on GitHub:

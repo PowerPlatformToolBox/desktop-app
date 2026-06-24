@@ -103,7 +103,15 @@ export interface JsonSchemaObject {
  */
 export type AgentInvocationMode = "one-way" | "two-way";
 
-/** Agent-specific launch contract for external automation callers. */
+/**
+ * Agent-specific launch contract for external automation callers.
+ *
+ * - `version`: semantic version for the agent-facing contract.
+ * - `invokable`: opt-in flag that exposes the tool to the MCP server.
+ * - `modes`: supported MCP invocation modes for this tool.
+ * - `defaultMode`: fallback mode when the caller does not specify one.
+ * - `timeoutMS`: optional timeout hint, in milliseconds, for two-way calls.
+ */
 export interface AgentsConfig {
     /** Semantic version of this agent contract. */
     version: string;

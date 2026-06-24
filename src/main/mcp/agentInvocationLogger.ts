@@ -1,12 +1,14 @@
 import * as fs from "fs";
-import * as path from "path";
 import * as os from "os";
+import * as path from "path";
 import pino from "pino";
 
 const LOG_FILE_NAME = "agent-invocation.log";
 const MAX_LOG_SIZE_MB = 5;
 const MAX_LOG_SIZE_BYTES = MAX_LOG_SIZE_MB * 1024 * 1024;
 const MAX_BACKUP_COUNT = 3;
+const REDACTED_VALUE = "[redacted]";
+const SENSITIVE_KEY_PATTERN = /(connection|token|secret|password|credential|auth|refresh)/i;
 
 /**
  * Outcome of an agent tool invocation
@@ -171,11 +173,34 @@ function getPrefillSummary(prefillData: Record<string, unknown> | undefined): st
         return "{}";
     }
     try {
-        const str = JSON.stringify(prefillData);
+        const str = JSON.stringify(redactSensitiveValue(prefillData));
         return str.length > 200 ? str.slice(0, 200) + "..." : str;
     } catch {
         return "[unserializable]";
     }
+}
+
+function redactSensitiveValue(value: unknown, key?: string): unknown {
+    if (key && SENSITIVE_KEY_PATTERN.test(key)) {
+        return REDACTED_VALUE;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => redactSensitiveValue(item));
+    }
+
+    if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        const redacted: Record<string, unknown> = {};
+
+        for (const [entryKey, entryValue] of Object.entries(record)) {
+            redacted[entryKey] = redactSensitiveValue(entryValue, entryKey);
+        }
+
+        return redacted;
+    }
+
+    return value;
 }
 
 /**
@@ -197,7 +222,7 @@ export function logInvocation(params: {
         timestamp: new Date().toISOString(),
         toolId: params.toolId,
         toolName: params.toolName,
-        connectionId: params.connectionId,
+        connectionId: params.connectionId ? REDACTED_VALUE : null,
         prefillSummary: getPrefillSummary(params.prefillData),
         outcome: params.outcome,
         ...(params.invocationMode ? { invocationMode: params.invocationMode } : {}),

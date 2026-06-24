@@ -25,6 +25,10 @@ This document covers the **Inter-Tool Invocation** feature of Power Platform Too
         - [2.4 Tag-based capability discovery](#24-tag-based-capability-discovery)
             - [Well-known capability tags](#well-known-capability-tags)
         - [2.5 Complete caller example](#25-complete-caller-example)
+        - [Part 3 – MCP Agentic Invocation](#part-3--mcp-agentic-invocation)
+            - [3.1 Where MCP fits](#31-where-mcp-fits)
+            - [3.2 What tool authors need to do](#32-what-tool-authors-need-to-do)
+            - [3.3 Validation and rollout](#33-validation-and-rollout)
     - [End-to-End Scenario: FXS "Send To" Flyout](#end-to-end-scenario-fxs-send-to-flyout)
         - [Scenario summary](#scenario-summary)
         - [Step 1 – Callee tools declare the `"fetchxml"` capability](#step-1--callee-tools-declare-the-fetchxml-capability)
@@ -237,6 +241,41 @@ The following is a minimal but complete callee implementation for an entity-pick
     }
 }
 ```
+
+---
+
+## Part 3 – MCP Agentic Invocation
+
+### 3.1 Where MCP fits
+
+MCP agentic invocation is a separate contract from PPTB-to-PPTB tool invocation.
+
+- Inter-tool invocation uses `toolboxAPI.invocation.launchTool()`, `getLaunchContext()`, and `returnData()` between PPTB tools.
+- MCP invocation uses the built-in MCP server to expose selected tools to external agents.
+- The runtime pipeline is shared, but the caller contract and discovery metadata are different.
+
+If you are publishing a tool for external automation, read [MCP Implementation](MCP_IMPLEMENTATION.md) and the migration guide at [MCP Tool Author Migration](MCP_TOOL_AUTHOR_MIGRATION.md).
+
+### 3.2 What tool authors need to do
+
+Tool authors do not need to change the core BrowserView runtime for Phase 3–6 work. The required updates are:
+
+- Add an `agents` section to `pptb.config.json` with `invokable: true`.
+- Declare the supported MCP invocation modes in `agents.modes`.
+- Set `agents.defaultMode` when a tool should prefer one mode over another.
+- Set `agents.timeoutMS` when a tool needs a longer or shorter default timeout for two-way calls.
+- Keep `invocation.prefill` and `invocation.returnTopic` accurate so MCP input and output validation stays stable.
+
+### 3.3 Validation and rollout
+
+MCP Inspector is the recommended manual harness for validating the MCP surface in this repo. Use it to confirm:
+
+- the tool appears in `list-tools`
+- the supported mode hints are visible
+- one-way and two-way calls behave as expected
+- invalid modes and bad payloads return deterministic errors
+
+The repo does not require a dedicated automated MCP test runner for this phase.
 
 **`index.ts`**
 

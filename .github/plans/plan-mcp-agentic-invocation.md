@@ -69,12 +69,12 @@ Enable reliable MCP-driven invocation for PPTB tools with explicit one-way and t
 - Add validation guidance.
   Extend docs and validator messaging so tool authors get warnings for inconsistent invocation declarations.
 
-7. Phase 7: Verification and release gating
+7. Phase 7: Verification via MCP Inspector
 
-- Unit-level checks.
-  Schema conversion and validation tests for mode metadata and compatibility.
-- Integration-level checks.
-  MCP list-tools and call-tool end-to-end for one-way and two-way with at least one sample tool each.
+- External harness.
+  Use MCP Inspector to exercise list-tools and call-tool flows instead of adding a repository test runner for this phase.
+- Manual checks.
+  Verify one-way and two-way behavior, unsupported mode errors, and timeout handling with MCP Inspector.
 - Regression checks.
   Existing inter-tool invocation from toolboxAPI remains unchanged.
 - Build gates.

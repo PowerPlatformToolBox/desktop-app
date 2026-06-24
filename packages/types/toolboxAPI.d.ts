@@ -16,6 +16,11 @@ declare namespace ToolBoxAPI {
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
         secondaryConnectionId?: string | null;
+        /**
+         * Invocation metadata injected by PPTB when the tool is launched by another
+         * tool or by the MCP server. Tools should treat this as optional and
+         * branch on `source`/`mode` rather than assuming it is always present.
+         */
         invocationContext?: {
             source?: "tool" | "mcp";
             mode?: "one-way" | "two-way";
@@ -468,16 +473,15 @@ declare namespace ToolBoxAPI {
         getLaunchContext: () => Promise<Record<string, unknown> | null>;
 
         /**
-         * Returns data back to the caller tool that launched this tool.
+         * Return data back to the tool that launched this one. If the tool was not
+         * launched by another tool, this is a no-op.
          *
-         * The value resolves the `Promise` returned by the caller's
-         * `invocation.launchTool()` call.  **After calling `returnData`, PPTB
-         * automatically closes the callee window** — the callee does not need to
-         * close itself.
-         *
-         * If this tool was not launched by another tool, the call is a no-op.
+         * For MCP launches, one-way mode may omit a payload entirely from the
+         * caller's response lifecycle, but the tool can still call `returnData()` to
+         * complete a local flow if it wants to.
          *
          * @param returnData The data to pass back to the caller
+         * @returns Promise that resolves when the data has been handed off
          */
         returnData: (returnData: Record<string, unknown>) => Promise<void>;
 
