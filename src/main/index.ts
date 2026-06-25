@@ -39,7 +39,7 @@ import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
-import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
@@ -79,6 +79,7 @@ class ToolBoxApp {
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
+    private notificationHistoryWindowManager: NotificationHistoryWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
     private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
@@ -2682,6 +2683,9 @@ class ToolBoxApp {
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+        // Initialize NotificationHistoryWindowManager for the bell-icon history panel
+        this.notificationHistoryWindowManager = new NotificationHistoryWindowManager(this.mainWindow);
+        this.notificationWindowManager.setHistoryManager(this.notificationHistoryWindowManager);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
@@ -2717,6 +2721,7 @@ class ToolBoxApp {
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;
+            this.notificationHistoryWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });

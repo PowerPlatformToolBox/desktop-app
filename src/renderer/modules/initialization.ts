@@ -30,7 +30,7 @@ import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { setDefaultNotificationDuration, showPPTBNotification, initNotificationHistoryPanel } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -109,6 +109,10 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up global search command palette
         initializeGlobalSearch();
+
+        // Set up notification history panel (bell icon in footer) early so the click
+        // handler is registered before any async operations that might delay init.
+        initNotificationHistoryPanel();
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
@@ -804,6 +808,7 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: adjustedHeight,
             };
+
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {
