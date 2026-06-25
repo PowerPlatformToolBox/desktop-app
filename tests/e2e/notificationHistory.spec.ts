@@ -1,15 +1,38 @@
+import type { ElectronApplication, Page } from "playwright";
 import { test, expect } from "./fixtures";
 
 /**
  * E2E: Notification history bell button in the footer.
  *
- * Verifies that the bell button renders, the history panel opens/closes
- * correctly, the empty state is shown when there are no notifications,
- * the badge updates when new notifications arrive, and the "Clear All"
- * button removes all entries.
+ * The history panel is now a separate always-on-top BrowserWindow managed by
+ * the main process (NotificationHistoryWindowManager).  Clicking the bell
+ * button in the footer opens/closes that window.
  *
  * Prerequisites: run `pnpm run build` before executing these tests.
  */
+
+/**
+ * Click the bell button and wait for the newly-created history BrowserWindow
+ * to appear.  The history window is created lazily on first click.
+ */
+async function openHistoryWindow(electronApp: ElectronApplication, window: Page): Promise<Page> {
+    const bellBtn = window.locator("#footer-notification-bell-btn");
+    await expect(bellBtn).toBeVisible({ timeout: 15_000 });
+
+    const historyWindowPromise = electronApp.waitForEvent("window", { timeout: 10_000 });
+    await bellBtn.click();
+    const historyWindow = await historyWindowPromise;
+    await historyWindow.waitForLoadState("domcontentloaded");
+    return historyWindow;
+}
+
+/** Check whether the Notification History BrowserWindow is currently visible. */
+async function isHistoryWindowVisible(electronApp: ElectronApplication): Promise<boolean> {
+    return electronApp.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Notification History");
+        return win?.isVisible() ?? false;
+    });
+}
 
 test.describe("Notification history panel", () => {
     test("bell button is visible in the footer", async ({ window }) => {
@@ -22,92 +45,78 @@ test.describe("Notification history panel", () => {
         await expect(badge).toBeHidden({ timeout: 15_000 });
     });
 
-    test("clicking the bell button opens the history panel", async ({ window }) => {
+    test("bell button aria-pressed is false initially", async ({ window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
-
-        const panel = window.locator("#notification-history-panel");
-        await expect(panel).toBeHidden();
-
-        await bellBtn.click();
-        await expect(panel).toBeVisible({ timeout: 5_000 });
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "false");
     });
 
-    test("clicking the bell button again closes the history panel", async ({ window }) => {
-        const bellBtn = window.locator("#footer-notification-bell-btn");
-        await expect(bellBtn).toBeVisible({ timeout: 15_000 });
+    test("clicking the bell button opens the history window", async ({ electronApp, window }) => {
+        await openHistoryWindow(electronApp, window);
 
-        await bellBtn.click();
-        const panel = window.locator("#notification-history-panel");
-        await expect(panel).toBeVisible({ timeout: 5_000 });
-
-        await bellBtn.click();
-        await expect(panel).toBeHidden({ timeout: 5_000 });
+        const isVisible = await isHistoryWindowVisible(electronApp);
+        expect(isVisible).toBe(true);
     });
 
-    test("pressing Escape closes the history panel", async ({ window }) => {
+    test("clicking the bell button again closes the history window", async ({ electronApp, window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
 
-        await bellBtn.click();
-        const panel = window.locator("#notification-history-panel");
-        await expect(panel).toBeVisible({ timeout: 5_000 });
+        // Open the history window
+        await openHistoryWindow(electronApp, window);
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "true", { timeout: 5_000 });
 
-        await window.keyboard.press("Escape");
-        await expect(panel).toBeHidden({ timeout: 5_000 });
+        // Click bell again to close
+        await bellBtn.click();
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "false", { timeout: 5_000 });
+
+        const isVisible = await isHistoryWindowVisible(electronApp);
+        expect(isVisible).toBe(false);
     });
 
-    test("clicking outside the panel closes it", async ({ window }) => {
+    test("pressing Escape in the history window closes it", async ({ electronApp, window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
 
-        await bellBtn.click();
-        const panel = window.locator("#notification-history-panel");
-        await expect(panel).toBeVisible({ timeout: 5_000 });
+        const historyWindow = await openHistoryWindow(electronApp, window);
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "true", { timeout: 5_000 });
 
-        // Click the main content area (away from the panel and bell button)
-        await window.locator(".main-content").click({ position: { x: 100, y: 100 } });
-        await expect(panel).toBeHidden({ timeout: 5_000 });
+        await historyWindow.keyboard.press("Escape");
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "false", { timeout: 5_000 });
     });
 
-    test("empty state is shown when there are no notifications", async ({ window }) => {
-        const bellBtn = window.locator("#footer-notification-bell-btn");
-        await expect(bellBtn).toBeVisible({ timeout: 15_000 });
+    test("empty state is shown when there are no notifications", async ({ electronApp, window }) => {
+        const historyWindow = await openHistoryWindow(electronApp, window);
 
-        await bellBtn.click();
-        const emptyState = window.locator("#notification-history-empty");
+        const emptyState = historyWindow.locator("#notification-history-empty");
         await expect(emptyState).toBeVisible({ timeout: 5_000 });
         await expect(emptyState).toHaveText(/no notifications yet/i);
     });
 
-    test("panel has a Clear All button", async ({ window }) => {
-        const bellBtn = window.locator("#footer-notification-bell-btn");
-        await expect(bellBtn).toBeVisible({ timeout: 15_000 });
+    test("history window has a Clear All button", async ({ electronApp, window }) => {
+        const historyWindow = await openHistoryWindow(electronApp, window);
 
-        await bellBtn.click();
-        const clearBtn = window.locator("#notification-clear-all-btn");
+        const clearBtn = historyWindow.locator("#notification-clear-all-btn");
         await expect(clearBtn).toBeVisible({ timeout: 5_000 });
     });
 
-    test("bell button aria-pressed reflects panel open state", async ({ window }) => {
+    test("bell button aria-pressed reflects window open state", async ({ electronApp, window }) => {
         const bellBtn = window.locator("#footer-notification-bell-btn");
         await expect(bellBtn).toBeVisible({ timeout: 15_000 });
 
         await expect(bellBtn).toHaveAttribute("aria-pressed", "false");
 
-        await bellBtn.click();
-        await expect(bellBtn).toHaveAttribute("aria-pressed", "true");
+        await openHistoryWindow(electronApp, window);
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "true", { timeout: 5_000 });
 
         await bellBtn.click();
-        await expect(bellBtn).toHaveAttribute("aria-pressed", "false");
+        await expect(bellBtn).toHaveAttribute("aria-pressed", "false", { timeout: 5_000 });
     });
 
-    test("notification list is present inside the panel", async ({ window }) => {
-        const bellBtn = window.locator("#footer-notification-bell-btn");
-        await expect(bellBtn).toBeVisible({ timeout: 15_000 });
+    test("notification list is present inside the history window", async ({ electronApp, window }) => {
+        const historyWindow = await openHistoryWindow(electronApp, window);
 
-        await bellBtn.click();
-        const list = window.locator("#notification-history-list");
+        const list = historyWindow.locator("#notification-history-list");
         await expect(list).toBeAttached({ timeout: 5_000 });
     });
 });

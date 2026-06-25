@@ -30,8 +30,7 @@ import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
-import { initNotificationHistoryPanel } from "./notificationHistoryManagement";
+import { setDefaultNotificationDuration, showPPTBNotification, initNotificationHistoryPanel } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -784,11 +783,6 @@ function setupToolboxEventListeners(): void {
  * Set up tool panel bounds listener
  */
 function setupToolPanelBoundsListener(): void {
-    /** Minimum BrowserView width in CSS pixels to avoid an unusably narrow tool view. */
-    const MIN_TOOL_PANEL_WIDTH = 200;
-    /** Gap between the BrowserView's right edge and the notification panel's left edge. */
-    const NOTIFICATION_PANEL_MARGIN = 8;
-
     window.api.on("get-tool-panel-bounds-request", () => {
         const toolPanelContent = document.getElementById("tool-panel-content");
 
@@ -814,19 +808,6 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: adjustedHeight,
             };
-
-            // If the notification history panel is open, shrink the BrowserView from the
-            // right so the native BrowserView does not overlap the floating HTML panel.
-            // BrowserViews are native OS views; CSS z-index cannot place HTML over them.
-            const notificationPanel = document.getElementById("notification-history-panel");
-            if (notificationPanel && !notificationPanel.hidden) {
-                const panelRect = notificationPanel.getBoundingClientRect();
-                const newRight = Math.round(panelRect.left) - NOTIFICATION_PANEL_MARGIN;
-                const newWidth = newRight - bounds.x;
-                if (newWidth >= MIN_TOOL_PANEL_WIDTH) {
-                    bounds.width = newWidth;
-                }
-            }
 
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
