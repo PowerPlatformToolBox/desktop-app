@@ -205,10 +205,13 @@ export class NotificationHistoryWindowManager {
                 <div class="notification-history-entry notification-history-entry--${entry.type}" role="listitem">
                     <span class="notification-history-entry__icon">${icons[entry.type]}</span>
                     <div class="notification-history-entry__body">
-                        <div class="notification-history-entry__title">${this.escapeHtml(entry.title)}</div>
-                        <div class="notification-history-entry__message">${this.escapeHtml(entry.body)}</div>
+                        <div class="notification-history-entry__title" title="${this.escapeHtml(entry.title)}">${this.escapeHtml(entry.title)}</div>
+                        <div class="notification-history-entry__message" title="${this.escapeHtml(entry.body)}">${this.escapeHtml(entry.body)}</div>
                     </div>
-                    <span class="notification-history-entry__time">${this.formatTimestamp(entry.timestamp)}</span>
+                    <div class="notification-history-entry__meta">
+                        <span class="notification-history-entry__time">${this.formatTimestamp(entry.timestamp)}</span>
+                        <button type="button" class="notification-history-entry__copy" aria-label="Copy notification">Copy</button>
+                    </div>
                 </div>`,
                   )
                   .join("")
@@ -315,12 +318,37 @@ export class NotificationHistoryWindowManager {
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
         }
+        .notification-history-entry__meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
         .notification-history-entry__time {
             font-size: 10px;
             color: #6b6b6b;
-            flex-shrink: 0;
-            margin-top: 2px;
             white-space: nowrap;
+        }
+        .notification-history-entry__copy {
+            font-size: 10px;
+            color: #9d9d9d;
+            background: transparent;
+            border: 1px solid #4a4a4a;
+            border-radius: 3px;
+            padding: 1px 6px;
+            cursor: pointer;
+            transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .notification-history-entry__copy:hover {
+            color: #d4d4d4;
+            background: rgba(255,255,255,0.08);
+            border-color: #6a6a6a;
+        }
+        .notification-history-entry__copy.is-copied {
+            color: #9cdcfe;
+            border-color: #0078d4;
         }
     </style>
 </head>
@@ -334,9 +362,80 @@ export class NotificationHistoryWindowManager {
         <div id="notification-history-empty"${hasHistory ? ' style="display:none"' : ""}>No notifications yet</div>
     </div>
     <script>
+        function copyTextWithFallback(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+
+            return new Promise(function(resolve, reject) {
+                try {
+                    var textarea = document.createElement("textarea");
+                    textarea.value = text;
+                    textarea.setAttribute("readonly", "");
+                    textarea.style.position = "fixed";
+                    textarea.style.top = "-1000px";
+                    textarea.style.left = "-1000px";
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    var copied = document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    if (copied) {
+                        resolve();
+                    } else {
+                        reject(new Error("Copy command failed"));
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
         document.getElementById("notification-clear-all-btn").addEventListener("click", function() {
             window.electron.clearHistory();
         });
+
+        document.getElementById("notification-history-list").addEventListener("click", function(e) {
+            var eventTarget = e.target;
+            if (!(eventTarget instanceof Element)) {
+                return;
+            }
+
+            var target = eventTarget.closest(".notification-history-entry__copy");
+            if (!(target instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            var entry = target.closest(".notification-history-entry");
+            if (!entry) return;
+
+            var titleElement = entry.querySelector(".notification-history-entry__title");
+            var messageElement = entry.querySelector(".notification-history-entry__message");
+            var timeElement = entry.querySelector(".notification-history-entry__time");
+
+            var title = titleElement ? titleElement.textContent.trim() : "";
+            var message = messageElement ? messageElement.textContent.trim() : "";
+            var time = timeElement ? timeElement.textContent.trim() : "";
+
+            var clipboardText = "Notification" + "\\n" + "Title: " + title + "\\n" + "Message: " + message + "\\n" + "Time: " + time;
+
+            copyTextWithFallback(clipboardText)
+                .then(function() {
+                    target.textContent = "Copied";
+                    target.classList.add("is-copied");
+                    window.setTimeout(function() {
+                        target.textContent = "Copy";
+                        target.classList.remove("is-copied");
+                    }, 1200);
+                })
+                .catch(function() {
+                    target.textContent = "Failed";
+                    window.setTimeout(function() {
+                        target.textContent = "Copy";
+                    }, 1200);
+                });
+        });
+
         document.addEventListener("keydown", function(e) {
             if (e.key === "Escape") { window.electron.closeHistoryPanel(); }
         });
