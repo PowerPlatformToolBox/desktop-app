@@ -1977,37 +1977,6 @@ body.dark-theme .settings-section-card {
     display: block !important;
 }
 
-/* Split view secondary panel toolbar */
-.split-view-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 8px;
-    min-height: 28px;
-    background: var(--titlebar-bg, var(--background-color));
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
-    user-select: none;
-}
-
-.split-view-tool-name {
-    font-size: 12px;
-    color: var(--text-secondary, var(--text-color));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-}
-
-.split-view-close-btn {
-    flex-shrink: 0;
-    margin-left: 4px;
-    opacity: 0.7;
-}
-
-.split-view-close-btn:hover {
-    opacity: 1;
-}
 
 /* Prevent text selection during resize drag */
 body.resizing {

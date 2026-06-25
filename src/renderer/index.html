@@ -370,13 +370,18 @@
                         <div class="resize-handle" id="split-view-resize-handle" style="display: none" title="Drag to resize panels" aria-hidden="true"></div>
                         <!-- Secondary (right) panel for split view -->
                         <div class="tool-panel-content secondary" id="tool-panel-content-secondary" style="display: none">
-                            <div class="split-view-toolbar" id="split-view-toolbar">
-                                <span class="split-view-tool-name" id="split-view-tool-name"></span>
-                                <button class="btn-icon split-view-close-btn" id="close-split-view" title="Close split view" aria-label="Close split view">
-                                    <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                        <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.707.708L7.293 8l-3.646 3.646.707.708L8 8.707z" />
-                                    </svg>
-                                </button>
+                            <!-- Tab bar header for the secondary panel — mirrors the primary panel header for VS Code-style split view -->
+                            <div class="tool-panel-header" id="split-view-toolbar">
+                                <div class="tool-tabs-container">
+                                    <div class="tool-tabs" id="secondary-tool-tabs">
+                                        <div class="tool-tab secondary-active" id="split-view-tool-tab">
+                                            <div class="tool-tab-name-container">
+                                                <span class="tool-tab-name" id="split-view-tool-name"></span>
+                                            </div>
+                                            <button class="tool-tab-close" id="close-split-view" title="Close split view" aria-label="Close split view">×</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <!-- Secondary BrowserView is positioned here by the backend ToolWindowManager -->
                         </div>
