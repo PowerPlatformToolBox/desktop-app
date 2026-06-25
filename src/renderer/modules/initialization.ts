@@ -111,6 +111,10 @@ export async function initializeApplication(): Promise<void> {
         // Set up global search command palette
         initializeGlobalSearch();
 
+        // Set up notification history panel (bell icon in footer) early so the click
+        // handler is registered before any async operations that might delay init.
+        initNotificationHistoryPanel();
+
         // Load and apply theme settings on startup
         await loadInitialSettings();
         logCheckpoint("Initial settings loaded");
@@ -160,9 +164,6 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up terminal toggle button
         setupTerminalPanel();
-
-        // Set up notification history panel (bell icon in footer)
-        initNotificationHistoryPanel();
 
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
@@ -808,6 +809,20 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: adjustedHeight,
             };
+
+            // If the notification history panel is open, shrink the BrowserView from the
+            // right so the native BrowserView does not overlap the floating HTML panel.
+            // BrowserViews are native OS views; CSS z-index cannot place HTML over them.
+            const notificationPanel = document.getElementById("notification-history-panel");
+            if (notificationPanel && !notificationPanel.hidden) {
+                const panelRect = notificationPanel.getBoundingClientRect();
+                const newRight = Math.round(panelRect.left) - 8;
+                const newWidth = newRight - bounds.x;
+                if (newWidth > 0) {
+                    bounds.width = newWidth;
+                }
+            }
+
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {

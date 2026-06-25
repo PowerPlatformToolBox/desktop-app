@@ -5925,7 +5925,11 @@ body.dark-theme .global-search-item-badge.badge-settings {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-    z-index: 500;
+    // Use the highest z-index to stay above all HTML elements.
+    // NOTE: The main process shrinks the active BrowserView's right boundary when this
+    // panel is open (via the "notification-panel-visibility-changed" IPC), because native
+    // Electron BrowserViews cannot be overlaid by CSS z-index alone.
+    z-index: $z-modal;
     display: flex;
     flex-direction: column;
     overflow: hidden;

@@ -124,6 +124,9 @@ function openPanel(): void {
     panel.setAttribute("aria-expanded", "true");
     bellBtn?.setAttribute("aria-pressed", "true");
 
+    // Signal the main process so it can shrink the BrowserView to not cover the panel.
+    window.api.send("notification-panel-visibility-changed", true);
+
     // Mark all as read when the panel is opened
     markAllAsRead();
     updateBadge();
@@ -162,6 +165,9 @@ function closePanel(): void {
     panel.hidden = true;
     panel.setAttribute("aria-expanded", "false");
     bellBtn?.setAttribute("aria-pressed", "false");
+
+    // Signal the main process to restore the full BrowserView bounds.
+    window.api.send("notification-panel-visibility-changed", false);
 
     if (outsideClickHandler) {
         document.removeEventListener("click", outsideClickHandler, { capture: true });
