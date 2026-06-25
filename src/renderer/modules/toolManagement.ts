@@ -199,7 +199,7 @@ async function changeToolConnectionForInstance(instanceId: string): Promise<void
 async function enterSplitView(secondaryInstanceId: string): Promise<void> {
     try {
         await window.toolboxAPI.setSplitViewSecondary(secondaryInstanceId);
-        applySplitViewUI(secondaryInstanceId);
+        await applySplitViewUI(secondaryInstanceId);
     } catch (error) {
         logError("Failed to activate split view", error instanceof Error ? error : new Error(String(error)));
     }
@@ -238,7 +238,7 @@ export async function closeSplitView(): Promise<void> {
 /**
  * Apply the split view DOM changes: add the split-view class and show the secondary panel.
  */
-function applySplitViewUI(secondaryInstanceId: string): void {
+async function applySplitViewUI(secondaryInstanceId: string): Promise<void> {
     splitViewSecondaryId = secondaryInstanceId;
 
     const wrapper = document.getElementById("tool-panel-content-wrapper");
@@ -258,6 +258,26 @@ function applySplitViewUI(secondaryInstanceId: string): void {
 
     updateSplitViewToolName(secondaryInstanceId);
     setupSplitViewResizeHandle();
+
+    // Restore the persisted divider ratio so the split resumes at the last-used position.
+    try {
+        const savedRatio = await window.toolboxAPI.getSplitDividerRatio();
+        const primaryPanel = document.getElementById("tool-panel-content");
+        if (primaryPanel && secondaryPanel && wrapper) {
+            const handleWidth = resizeHandle?.getBoundingClientRect().width || SPLIT_VIEW_HANDLE_FALLBACK_WIDTH;
+            const totalWidth = wrapper.getBoundingClientRect().width;
+            if (totalWidth > 0) {
+                const primaryWidth = savedRatio * totalWidth;
+                const newSecondaryWidth = totalWidth - primaryWidth - handleWidth;
+                primaryPanel.style.flexBasis = `${primaryWidth}px`;
+                primaryPanel.style.flex = "none";
+                secondaryPanel.style.flexBasis = `${newSecondaryWidth}px`;
+                secondaryPanel.style.flex = "none";
+            }
+        }
+    } catch (_e) {
+        // Use the default 50/50 split if the ratio cannot be retrieved.
+    }
 }
 
 /**
@@ -372,6 +392,16 @@ function setupSplitViewResizeHandle(): void {
             if (!isResizing) return;
             isResizing = false;
             document.body.classList.remove("resizing");
+
+            // Persist the new divider position so it is restored next time split view opens.
+            const totalWidth = wrapper.getBoundingClientRect().width;
+            if (totalWidth > 0) {
+                const currentPrimaryWidth = primaryPanel.getBoundingClientRect().width;
+                const ratio = currentPrimaryWidth / totalWidth;
+                window.toolboxAPI.saveSplitDividerRatio(ratio).catch(() => {
+                    // ignore persistence errors
+                });
+            }
         },
         { signal },
     );

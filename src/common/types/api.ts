@@ -245,6 +245,10 @@ export interface ToolboxAPI {
     switchSplitViewSecondary: (newSecondaryInstanceId: string) => Promise<boolean>;
     /** Subscribe to split view state changes pushed from the main process. */
     onSplitViewChanged: (callback: (state: { active: boolean; secondaryInstanceId: string | null }) => void) => void;
+    /** Get the persisted split-view divider ratio (0.2–0.8, defaults to 0.5). */
+    getSplitDividerRatio: () => Promise<number>;
+    /** Persist the current divider ratio after the user drags the split-view handle. */
+    saveSplitDividerRatio: (ratio: number) => Promise<void>;
 
     // Favorite tools
     addFavoriteTool: (toolId: string) => Promise<void>;

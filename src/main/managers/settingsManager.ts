@@ -38,6 +38,7 @@ export class SettingsManager {
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
+                splitDividerRatio: 0.5, // Default to equal split
             },
         });
 

@@ -113,6 +113,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onSplitViewChanged: (callback: (state: { active: boolean; secondaryInstanceId: string | null }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_CHANGED, (_event, state) => callback(state));
     },
+    /** Get the persisted split-view divider ratio (0.2–0.8, defaults to 0.5). */
+    getSplitDividerRatio: (): Promise<number> => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_GET_DIVIDER_RATIO),
+    /** Persist the current divider ratio after the user drags the split-view handle. */
+    saveSplitDividerRatio: (ratio: number): Promise<void> => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SPLIT_VIEW_SAVE_DIVIDER_RATIO, ratio),
 
     // Favorite tools - Only for PPTB UI
     addFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, toolId),

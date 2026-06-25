@@ -145,6 +145,16 @@ export const TOOL_WINDOW_CHANNELS = {
      * state changes (activated or closed) so the renderer can update its UI.
      */
     SPLIT_VIEW_CHANGED: "tool-window:split-view-changed",
+    /**
+     * Invoked by the renderer to retrieve the persisted divider ratio for the
+     * split-view layout (a number between 0.2 and 0.8, defaults to 0.5).
+     */
+    SPLIT_VIEW_GET_DIVIDER_RATIO: "tool-window:split-view-get-divider-ratio",
+    /**
+     * Invoked by the renderer to persist the current divider ratio after the
+     * user drags the split-view handle.
+     */
+    SPLIT_VIEW_SAVE_DIVIDER_RATIO: "tool-window:split-view-save-divider-ratio",
 } as const;
 
 // Terminal-related IPC channels

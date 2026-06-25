@@ -108,14 +108,19 @@ test.describe("Split view — UI activation & teardown", () => {
 
             // #tool-panel is hidden by default (shown only when tools are open);
             // make it visible so its children can be inspected by Playwright.
+            // Set an explicit height so the flex container has measurable dimensions
+            // and children (including the resize handle) get non-zero computed sizes.
             const toolPanel = document.getElementById("tool-panel");
-            if (toolPanel) toolPanel.style.display = "flex";
+            if (toolPanel) {
+                toolPanel.style.display = "flex";
+                toolPanel.style.height = "600px";
+            }
 
             const wrapper = document.getElementById("tool-panel-content-wrapper");
             if (wrapper) wrapper.classList.add("split-view");
 
             const resizeHandle = document.getElementById("split-view-resize-handle");
-            if (resizeHandle) resizeHandle.style.display = "";
+            if (resizeHandle) resizeHandle.style.display = "block";
 
             const secondaryPanel = document.getElementById("tool-panel-content-secondary");
             if (secondaryPanel) secondaryPanel.style.display = "flex";
@@ -129,7 +134,10 @@ test.describe("Split view — UI activation & teardown", () => {
         await page.evaluate(() => {
             // Restore #tool-panel to its default hidden state
             const toolPanel = document.getElementById("tool-panel");
-            if (toolPanel) toolPanel.style.display = "none";
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+                toolPanel.style.height = "";
+            }
 
             const wrapper = document.getElementById("tool-panel-content-wrapper");
             if (wrapper) wrapper.classList.remove("split-view");
