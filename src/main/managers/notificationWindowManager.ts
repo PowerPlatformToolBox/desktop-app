@@ -41,7 +41,7 @@ export class NotificationHistoryWindowManager {
     private readonly WINDOW_WIDTH = 380;
     private readonly WINDOW_HEIGHT = 480;
     /** Horizontal gap between the right edge of the history window and the right edge of the main window */
-    private readonly HORIZONTAL_MARGIN = 10;
+    private readonly HORIZONTAL_MARGIN = 12;
     /** Vertical offset from the bottom of the main window to the bottom of the history window (accounts for footer height) */
     private readonly FOOTER_OFFSET = 40;
 
@@ -70,8 +70,8 @@ export class NotificationHistoryWindowManager {
 
     private setupIpcHandlers(): void {
         this.removeIpcHandlers();
-        ipcMain.on("notification-history:open", () => this.openPanel());
-        ipcMain.on("notification-history:close", () => this.closePanel());
+        ipcMain.on("notification-history:open", () => this.openHistoryPanel());
+        ipcMain.on("notification-history:close", () => this.closeHistoryPanel());
         ipcMain.on("notification-history:clear", () => this.clearHistory());
     }
 
@@ -85,12 +85,12 @@ export class NotificationHistoryWindowManager {
         this.mainWindow.on("move", () => this.updateWindowPosition());
         this.mainWindow.on("resize", () => this.updateWindowPosition());
         this.mainWindow.on("minimize", () => {
-            if (this.isPanelOpen) this.closePanel();
+            if (this.isPanelOpen) this.closeHistoryPanel();
         });
         this.mainWindow.on("closed", () => this.destroy());
     }
 
-    private openPanel(): void {
+    private openHistoryPanel(): void {
         if (!this.historyWindow) {
             this.createHistoryWindow();
         }
@@ -106,7 +106,7 @@ export class NotificationHistoryWindowManager {
         this.mainWindow.webContents.send("notification-history:opened");
     }
 
-    private closePanel(): void {
+    private closeHistoryPanel(): void {
         this.isPanelOpen = false;
         this.historyWindow?.hide();
         // Tell the renderer the panel closed (triggered by blur, Escape, or explicit close).
@@ -154,7 +154,7 @@ export class NotificationHistoryWindowManager {
 
         // Close the panel when the window loses OS focus (user clicked elsewhere).
         this.historyWindow.on("blur", () => {
-            if (this.isPanelOpen) this.closePanel();
+            if (this.isPanelOpen) this.closeHistoryPanel();
         });
 
         this.historyWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(this.generateHistoryHTML())}`);
@@ -166,7 +166,7 @@ export class NotificationHistoryWindowManager {
     }
 
     private updateWindowPosition(): void {
-        if (!this.historyWindow?.isVisible()) return;
+        if (!this.historyWindow) return;
         const mainBounds = this.mainWindow.getBounds();
         const x = mainBounds.x + mainBounds.width - this.WINDOW_WIDTH - this.HORIZONTAL_MARGIN;
         const y = mainBounds.y + mainBounds.height - this.WINDOW_HEIGHT - this.FOOTER_OFFSET;
@@ -190,8 +190,10 @@ export class NotificationHistoryWindowManager {
     private generateHistoryHTML(): string {
         const icons: Record<NotificationHistoryEntry["type"], string> = {
             info: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
-            success: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm3.844 4.844a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5z"/></svg>',
-            warning: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 4h1v4h-1V4z"/><path d="M8 11a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
+            success:
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm3.844 4.844a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5z"/></svg>',
+            warning:
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 4h1v4h-1V4z"/><path d="M8 11a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
             error: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zM4.646 4.646a.5.5 0 0 0 0 .708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646a.5.5 0 0 0-.708 0z"/></svg>',
         };
 
