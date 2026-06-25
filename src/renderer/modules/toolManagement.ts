@@ -275,8 +275,8 @@ async function applySplitViewUI(secondaryInstanceId: string): Promise<void> {
                 secondaryPanel.style.flex = "none";
             }
         }
-    } catch (_e) {
-        // Use the default 50/50 split if the ratio cannot be retrieved.
+    } catch (e) {
+        logWarn("Could not restore split-view divider ratio; using default 50/50 split", e instanceof Error ? e : undefined);
     }
 }
 

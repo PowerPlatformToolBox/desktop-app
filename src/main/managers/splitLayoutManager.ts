@@ -329,7 +329,8 @@ export class SplitLayoutManager {
             ipcMain.once("get-secondary-tool-panel-bounds-response", () => {
                 clearTimeout(fallbackTimer);
             });
-        } catch (_error) {
+        } catch (error) {
+            logError("[SplitLayoutManager] Failed to send secondary-bounds request to renderer", error);
             this.secondaryBoundsUpdatePending = false;
         }
     }
