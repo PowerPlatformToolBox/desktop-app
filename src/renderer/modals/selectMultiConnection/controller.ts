@@ -17,7 +17,7 @@ export interface ConnectionListData {
  * Returns the controller script that wires up DOM events for the select multi-connection modal.
  * @param channels - Channel IDs for IPC communication
  * @param isSecondaryRequired - Whether the secondary connection is required (true) or optional (false)
- * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
+ * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
  */
 export function getSelectMultiConnectionModalControllerScript(
     channels: SelectMultiConnectionModalChannelIds,
@@ -104,7 +104,6 @@ ${sortingUtilities}
         const selectedAuth = authFilter?.value || "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
-        const requirePowerPlatformApi = ENABLED_FOR_POWER_PLATFORM_API === true;
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -132,11 +131,6 @@ ${sortingUtilities}
                 } else if (conn.category !== selectedCategory) {
                     return false;
                 }
-            }
-
-            // Power Platform API filter - only show connections enabled for Power Platform API
-            if (requirePowerPlatformApi && conn.enabledForPowerPlatformAPI !== true) {
-                return false;
             }
 
             return true;
