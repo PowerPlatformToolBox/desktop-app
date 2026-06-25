@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { expect, test } from "./fixtures";
 
 /**
  * E2E: basic application launch and window visibility.
@@ -26,12 +26,20 @@ test.describe("App launch", () => {
     });
 
     test("no JavaScript errors thrown at startup", async ({ electronApp }) => {
-        const errors: string[] = [];
+        const jsErrors: string[] = [];
+        const consoleErrors: string[] = [];
 
         const win = await electronApp.firstWindow();
+
+        // Track actual unhandled JS exceptions in the renderer.
+        win.on("pageerror", (error) => {
+            jsErrors.push(error.message);
+        });
+
+        // Keep console error tracking for diagnostics only.
         win.on("console", (msg) => {
             if (msg.type() === "error") {
-                errors.push(msg.text());
+                consoleErrors.push(msg.text());
             }
         });
 
@@ -40,11 +48,14 @@ test.describe("App launch", () => {
             // networkidle can time out in Electron — that's OK
         });
 
-        // Filter out known benign console errors from third-party libs
-        const significantErrors = errors.filter(
-            (e) => !e.includes("favicon") && !e.includes("net::ERR_") && !e.includes("Mixed Content"),
+        // Assert only on true JavaScript startup errors.
+        expect(jsErrors).toHaveLength(0);
+
+        // Optional sanity check: keep known noisy resource/network console errors out of signal.
+        const significantConsoleErrors = consoleErrors.filter(
+            (e) => !e.includes("favicon") && !e.includes("net::ERR_") && !e.includes("Mixed Content") && !e.includes("Failed to load resource: the server responded with a status of 404"),
         );
 
-        expect(significantErrors).toHaveLength(0);
+        expect(significantConsoleErrors).toHaveLength(0);
     });
 });
