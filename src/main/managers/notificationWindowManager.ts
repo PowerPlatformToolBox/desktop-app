@@ -40,6 +40,10 @@ export class NotificationHistoryWindowManager {
 
     private readonly WINDOW_WIDTH = 380;
     private readonly WINDOW_HEIGHT = 480;
+    /** Horizontal gap between the right edge of the history window and the right edge of the main window */
+    private readonly HORIZONTAL_MARGIN = 10;
+    /** Vertical offset from the bottom of the main window to the bottom of the history window (accounts for footer height) */
+    private readonly FOOTER_OFFSET = 40;
 
     constructor(mainWindow: BrowserWindow) {
         this.mainWindow = mainWindow;
@@ -164,8 +168,8 @@ export class NotificationHistoryWindowManager {
     private updateWindowPosition(): void {
         if (!this.historyWindow?.isVisible()) return;
         const mainBounds = this.mainWindow.getBounds();
-        const x = mainBounds.x + mainBounds.width - this.WINDOW_WIDTH - 10;
-        const y = mainBounds.y + mainBounds.height - this.WINDOW_HEIGHT - 40;
+        const x = mainBounds.x + mainBounds.width - this.WINDOW_WIDTH - this.HORIZONTAL_MARGIN;
+        const y = mainBounds.y + mainBounds.height - this.WINDOW_HEIGHT - this.FOOTER_OFFSET;
         this.historyWindow.setBounds({ x, y, width: this.WINDOW_WIDTH, height: this.WINDOW_HEIGHT });
     }
 

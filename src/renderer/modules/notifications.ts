@@ -179,7 +179,9 @@ export function initNotificationHistoryPanel(): void {
         bellBtn.setAttribute("aria-pressed", "false");
     });
 
-    // Main process sends badge updates whenever the unread count changes
+    // Main process sends badge updates whenever the unread count changes.
+    // window.api.on wraps ipcRenderer.on directly, so args[0] is the IPC event object
+    // and args[1] is the first data payload (the unread count).
     window.api.on("notification:badge-update", (...args: unknown[]) => {
         const count = typeof args[1] === "number" ? args[1] : 0;
         updateBadge(count);
