@@ -784,6 +784,11 @@ function setupToolboxEventListeners(): void {
  * Set up tool panel bounds listener
  */
 function setupToolPanelBoundsListener(): void {
+    /** Minimum BrowserView width in CSS pixels to avoid an unusably narrow tool view. */
+    const MIN_TOOL_PANEL_WIDTH = 200;
+    /** Gap between the BrowserView's right edge and the notification panel's left edge. */
+    const NOTIFICATION_PANEL_MARGIN = 8;
+
     window.api.on("get-tool-panel-bounds-request", () => {
         const toolPanelContent = document.getElementById("tool-panel-content");
 
@@ -816,9 +821,9 @@ function setupToolPanelBoundsListener(): void {
             const notificationPanel = document.getElementById("notification-history-panel");
             if (notificationPanel && !notificationPanel.hidden) {
                 const panelRect = notificationPanel.getBoundingClientRect();
-                const newRight = Math.round(panelRect.left) - 8;
+                const newRight = Math.round(panelRect.left) - NOTIFICATION_PANEL_MARGIN;
                 const newWidth = newRight - bounds.x;
-                if (newWidth > 0) {
+                if (newWidth >= MIN_TOOL_PANEL_WIDTH) {
                     bounds.width = newWidth;
                 }
             }
