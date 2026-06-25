@@ -16,7 +16,7 @@ export interface ConnectionListData {
 /**
  * Returns the controller script that wires up DOM events for the select connection modal.
  * @param channels - Channel IDs for IPC communication
- * @param enabledForPowerPlatformAPI - Whether to filter for Power Platform API enabled connections
+ * @param enabledForPowerPlatformAPI - Whether to show Power Platform API guidance/tag context
  */
 export function getSelectConnectionModalControllerScript(channels: SelectConnectionModalChannelIds, enabledForPowerPlatformAPI: boolean = false): string {
     const serializedChannels = JSON.stringify(channels);
@@ -96,7 +96,6 @@ ${sortingUtilities}
         const selectedAuth = authFilter?.value || "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedSort = sanitizeSortOption(sortSelect?.value || injectedSortOption);
-        const requirePowerPlatformApi = ENABLED_FOR_POWER_PLATFORM_API === true;
 
         let filtered = allConnections.filter(conn => {
             // Search filter
@@ -124,11 +123,6 @@ ${sortingUtilities}
                 } else if (conn.category !== selectedCategory) {
                     return false;
                 }
-            }
-
-            // Power Platform API filter - only show connections enabled for Power Platform API
-            if (requirePowerPlatformApi && conn.enabledForPowerPlatformAPI !== true) {
-                return false;
             }
 
             return true;
@@ -425,6 +419,14 @@ ${sortingUtilities}
         });
     } else {
         console.warn("modalBridge.onMessage is not available");
+    }
+
+    // Show Power Platform API info message if required
+    if (ENABLED_FOR_POWER_PLATFORM_API === true) {
+        const ppApiInfo = document.getElementById("power-platform-api-info");
+        if (ppApiInfo) {
+            ppApiInfo.style.display = "block";
+        }
     }
     
     // Request connections list from main process

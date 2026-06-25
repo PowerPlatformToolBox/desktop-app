@@ -118,7 +118,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
             } to continue.
         </div>
         <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
-            <span>Only connections enabled for Power Platform API are shown. Add a connection with Client ID/Secret authentication and select "Enable for Power Platform API" to use it with this tool.</span>
+            <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
         </div>
         
         <div class="modal-search-container">
