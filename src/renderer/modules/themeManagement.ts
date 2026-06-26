@@ -323,8 +323,8 @@ export function applyDebugMenuVisibility(showDebugMenu: boolean): void {
  * Controls visibility of preview-gated items (e.g. the MCP Server button)
  */
 export function applyPreviewFeaturesVisibility(enablePreviewFeatures: boolean): void {
-    const mcpBtn = document.getElementById("agent-invocation-logs-btn") as HTMLElement | null;
-    if (mcpBtn) {
-        mcpBtn.style.display = enablePreviewFeatures ? "" : "none";
+    const mcpButton = document.getElementById("agent-invocation-logs-btn") as HTMLElement | null;
+    if (mcpButton) {
+        mcpButton.style.display = enablePreviewFeatures ? "" : "none";
     }
 }
