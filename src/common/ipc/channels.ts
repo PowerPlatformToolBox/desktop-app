@@ -285,5 +285,21 @@ export const MODAL_WINDOW_CHANNELS = {
     RENDERER_MESSAGE: "modal-window:renderer-message",
 } as const;
 
+// Split layout channels
+export const SPLIT_LAYOUT_CHANNELS = {
+    ACTIVATE: "split-layout:activate",
+    DEACTIVATE: "split-layout:deactivate",
+    SET_RATIO: "split-layout:set-ratio",
+    GET_STATE: "split-layout:get-state",
+    /** setActiveInPane(pane, instanceId) — make a group member the visible tool in its pane */
+    SWITCH_PANE: "split-layout:switch-pane",
+    /** moveToPane(instanceId, targetPane) — move a tab from one group to another */
+    MOVE_TO_PANE: "split-layout:move-to-pane",
+    /** setFocusedPane(pane) — set which pane receives newly opened tools */
+    FOCUS_PANE: "split-layout:focus-pane",
+    /** Pushed from main to renderer when split state changes */
+    STATE_CHANGED: "split-layout:state-changed",
+} as const;
+
 // Type helper to extract channel names
 export type ChannelName<T> = T[keyof T];

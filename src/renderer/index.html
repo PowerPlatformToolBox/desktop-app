@@ -342,21 +342,29 @@
             <main class="main-content">
                 <!-- Tool Panel (for launched tools) -->
                 <div id="tool-panel" class="tool-panel" style="display: none">
-                    <div class="tool-panel-header">
-                        <div class="tool-tabs-container">
+                    <div class="tool-panel-header" id="tool-panel-header">
+                        <!-- Left pane tab bar (default / always visible) -->
+                        <div class="tool-tabs-container" id="left-tabs-container">
                             <button class="tool-tabs-scroll-button tool-tabs-scroll-left" id="scroll-tabs-left" title="Scroll tabs left" aria-label="Scroll tabs left">
                                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                                     <path fill-rule="evenodd" clip-rule="evenodd" d="M10.072 11.316L6.715 7.96l3.357-3.357-.618-.62-4.667 4.668v.618l4.667 4.667.618-.62z" />
                                 </svg>
                             </button>
                             <div class="tool-tabs" id="tool-tabs">
-                                <!-- Tabs will be dynamically added here -->
+                                <!-- Left-pane tabs dynamically added here -->
                             </div>
                             <button class="tool-tabs-scroll-button tool-tabs-scroll-right" id="scroll-tabs-right" title="Scroll tabs right" aria-label="Scroll tabs right">
                                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                                     <path fill-rule="evenodd" clip-rule="evenodd" d="M5.928 11.316l3.357-3.356-3.357-3.357.618-.62 4.667 4.668v.618l-4.667 4.667-.618-.62z" />
                                 </svg>
                             </button>
+                        </div>
+                        <!-- Split-view right pane tab bar (hidden until split activated) -->
+                        <div class="split-tabs-bar-divider" id="split-tabs-bar-divider" style="display: none" aria-hidden="true"></div>
+                        <div class="tool-tabs-container" id="right-tabs-container" style="display: none" role="tablist" aria-label="Right pane tabs">
+                            <div class="tool-tabs" id="right-tool-tabs">
+                                <!-- Right-pane tabs dynamically added here -->
+                            </div>
                         </div>
                         <div class="tool-panel-controls">
                             <button class="btn-icon" id="close-all-tools" title="Close all tools">✕</button>
@@ -365,6 +373,16 @@
                     <div class="tool-panel-content-wrapper" id="tool-panel-content-wrapper">
                         <div class="tool-panel-content" id="tool-panel-content">
                             <!-- BrowserView tools are rendered here by the backend ToolWindowManager -->
+                            <!-- Split-pane divider: visible in the gap between left and right BrowserViews -->
+                            <div
+                                id="split-pane-divider"
+                                class="split-pane-divider"
+                                style="display: none"
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label="Drag to resize split panes"
+                                title="Drag to resize panes"
+                            ></div>
                         </div>
                         <!-- Tool detail tab content panel (rendered inline, shown when a detail tab is active) -->
                         <div id="tool-detail-content-panel" style="display: none"></div>
@@ -607,7 +625,7 @@
                 <span id="secondary-connection-status" class="secondary-connection-status"></span>
                 <button type="button" class="footer-bell-btn" id="footer-notification-bell-btn" title="Notifications" aria-label="Notifications" aria-pressed="false" aria-haspopup="true">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M10 2a6 6 0 0 0-6 6v2.586l-.707.707A1 1 0 0 0 4 13h12a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6zM10 18a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z"/>
+                        <path d="M10 2a6 6 0 0 0-6 6v2.586l-.707.707A1 1 0 0 0 4 13h12a1 1 0 0 0 .707-1.707L16 10.586V8a6 6 0 0 0-6-6zM10 18a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z" />
                     </svg>
                     <span class="notification-badge" id="notification-badge" hidden aria-label="unread notifications">0</span>
                 </button>

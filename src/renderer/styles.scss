@@ -1614,6 +1614,48 @@ body.dark-theme .settings-section-card {
     height: 40px;
     min-height: 40px;
     position: relative;
+    overflow: hidden;
+
+    /* ── Split-active layout ─────────────────────────────────────────────────
+     * When .split-active is added, the left/right tab containers sit side by
+     * side.  Their flex-basis values are set via JS (--split-left-basis /
+     * --split-right-basis) so the separator aligns with the content divider.
+     */
+    &.split-active {
+        overflow: visible; // allow tab bar shadow to be visible
+
+        #left-tabs-container {
+            flex: 0 0 var(--split-left-basis, 50%);
+            min-width: 80px;
+            max-width: calc(100% - 80px - 4px);
+            border-right: none;
+        }
+
+        #right-tabs-container {
+            flex: 1 1 auto;
+            min-width: 80px;
+            overflow: hidden;
+        }
+    }
+}
+
+/* ── Split-pane tab-bar visual separator ────────────────────────────────────── */
+
+.split-tabs-bar-divider {
+    flex: 0 0 4px;
+    width: 4px;
+    align-self: stretch;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    z-index: 5;
+}
+
+/* Right tab bar drop-zone highlight when a tab is dragged over it */
+#right-tabs-container.drag-over-pane,
+#left-tabs-container.drag-over-pane {
+    background: color-mix(in srgb, var(--accent-color, #6a00ff) 12%, transparent);
+    outline: 1px solid var(--accent-color, #6a00ff);
+    outline-offset: -1px;
 }
 
 .tool-panel-controls {
@@ -1868,6 +1910,61 @@ body.dark-theme .settings-section-card {
     flex: 1;
     position: relative;
     overflow: hidden;
+}
+
+/* ── Split-pane divider ───────────────────────────────────────────────────── */
+
+.split-pane-divider {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    z-index: 2;
+    user-select: none;
+    transition: background-color 0.15s ease;
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -4px;
+        right: -4px;
+        bottom: 0;
+    }
+
+    &:hover,
+    &.dragging {
+        background-color: var(--accent-color, #6a00ff);
+    }
+}
+
+/* ── Split-pane tab badges (L / R) ───────────────────────────────────────── */
+
+.split-pane-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    margin-right: 4px;
+    flex-shrink: 0;
+    pointer-events: none;
+    background-color: var(--accent-color, #6a00ff);
+    color: #fff;
+}
+
+.tool-tab.split-pane-left .split-pane-badge {
+    background-color: var(--accent-color, #6a00ff);
+}
+
+.tool-tab.split-pane-right .split-pane-badge {
+    background-color: var(--accent-color-alt, #00b4d8);
 }
 
 .tool-panel-content-wrapper {
@@ -5879,7 +5976,9 @@ body.dark-theme .global-search-item-badge.badge-settings {
     color: var(--text-secondary);
     border-radius: 4px;
     cursor: pointer;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition:
+        color 0.15s ease,
+        background 0.15s ease;
     flex-shrink: 0;
 }
 

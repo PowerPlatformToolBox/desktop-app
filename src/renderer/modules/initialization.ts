@@ -30,7 +30,7 @@ import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { setDefaultNotificationDuration, showPPTBNotification, initNotificationHistoryPanel } from "./notifications";
+import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -42,6 +42,7 @@ import {
     initializeInvocationBanner,
     initializeInvocationConnectionsPrompt,
     initializeTabScrollButtons,
+    initSplitLayout,
     launchTool,
     restoreSession,
     setupKeyboardShortcuts,
@@ -70,6 +71,9 @@ export async function initializeApplication(): Promise<void> {
         // called after restoreSession which meant the main process could not get correct
         // BrowserView bounds during session restore, causing tools to fill the whole window.
         setupToolPanelBoundsListener();
+
+        // Set up the split-pane divider and listen for state changes from the main process
+        initSplitLayout();
 
         // Set up Activity Bar navigation
         setupActivityBar();

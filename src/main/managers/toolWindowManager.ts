@@ -7,6 +7,7 @@ import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
+import { SplitLayoutManager } from "./splitLayoutManager";
 import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
@@ -101,6 +102,8 @@ export class ToolWindowManager {
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
+    /** Optional split layout manager — injected after construction via setSplitLayoutManager(). */
+    private splitLayoutManager: SplitLayoutManager | null = null;
     private boundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
     private terminalVisibilityListener: () => void;
     private bannerVisibilityListener: () => void;
@@ -691,6 +694,39 @@ export class ToolWindowManager {
                 return false;
             }
 
+            // ── Split-mode handling ───────────────────────────────────────────────────
+            // When split is active, all tool switches are handled here regardless of
+            // whether the instance is already in a pane or is a brand-new tool.
+            if (this.splitLayoutManager?.isActive) {
+                const pane = this.splitLayoutManager.getPaneForInstance(instanceId);
+                if (pane) {
+                    // Already in a pane — make it the visible (active) tool for that pane
+                    this.splitLayoutManager.setActiveInPane(pane, instanceId);
+                } else {
+                    // New tool not yet in any pane — route to the focused pane
+                    this.splitLayoutManager.addToolToFocusedPane(instanceId);
+                }
+
+                this.activeToolId = instanceId;
+                this.invokeActiveToolChangedCallback();
+
+                const invocationEntryS = this.pendingInvocations.get(instanceId);
+                if (invocationEntryS) {
+                    const callerToolNameS = this.toolInstanceNames.get(invocationEntryS.callerInstanceId) ?? "Caller";
+                    if (invocationEntryS.noReturn) {
+                        this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                    } else {
+                        this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: true, callerToolName: callerToolNameS });
+                    }
+                } else {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                }
+
+                logInfo(`[ToolWindowManager] Split mode: ${pane ? "active in " + pane + " pane" : "added to focused pane"} → ${instanceId}`);
+                this.scheduleBoundsUpdate();
+                return true;
+            }
+
             // Hide current tool if any
             if (this.activeToolId && this.activeToolId !== instanceId) {
                 const currentView = this.toolViews.get(this.activeToolId);
@@ -800,6 +836,9 @@ export class ToolWindowManager {
 
             // Revoke filesystem access for this specific tool instance
             this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+
+            // Notify split layout manager so it can deactivate split if a pane tool closed
+            this.splitLayoutManager?.handleToolClosed(instanceId);
 
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
@@ -992,6 +1031,13 @@ export class ToolWindowManager {
      * Apply the bounds to the active tool view
      */
     private applyToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+        // ── Split-mode: delegate entirely to SplitLayoutManager ──────────────────
+        if (this.splitLayoutManager?.isActive) {
+            this.splitLayoutManager.applyLayout(bounds);
+            this.boundsUpdatePending = false;
+            return;
+        }
+
         if (!this.activeToolId) return;
 
         const toolView = this.toolViews.get(this.activeToolId);
@@ -1263,6 +1309,22 @@ export class ToolWindowManager {
      */
     getActiveToolId(): string | null {
         return this.activeToolId;
+    }
+
+    /**
+     * Expose the internal BrowserView map so SplitLayoutManager can reference the same
+     * instance without duplicating state.  Callers must not mutate the map directly.
+     */
+    getToolViews(): Map<string, BrowserView> {
+        return this.toolViews;
+    }
+
+    /**
+     * Wire up the SplitLayoutManager.  Must be called after construction so that the
+     * shared toolViews reference is already stable.
+     */
+    setSplitLayoutManager(manager: SplitLayoutManager): void {
+        this.splitLayoutManager = manager;
     }
 
     /**

@@ -43,6 +43,7 @@ import { NotificationHistoryWindowManager, NotificationWindowManager } from "./m
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
+import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
@@ -78,6 +79,7 @@ class ToolBoxApp {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
+    private splitLayoutManager: SplitLayoutManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
     private notificationHistoryWindowManager: NotificationHistoryWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
@@ -2675,6 +2677,10 @@ class ToolBoxApp {
         );
 
         this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
+
+        // Initialize SplitLayoutManager — depends on the shared toolViews map from ToolWindowManager
+        this.splitLayoutManager = new SplitLayoutManager(this.mainWindow, this.settingsManager, this.toolWindowManager.getToolViews());
+        this.toolWindowManager.setSplitLayoutManager(this.splitLayoutManager);
 
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {

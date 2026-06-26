@@ -160,6 +160,41 @@ export interface DataverseAPI {
 }
 
 /**
+ * Split layout state returned by the main process
+ */
+export interface SplitLayoutState {
+    isActive: boolean;
+    /** Ordered list of instanceIds assigned to the left pane. */
+    leftGroup: string[];
+    /** Ordered list of instanceIds assigned to the right pane. */
+    rightGroup: string[];
+    /** The currently visible (active) tool in the left pane. */
+    activeLeftInstanceId: string | null;
+    /** The currently visible (active) tool in the right pane. */
+    activeRightInstanceId: string | null;
+    /** Which pane receives newly opened tools. */
+    focusedPane: "left" | "right";
+    ratio: number;
+}
+
+/**
+ * Split Layout API namespace
+ */
+export interface SplitLayoutAPI {
+    activate: (leftInstanceId: string, rightInstanceId: string) => Promise<boolean>;
+    deactivate: () => Promise<boolean>;
+    setRatio: (ratio: number) => Promise<void>;
+    getState: () => Promise<SplitLayoutState>;
+    /** Make instanceId the active (visible) tool in its pane. Also focuses that pane. */
+    switchPane: (pane: "left" | "right", instanceId: string) => Promise<boolean>;
+    /** Move instanceId from its current group to targetPane. Collapses split if source becomes empty. */
+    moveToPane: (instanceId: string, targetPane: "left" | "right") => Promise<boolean>;
+    /** Set which pane receives newly opened tools. */
+    focusPane: (pane: "left" | "right") => Promise<void>;
+    onStateChanged: (callback: (state: SplitLayoutState) => void) => void;
+}
+
+/**
  * Main ToolboxAPI interface
  */
 export interface ToolboxAPI {
@@ -275,6 +310,9 @@ export interface ToolboxAPI {
     checkBetaPackage: (npmPackageName: string) => Promise<{ hasBeta: boolean; betaVersion?: string }>;
     /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
     installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
+
+    // Split layout namespace
+    splitLayout: SplitLayoutAPI;
 
     // Utils namespace
     utils: UtilsAPI;
