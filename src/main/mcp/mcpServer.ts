@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, CallToolResult, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, CallToolResult, ElicitRequestFormParams, ListToolsRequestSchema, PrimitiveSchemaDefinition } from "@modelcontextprotocol/sdk/types.js";
 import { promises as fs } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
@@ -17,6 +17,7 @@ import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
 import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
 import { createHeadlessLogger, invokeHeadlessTool } from "./headlessToolRuntime";
+import { JsonObjectSchema } from "./schemaConverter";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
 const MCP_AUTH_HEADER_DISPLAY_NAME = "X-MCP-Auth-Token";
@@ -96,6 +97,54 @@ function stripInvocationMeta(args: Record<string, unknown>): Record<string, unkn
     const clone = { ...args };
     delete clone[MCP_INVOCATION_META_KEY];
     return clone;
+}
+
+/**
+ * Parses validation errors to find top-level required-field-missing errors.
+ * Only top-level fields ($.fieldName) are returned since elicitation supports flat schemas only.
+ */
+function extractMissingFieldNames(errors: string[]): string[] {
+    const missing: string[] = [];
+    for (const err of errors) {
+        const match = /^\$\.([^.:]+): required field is missing$/.exec(err);
+        if (match?.[1]) {
+            missing.push(match[1]);
+        }
+    }
+    return missing;
+}
+
+/**
+ * Builds a flat elicitation requestedSchema from missing required fields in the tool's input schema.
+ * Returns null if any missing field cannot be represented as a primitive (e.g. object or array types),
+ * since form-based elicitation only supports flat primitive values.
+ */
+function buildElicitationProperties(inputSchema: JsonObjectSchema, fieldNames: string[]): Record<string, PrimitiveSchemaDefinition> | null {
+    const properties = isRecord(inputSchema.properties) ? inputSchema.properties : {};
+    const result: Record<string, PrimitiveSchemaDefinition> = {};
+
+    for (const name of fieldNames) {
+        const prop = isRecord(properties[name]) ? (properties[name] as Record<string, unknown>) : undefined;
+        const type = typeof prop?.type === "string" ? prop.type : undefined;
+        const description = typeof prop?.description === "string" ? prop.description : undefined;
+        const title = typeof prop?.title === "string" ? prop.title : undefined;
+        const enumValues = Array.isArray(prop?.enum) ? (prop.enum as unknown[]).filter((v): v is string => typeof v === "string") : undefined;
+
+        if (type === "boolean") {
+            result[name] = { type: "boolean", ...(title ? { title } : {}), ...(description ? { description } : {}) };
+        } else if (type === "number" || type === "integer") {
+            result[name] = { type: "number", ...(title ? { title } : {}), ...(description ? { description } : {}) };
+        } else if (enumValues && enumValues.length > 0) {
+            result[name] = { type: "string", enum: enumValues, ...(title ? { title } : {}), ...(description ? { description } : {}) };
+        } else if (type === "string" || type === undefined) {
+            result[name] = { type: "string", ...(title ? { title } : {}), ...(description ? { description } : {}) };
+        } else {
+            // Object or array — cannot be entered via a flat elicitation form
+            return null;
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
 }
 
 function createInvocationError(text: string): CallToolResult {
@@ -643,7 +692,7 @@ export class McpServerManager {
             const toolIdFromName = resolveToolId(request.params.name);
             const toolArgs = isRecord(request.params.arguments) ? request.params.arguments : {};
             const invocationMeta = parseInvocationMeta(toolArgs);
-            const prefillData = stripInvocationMeta(toolArgs);
+            let prefillData = stripInvocationMeta(toolArgs);
 
             const agentTools = await this.getAgentTools();
             const matchedTool = agentTools.find((tool) => tool.toolId === toolIdFromName);
@@ -664,16 +713,68 @@ export class McpServerManager {
             const displayName = matchedTool.displayName;
             const inputValidationErrors = validateAgainstSchema(prefillData, matchedTool.inputSchema);
             if (inputValidationErrors.length > 0) {
-                const errorText = `Input validation failed: ${inputValidationErrors.join("; ")}`;
-                logInvocationWithMeta({
-                    toolId,
-                    toolName: displayName,
-                    connectionId: null,
-                    prefillData,
-                    outcome: "rejected",
-                    error: errorText,
-                });
-                return createInvocationError(errorText);
+                const missingFields = extractMissingFieldNames(inputValidationErrors);
+                let elicitedSuccessfully = false;
+
+                // Attempt elicitation only when every validation error is a missing required field
+                // and all of those fields can be represented as flat primitives in a form.
+                if (missingFields.length > 0 && missingFields.length === inputValidationErrors.length) {
+                    const elicitProperties = buildElicitationProperties(matchedTool.inputSchema, missingFields);
+                    if (elicitProperties) {
+                        try {
+                            const clientCaps = server.server.getClientCapabilities();
+                            if (clientCaps?.elicitation?.form) {
+                                const elicitParams: ElicitRequestFormParams = {
+                                    message: `The tool "${displayName}" requires the following parameters. Please provide values to continue.`,
+                                    requestedSchema: {
+                                        type: "object",
+                                        properties: elicitProperties,
+                                        required: missingFields,
+                                    },
+                                };
+                                const elicitResult = await server.server.elicitInput(elicitParams);
+
+                                if (elicitResult.action === "accept" && isRecord(elicitResult.content)) {
+                                    const mergedPrefill = { ...prefillData, ...elicitResult.content };
+                                    const revalidationErrors = validateAgainstSchema(mergedPrefill, matchedTool.inputSchema);
+                                    if (revalidationErrors.length === 0) {
+                                        prefillData = mergedPrefill;
+                                        elicitedSuccessfully = true;
+                                    } else {
+                                        const errorText = `Input validation failed after elicitation: ${revalidationErrors.join("; ")}`;
+                                        logInvocationWithMeta({ toolId, toolName: displayName, connectionId: null, prefillData, outcome: "rejected", error: errorText });
+                                        return createInvocationError(errorText);
+                                    }
+                                } else {
+                                    logInvocationWithMeta({
+                                        toolId,
+                                        toolName: displayName,
+                                        connectionId: null,
+                                        prefillData,
+                                        outcome: "rejected",
+                                        error: "User declined or cancelled parameter elicitation",
+                                    });
+                                    return createInvocationError(`Tool invocation cancelled: required parameters were not provided for "${displayName}".`);
+                                }
+                            }
+                        } catch {
+                            // Elicitation not supported or failed; fall through to the validation error below
+                        }
+                    }
+                }
+
+                if (!elicitedSuccessfully) {
+                    const errorText = `Input validation failed: ${inputValidationErrors.join("; ")}`;
+                    logInvocationWithMeta({
+                        toolId,
+                        toolName: displayName,
+                        connectionId: null,
+                        prefillData,
+                        outcome: "rejected",
+                        error: errorText,
+                    });
+                    return createInvocationError(errorText);
+                }
             }
 
             let executionMode: AgentExecutionMode;
