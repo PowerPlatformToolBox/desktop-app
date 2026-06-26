@@ -53,6 +53,9 @@ export class BrowserWindow {
     hide = jest.fn();
     close = jest.fn();
     isDestroyed = jest.fn(() => false);
+    addBrowserView = jest.fn();
+    removeBrowserView = jest.fn();
+    getBrowserViews = jest.fn(() => [] as BrowserView[]);
     static getAllWindows = jest.fn(() => []);
     static fromWebContents = jest.fn(() => null);
 }
@@ -140,6 +143,7 @@ export class BrowserView {
         loadURL: jest.fn(() => Promise.resolve()),
         executeJavaScript: jest.fn(() => Promise.resolve()),
         setWindowOpenHandler: jest.fn(),
+        isDestroyed: jest.fn(() => false),
     };
     setBounds = jest.fn();
     setAutoResize = jest.fn();

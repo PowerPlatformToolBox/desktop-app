@@ -7,6 +7,7 @@ import {
     FILESYSTEM_CHANNELS,
     MCP_SERVER_CHANNELS,
     SETTINGS_CHANNELS,
+    SPLIT_LAYOUT_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
     TOOL_WINDOW_CHANNELS,
@@ -100,6 +101,20 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
      */
     onCalleeToolClosed: (callback: (data: { calleeInstanceId: string; callerInstanceId: string }) => void) => {
         ipcRenderer.on(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_CLOSED, (_event, data) => callback(data));
+    },
+
+    // Split layout namespace
+    splitLayout: {
+        activate: (leftInstanceId: string, rightInstanceId: string) => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.ACTIVATE, leftInstanceId, rightInstanceId),
+        deactivate: () => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.DEACTIVATE),
+        setRatio: (ratio: number) => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.SET_RATIO, ratio),
+        getState: () => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.GET_STATE),
+        switchPane: (pane: "left" | "right", instanceId: string) => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.SWITCH_PANE, pane, instanceId),
+        moveToPane: (instanceId: string, targetPane: "left" | "right") => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.MOVE_TO_PANE, instanceId, targetPane),
+        focusPane: (pane: "left" | "right") => ipcRenderer.invoke(SPLIT_LAYOUT_CHANNELS.FOCUS_PANE, pane),
+        onStateChanged: (callback: (state: import("../common/types/api").SplitLayoutState) => void) => {
+            ipcRenderer.on(SPLIT_LAYOUT_CHANNELS.STATE_CHANGED, (_event, state) => callback(state));
+        },
     },
 
     // Favorite tools - Only for PPTB UI

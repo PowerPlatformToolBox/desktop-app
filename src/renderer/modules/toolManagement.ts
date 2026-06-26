@@ -190,6 +190,12 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     const canCloseCurrent = canCloseTab(instanceId);
     const closableOtherTabIds = getClosableTabIds(instanceId);
     const closableTabIds = getClosableTabIds();
+    // "Split Right" is available when there is at least one OTHER regular open tab
+    const canSplitRight = canManageTab && Array.from(openTools.values()).some((t) => t.instanceId !== instanceId && !t.isDetailTab);
+    // "Move to Right/Left Pane" based on current split state and which pane this tab is in
+    const currentPane = isSplitActive ? getTabCurrentPane(instanceId) : null;
+    const canMoveToRight = isSplitActive && currentPane === "left" && canManageTab;
+    const canMoveToLeft = isSplitActive && currentPane === "right" && canManageTab;
     let action: string | null = null;
     try {
         action = await window.toolboxAPI.utils.showContextMenu({
@@ -199,6 +205,10 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
                 { id: "close-current", label: "Close Tab", enabled: canCloseCurrent },
                 { id: "close-others", label: "Close Other Tabs", enabled: closableOtherTabIds.length > 0 },
                 { id: "close-all", label: "Close All Tabs", enabled: closableTabIds.length > 0 },
+                { type: "separator" },
+                { id: "split-right", label: "Split Right", enabled: canSplitRight && !isSplitActive },
+                { id: "move-to-right", label: "Move to Right Pane", enabled: canMoveToRight },
+                { id: "move-to-left", label: "Move to Left Pane", enabled: canMoveToLeft },
                 { type: "separator" },
                 { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
                 { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
@@ -221,6 +231,21 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     }
 
     if (!action) {
+        return;
+    }
+
+    if (action === "split-right") {
+        await splitRight(instanceId);
+        return;
+    }
+
+    if (action === "move-to-right") {
+        await window.toolboxAPI.splitLayout.moveToPane(instanceId, "right").catch(() => {});
+        return;
+    }
+
+    if (action === "move-to-left") {
+        await window.toolboxAPI.splitLayout.moveToPane(instanceId, "left").catch(() => {});
         return;
     }
 
@@ -1031,17 +1056,23 @@ function handleDragOver(e: DragEvent, tab: HTMLElement): false {
     }
 
     if (draggedTab && tab !== draggedTab) {
-        const toolTabs = document.getElementById("tool-tabs");
-        if (!toolTabs) return false;
+        const draggedParent = draggedTab.parentElement;
+        const targetParent = tab.parentElement;
 
-        const tabs = Array.from(toolTabs.children);
-        const draggedIndex = tabs.indexOf(draggedTab);
-        const targetIndex = tabs.indexOf(tab);
+        if (draggedParent && targetParent && draggedParent !== targetParent) {
+            // Cross-pane drag — highlight target container but don't move DOM yet
+            tab.classList.add("over");
+        } else if (targetParent) {
+            // Same-pane reorder
+            const tabs = Array.from(targetParent.children);
+            const draggedIndex = tabs.indexOf(draggedTab);
+            const targetIndex = tabs.indexOf(tab);
 
-        if (draggedIndex < targetIndex) {
-            toolTabs.insertBefore(draggedTab, tab.nextSibling);
-        } else {
-            toolTabs.insertBefore(draggedTab, tab);
+            if (draggedIndex < targetIndex) {
+                targetParent.insertBefore(draggedTab, tab.nextSibling);
+            } else {
+                targetParent.insertBefore(draggedTab, tab);
+            }
         }
     }
 
@@ -1052,6 +1083,22 @@ function handleDrop(e: DragEvent): false {
     if (e.stopPropagation) {
         e.stopPropagation();
     }
+
+    if (draggedTab && isSplitActive) {
+        const draggedParent = draggedTab.parentElement;
+        // Find the tool-tabs container the drop occurred in (may be the tab's parent)
+        const dropTarget = e.currentTarget as HTMLElement;
+        const targetContainer = dropTarget.closest(".tool-tabs") as HTMLElement | null;
+        if (draggedParent && targetContainer && draggedParent !== targetContainer) {
+            const targetIsRight = targetContainer.id === "right-tool-tabs";
+            const targetPane: "left" | "right" = targetIsRight ? "right" : "left";
+            const instanceId = draggedTab.getAttribute("data-instance-id");
+            if (instanceId) {
+                void window.toolboxAPI.splitLayout.moveToPane(instanceId, targetPane).catch(() => {});
+            }
+        }
+    }
+
     return false;
 }
 
@@ -1929,5 +1976,274 @@ export function initializeCalleeToolListeners(): void {
             }
             showHomePage();
         }
+    });
+}
+
+// ─── Split Layout ─────────────────────────────────────────────────────────────
+
+/** Half-width of the visible divider gap (matches SPLIT_DIVIDER_WIDTH / 2 in main process). */
+const SPLIT_HALF_DIVIDER_PX = 2;
+
+// ── Renderer-side split state mirror ──────────────────────────────────────────
+// Updated on every STATE_CHANGED event from the main process.
+let splitLeftGroup: string[] = [];
+let splitRightGroup: string[] = [];
+let isSplitActive = false;
+
+/** Return which pane the given instanceId is currently in, or null if not in split. */
+function getTabCurrentPane(instanceId: string): "left" | "right" | null {
+    if (!isSplitActive) return null;
+    if (splitLeftGroup.includes(instanceId)) return "left";
+    if (splitRightGroup.includes(instanceId)) return "right";
+    return null;
+}
+
+/**
+ * Activate split-right for the given tab.
+ * The current active tab becomes the left pane; instanceId moves to the right pane.
+ */
+async function splitRight(instanceId: string): Promise<void> {
+    const openTool = openTools.get(instanceId);
+    if (!openTool || openTool.isDetailTab) return;
+
+    // Choose the left pane: prefer the currently active tab, otherwise any other regular tool
+    let leftInstanceId: string | null = null;
+
+    if (activeToolId && activeToolId !== instanceId) {
+        const leftTool = openTools.get(activeToolId);
+        if (leftTool && !leftTool.isDetailTab) {
+            leftInstanceId = activeToolId;
+        }
+    }
+
+    if (!leftInstanceId) {
+        for (const [id, tool] of openTools) {
+            if (id !== instanceId && !tool.isDetailTab) {
+                leftInstanceId = id;
+                break;
+            }
+        }
+    }
+
+    if (!leftInstanceId) {
+        await window.toolboxAPI.utils.showNotification({
+            title: "Split Right",
+            body: "Open at least two tools before splitting the view.",
+            type: "info",
+        });
+        return;
+    }
+
+    await window.toolboxAPI.switchToolWindow(leftInstanceId).catch(() => {});
+    const success = await window.toolboxAPI.splitLayout.activate(leftInstanceId, instanceId);
+    if (!success) {
+        logWarn("splitRight: main process declined split activation");
+    }
+}
+
+/** Update the content-area divider position and the tab-bar widths. */
+function updateSplitDividerPosition(ratio: number): void {
+    const divider = document.getElementById("split-pane-divider") as HTMLElement | null;
+    if (divider) {
+        divider.style.left = `calc(${ratio * 100}% - ${SPLIT_HALF_DIVIDER_PX}px)`;
+    }
+    // Keep tab-bar proportions in sync with the content-area divider
+    const header = document.getElementById("tool-panel-header") as HTMLElement | null;
+    if (header) {
+        header.style.setProperty("--split-left-basis", `${ratio * 100}%`);
+    }
+}
+
+/**
+ * Reconcile tab DOM elements between the two tab bars based on the latest split state.
+ * Tabs in leftGroup go to #tool-tabs; tabs in rightGroup go to #right-tool-tabs.
+ * Tabs not in either group (shouldn't normally happen) stay in #tool-tabs.
+ */
+function reconcileTabBars(state: { leftGroup: string[]; rightGroup: string[]; activeLeftInstanceId: string | null; activeRightInstanceId: string | null }): void {
+    const leftBar = document.getElementById("tool-tabs") as HTMLElement | null;
+    const rightBar = document.getElementById("right-tool-tabs") as HTMLElement | null;
+    if (!leftBar || !rightBar) return;
+
+    // Move right-group tabs to the right bar
+    for (const instanceId of state.rightGroup) {
+        const tab = document.getElementById(`tool-tab-${instanceId}`);
+        if (tab && tab.parentElement !== rightBar) {
+            rightBar.appendChild(tab);
+        }
+    }
+
+    // Move left-group tabs (and any stray tabs not in right group) to the left bar
+    for (const instanceId of state.leftGroup) {
+        const tab = document.getElementById(`tool-tab-${instanceId}`);
+        if (tab && tab.parentElement !== leftBar) {
+            leftBar.appendChild(tab);
+        }
+    }
+
+    // Apply active states in each bar
+    leftBar.querySelectorAll<HTMLElement>(".tool-tab").forEach((tab) => {
+        const id = tab.getAttribute("data-instance-id");
+        tab.classList.toggle("active", id === state.activeLeftInstanceId);
+    });
+    rightBar.querySelectorAll<HTMLElement>(".tool-tab").forEach((tab) => {
+        const id = tab.getAttribute("data-instance-id");
+        tab.classList.toggle("active", id === state.activeRightInstanceId);
+    });
+}
+
+/** Move all tabs from the right bar back to the left bar (called on split deactivation). */
+function mergeTabBarsToLeft(): void {
+    const leftBar = document.getElementById("tool-tabs") as HTMLElement | null;
+    const rightBar = document.getElementById("right-tool-tabs") as HTMLElement | null;
+    if (!leftBar || !rightBar) return;
+
+    Array.from(rightBar.children).forEach((tab) => leftBar.appendChild(tab));
+}
+
+/** Show or hide the right tab bar and separator. */
+function setRightTabBarVisible(visible: boolean): void {
+    const rightContainer = document.getElementById("right-tabs-container") as HTMLElement | null;
+    const separator = document.getElementById("split-tabs-bar-divider") as HTMLElement | null;
+    const header = document.getElementById("tool-panel-header") as HTMLElement | null;
+    if (rightContainer) rightContainer.style.display = visible ? "flex" : "none";
+    if (separator) separator.style.display = visible ? "flex" : "none";
+    if (header) header.classList.toggle("split-active", visible);
+}
+
+/** Set up drop-zone handlers on a tab bar container for cross-pane DnD. */
+function setupTabBarDropZone(container: HTMLElement, targetPane: "left" | "right"): void {
+    container.addEventListener("dragover", (e) => {
+        if (!isSplitActive || !draggedTab) return;
+        const draggedParent = draggedTab.parentElement;
+        const dropBar = container.querySelector(".tool-tabs") as HTMLElement | null;
+        if (draggedParent && dropBar && draggedParent !== dropBar) {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+            container.classList.add("drag-over-pane");
+        }
+    });
+    container.addEventListener("dragleave", () => {
+        container.classList.remove("drag-over-pane");
+    });
+    container.addEventListener("drop", (e) => {
+        container.classList.remove("drag-over-pane");
+        if (!isSplitActive || !draggedTab) return;
+        const dropBar = container.querySelector(".tool-tabs") as HTMLElement | null;
+        if (draggedTab.parentElement !== dropBar) {
+            e.stopPropagation();
+            const instanceId = draggedTab.getAttribute("data-instance-id");
+            if (instanceId) {
+                void window.toolboxAPI.splitLayout.moveToPane(instanceId, targetPane).catch(() => {});
+            }
+        }
+    });
+}
+
+/** Handle a split STATE_CHANGED event pushed by the main process. */
+function onSplitStateChanged(state: import("../../common/types/api").SplitLayoutState): void {
+    const wasActive = isSplitActive;
+
+    isSplitActive = state.isActive;
+    splitLeftGroup = state.leftGroup;
+    splitRightGroup = state.rightGroup;
+
+    const divider = document.getElementById("split-pane-divider") as HTMLElement | null;
+
+    if (state.isActive) {
+        // Show/update split UI
+        if (divider) divider.style.display = "block";
+        setRightTabBarVisible(true);
+        updateSplitDividerPosition(state.ratio);
+        reconcileTabBars(state);
+    } else {
+        // Tear down split UI
+        if (divider) divider.style.display = "none";
+        setRightTabBarVisible(false);
+        mergeTabBarsToLeft();
+
+        // When split is deactivated by the main process (e.g. last tab in a pane closed
+        // or moved), activate the surviving tool.
+        if (wasActive) {
+            // The surviving active tool is whichever was left: prefer focused pane's active.
+            // At deactivation time our local state is already zeroed, so look at open tools.
+            const survivingId =
+                (state.activeLeftInstanceId && openTools.has(state.activeLeftInstanceId) ? state.activeLeftInstanceId : null) ??
+                (state.activeRightInstanceId && openTools.has(state.activeRightInstanceId) ? state.activeRightInstanceId : null) ??
+                (openTools.size > 0 ? Array.from(openTools.keys())[openTools.size - 1] : null);
+            if (survivingId) {
+                void switchToTool(survivingId);
+            }
+        }
+    }
+}
+
+/**
+ * Set up the split-pane divider drag behaviour, drop zones on both tab bars,
+ * and subscribe to STATE_CHANGED from the main process.
+ * Called once during application initialisation.
+ */
+export function initSplitLayout(): void {
+    const divider = document.getElementById("split-pane-divider") as HTMLElement | null;
+    if (divider) {
+        setupDividerDrag(divider);
+    }
+
+    // Set up cross-pane drag-and-drop on both tab bar containers
+    const leftContainer = document.getElementById("left-tabs-container") as HTMLElement | null;
+    const rightContainer = document.getElementById("right-tabs-container") as HTMLElement | null;
+    if (leftContainer) setupTabBarDropZone(leftContainer, "left");
+    if (rightContainer) setupTabBarDropZone(rightContainer, "right");
+
+    // Subscribe to state changes pushed by the main process
+    window.toolboxAPI.splitLayout.onStateChanged((state) => {
+        onSplitStateChanged(state);
+    });
+}
+
+function setupDividerDrag(divider: HTMLElement): void {
+    let isDragging = false;
+    let lastSentRatio = -1;
+
+    divider.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        isDragging = true;
+        divider.classList.add("dragging");
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+            const content = document.getElementById("tool-panel-content");
+            if (!content) return;
+            const rect = content.getBoundingClientRect();
+            const newRatio = Math.max(0.15, Math.min(0.85, (e.clientX - rect.left) / rect.width));
+
+            // Update divider and tab bar positions immediately for smooth feedback
+            updateSplitDividerPosition(newRatio);
+
+            // Throttle IPC calls — only send when ratio changed meaningfully
+            if (Math.abs(newRatio - lastSentRatio) > 0.002) {
+                lastSentRatio = newRatio;
+                window.toolboxAPI.splitLayout.setRatio(newRatio).catch(() => {});
+            }
+        };
+
+        const onMouseUp = (e: MouseEvent) => {
+            if (!isDragging) return;
+            isDragging = false;
+            divider.classList.remove("dragging");
+
+            // Persist the final position
+            const content = document.getElementById("tool-panel-content");
+            if (content) {
+                const rect = content.getBoundingClientRect();
+                const finalRatio = Math.max(0.15, Math.min(0.85, (e.clientX - rect.left) / rect.width));
+                window.toolboxAPI.splitLayout.setRatio(finalRatio).catch(() => {});
+            }
+
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
     });
 }
