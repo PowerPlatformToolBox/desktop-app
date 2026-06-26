@@ -1,0 +1,222 @@
+name: PR Checklist Validation
+
+on:
+    pull_request:
+        types: [opened, edited, synchronize, reopened]
+        branches:
+            - main
+            - dev
+
+permissions:
+    pull-requests: write
+    issues: write
+    contents: read
+
+jobs:
+    validate-checklist:
+        name: PR Checklist
+        runs-on: ubuntu-latest
+
+        steps:
+            # -----------------------------------------------------------------
+            # Parse the PR body, validate required checkboxes, manage labels,
+            # and post/update a single sticky comment with the result.
+            # -----------------------------------------------------------------
+            - name: Validate checklist and apply labels
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const body          = context.payload.pull_request.body  || '';
+                      const title         = context.payload.pull_request.title || '';
+                      const prNumber      = context.payload.pull_request.number;
+                      const author        = context.payload.pull_request.user.login;
+                      const existingLabels = context.payload.pull_request.labels.map(l => l.name);
+
+                      // ── Helpers ─────────────────────────────────────────────────────────
+
+                      /**
+                       * Extract the content of a Markdown section identified by its heading
+                       * prefix (e.g. "## Testing" or "### Code quality").  Stops as soon as
+                       * it encounters another heading at the same level or higher.
+                       */
+                      function extractSection(text, headingPrefix) {
+                          const lines        = text.split('\n');
+                          const headingLevel = (headingPrefix.match(/^(#+)/) || ['', '#'])[1].length;
+                          let capturing      = false;
+                          const result       = [];
+
+                          for (const line of lines) {
+                              if (!capturing && line.startsWith(headingPrefix)) {
+                                  capturing = true;
+                                  result.push(line);
+                              } else if (capturing) {
+                                  const m = line.match(/^(#+)\s/);
+                                  if (m && m[1].length <= headingLevel) break;
+                                  result.push(line);
+                              }
+                          }
+                          return result.join('\n');
+                      }
+
+                      /** True if the section contains at least one `- [x]` line. */
+                      function atLeastOneChecked(section) {
+                          return /^- \[x\]/im.test(section);
+                      }
+
+                      /** True if every checkbox in the section is `- [x]` (none are `- [ ]`). */
+                      function allChecked(section) {
+                          return atLeastOneChecked(section) && !/^- \[ \]/im.test(section);
+                      }
+
+                      // ── Extract relevant sections ────────────────────────────────────────
+
+                      const typeSection     = extractSection(body, '## Type of change');
+                      const packagesSection = extractSection(body, '### Packages');
+                      const codeQuality     = extractSection(body, '### Code quality');
+                      const testingSection  = extractSection(body, '## Testing');
+                      const breakingSection = extractSection(body, '## Breaking changes');
+                      const reviewerSection = extractSection(body, '## Reviewer notes');
+
+                      // ── Validation rules ─────────────────────────────────────────────────
+
+                      const errors = [];
+
+                      // PR title must follow [Type] Brief description
+                      if (!/^\[(Feature|Fix|Docs|Refactor|Chore|Test)\] .+/.test(title)) {
+                          errors.push(
+                              '**PR title** must follow `[Type] Brief description` ' +
+                              '— valid types: `Feature` · `Fix` · `Docs` · `Refactor` · `Chore` · `Test`'
+                          );
+                      }
+
+                      // Type of change — at least one
+                      if (!atLeastOneChecked(typeSection)) {
+                          errors.push('**Type of change** — select at least one option');
+                      }
+
+                      // Packages — at least one (including "Not applicable")
+                      if (!atLeastOneChecked(packagesSection)) {
+                          errors.push(
+                              '**Packages** — select at least one option ' +
+                              '(tick "Not applicable" if no package changes were made)'
+                          );
+                      }
+
+                      // Code quality — all boxes must be ticked
+                      if (!allChecked(codeQuality)) {
+                          errors.push('**Code quality** — all checkboxes must be ticked before merging');
+                      }
+
+                      // Testing — all boxes must be ticked
+                      if (!allChecked(testingSection)) {
+                          errors.push('**Testing** — all checkboxes must be ticked before merging');
+                      }
+
+                      // Breaking changes — at least one option selected
+                      if (!atLeastOneChecked(breakingSection)) {
+                          errors.push('**Breaking changes** — select at least one option');
+                      }
+
+                      // Reviewer notes — all boxes must be ticked
+                      if (!allChecked(reviewerSection)) {
+                          errors.push('**Reviewer notes** — all checkboxes must be ticked before merging');
+                      }
+
+                      // ── Label management ─────────────────────────────────────────────────
+
+                      // breaking-change: the "Yes — describe impact" line is checked
+                      const isBreakingChange = /^- \[x\].*Yes/im.test(breakingSection);
+
+                      // package-changed: any @pptb line is checked (i.e. not just "Not applicable")
+                      const isPackageChanged = /^- \[x\].*@pptb/im.test(packagesSection);
+
+                      async function syncLabel(name, shouldHave) {
+                          const has = existingLabels.includes(name);
+                          if (shouldHave && !has) {
+                              await github.rest.issues.addLabels({
+                                  owner: context.repo.owner,
+                                  repo: context.repo.repo,
+                                  issue_number: prNumber,
+                                  labels: [name],
+                              });
+                          } else if (!shouldHave && has) {
+                              try {
+                                  await github.rest.issues.removeLabel({
+                                      owner: context.repo.owner,
+                                      repo: context.repo.repo,
+                                      issue_number: prNumber,
+                                      name,
+                                  });
+                              } catch {
+                                  // Label may have already been removed — ignore
+                              }
+                          }
+                      }
+
+                      await syncLabel('breaking-change', isBreakingChange);
+                      await syncLabel('package-changed', isPackageChanged);
+
+                      // ── Sticky comment ───────────────────────────────────────────────────
+                      // We post one comment and update it in place on subsequent runs so the
+                      // PR timeline stays clean.
+
+                      const MARKER = '<!-- pr-checklist-bot -->';
+
+                      const { data: comments } = await github.rest.issues.listComments({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: prNumber,
+                      });
+                      const existing = comments.find(c => c.body && c.body.includes(MARKER));
+
+                      const labelNote = [
+                          isBreakingChange ? '🔴 `breaking-change` label applied' : null,
+                          isPackageChanged ? '🔵 `package-changed` label applied'  : null,
+                      ].filter(Boolean).join('\n');
+
+                      let commentBody;
+
+                      const errorList = errors.map(e => `- ${e}`).join('\n');
+
+                      if (errors.length === 0) {
+                          commentBody =
+                              `${MARKER}\n` +
+                              `### ✅ PR Checklist\n\n` +
+                              `All required checklist items are complete. This PR is ready for review.\n` +
+                              (labelNote ? `\n${labelNote}` : '');
+                      } else {
+                          // On updates we omit the @mention to avoid re-notifying on every push.
+                          const mention = existing ? '' : `@${author} — please address the items below.\n\n`;
+                          commentBody =
+                              `${MARKER}\n` +
+                              `### ❌ PR Checklist — Action Required\n\n` +
+                              `${mention}` +
+                              `The following items must be completed before this PR can be merged:\n\n` +
+                              `${errorList}\n` +
+                              (labelNote ? `\n---\n${labelNote}` : '');
+                      }
+
+                      if (existing) {
+                          await github.rest.issues.updateComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              comment_id: existing.id,
+                              body: commentBody,
+                          });
+                      } else {
+                          await github.rest.issues.createComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: prNumber,
+                              body: commentBody,
+                          });
+                      }
+
+                      // ── Fail the status check ────────────────────────────────────────────
+
+                      if (errors.length > 0) {
+                          core.setFailed(
+                              `PR checklist incomplete — ${errors.length} item${errors.length > 1 ? 's' : ''} outstanding:\n` +
+                              errors.map(e => `  • ${e.replace(/\*\*/g, '')}`).join('\n')
+                          );
+                      }
