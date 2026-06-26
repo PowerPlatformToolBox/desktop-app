@@ -62,6 +62,7 @@ export interface SettingsState {
     showEnvironmentColor?: boolean;
     categoryColorThickness?: number;
     environmentColorThickness?: number;
+    enablePreviewFeatures?: boolean;
 }
 
 /**

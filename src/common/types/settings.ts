@@ -96,4 +96,5 @@ export interface UserSettings {
     environmentColorThickness?: number; // Thickness in pixels of the environment color border around the tool panel
     mcpAccessToken?: string; // Access token for local MCP server authentication
     splitDividerRatio?: number; // Persisted position of the split-pane divider (0.15–0.85)
+    enablePreviewFeatures?: boolean; // Show preview/experimental features in the UI
 }

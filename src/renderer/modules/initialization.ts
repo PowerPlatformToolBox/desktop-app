@@ -34,7 +34,7 @@ import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBN
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
-import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { applyDebugMenuVisibility, applyPreviewFeaturesVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -646,6 +646,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
+    applyPreviewFeaturesVisibility(settings.enablePreviewFeatures ?? false);
     setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
     applyAppearanceSettings(
         settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
