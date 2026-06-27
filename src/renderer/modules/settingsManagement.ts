@@ -17,7 +17,7 @@ import {
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
-import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { applyDebugMenuVisibility, applyPreviewFeaturesVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -42,6 +42,7 @@ export async function loadSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const enablePreviewFeaturesCheck = document.getElementById("sidebar-enable-preview-features-check") as HTMLInputElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -60,6 +61,7 @@ export async function loadSettings(): Promise<void> {
             showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
             categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
             environmentColorThickness: settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+            enablePreviewFeatures: settings.enablePreviewFeatures ?? false,
         };
 
         themeSelect.value = settings.theme;
@@ -86,6 +88,9 @@ export async function loadSettings(): Promise<void> {
         }
         if (environmentColorThicknessInput) {
             environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
+        }
+        if (enablePreviewFeaturesCheck) {
+            enablePreviewFeaturesCheck.checked = settings.enablePreviewFeatures ?? false;
         }
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
@@ -132,6 +137,7 @@ export async function saveSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const enablePreviewFeaturesCheck = document.getElementById("sidebar-enable-preview-features-check") as HTMLInputElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -151,6 +157,7 @@ export async function saveSettings(): Promise<void> {
     const environmentColorThickness = environmentColorThicknessInput
         ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS))
         : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
+    const enablePreviewFeatures = enablePreviewFeaturesCheck ? enablePreviewFeaturesCheck.checked : false;
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -165,6 +172,7 @@ export async function saveSettings(): Promise<void> {
         showEnvironmentColor,
         categoryColorThickness,
         environmentColorThickness,
+        enablePreviewFeatures,
     };
 
     // Only include changed settings in the update
@@ -206,6 +214,9 @@ export async function saveSettings(): Promise<void> {
     if (currentSettings.environmentColorThickness !== originalSettings.environmentColorThickness) {
         changedSettings.environmentColorThickness = currentSettings.environmentColorThickness;
     }
+    if (currentSettings.enablePreviewFeatures !== (originalSettings.enablePreviewFeatures ?? false)) {
+        changedSettings.enablePreviewFeatures = currentSettings.enablePreviewFeatures;
+    }
 
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
@@ -215,6 +226,7 @@ export async function saveSettings(): Promise<void> {
         applyTheme(currentSettings.theme);
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
+        applyPreviewFeaturesVisibility(currentSettings.enablePreviewFeatures);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
         applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
 
@@ -267,6 +279,7 @@ function hasUnsavedChanges(): boolean {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const enablePreviewFeaturesCheck = document.getElementById("sidebar-enable-preview-features-check") as HTMLInputElement | null;
 
     // If the DOM elements aren't present the settings panel isn't rendered — no unsaved changes
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) {
@@ -296,6 +309,7 @@ function hasUnsavedChanges(): boolean {
         const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
         if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
     }
+    if (enablePreviewFeaturesCheck && enablePreviewFeaturesCheck.checked !== (originalSettings.enablePreviewFeatures ?? false)) return true;
 
     return false;
 }
@@ -509,6 +523,23 @@ export function renderSettingsContent(panel: HTMLElement): void {
                             <span id="check-updates-btn-text">Check for Updates</span>
                         </button>
                         <div id="update-status-message" class="settings-vscode-item-description" style="display: none; margin-top: 6px"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-section-preview" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Preview Features</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-enable-preview-features-check">Enable Preview Features</label>
+                        <p class="settings-vscode-item-description">Show experimental and preview features in the UI. These features are still in development and may change or be removed. Currently includes: MCP Server.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-enable-preview-features-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
                     </div>
                 </div>
             </section>
