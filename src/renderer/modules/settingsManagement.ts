@@ -17,7 +17,8 @@ import {
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
-import { applyDebugMenuVisibility, applyPreviewFeaturesVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { applyPreviewFeaturesVisibility } from "./previewFeatureManagement";
+import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 

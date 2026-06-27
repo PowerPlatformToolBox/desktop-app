@@ -317,14 +317,3 @@ export function applyDebugMenuVisibility(showDebugMenu: boolean): void {
         debugActivityItem.style.display = showDebugMenu ? "" : "none";
     }
 }
-
-/**
- * Apply preview features visibility setting
- * Controls visibility of preview-gated items (e.g. the MCP Server button)
- */
-export function applyPreviewFeaturesVisibility(enablePreviewFeatures: boolean): void {
-    const mcpButton = document.getElementById("agent-invocation-logs-btn") as HTMLElement | null;
-    if (mcpButton) {
-        mcpButton.style.display = enablePreviewFeatures ? "" : "none";
-    }
-}

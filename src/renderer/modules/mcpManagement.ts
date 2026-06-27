@@ -93,8 +93,8 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     </div>
                 </div>
 
-                <div id="agent-invocation-logs-container" class="invocation-logs-container">
-                    <div class="empty-state" id="agent-invocation-logs-empty" style="display: none;">
+                <div id="mcp-container" class="invocation-logs-container">
+                    <div class="empty-state" id="mcp-empty" style="display: none;">
                         <p>No agent invocations recorded yet.</p>
                         <p class="empty-state-hint">Invoke tools through the MCP server to see activity here.</p>
                     </div>
@@ -143,8 +143,8 @@ function getOutcomeBadgeStyle(outcome: string): string {
 async function loadAndRenderLogs(): Promise<void> {
     try {
         const [serverDetails, logs] = await Promise.all([window.toolboxAPI.mcpServer.getDetails(), window.toolboxAPI.agentInvocation.getLogs()]);
-        const container = document.getElementById("agent-invocation-logs-container");
-        const emptyState = document.getElementById("agent-invocation-logs-empty");
+        const container = document.getElementById("mcp-container");
+        const emptyState = document.getElementById("mcp-empty");
         const table = document.getElementById("invocation-logs-table");
         const tbody = document.getElementById("invocation-logs-tbody");
         const statusLabel = document.getElementById("mcp-server-status");
@@ -202,7 +202,7 @@ async function loadAndRenderLogs(): Promise<void> {
             .join("");
     } catch (error) {
         logError("Failed to load agent invocation logs", error);
-        const container = document.getElementById("agent-invocation-logs-container");
+        const container = document.getElementById("mcp-container");
         if (container) {
             container.innerHTML = `<div class="empty-state"><p>Error loading logs</p><p class="empty-state-hint">${escapeHtml(error instanceof Error ? error.message : String(error))}</p></div>`;
         }
@@ -321,8 +321,8 @@ function escapeHtml(text: string): string {
  * Open agent invocation logs as a tab
  */
 export async function openAgentInvocationLogsTab(): Promise<void> {
-    registerCloseGuard("agent-invocation-logs", async () => {
+    registerCloseGuard("mcp", async () => {
         return true;
     });
-    await openLocalPageAsTab("agent-invocation-logs", "MCP Server", renderMCPServerContent, "");
+    await openLocalPageAsTab("mcp", "MCP Server", renderMCPServerContent, "");
 }

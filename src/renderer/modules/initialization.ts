@@ -31,10 +31,11 @@ import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, load
 import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { applyPreviewFeaturesVisibility } from "./previewFeatureManagement";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
-import { applyDebugMenuVisibility, applyPreviewFeaturesVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
+import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import {
     applyAppearanceSettings,
     closeAllTools,
@@ -251,7 +252,7 @@ function setupActivityBar(): void {
     }
 
     // Agent invocation logs button opens a tab
-    const agentInvocationLogsBtn = document.getElementById("agent-invocation-logs-btn");
+    const agentInvocationLogsBtn = document.getElementById("mcp-btn");
     if (agentInvocationLogsBtn) {
         agentInvocationLogsBtn.addEventListener("click", () => {
             openAgentInvocationLogsTab().catch((err) => {
