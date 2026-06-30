@@ -291,13 +291,6 @@ function buildHeadlessToolboxApi(manifest: ToolManifest, input: Record<string, u
         }
         return services.dataverseManager;
     };
-    const getPowerPlatformManager = (): PowerPlatformManager => {
-        if (!services.powerPlatformManager) {
-            throw new Error("Power Platform manager is not available in headless mode.");
-        }
-        return services.powerPlatformManager;
-    };
-
     const resolvePrimaryConnection = () => resolveConnection(manifest, context, services, "primary");
     const resolveSecondaryConnection = () => resolveConnection(manifest, context, services, "secondary");
 
