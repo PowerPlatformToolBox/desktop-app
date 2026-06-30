@@ -145,6 +145,43 @@ Headless `context` shape passed to `invokeHeadless`:
 }
 ```
 
+### Headless API Access
+
+Headless tools run under Node.js, so they do not get a real browser DOM. Tool code should therefore avoid assuming that `document` exists, but it may still use PPTB APIs through a compatibility global installed by the headless runtime.
+
+This is additive compatibility, not a rename. Existing browser-based tools can continue to use `window.toolboxAPI`, `window.dataverseAPI`, and `window.powerplatformAPI` unchanged.
+
+The three PPTB globals are available on `globalThis` in headless mode, matching the same names used in browser-based tools:
+
+| Global             | Headless                      | Windowed                  | Purpose                                                    |
+| ------------------ | ----------------------------- | ------------------------- | ---------------------------------------------------------- |
+| `toolboxAPI`       | `globalThis.toolboxAPI`       | `window.toolboxAPI`       | Connections, utils, settings, terminal, events, invocation |
+| `dataverseAPI`     | `globalThis.dataverseAPI`     | `window.dataverseAPI`     | All Dataverse CRUD, FetchXML, metadata, execute            |
+| `powerplatformAPI` | `globalThis.powerplatformAPI` | `window.powerplatformAPI` | Power Platform admin endpoints                             |
+
+For headless tools that need Dataverse or Power Platform access, the MCP invocation should also carry a `connectionName` so the runtime can resolve the correct saved connection before the tool runs.
+
+Example headless entry that matches the public API surface:
+
+```typescript
+export async function invokeHeadless(input: Record<string, unknown>, context: { toolName: string; invocationMode: "one-way" | "two-way" }) {
+    // toolboxAPI – connections, utils, settings, terminal, events, invocation
+    const connection = await toolboxAPI.connections.getActiveConnection();
+
+    // dataverseAPI – exposed separately, same as window.dataverseAPI in windowed mode
+    const topAccounts = await dataverseAPI.queryData("accounts?$select=name&$top=5");
+
+    return {
+        toolName: context.toolName,
+        invocationMode: context.invocationMode,
+        connectionName: connection?.name ?? null,
+        rows: topAccounts.value ?? [],
+    };
+}
+```
+
+The globals are installed directly on `globalThis`, so tool code written for windowed execution (`window.dataverseAPI.queryData(...)`) continues to work unchanged because `window` is aliased to `globalThis` by the headless runtime.
+
 ## Tool Runtime Context
 
 When a tool is launched by MCP, `toolboxAPI.invocation.getLaunchContext()` returns the prefill data. If present, invocation metadata is attached under `__pptb`.

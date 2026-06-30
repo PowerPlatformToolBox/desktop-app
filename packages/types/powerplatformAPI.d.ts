@@ -185,6 +185,13 @@ declare namespace PowerPlatformAPI {
  * Global window interface extension for Power Platform API
  */
 declare global {
+    interface GlobalThis {
+        /**
+         * Power Platform Admin API accessible to headless tools
+         */
+        powerplatformAPI: PowerPlatformAPI.API;
+    }
+
     interface Window {
         /**
          * Power Platform Admin API accessible to tools

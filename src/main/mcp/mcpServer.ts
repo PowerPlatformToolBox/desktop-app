@@ -9,7 +9,9 @@ import { logError, logInfo } from "../../common/logger";
 import { Connection } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
+import { DataverseManager } from "../managers/dataverseManager";
 import { HeadlessJobRecord, HeadlessToolInvocationManager } from "../managers/headlessToolInvocationManager";
+import { PowerPlatformManager } from "../managers/powerplatformManager";
 import { SettingsManager } from "../managers/settingsManager";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
 import { ToolManager } from "../managers/toolsManager";
@@ -47,6 +49,8 @@ interface ResolvedHeadlessAuthContext {
     authToken?: string;
     source: "provided-token" | "connection-name" | "none";
     connectionName?: string;
+    connectionId?: string;
+    connectionUrl?: string;
 }
 
 type InvocationLogParams = Parameters<typeof logInvocation>[0] & {
@@ -262,6 +266,8 @@ export class McpServerManager {
     private toolWindowManager: ToolWindowManager | null = null;
     private connectionsManager: ConnectionsManager | null = null;
     private authManager: AuthManager | null = null;
+    private dataverseManager: DataverseManager | null = null;
+    private powerPlatformManager: PowerPlatformManager | null = null;
     private expectedToken: string;
     private agentToolsCache: { tools: AgentTool[] } | null = null;
     private headlessInvocationManager: HeadlessToolInvocationManager;
@@ -293,6 +299,8 @@ export class McpServerManager {
     setConnectionAuthManagers(connectionsManager: ConnectionsManager, authManager: AuthManager): void {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+        this.dataverseManager = new DataverseManager(connectionsManager, authManager);
+        this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager);
     }
 
     isRunning(): boolean {
@@ -317,22 +325,26 @@ export class McpServerManager {
         const resolvedOs = this.resolveHostOS();
         const filePath = this.getClientConfigPath(client, resolvedOs);
         const serverDetails = this.getServerDetails();
-        const serverEntry = {
+        const vscodeServerEntry = {
             type: "http",
             url: `${serverDetails.address}/mcp`,
             headers: {
                 [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
             },
         };
+        const claudeServerEntry = {
+            command: "npx",
+            args: ["-y", "mcp-remote", `${serverDetails.address}/mcp`, "--header", `${MCP_AUTH_HEADER_DISPLAY_NAME}: ${serverDetails.authHeaderValue}`],
+        };
 
         const root = await this.readJsonObject(filePath);
         if (client === "claude-desktop") {
             const mcpServers = isRecord(root.mcpServers) ? root.mcpServers : {};
-            mcpServers[MCP_SERVER_CONFIG_KEY] = serverEntry;
+            mcpServers[MCP_SERVER_CONFIG_KEY] = claudeServerEntry;
             root.mcpServers = mcpServers;
         } else {
             const servers = isRecord(root.servers) ? root.servers : {};
-            servers[MCP_SERVER_CONFIG_KEY] = serverEntry;
+            servers[MCP_SERVER_CONFIG_KEY] = vscodeServerEntry;
             root.servers = servers;
         }
 
@@ -526,6 +538,8 @@ export class McpServerManager {
                 authToken: reusableToken,
                 source: "connection-name",
                 connectionName: connection.name,
+                connectionId: connection.id,
+                connectionUrl: connection.url,
             };
         }
 
@@ -572,6 +586,8 @@ export class McpServerManager {
             authToken: authResult.accessToken,
             source: "connection-name",
             connectionName: connection.name,
+            connectionId: connection.id,
+            connectionUrl: connection.url,
         };
     }
 
@@ -838,16 +854,29 @@ export class McpServerManager {
                             toolName: displayName,
                             timeoutMs: effectiveTimeoutMs,
                             execute: async (jobId) => {
-                                const result = await invokeHeadlessTool(installedManifest, prefillData, {
-                                    toolId,
-                                    toolName: displayName,
-                                    invocationMode,
-                                    authToken: resolvedAuthContext.authToken,
-                                    updateProgress: (percent, message) => {
-                                        this.headlessInvocationManager.updateProgress(jobId, percent, message);
+                                const result = await invokeHeadlessTool(
+                                    installedManifest,
+                                    prefillData,
+                                    {
+                                        toolId,
+                                        toolName: displayName,
+                                        invocationMode,
+                                        authToken: resolvedAuthContext.authToken,
+                                        connectionId: resolvedAuthContext.connectionId,
+                                        connectionUrl: resolvedAuthContext.connectionUrl,
+                                        connectionName: resolvedAuthContext.connectionName,
+                                        updateProgress: (percent, message) => {
+                                            this.headlessInvocationManager.updateProgress(jobId, percent, message);
+                                        },
+                                        logger: createHeadlessLogger(toolId),
                                     },
-                                    logger: createHeadlessLogger(toolId),
-                                });
+                                    {
+                                        settingsManager: this.settingsManager,
+                                        connectionsManager: this.connectionsManager ?? undefined,
+                                        dataverseManager: this.dataverseManager ?? undefined,
+                                        powerPlatformManager: this.powerPlatformManager ?? undefined,
+                                    },
+                                );
 
                                 const outputValidationErrors = validateAgainstSchema(result, matchedTool.outputSchema);
                                 if (outputValidationErrors.length > 0) {

@@ -569,6 +569,19 @@ declare namespace ToolBoxAPI {
  * Global window interface extension for ToolBox tools
  */
 declare global {
+    interface GlobalThis {
+        /**
+         * The organized ToolBox API for headless tools.
+         * Windowed tools should continue to use window.toolboxAPI.
+         */
+        toolboxAPI: ToolBoxAPI.API;
+
+        /**
+         * Tool context available at startup
+         */
+        TOOLBOX_CONTEXT?: ToolBoxAPI.ToolContext;
+    }
+
     interface Window {
         /**
          * The organized ToolBox API for tools
