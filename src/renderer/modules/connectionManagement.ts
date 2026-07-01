@@ -1452,16 +1452,20 @@ export async function importConnections(): Promise<void> {
 
 /**
  * Hostname pattern for valid Dataverse environments.
- * Matches: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * Matches: *.crm*.dynamics.com / *.api.crm*.dynamics.com (commercial/GCC),
+ * *.crm.microsoftdynamics.us / *.api.crm.microsoftdynamics.us (GCC High),
+ * *.crm.appsplatform.us / *.api.crm.appsplatform.us (DoD).
  * The org-name segment follows RFC 1123 (starts and ends with alphanumeric, hyphens allowed in the middle).
  * \d* is intentionally lenient to accommodate current and future Microsoft region codes (crm, crm4, crm9, crm11, etc.).
  * End-anchored and case-insensitive; applied against the parsed hostname only.
  */
-const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)(\.mcas\.ms)?$/i;
+const DATAVERSE_HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.(api\.)?crm\d*\.(dynamics\.com|microsoftdynamics\.us|appsplatform\.us)(\.mcas\.ms)?$/i;
 
 /**
  * Validates that a URL string points to a Dataverse environment hostname.
- * Accepted domains: *.crm*.dynamics.com (commercial/GCC), *.crm.microsoftdynamics.us (GCC High), *.crm.appsplatform.us (DoD).
+ * Accepted domains: *.crm*.dynamics.com / *.api.crm*.dynamics.com (commercial/GCC),
+ * *.crm.microsoftdynamics.us / *.api.crm.microsoftdynamics.us (GCC High),
+ * *.crm.appsplatform.us / *.api.crm.appsplatform.us (DoD).
  * Validation is performed against the parsed hostname only (not the path/query) and is case-insensitive.
  */
 function isValidDataverseUrl(rawUrl: string): boolean {
@@ -2078,7 +2082,9 @@ export async function loadSidebarConnections(): Promise<void> {
                     const safeCatColor = catColor && /^#[0-9A-Fa-f]{6}$/.test(catColor) ? escapeHtml(catColor) : "";
                     const colorSwatchHtml =
                         groupKey !== ""
-                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(groupKey)}" title="Change category color" />`
+                            ? `<input type="color" class="connection-group-color-picker" value="${safeCatColor || "#888888"}" data-category-key="${escapeHtml(
+                                  groupKey,
+                              )}" title="Change category color" />`
                             : "";
                     const items = groupConns.map(renderConnectionItem).join("");
                     return `
@@ -2088,7 +2094,9 @@ export async function loadSidebarConnections(): Promise<void> {
                             ${colorSwatchHtml}
                             <span class="connection-group-count">${groupConns.length}</span>
                             <span class="connection-group-toggle">▼</span>
-                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(groupKey)}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
+                            <button class="connection-group-export-btn" data-category-key="${escapeHtml(
+                                groupKey,
+                            )}" title="Export ${escapedKey} connections" aria-label="Export ${escapedKey} connections">
                                 <img src="${exportIconPath}" width="12" height="12" alt="Export ${escapedKey} connections" class="connection-group-export-icon" />
                             </button>
                         </div>
