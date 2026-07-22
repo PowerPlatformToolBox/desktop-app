@@ -421,6 +421,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // MCP server details - Only for PPTB UI
     mcpServer: {
         getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
+        start: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.START),
+        stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),
         configureVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE),
     },

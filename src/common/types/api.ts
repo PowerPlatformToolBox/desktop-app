@@ -123,6 +123,8 @@ export interface McpClientConfigWriteResult {
  */
 export interface McpServerAPI {
     getDetails: () => Promise<McpServerDetails>;
+    start: () => Promise<McpServerDetails>;
+    stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
     configureVSCode: () => Promise<McpClientConfigWriteResult>;
 }
