@@ -54,6 +54,7 @@ export const CONNECTION_CHANNELS = {
     REFRESH_TOKEN: "refresh-connection-token",
     CHECK_BROWSER_INSTALLED: "check-browser-installed",
     GET_BROWSER_PROFILES: "get-browser-profiles",
+    CONFIGURE_APP_REGISTRATION: "configure-app-registration",
     EXPORT_CONNECTIONS: "export-connections",
     IMPORT_CONNECTIONS: "import-connections",
 } as const;

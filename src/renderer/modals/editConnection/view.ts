@@ -155,6 +155,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>
     <div class="modal-footer">
         <button id="test-connection-btn" class="fluent-button fluent-button-ghost" style="display: none">Test Connection</button>
+        <p id="connection-configure-note" class="helper-text" style="display: none; margin: 0; max-width: 360px;">Configure the Client ID, localhost reply URL, and Power Platform API permissions before saving. If anything is missing, a PowerShell handoff script will be copied for your admin.</p>
         <span class="footer-spacer"></span>
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
         <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save Changes</button>

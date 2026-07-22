@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { CONNECTION_CHANNELS, MODAL_WINDOW_CHANNELS } from "../common/ipc/channels";
+import { CONNECTION_CHANNELS, MODAL_WINDOW_CHANNELS, UTIL_CHANNELS } from "../common/ipc/channels";
 
 type ModalMessageHandler = (payload: unknown) => void;
 const messageHandlers = new Set<ModalMessageHandler>();
@@ -25,5 +25,11 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
         getCategories: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CATEGORIES),
+        configureAppRegistration: (clientId: string, includePowerPlatformPermissions?: boolean) =>
+            ipcRenderer.invoke(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION, { clientId, includePowerPlatformPermissions }),
+    },
+    utils: {
+        copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),
+        showNotification: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_NOTIFICATION, options),
     },
 });
