@@ -9,23 +9,32 @@ export function renderMCPServerContent(panel: HTMLElement): void {
     panel.innerHTML = `
         <div class="settings-tab-content" id="mcp-tab">
             <div class="settings-vscode-section">
-                <h2 class="settings-vscode-section-title">
-                    MCP Server
-                    <p class="mcp-subheader" style="margin-bottom: 16px;">
-                        Server connection details and invocation history for MCP-triggered tool launches.
-                    </p>
-                </h2>
+                <h2 class="settings-vscode-section-title">MCP Server</h2>
+                <p class="mcp-subheader">Server connection details and invocation history for MCP-triggered tool launches.</p>
 
-                <div class="settings-vscode-item" style="margin-bottom: 8px;">
+                <div class="settings-vscode-item mcp-settings-item">
                     <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Server Status</span>
                     </div>
-                    <div class="settings-vscode-item-control">
+                    <div class="settings-vscode-item-control mcp-server-item-control">
                         <span id="mcp-server-status" style="font-weight: 600;"></span>
                     </div>
                 </div>
 
-                <div class="settings-vscode-item" style="margin-bottom: 8px;">
+                <div class="settings-vscode-item mcp-settings-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Server Control</span>
+                        <p class="settings-vscode-item-description">Start or stop the local MCP server.</p>
+                    </div>
+                    <div class="settings-vscode-item-control mcp-server-item-control">
+                        <div class="mcp-server-actions-row">
+                            <button id="mcp-server-toggle-btn" class="fluent-button fluent-button-primary settings-vscode-btn">Start MCP Server</button>
+                            <span id="mcp-server-action-status" class="settings-vscode-item-description mcp-server-action-status"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item mcp-settings-item">
                     <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Server Address</span>
                         <p class="settings-vscode-item-description">Use this HTTP endpoint when configuring your MCP client.</p>
@@ -43,7 +52,7 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     </div>
                 </div>
 
-                <div class="settings-vscode-item" style="margin-bottom: 8px;">
+                <div class="settings-vscode-item mcp-settings-item">
                     <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Auth Header Name</span>
                         <p class="settings-vscode-item-description">Include this header in each MCP request.</p>
@@ -61,7 +70,7 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     </div>
                 </div>
 
-                <div class="settings-vscode-item" style="margin-bottom: 16px;">
+                <div class="settings-vscode-item mcp-settings-item-spaced">
                     <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Auth Header Value (Token)</span>
                         <p class="settings-vscode-item-description">Secret token used by MCP clients to authenticate with the local server.</p>
@@ -79,7 +88,7 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     </div>
                 </div>
 
-                <div class="settings-vscode-item" style="margin-bottom: 16px;">
+                <div class="settings-vscode-item mcp-settings-item-spaced">
                     <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Quick Connect</span>
                         <p class="settings-vscode-item-description">Create or update local MCP config files for supported clients using this server's URL and auth header/token.</p>
@@ -137,6 +146,21 @@ function getOutcomeBadgeStyle(outcome: string): string {
     }
 }
 
+function updateMcpServerStatusUi(isRunning: boolean): void {
+    const statusLabel = document.getElementById("mcp-server-status");
+    const toggleButton = document.getElementById("mcp-server-toggle-btn") as HTMLButtonElement | null;
+
+    if (statusLabel) {
+        statusLabel.textContent = isRunning ? "Running" : "Stopped";
+        statusLabel.setAttribute("style", `font-weight: 600; color: ${isRunning ? "#107c10" : "#d13438"};`);
+    }
+
+    if (toggleButton) {
+        toggleButton.textContent = isRunning ? "Stop MCP Server" : "Start MCP Server";
+        toggleButton.dataset.running = String(isRunning);
+    }
+}
+
 /**
  * Load and render the logs
  */
@@ -147,7 +171,6 @@ async function loadAndRenderLogs(): Promise<void> {
         const emptyState = document.getElementById("mcp-empty");
         const table = document.getElementById("invocation-logs-table");
         const tbody = document.getElementById("invocation-logs-tbody");
-        const statusLabel = document.getElementById("mcp-server-status");
         const addressInput = document.getElementById("mcp-server-address") as HTMLInputElement | null;
         const headerNameInput = document.getElementById("mcp-auth-header-name") as HTMLInputElement | null;
         const headerValueInput = document.getElementById("mcp-auth-header-value") as HTMLInputElement | null;
@@ -163,14 +186,12 @@ async function loadAndRenderLogs(): Promise<void> {
         if (headerValueInput) {
             headerValueInput.value = serverDetails.authHeaderValue;
         }
-        if (statusLabel) {
-            statusLabel.textContent = serverDetails.isRunning ? "Running" : "Stopped";
-            statusLabel.setAttribute("style", `font-weight: 600; color: ${serverDetails.isRunning ? "#107c10" : "#d13438"};`);
-        }
+        updateMcpServerStatusUi(serverDetails.isRunning);
 
         wireCopyButton("copy-mcp-server-address-btn", () => serverDetails.address, "MCP server address copied");
         wireCopyButton("copy-mcp-auth-header-name-btn", () => serverDetails.authHeaderName, "MCP auth header name copied");
         wireCopyButton("copy-mcp-auth-header-value-btn", () => serverDetails.authHeaderValue, "MCP auth token copied");
+        wireMcpServerToggleButton();
         wireClientConfigButtons();
 
         if (logs.length === 0) {
@@ -269,6 +290,56 @@ function wireClientConfigButtons(): void {
             void writeConfig("vscode");
         });
     }
+}
+
+function wireMcpServerToggleButton(): void {
+    const toggleBtn = document.getElementById("mcp-server-toggle-btn") as HTMLButtonElement | null;
+    const actionStatus = document.getElementById("mcp-server-action-status") as HTMLSpanElement | null;
+
+    if (!toggleBtn || !actionStatus || toggleBtn.dataset.bound === "true") {
+        return;
+    }
+
+    const setBusy = (busy: boolean): void => {
+        toggleBtn.disabled = busy;
+    };
+
+    const setActionStatus = (message: string, isError: boolean): void => {
+        actionStatus.textContent = message;
+        actionStatus.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-secondary, #8a8886)";
+    };
+
+    toggleBtn.dataset.bound = "true";
+    toggleBtn.addEventListener("click", () => {
+        void (async () => {
+            const isRunning = toggleBtn.dataset.running === "true";
+            const nextActionLabel = isRunning ? "Stopping MCP server..." : "Starting MCP server...";
+            setBusy(true);
+            setActionStatus(nextActionLabel, false);
+
+            try {
+                const details = isRunning ? await window.toolboxAPI.mcpServer.stop() : await window.toolboxAPI.mcpServer.start();
+                updateMcpServerStatusUi(details.isRunning);
+                setActionStatus(details.isRunning ? "MCP server is running." : "MCP server is stopped.", false);
+                await window.toolboxAPI.utils.showNotification({
+                    title: details.isRunning ? "MCP Server Started" : "MCP Server Stopped",
+                    body: details.isRunning ? "Local MCP server is now running." : "Local MCP server has been stopped.",
+                    type: "success",
+                });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setActionStatus(`Failed to ${isRunning ? "stop" : "start"} MCP server: ${message}`, true);
+                logError("Failed to toggle MCP server", error);
+                await window.toolboxAPI.utils.showNotification({
+                    title: "MCP Server Action Failed",
+                    body: `Unable to ${isRunning ? "stop" : "start"} MCP server.`,
+                    type: "error",
+                });
+            } finally {
+                setBusy(false);
+            }
+        })();
+    });
 }
 
 function wireCopyButton(buttonId: string, getValue: () => string, successMessage: string): void {

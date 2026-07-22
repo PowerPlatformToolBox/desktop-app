@@ -82,6 +82,14 @@ export class TrayManager {
     }
 
     /**
+     * Rebuild the tray context menu to reflect current dynamic state
+     * (for example, MCP server running/stopped).
+     */
+    refreshContextMenu(): void {
+        this.updateContextMenu();
+    }
+
+    /**
      * Resolve the correct icon path for the current release channel.
      * Uses `icons/insider/icon.png` for insider builds; falls back to
      * `icons/icon.png` if the insider icon has not yet been placed.

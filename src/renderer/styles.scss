@@ -2273,8 +2273,16 @@ body.dark-theme .settings-vscode-item:hover {
     align-self: flex-start;
 }
 
+.mcp-settings-item {
+    margin-bottom: 8px;
+}
+
+.mcp-settings-item-spaced {
+    margin-bottom: 16px;
+}
+
 .mcp-server-item-control {
-    width: 320px;
+    width: 360px;
 }
 
 .mcp-server-control-row {
@@ -2306,6 +2314,17 @@ body.dark-theme .settings-vscode-item:hover {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.mcp-server-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mcp-server-action-status {
+    min-height: 18px;
 }
 
 /* Checkbox with label */
@@ -5956,7 +5975,7 @@ body.dark-theme .global-search-item-badge.badge-settings {
 }
 
 .mcp-subheader {
-    margin-top: 8px;
+    margin: 8px 0 16px;
     font-weight: normal;
     text-transform: none;
 }

@@ -149,6 +149,14 @@ class ToolBoxApp {
                 async () => {
                     if (this.mcpServerManager.isRunning()) {
                         await this.mcpServerManager.stop();
+
+                        // If the app is currently hidden to tray and MCP has just been
+                        // stopped, there is no background workload left to keep alive.
+                        // Quit so we only remain in background while MCP is running.
+                        if (this.mainWindow && !this.mainWindow.isVisible()) {
+                            app.quit();
+                        }
+
                         return;
                     }
 
@@ -450,6 +458,8 @@ class ToolBoxApp {
 
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.START);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE);
     }
@@ -518,6 +528,18 @@ class ToolBoxApp {
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
+            return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.START, async () => {
+            await this.mcpServerManager.start();
+            this.trayManager?.refreshContextMenu();
+            return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.STOP, async () => {
+            await this.mcpServerManager.stop();
+            this.trayManager?.refreshContextMenu();
             return this.mcpServerManager.getServerDetails();
         });
 
@@ -2642,6 +2664,24 @@ class ToolBoxApp {
     }
 
     /**
+     * Bring the main window to the foreground, creating it when needed.
+     * Used when the app is already running in the tray and receives a re-launch.
+     */
+    private showAndFocusMainWindow(): void {
+        if (!this.mainWindow) {
+            this.createWindow();
+            return;
+        }
+
+        if (this.mainWindow.isMinimized()) {
+            this.mainWindow.restore();
+        }
+
+        this.mainWindow.show();
+        this.mainWindow.focus();
+    }
+
+    /**
      * Register custom pptb-webview protocol for loading tool content
      * This provides isolation and CSP control for tool execution
      */
@@ -2716,6 +2756,12 @@ class ToolBoxApp {
 
         this.mainWindow.on("close", (event) => {
             if (this.isQuitting) {
+                return;
+            }
+
+            if (!this.mcpServerManager.isRunning()) {
+                // No MCP background workload: closing the window should terminate app.
+                this.isQuitting = true;
                 return;
             }
 
@@ -3159,7 +3205,6 @@ class ToolBoxApp {
             this.protocolHandlerManager.initialize();
 
             await app.whenReady();
-            await this.mcpServerManager.start();
             logCheckpoint("Electron app ready");
 
             // Register protocol handler after app is ready
@@ -3180,12 +3225,7 @@ class ToolBoxApp {
                 logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
                 // Bring app window to focus
-                if (this.mainWindow) {
-                    if (this.mainWindow.isMinimized()) {
-                        this.mainWindow.restore();
-                    }
-                    this.mainWindow.focus();
-                }
+                this.showAndFocusMainWindow();
 
                 // Deliver the IPC event to the renderer.  If the renderer is still
                 // loading (e.g. cold launch via protocol URL), defer until it finishes.
@@ -3231,15 +3271,13 @@ class ToolBoxApp {
                 // On macOS the app stays alive after the window is closed.
                 // When the user clicks the Dock icon (or the tray "Open" item),
                 // restore the existing window if it still exists, otherwise create a new one.
-                if (this.mainWindow) {
-                    if (this.mainWindow.isMinimized()) {
-                        this.mainWindow.restore();
-                    }
-                    this.mainWindow.show();
-                    this.mainWindow.focus();
-                } else {
-                    this.createWindow();
-                }
+                this.showAndFocusMainWindow();
+            });
+
+            app.on("second-instance", () => {
+                // Windows/Linux: when the user launches the app again from Start/menu while
+                // the first instance is hidden to tray, bring the existing window to front.
+                this.showAndFocusMainWindow();
             });
 
             app.on("window-all-closed", () => {
