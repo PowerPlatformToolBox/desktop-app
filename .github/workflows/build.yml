@@ -22,6 +22,7 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             pull-requests: write
+            issues: write
         steps:
             - name: Checkout PR branch
               uses: actions/checkout@v4
@@ -94,17 +95,18 @@ jobs:
 
                   echo "✅ All preflight checks passed."
 
-            - name: Comment on PR with failure reason
-              if: failure() && github.event_name == 'pull_request'
+            - name: Update sticky preflight PR comment
+              if: always() && github.event_name == 'pull_request'
               uses: actions/github-script@v7
               with:
                   script: |
                       const outcomes = {
                           validate_release_notes: '${{ steps.validate_release_notes.outcome }}',
-                          validate_types_version: '${{ steps.validate_types_version.outcome }}'
+                          validate_types_version: '${{ steps.validate_types_version.outcome }}',
                       };
 
                       const failures = [];
+                      const MARKER = '<!-- preflight-check-bot -->';
 
                       if (outcomes.validate_release_notes === 'failure') {
                           failures.push(
@@ -122,22 +124,57 @@ jobs:
                           );
                       }
 
-                      const body = [
-                          '## 🚨 Preflight checks failed',
-                          '',
-                          'The following checks must pass before this PR can be merged into `main`:',
-                          '',
-                          ...failures,
-                          '',
-                          `> Triggered by commit ${context.sha.slice(0, 7)} — [view run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
-                      ].join('\n');
-
-                      await github.rest.issues.createComment({
+                      const { data: comments } = await github.rest.issues.listComments({
                           owner: context.repo.owner,
                           repo: context.repo.repo,
                           issue_number: context.issue.number,
-                          body
                       });
+
+                      const existing = comments.find((comment) => comment.body && comment.body.includes(MARKER));
+
+                      let body;
+                      if (failures.length === 0) {
+                          body = [
+                              MARKER,
+                              '## ✅ Preflight checks passed',
+                              '',
+                              'All preflight checks required for merging into `main` are currently passing.',
+                              '',
+                              `> Checked at commit ${context.sha.slice(0, 7)} — [view run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                          ].join('\n');
+                      } else {
+                          const mention = existing ? '' : `@${context.payload.pull_request.user.login} — please address the items below.\n\n`;
+                          body = [
+                              MARKER,
+                              '## 🚨 Preflight checks failed',
+                              '',
+                              mention + 'The following checks must pass before this PR can be merged into `main`:',
+                              '',
+                              ...failures,
+                              '',
+                              `> Checked at commit ${context.sha.slice(0, 7)} — [view run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                          ].join('\n');
+                      }
+
+                      if (existing) {
+                          await github.rest.issues.updateComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              comment_id: existing.id,
+                              body,
+                          });
+                      } else {
+                          await github.rest.issues.createComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              issue_number: context.issue.number,
+                              body,
+                          });
+                      }
+
+                      if (failures.length > 0) {
+                          core.setFailed('Preflight checks failed.');
+                      }
 
     build:
         name: Build
