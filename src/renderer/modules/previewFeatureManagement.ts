@@ -12,8 +12,8 @@ const PREVIEW_FEATURE_SETTINGS_ID_PREFIX = "sidebar-preview-feature-";
 const PREVIEW_FEATURE_DEFINITIONS: PreviewFeatureDefinition[] = [
     {
         id: PREVIEW_FEATURE_IDS.MCP_SERVER,
-        label: "MCP Server",
-        description: "Shows the MCP Server activity in the sidebar.",
+        label: "Agentic AI capabilities (MCP Server)",
+        description: "Enables MCP Server management in the sidebar for configuring and managing agentic AI capabilities. The server runs in the background to power your agentic AI tools.",
         targetElementIds: ["mcp-btn"],
     },
 ];
