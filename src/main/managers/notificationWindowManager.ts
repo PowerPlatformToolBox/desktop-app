@@ -1,5 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
+import { resolveTheme } from "../utilities/theme";
+import { SettingsManager } from "./settingsManager";
 
 interface NotificationOptions {
     title: string;
@@ -34,6 +36,7 @@ const HISTORY_WINDOW_TITLE = "Notification History";
 export class NotificationHistoryWindowManager {
     private historyWindow: BrowserWindow | null = null;
     private mainWindow: BrowserWindow;
+    private settingsManager: SettingsManager;
     private history: NotificationHistoryEntry[] = [];
     private unreadCount: number = 0;
     private isPanelOpen: boolean = false;
@@ -45,10 +48,16 @@ export class NotificationHistoryWindowManager {
     /** Vertical offset from the bottom of the main window to the bottom of the history window (accounts for footer height) */
     private readonly FOOTER_OFFSET = 40;
 
-    constructor(mainWindow: BrowserWindow) {
+    constructor(mainWindow: BrowserWindow, settingsManager: SettingsManager) {
         this.mainWindow = mainWindow;
+        this.settingsManager = settingsManager;
         this.setupIpcHandlers();
         this.setupMainWindowListeners();
+    }
+
+    private isDarkTheme(): boolean {
+        const theme = this.settingsManager.getSetting("theme") ?? "system";
+        return resolveTheme(theme) === "dark";
     }
 
     /**
@@ -188,6 +197,8 @@ export class NotificationHistoryWindowManager {
     }
 
     private generateHistoryHTML(): string {
+        const dark = this.isDarkTheme();
+
         const icons: Record<NotificationHistoryEntry["type"], string> = {
             info: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
             success:
@@ -225,10 +236,11 @@ export class NotificationHistoryWindowManager {
     <title>${HISTORY_WINDOW_TITLE}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { color-scheme: ${dark ? "dark" : "light"}; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #1e1e1e;
-            color: #cccccc;
+            background: ${dark ? "#1e1e1e" : "#ffffff"};
+            color: ${dark ? "#cccccc" : "#1f1f1f"};
             overflow: hidden;
             height: 100vh;
             display: flex;
@@ -238,7 +250,7 @@ export class NotificationHistoryWindowManager {
             display: flex;
             flex-direction: column;
             height: 100%;
-            border: 1px solid #3c3c3c;
+            border: 1px solid ${dark ? "#3c3c3c" : "#e0e0e0"};
             border-radius: 6px;
             overflow: hidden;
         }
@@ -247,20 +259,20 @@ export class NotificationHistoryWindowManager {
             align-items: center;
             justify-content: space-between;
             padding: 8px 12px;
-            border-bottom: 1px solid #3c3c3c;
+            border-bottom: 1px solid ${dark ? "#3c3c3c" : "#e0e0e0"};
             flex-shrink: 0;
-            background: #252526;
+            background: ${dark ? "#252526" : "#f5f5f5"};
         }
         .notification-history-title {
             font-size: 12px;
             font-weight: 600;
-            color: #d4d4d4;
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
         #notification-clear-all-btn {
             font-size: 11px;
-            color: #9d9d9d;
+            color: ${dark ? "#9d9d9d" : "#616161"};
             background: transparent;
             border: none;
             cursor: pointer;
@@ -268,7 +280,7 @@ export class NotificationHistoryWindowManager {
             border-radius: 3px;
             transition: color 0.15s ease, background 0.15s ease;
         }
-        #notification-clear-all-btn:hover { color: #d4d4d4; background: rgba(255,255,255,0.08); }
+        #notification-clear-all-btn:hover { color: ${dark ? "#d4d4d4" : "#1f1f1f"}; background: ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}; }
         #notification-history-list {
             flex: 1;
             overflow-y: auto;
@@ -278,7 +290,7 @@ export class NotificationHistoryWindowManager {
             padding: 24px 16px;
             text-align: center;
             font-size: 12px;
-            color: #9d9d9d;
+            color: ${dark ? "#9d9d9d" : "#9e9e9e"};
         }
         .notification-history-entry {
             display: flex;
@@ -288,8 +300,8 @@ export class NotificationHistoryWindowManager {
             border-left: 3px solid transparent;
             transition: background 0.12s ease;
         }
-        .notification-history-entry:hover { background: rgba(255,255,255,0.05); }
-        .notification-history-entry + .notification-history-entry { border-top: 1px solid #3c3c3c; }
+        .notification-history-entry:hover { background: ${dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}; }
+        .notification-history-entry + .notification-history-entry { border-top: 1px solid ${dark ? "#3c3c3c" : "#eeeeee"}; }
         .notification-history-entry--info    { border-left-color: #0078d4; }
         .notification-history-entry--success { border-left-color: #107c10; }
         .notification-history-entry--warning { border-left-color: #c17a00; }
@@ -303,7 +315,7 @@ export class NotificationHistoryWindowManager {
         .notification-history-entry__title {
             font-size: 12px;
             font-weight: 600;
-            color: #d4d4d4;
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -311,7 +323,7 @@ export class NotificationHistoryWindowManager {
         }
         .notification-history-entry__message {
             font-size: 11px;
-            color: #9d9d9d;
+            color: ${dark ? "#9d9d9d" : "#616161"};
             line-height: 1.4;
             overflow: hidden;
             display: -webkit-box;
@@ -328,26 +340,26 @@ export class NotificationHistoryWindowManager {
         }
         .notification-history-entry__time {
             font-size: 10px;
-            color: #6b6b6b;
+            color: ${dark ? "#6b6b6b" : "#9e9e9e"};
             white-space: nowrap;
         }
         .notification-history-entry__copy {
             font-size: 10px;
-            color: #9d9d9d;
+            color: ${dark ? "#9d9d9d" : "#616161"};
             background: transparent;
-            border: 1px solid #4a4a4a;
+            border: 1px solid ${dark ? "#4a4a4a" : "#bdbdbd"};
             border-radius: 3px;
             padding: 1px 6px;
             cursor: pointer;
             transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
         }
         .notification-history-entry__copy:hover {
-            color: #d4d4d4;
-            background: rgba(255,255,255,0.08);
-            border-color: #6a6a6a;
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
+            background: ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"};
+            border-color: ${dark ? "#6a6a6a" : "#9e9e9e"};
         }
         .notification-history-entry__copy.is-copied {
-            color: #9cdcfe;
+            color: ${dark ? "#9cdcfe" : "#0078d4"};
             border-color: #0078d4;
         }
     </style>
@@ -469,6 +481,7 @@ export class NotificationHistoryWindowManager {
 export class NotificationWindowManager {
     private notificationWindow: BrowserWindow | null = null;
     private mainWindow: BrowserWindow;
+    private settingsManager: SettingsManager;
     private notifications: NotificationOptions[] = [];
     private historyManager: NotificationHistoryWindowManager | null = null;
     private readonly MAX_NOTIFICATIONS = 3;
@@ -476,11 +489,17 @@ export class NotificationWindowManager {
     private readonly NOTIFICATION_HEIGHT = 100;
     private readonly PADDING = 16;
 
-    constructor(mainWindow: BrowserWindow) {
+    constructor(mainWindow: BrowserWindow, settingsManager: SettingsManager) {
         this.mainWindow = mainWindow;
+        this.settingsManager = settingsManager;
         this.createNotificationWindow();
         this.setupIpcHandlers();
         this.setupMainWindowListeners();
+    }
+
+    private isDarkTheme(): boolean {
+        const theme = this.settingsManager.getSetting("theme") ?? "system";
+        return resolveTheme(theme) === "dark";
     }
 
     /** Wire up the history manager so each shown notification is also recorded. */
@@ -676,6 +695,8 @@ export class NotificationWindowManager {
      * Generate HTML for the notification window
      */
     private generateHTML(): string {
+        const dark = this.isDarkTheme();
+
         const icons = {
             info: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
             success:
@@ -724,6 +745,8 @@ export class NotificationWindowManager {
             box-sizing: border-box;
         }
 
+        :root { color-scheme: ${dark ? "dark" : "light"}; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: transparent;
@@ -732,7 +755,7 @@ export class NotificationWindowManager {
         }
 
         .notification {
-            background: #2d2d2d;
+            background: ${dark ? "#2d2d2d" : "#ffffff"};
             border-left: 3px solid;
             border-radius: 4px;
             padding: 12px;
@@ -740,8 +763,8 @@ export class NotificationWindowManager {
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            color: #cccccc;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, ${dark ? "0.4" : "0.15"});
+            color: ${dark ? "#cccccc" : "#1f1f1f"};
         }
 
         .notification.info { border-left-color: #007acc; }
@@ -775,13 +798,13 @@ export class NotificationWindowManager {
             font-weight: 600;
             font-size: 13px;
             margin-bottom: 4px;
-            color: #ffffff;
+            color: ${dark ? "#ffffff" : "#000000"};
         }
 
         .notification-message {
             font-size: 12px;
             line-height: 1.4;
-            color: #cccccc;
+            color: ${dark ? "#cccccc" : "#444444"};
         }
 
         .notification-actions {
@@ -808,7 +831,7 @@ export class NotificationWindowManager {
         .notification-close {
             background: none;
             border: none;
-            color: #999999;
+            color: ${dark ? "#999999" : "#666666"};
             font-size: 20px;
             line-height: 1;
             cursor: pointer;
@@ -820,7 +843,7 @@ export class NotificationWindowManager {
         }
 
         .notification-close:hover {
-            color: #ffffff;
+            color: ${dark ? "#ffffff" : "#000000"};
         }
 
         @keyframes slideIn {
