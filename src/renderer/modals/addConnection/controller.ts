@@ -30,6 +30,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const addButton = document.getElementById("confirm-connection-btn");
+    const copyScriptSaveButton = document.getElementById("copy-script-save-btn");
     const configureNote = document.getElementById("connection-configure-note");
     const testFeedback = document.getElementById("connection-test-feedback");
     const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
@@ -101,6 +102,19 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         return "Configure & Add";
     };
 
+    const getManualActionLabel = () => {
+        return shouldShowConfigureFooter() ? "Copy Script & Add" : "Add";
+    };
+
+    const getConfigureNoteText = () => {
+        // const redirectNote = "Reply URLs to set: msal<client-id>://auth and http://localhost.";
+        if (isPowerPlatformApiEnabled()) {
+            return "Configure & Add will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
+        }
+
+        return "Configure & Add will update reply URLs only. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
+    };
+
     const buildAdminHandOffScript = (validationMessage) => {
         const clientId = getCurrentClientId() || "[your-client-id]";
         const includePowerPlatformPermissions = isPowerPlatformApiEnabled();
@@ -136,8 +150,16 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     };
 
     const updateConfigureFooterState = () => {
+        const isConfigureMode = shouldShowConfigureFooter();
         if (configureNote) {
-            configureNote.style.display = shouldShowConfigureFooter() ? "block" : "none";
+            configureNote.style.display = isConfigureMode ? "block" : "none";
+            configureNote.textContent = isConfigureMode ? getConfigureNoteText() : "";
+        }
+        if (copyScriptSaveButton instanceof HTMLButtonElement) {
+            copyScriptSaveButton.style.display = isConfigureMode ? "inline-flex" : "none";
+            if (!copyScriptSaveButton.disabled) {
+                copyScriptSaveButton.textContent = getManualActionLabel();
+            }
         }
         if (addButton instanceof HTMLButtonElement && !addButton.disabled) {
             addButton.textContent = getPrimaryActionLabel();
@@ -157,6 +179,24 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             body: "The PowerShell handoff script has been copied for your admin.",
             type: "warning",
         });
+    };
+
+    const getGeneratedAppRegistrationScript = async () => {
+        const clientId = getCurrentClientId();
+        if (!clientId || !window.toolboxAPI?.connections?.configureAppRegistration) {
+            return "";
+        }
+
+        try {
+            const generatedResult = await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled(), true);
+            if (generatedResult && typeof generatedResult.script === "string" && generatedResult.script.trim().length > 0) {
+                return generatedResult.script;
+            }
+        } catch {
+            // Fall back to the local handoff script.
+        }
+
+        return "";
     };
 
     const runConfigureAndSavePreflight = async () => {
@@ -222,7 +262,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
 
     const confirmPowerPlatformApiConsent = () => {
         return window.confirm(
-            "Power Platform API access requires admin-approved privileges and a properly configured Client ID. If required privileges are missing, tools may not work as expected. By selecting Agree, you confirm it is your responsibility to configure the Client ID and privileges correctly. Select OK to Agree, or Cancel to keep this option disabled.",
+            "Power Platform API access requires admin-approved privileges and a properly configured Client ID.\\n\\nIf required privileges are missing, tools may not work as expected.\\n\\nSelect OK to Agree and continue.\\nSelect Cancel to keep this option disabled.",
         );
     };
 
@@ -542,6 +582,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         configureSaveInFlight = true;
         pendingConfigureSaveScript = "";
         setButtonState(addButton, true, "Configuring...", getPrimaryActionLabel());
+        setButtonState(copyScriptSaveButton, true, "Working...", getManualActionLabel());
 
         try {
             const configureResult = await runConfigureAndSavePreflight();
@@ -552,6 +593,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
                 updateTestFeedback({ message: failureMessage, type: "error" });
                 configureSaveInFlight = false;
                 setButtonState(addButton, false, "", getPrimaryActionLabel());
+                setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
                 return;
             }
         } catch (error) {
@@ -561,10 +603,29 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             updateTestFeedback({ message: failureMessage, type: "error" });
             configureSaveInFlight = false;
             setButtonState(addButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
             return;
         }
 
         modalBridge.send(CHANNELS.submit, formData);
+    });
+
+    copyScriptSaveButton?.addEventListener("click", async () => {
+        const formData = collectFormData();
+        setButtonState(copyScriptSaveButton, true, "Copying...", getManualActionLabel());
+        setButtonState(addButton, true, "Working...", getPrimaryActionLabel());
+
+        try {
+            const generatedScript = await getGeneratedAppRegistrationScript();
+            pendingConfigureSaveScript = generatedScript || buildAdminHandOffScript("Manual setup requested by user.");
+            await copyAdminHandOffScript("Manual setup requested by user.");
+            modalBridge.send(CHANNELS.submit, formData);
+        } catch (error) {
+            const failureMessage = (error instanceof Error && error.message) || "Failed to copy setup script.";
+            updateTestFeedback({ message: failureMessage, type: "error" });
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
+            setButtonState(addButton, false, "", getPrimaryActionLabel());
+        }
     });
 
     testButton?.addEventListener("click", () => {
@@ -580,6 +641,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             configureSaveInFlight = false;
             pendingConfigureSaveScript = "";
             setButtonState(addButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
         }
         if (payload.channel === CHANNELS.testReady) {
             setButtonState(testButton, false, "", "Test Connection");

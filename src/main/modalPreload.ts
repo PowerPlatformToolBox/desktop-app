@@ -25,8 +25,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkBrowserInstalled: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED, browserType),
         getBrowserProfiles: (browserType: string) => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, browserType),
         getCategories: () => ipcRenderer.invoke(CONNECTION_CHANNELS.GET_CATEGORIES),
-        configureAppRegistration: (clientId: string, includePowerPlatformPermissions?: boolean) =>
-            ipcRenderer.invoke(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION, { clientId, includePowerPlatformPermissions }),
+        configureAppRegistration: (clientId: string, includePowerPlatformPermissions?: boolean, generateOnly?: boolean) =>
+            ipcRenderer.invoke(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION, { clientId, includePowerPlatformPermissions, generateOnly }),
     },
     utils: {
         copyToClipboard: (text: string) => ipcRenderer.invoke(UTIL_CHANNELS.COPY_TO_CLIPBOARD, text),

@@ -836,13 +836,15 @@ class ToolBoxApp {
         ipcMain.handle(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION, async (_, requestRaw: unknown) => {
             let clientId = "";
             let includePowerPlatformPermissions = true;
+            let generateOnly = false;
 
             if (typeof requestRaw === "string") {
                 clientId = requestRaw.trim();
             } else if (requestRaw && typeof requestRaw === "object") {
-                const request = requestRaw as { clientId?: unknown; includePowerPlatformPermissions?: unknown };
+                const request = requestRaw as { clientId?: unknown; includePowerPlatformPermissions?: unknown; generateOnly?: unknown };
                 clientId = typeof request.clientId === "string" ? request.clientId.trim() : "";
                 includePowerPlatformPermissions = request.includePowerPlatformPermissions === true;
+                generateOnly = request.generateOnly === true;
             }
 
             if (!clientId) {
@@ -862,6 +864,14 @@ class ToolBoxApp {
             }
 
             const script = this.buildConfigureAppRegistrationScript(clientId, includePowerPlatformPermissions);
+            if (generateOnly) {
+                return {
+                    success: true,
+                    message: "App registration script generated successfully.",
+                    script,
+                };
+            }
+
             const result = await this.executePowerShellScript(script);
 
             if (result.success) {

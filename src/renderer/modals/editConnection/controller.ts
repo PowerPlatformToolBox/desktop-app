@@ -31,6 +31,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const saveButton = document.getElementById("confirm-connection-btn");
+    const copyScriptSaveButton = document.getElementById("copy-script-save-btn");
     const configureNote = document.getElementById("connection-configure-note");
     const testFeedback = document.getElementById("connection-test-feedback");
     const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
@@ -91,7 +92,20 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     };
 
     const getPrimaryActionLabel = () => {
-        return shouldShowConfigureFooter() ? "Configure & Save Changes" : "Save Changes";
+        return shouldShowConfigureFooter() ? "Configure & Save" : "Save";
+    };
+
+    const getManualActionLabel = () => {
+        return shouldShowConfigureFooter() ? "Copy Script & Save" : "Save";
+    };
+
+    const getConfigureNoteText = () => {
+        // const redirectNote = "Reply URLs to set: msal<client-id>://auth and http://localhost.";
+        if (isPowerPlatformApiEnabled()) {
+            return "Configure & Save will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
+        }
+
+        return "Configure & Save will update reply URLs only. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
     };
 
     const buildAdminHandOffScript = (validationMessage) => {
@@ -124,13 +138,21 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             );
         }
 
-        scriptLines.push('Write-Host "If the app registration is already configured, re-open PPTB and try Configure & Save Changes again."');
+        scriptLines.push('Write-Host "If the app registration is already configured, re-open PPTB and try Configure & Save again."');
         return scriptLines.join("\\n");
     };
 
     const updateConfigureFooterState = () => {
+        const isConfigureMode = shouldShowConfigureFooter();
         if (configureNote) {
-            configureNote.style.display = shouldShowConfigureFooter() ? "block" : "none";
+            configureNote.style.display = isConfigureMode ? "block" : "none";
+            configureNote.textContent = isConfigureMode ? getConfigureNoteText() : "";
+        }
+        if (copyScriptSaveButton instanceof HTMLButtonElement) {
+            copyScriptSaveButton.style.display = isConfigureMode ? "inline-flex" : "none";
+            if (!copyScriptSaveButton.disabled) {
+                copyScriptSaveButton.textContent = getManualActionLabel();
+            }
         }
         if (saveButton instanceof HTMLButtonElement && !saveButton.disabled) {
             saveButton.textContent = getPrimaryActionLabel();
@@ -152,6 +174,24 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         });
     };
 
+    const getGeneratedAppRegistrationScript = async () => {
+        const clientId = getCurrentClientId();
+        if (!clientId || !window.toolboxAPI?.connections?.configureAppRegistration) {
+            return "";
+        }
+
+        try {
+            const generatedResult = await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled(), true);
+            if (generatedResult && typeof generatedResult.script === "string" && generatedResult.script.trim().length > 0) {
+                return generatedResult.script;
+            }
+        } catch {
+            // Fall back to the local handoff script.
+        }
+
+        return "";
+    };
+
     const runConfigureAndSavePreflight = async () => {
         if (!shouldShowConfigureFooter()) {
             return { success: true };
@@ -161,7 +201,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (!clientId) {
             return {
                 success: false,
-                message: "Client ID is required before Configure & Save Changes can update app registration.",
+                message: "Client ID is required before Configure & Save can update app registration.",
                 script: buildAdminHandOffScript("Client ID is missing."),
             };
         }
@@ -222,7 +262,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     const confirmPowerPlatformApiConsent = () => {
         return window.confirm(
-            "Power Platform API access requires admin-approved privileges and a properly configured Client ID. If required privileges are missing, tools may not work as expected. By selecting Agree, you confirm it is your responsibility to configure the Client ID and privileges correctly. Select OK to Agree, or Cancel to keep this option disabled.",
+            "Power Platform API access requires admin-approved privileges and a properly configured Client ID.\\n\\nIf required privileges are missing, tools may not work as expected.\\n\\nSelect OK to Agree and continue.\\nSelect Cancel to keep this option disabled.",
         );
     };
 
@@ -662,6 +702,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         configureSaveInFlight = true;
         pendingConfigureSaveScript = "";
         setButtonState(saveButton, true, "Configuring...", getPrimaryActionLabel());
+        setButtonState(copyScriptSaveButton, true, "Working...", getManualActionLabel());
 
         try {
             const configureResult = await runConfigureAndSavePreflight();
@@ -672,6 +713,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
                 updateTestFeedback({ message: failureMessage, type: "error" });
                 configureSaveInFlight = false;
                 setButtonState(saveButton, false, "", getPrimaryActionLabel());
+                setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
                 return;
             }
         } catch (error) {
@@ -681,10 +723,29 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             updateTestFeedback({ message: failureMessage, type: "error" });
             configureSaveInFlight = false;
             setButtonState(saveButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
             return;
         }
 
         modalBridge.send(CHANNELS.submit, formData);
+    });
+
+    copyScriptSaveButton?.addEventListener("click", async () => {
+        const formData = collectFormData();
+        setButtonState(copyScriptSaveButton, true, "Copying...", getManualActionLabel());
+        setButtonState(saveButton, true, "Working...", getPrimaryActionLabel());
+
+        try {
+            const generatedScript = await getGeneratedAppRegistrationScript();
+            pendingConfigureSaveScript = generatedScript || buildAdminHandOffScript("Manual setup requested by user.");
+            await copyAdminHandOffScript("Manual setup requested by user.");
+            modalBridge.send(CHANNELS.submit, formData);
+        } catch (error) {
+            const failureMessage = (error instanceof Error && error.message) || "Failed to copy setup script.";
+            updateTestFeedback({ message: failureMessage, type: "error" });
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
+            setButtonState(saveButton, false, "", getPrimaryActionLabel());
+        }
     });
 
     testButton?.addEventListener("click", () => {
@@ -700,6 +761,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             configureSaveInFlight = false;
             pendingConfigureSaveScript = "";
             setButtonState(saveButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
         }
         if (payload.channel === CHANNELS.testReady) {
             setButtonState(testButton, false, "", "Test Connection");
