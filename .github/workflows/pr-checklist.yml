@@ -86,7 +86,7 @@ jobs:
                       if (!/^\[(Release|Feature|Fix|Docs|Refactor|Chore|Test)\] .+/.test(title)) {
                           errors.push(
                               '**PR title** must follow `[Type] Brief description` ' +
-                              '— valid types: `ReleaseFeature` · `Fix` · `Docs` · `Refactor` · `Chore` · `Test`'
+                              '— valid types: `Release` · `Feature` · `Fix` · `Docs` · `Refactor` · `Chore` · `Test`'
                           );
                       }
 
