@@ -83,10 +83,10 @@ jobs:
                       const errors = [];
 
                       // PR title must follow [Type] Brief description
-                      if (!/^\[(Feature|Fix|Docs|Refactor|Chore|Test)\] .+/.test(title)) {
+                      if (!/^\[(Release|Feature|Fix|Docs|Refactor|Chore|Test)\] .+/.test(title)) {
                           errors.push(
                               '**PR title** must follow `[Type] Brief description` ' +
-                              '— valid types: `Feature` · `Fix` · `Docs` · `Refactor` · `Chore` · `Test`'
+                              '— valid types: `ReleaseFeature` · `Fix` · `Docs` · `Refactor` · `Chore` · `Test`'
                           );
                       }
 
