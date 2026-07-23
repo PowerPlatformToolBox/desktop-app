@@ -2926,9 +2926,9 @@ class ToolBoxApp {
         });
 
         // Initialize NotificationWindowManager for overlay notifications
-        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow, this.settingsManager);
         // Initialize NotificationHistoryWindowManager for the bell-icon history panel
-        this.notificationHistoryWindowManager = new NotificationHistoryWindowManager(this.mainWindow);
+        this.notificationHistoryWindowManager = new NotificationHistoryWindowManager(this.mainWindow, this.settingsManager);
         this.notificationWindowManager.setHistoryManager(this.notificationHistoryWindowManager);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
