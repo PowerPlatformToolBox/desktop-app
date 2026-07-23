@@ -97,6 +97,7 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+    private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
 
     /**
      * Resolve the application icon for the current release channel.
@@ -2682,6 +2683,18 @@ class ToolBoxApp {
     }
 
     /**
+     * Handle a second launch attempt by foregrounding the existing instance.
+     * If the window is still being created, defer focusing until creation completes.
+     */
+    public handleSecondInstanceLaunch(): void {
+        if (!this.mainWindow) {
+            this.shouldFocusAfterWindowCreation = true;
+        }
+
+        this.showAndFocusMainWindow();
+    }
+
+    /**
      * Register custom pptb-webview protocol for loading tool content
      * This provides isolation and CSP control for tool execution
      */
@@ -2777,6 +2790,11 @@ class ToolBoxApp {
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
+
+        if (this.shouldFocusAfterWindowCreation) {
+            this.shouldFocusAfterWindowCreation = false;
+            this.showAndFocusMainWindow();
+        }
     }
 
     /**
@@ -3274,12 +3292,6 @@ class ToolBoxApp {
                 this.showAndFocusMainWindow();
             });
 
-            app.on("second-instance", () => {
-                // Windows/Linux: when the user launches the app again from Start/menu while
-                // the first instance is hidden to tray, bring the existing window to front.
-                this.showAndFocusMainWindow();
-            });
-
             app.on("window-all-closed", () => {
                 // On macOS the app intentionally stays alive after all windows are closed so
                 // background tool execution can continue.  The exception is when the user
@@ -3317,8 +3329,19 @@ class ToolBoxApp {
     }
 }
 
-// Create and initialize the application
-const toolboxApp = new ToolBoxApp();
-toolboxApp.initialize().catch((error) => {
-    logError(error instanceof Error ? error : new Error(String(error)));
-});
+// Enforce single-instance behavior for all channels and launch modes.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+    app.quit();
+} else {
+    const toolboxApp = new ToolBoxApp();
+
+    app.on("second-instance", () => {
+        toolboxApp.handleSecondInstanceLaunch();
+    });
+
+    // Create and initialize the application
+    toolboxApp.initialize().catch((error) => {
+        logError(error instanceof Error ? error : new Error(String(error)));
+    });
+}
