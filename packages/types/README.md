@@ -21,6 +21,7 @@ TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI
         - [Inter-Tool Invocation](#inter-tool-invocation)
             - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
             - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery)
+            - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery-1)
             - [Callee: reading prefill data and returning a result](#callee-reading-prefill-data-and-returning-a-result)
             - [Declaring your invocation contract](#declaring-your-invocation-contract)
     - [Dataverse API Examples](#dataverse-api-examples)
@@ -332,6 +333,21 @@ const result = await toolboxAPI.invocation.launchTool("@my-org/entity-picker", {
 
 if (result !== null) {
     console.log("Selected record id:", (result as { selectedId: string }).selectedId);
+} else {
+    // User dismissed the picker (closed window or clicked "Return to Caller" banner)
+}
+```
+
+> **One-at-a-time**: only one active callee per caller is supported. A second `launchTool` call while a callee is open throws `"A callee invocation is already in progress"`.
+
+#### Caller: tag-based capability discovery
+
+```typescript
+// Find all installed tools that declare the "entity-picker" capability
+const pickers = await toolboxAPI.invocation.findToolsByCapability("entity-picker");
+if (pickers.length > 0) {
+    const picker = pickers[0] as { id: string };
+    const result = await toolboxAPI.invocation.launchTool(picker.id, { entityName: "account" });
 } else {
     // User dismissed the picker (closed window or clicked "Return to Caller" banner)
 }
