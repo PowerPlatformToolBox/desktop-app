@@ -155,9 +155,11 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>
     <div class="modal-footer">
         <button id="test-connection-btn" class="fluent-button fluent-button-ghost" style="display: none">Test Connection</button>
+        <p id="connection-configure-note" class="helper-text" style="display: none; margin: 0; max-width: 420px;"></p>
         <span class="footer-spacer"></span>
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
-        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save Changes</button>
+        <button id="copy-script-save-btn" class="fluent-button fluent-button-secondary" style="display: none;">Copy Script &amp; Save</button>
+        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save</button>
     </div>
 
 </div>`;
