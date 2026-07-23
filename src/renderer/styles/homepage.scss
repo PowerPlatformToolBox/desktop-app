@@ -286,6 +286,35 @@ body.dark-theme .quick-tool-item:hover {
     text-overflow: ellipsis;
 }
 
+.quick-tool-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.quick-tool-mcp-badge {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(0, 120, 212, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.quick-tool-mcp-badge img {
+    width: 11px;
+    height: 11px;
+    display: block;
+}
+
+body.dark-theme .quick-tool-mcp-badge {
+    background: rgba(0, 120, 212, 0.18);
+}
+
 .quick-tool-version {
     font-size: 12px;
     color: var(--text-secondary, #605e5c);

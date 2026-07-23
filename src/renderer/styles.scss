@@ -2431,6 +2431,18 @@ body.dark-theme .settings-vscode-item:hover {
     color: var(--text-color);
 }
 
+.tool-detail-tab-tags .tool-mcp-headless-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-detail-tab-tags .tool-mcp-headless-badge img {
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+
 .tool-detail-tab-name {
     margin: 0;
     font-size: 22px;
@@ -3134,6 +3146,31 @@ img.tool-item-icon-img {
     margin-right: 4px;
 }
 
+.tool-mcp-headless-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(0, 120, 212, 0.08);
+    color: var(--text-color);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.tool-mcp-headless-badge img {
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+
+body.dark-theme .tool-mcp-headless-badge {
+    background: rgba(0, 120, 212, 0.18);
+}
+
 .tool-item-pptb.deprecated {
     border-left: 3px solid #d83b01;
     background: rgba(216, 59, 1, 0.05);
@@ -3227,6 +3264,12 @@ img.tool-item-icon-img {
     margin-left: 38px;
 }
 
+.tool-item-compact .tool-item-top-tags.has-mcp-badge {
+    display: flex !important;
+    margin-left: 38px;
+    padding-top: 4px;
+}
+
 /* Compact mode styles for marketplace */
 .marketplace-item-compact {
     padding: 8px 12px !important;
@@ -3246,6 +3289,12 @@ img.tool-item-icon-img {
 .marketplace-item-compact .marketplace-item-author-pptb {
     font-size: 11px;
     margin-left: 38px;
+}
+
+.marketplace-item-compact .marketplace-item-top-tags.has-mcp-badge {
+    display: flex !important;
+    margin-left: 38px;
+    padding-top: 4px;
 }
 
 /* VSCode-style marketplace list */

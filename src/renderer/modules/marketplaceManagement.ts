@@ -9,6 +9,7 @@ import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
+import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -16,6 +17,7 @@ interface InstalledTool {
     id: string;
     version: string;
     name?: string;
+    mcpHeadlessEnabled?: boolean;
 }
 
 // Tool library loaded from registry
@@ -59,6 +61,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     maxAPI: tool.maxAPI, // Include max API version
                     isSupported: tool.isSupported, // Include compatibility status
                     npmPackageName: tool.npmPackageName, // Include npm package name for pre-release detection
+                    mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
                 }) as ToolDetail,
         );
 
@@ -101,16 +104,27 @@ export async function loadMarketplace(): Promise<void> {
     const categoryFilter = document.getElementById("marketplace-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
+    const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    const mcpEnabledFilterRow = document.getElementById("marketplace-mcp-enabled-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
+    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
+
+    if (mcpEnabledFilterRow) {
+        mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
+    }
+    if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
+        mcpEnabledFilter.checked = false;
+    }
 
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
     const showNewOnly = newFilter?.checked || false;
+    const showMcpEnabledOnly = mcpPreviewUiEnabled && (mcpEnabledFilter?.checked || false);
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Update filter button indicator and one-click clear button visibility
-    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly);
+    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly);
     const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterBtn) {
         marketplaceFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -161,6 +175,11 @@ export async function loadMarketplace(): Promise<void> {
             return false;
         }
 
+        // MCP enabled filter
+        if (showMcpEnabledOnly && t.mcpHeadlessEnabled !== true) {
+            return false;
+        }
+
         // Deprecated filter
         if (t.status === "deprecated") {
             if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-installed") {
@@ -195,7 +214,7 @@ export async function loadMarketplace(): Promise<void> {
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         const hasSearchTerm = searchTerm.length > 0;
-        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
@@ -220,9 +239,14 @@ export async function loadMarketplace(): Promise<void> {
 
     marketplaceList.innerHTML = filteredTools
         .map((tool) => {
-            const installedTool = installedToolsMap.get(tool.id);
-            const isInstalled = !!installedTool;
+            const isInstalled = installedToolsMap.has(tool.id);
             const isDarkTheme = document.body.classList.contains("dark-theme");
+            const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
+            const mcpHeadlessEnabled = mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true;
+            const mcpBadgeHtml = mcpHeadlessEnabled
+                ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
+                : "";
+            const compactTagsClass = mcpHeadlessEnabled ? "marketplace-item-top-tags has-mcp-badge" : "marketplace-item-top-tags";
 
             // Check if tool is new (created within last 7 days)
             const isNewTool = isToolNew(tool);
@@ -270,6 +294,7 @@ export async function loadMarketplace(): Promise<void> {
                 </div>
             </div>
             <div class="marketplace-item-author-pptb">${authorsDisplay}</div>
+            <div class="${compactTagsClass}">${mcpBadgeHtml}</div>
         </div>
     `;
             }
@@ -299,7 +324,7 @@ export async function loadMarketplace(): Promise<void> {
             <div class="marketplace-item-footer-pptb">
                 ${analyticsHtml}
             </div>
-            <div class="marketplace-item-top-tags">${newBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
+            <div class="marketplace-item-top-tags">${mcpBadgeHtml}${newBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
         </div>
     `;
         })
@@ -320,7 +345,11 @@ export async function loadMarketplace(): Promise<void> {
                 const tool = toolLibrary.find((t) => t.id === toolId);
                 if (tool) {
                     const isInstalled = installedToolsMap.has(toolId);
-                    openToolDetail(tool, isInstalled);
+                    const toolForDetail: ToolDetail = {
+                        ...tool,
+                        mcpHeadlessEnabled: mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true,
+                    };
+                    openToolDetail(toolForDetail, isInstalled);
                 }
             }
         });
@@ -397,6 +426,13 @@ export async function loadMarketplace(): Promise<void> {
     if (newFilter && !(newFilter as any)._pptbBound) {
         (newFilter as any)._pptbBound = true;
         newFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    if (mcpEnabledFilter && !(mcpEnabledFilter as any)._pptbBound) {
+        (mcpEnabledFilter as any)._pptbBound = true;
+        mcpEnabledFilter.addEventListener("change", () => {
             loadMarketplace();
         });
     }
@@ -480,8 +516,16 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (tool.version) metaBadges.push(`v${tool.version}`);
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
     const categories = tool.categories?.length ? tool.categories.map((c) => escapeHtml(c)) : [];
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
+    const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
+    const mcpTagMarkup =
+        mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true
+            ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
+            : "";
 
-    const tagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
+    const categoryTagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
+    const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
     const ratingsHtml = tool.rating !== undefined ? `<span>${tool.rating.toFixed(1)} ★</span>` : "";
 
@@ -714,6 +758,12 @@ function clearMarketplaceFilters(): void {
         newFilter.checked = false;
     }
 
+    // Reset MCP enabled filter
+    const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    if (mcpEnabledFilter) {
+        mcpEnabledFilter.checked = false;
+    }
+
     // Reload the marketplace to reflect the cleared filters
     loadMarketplace();
 }
@@ -739,6 +789,12 @@ export function clearMarketplaceDropdownFilters(): void {
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     if (newFilter) {
         newFilter.checked = false;
+    }
+
+    // Reset MCP enabled filter
+    const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    if (mcpEnabledFilter) {
+        mcpEnabledFilter.checked = false;
     }
 
     // Reload the marketplace to reflect the cleared filters

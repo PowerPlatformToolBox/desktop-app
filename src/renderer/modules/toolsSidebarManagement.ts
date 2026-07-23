@@ -9,6 +9,7 @@ import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/to
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
+import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
@@ -66,14 +67,25 @@ export async function loadSidebarTools(): Promise<void> {
         const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
         const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
         const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
+        const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+        const mcpEnabledFilterRow = document.getElementById("tools-mcp-enabled-filter-row") as HTMLElement | null;
+        const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
+
+        if (mcpEnabledFilterRow) {
+            mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
+        }
+        if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
+            mcpEnabledFilter.checked = false;
+        }
 
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
         const showUpdateRequiredOnly = !!updateRequiredFilter?.checked;
+        const showMcpEnabledOnly = mcpPreviewUiEnabled && !!mcpEnabledFilter?.checked;
 
         // Update filter button indicator and one-click clear button visibility
-        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly);
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly);
         const toolsFilterBtn = document.getElementById("tools-filter-btn");
         if (toolsFilterBtn) {
             toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -122,6 +134,11 @@ export async function loadSidebarTools(): Promise<void> {
                 return false;
             }
 
+            // MCP enabled filter
+            if (showMcpEnabledOnly && t.mcpHeadlessEnabled !== true) {
+                return false;
+            }
+
             // Deprecated filter
             if (t.status === "deprecated") {
                 if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-marketplace") {
@@ -161,7 +178,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Empty state when no matches after filtering
         if (sortedTools.length === 0) {
             const hasSearchTerm = searchTerm.length > 0;
-            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly;
+            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly;
             const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
@@ -202,6 +219,7 @@ export async function loadSidebarTools(): Promise<void> {
         toolsList.innerHTML = sortedTools
             .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean }) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
+                const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
 
                 // Icon handling using utility function
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
@@ -249,6 +267,11 @@ export async function loadSidebarTools(): Promise<void> {
                     tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""
                 }</div>`;
                 const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
+                const mcpBadgeHtml =
+                    mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true
+                        ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
+                        : "";
+                const compactTagsClass = mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true ? "tool-item-top-tags has-mcp-badge" : "tool-item-top-tags";
 
                 // Helper: Generate updating overlay HTML
                 const updatingOverlayHtml = isUpdating
@@ -304,6 +327,7 @@ export async function loadSidebarTools(): Promise<void> {
                             </div>
                         </div>
                         <div class="tool-item-authors-pptb">${authorsDisplay}</div>
+                        <div class="${compactTagsClass}">${mcpBadgeHtml}</div>
                     </div>`;
                 }
 
@@ -354,7 +378,7 @@ export async function loadSidebarTools(): Promise<void> {
                         <div class="tool-item-footer-pptb">
                             ${analyticsHtml}
                         </div>
-                        <div class="tool-item-top-tags">${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
+                        <div class="tool-item-top-tags">${mcpBadgeHtml}${categoriesHtml}${deprecatedBadgeHtml}${unsupportedBadgeHtml}</div>
                         ${
                             shouldShowUpdateInfo
                                 ? `<div class="tool-item-update-btn"><button class="fluent-button fluent-button-primary" data-action="update" data-tool-id="${tool.id}" title="Update to v${latestVersion}">Update</button></div>`
@@ -433,6 +457,7 @@ export async function loadSidebarTools(): Promise<void> {
     const categoryFilter = document.getElementById("tools-category-filter") as HTMLSelectElement | null;
     const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
     const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
+    const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
 
     if (searchInput && !(searchInput as any)._pptbBound) {
         (searchInput as any)._pptbBound = true;
@@ -459,6 +484,13 @@ export async function loadSidebarTools(): Promise<void> {
     if (updateRequiredFilter && !updateRequiredFilter._pptbBound) {
         updateRequiredFilter._pptbBound = true;
         updateRequiredFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    if (mcpEnabledFilter && !mcpEnabledFilter._pptbBound) {
+        mcpEnabledFilter._pptbBound = true;
+        mcpEnabledFilter.addEventListener("change", () => {
             loadSidebarTools();
         });
     }
@@ -761,6 +793,11 @@ function clearAllFilters(): void {
         updateRequiredFilter.checked = false;
     }
 
+    const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+    if (mcpEnabledFilter) {
+        mcpEnabledFilter.checked = false;
+    }
+
     // Reload the sidebar tools to reflect the cleared filters
     loadSidebarTools();
 }
@@ -785,6 +822,11 @@ export function clearInstalledToolsDropdownFilters(): void {
     const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
     if (updateRequiredFilter) {
         updateRequiredFilter.checked = false;
+    }
+
+    const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+    if (mcpEnabledFilter) {
+        mcpEnabledFilter.checked = false;
     }
 
     // Reload the sidebar tools to reflect the cleared filters

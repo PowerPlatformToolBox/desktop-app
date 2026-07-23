@@ -665,6 +665,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
+        let mcpHeadlessEnabled = false;
         const pptbConfigPath = path.join(toolPath, "pptb.config.json");
         if (fs.existsSync(pptbConfigPath)) {
             try {
@@ -672,6 +673,17 @@ export class ToolRegistryManager extends EventEmitter {
                 const caps = pptbConfig?.invocation?.capabilities;
                 if (Array.isArray(caps) && caps.length > 0) {
                     capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+
+                const agentsConfig = pptbConfig?.agents;
+                if (agentsConfig && typeof agentsConfig === "object" && !Array.isArray(agentsConfig)) {
+                    const agentsRecord = agentsConfig as Record<string, unknown>;
+                    const invokable = agentsRecord.invokable === true;
+                    const supportsHeadlessFlag = agentsRecord.headless === true;
+                    const executionModes = agentsRecord.executionModes;
+                    const supportsHeadlessExecutionMode = Array.isArray(executionModes) && executionModes.some((mode) => mode === "headless");
+
+                    mcpHeadlessEnabled = invokable && (supportsHeadlessFlag || supportsHeadlessExecutionMode);
                 }
             } catch (err) {
                 logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
@@ -733,6 +745,7 @@ export class ToolRegistryManager extends EventEmitter {
             publishedAt: tool.publishedAt,
             minAPI, // Minimum API version required
             maxAPI, // Maximum API version tested (from @pptb/types)
+            mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
@@ -843,6 +856,7 @@ export class ToolRegistryManager extends EventEmitter {
             createdAt: manifestEntry.createdAt,
             minAPI: manifestEntry.minAPI,
             maxAPI: manifestEntry.maxAPI,
+            mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
         };
     }
 
