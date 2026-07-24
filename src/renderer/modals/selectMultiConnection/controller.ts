@@ -325,9 +325,9 @@ ${sortingUtilities}
         const button = document.querySelector(\`.connect-button[data-connection-id="\${connectionId}"][data-list="\${listType}"]\`);
         if (!button) return;
 
+        // Disable button and show loading state
+        const originalText = button.textContent;
         try {
-            // Disable button and show loading state
-            const originalText = button.textContent;
             button.disabled = true;
             button.textContent = 'Connecting...';
 
