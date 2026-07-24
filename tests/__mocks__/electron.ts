@@ -14,10 +14,10 @@ const _encryptionAvailable = true;
 export const safeStorage = {
     isEncryptionAvailable: jest.fn(() => _encryptionAvailable),
 
-    // Encode as base64 to simulate opaque encrypted bytes
+    // Return opaque "encrypted" bytes (mock implementation uses a plain UTF-8 buffer).
     encryptString: jest.fn((plaintext: string): Buffer => Buffer.from(plaintext, "utf8")),
 
-    // Decode base64-encoded "encrypted" data (mirrors encryptString above)
+    // Decode the mock "encrypted" bytes (mirrors encryptString above).
     decryptString: jest.fn((buffer: Buffer): string => buffer.toString("utf8")),
 };
 

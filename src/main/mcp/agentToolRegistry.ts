@@ -63,7 +63,7 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
 
     void options?.requireVerified; // for future use, currently unused
     const installedTools: ToolManifest[] = await toolRegistryManager.getInstalledTools();
-    logInfo(installedTools.map((t) => `Installed tool: ${t.name} (version ${t.version})`).join("\n"));
+    logInfo(`[MCP] Loaded ${installedTools.length} installed tools`);
 
     const result: AgentTool[] = [];
 

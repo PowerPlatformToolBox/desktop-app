@@ -11,12 +11,12 @@ async function main(): Promise<void> {
     const cliPackageJsonPath = path.join(__dirname, "..", "package.json");
     if (fs.existsSync(cliPackageJsonPath)) {
         const cliPackageJson = JSON.parse(fs.readFileSync(cliPackageJsonPath, "utf-8"));
-        console.log(`🔍 pptb-validate version ${cliPackageJson.version}`);
+        process.stdout.write(`pptb-validate version ${cliPackageJson.version}\n`);
     }
 
     const packageJsonPath = path.join(cwd, "package.json");
     if (!fs.existsSync(packageJsonPath)) {
-        console.error("❌ No package.json found in current directory");
+        process.stderr.write("No package.json found in current directory\n");
         process.exit(1);
     }
 
