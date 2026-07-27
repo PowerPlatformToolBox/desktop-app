@@ -118,9 +118,9 @@ jobs:
 
                       if (outcomes.validate_types_version === 'failure') {
                           failures.push(
-                              '### ❌ @pptb/types version mismatch\n' +
-                              'The base version (`major.minor.patch`) in `packages/package.json` does not match the version in `package.json`.\n\n' +
-                              '**To fix:** Update `packages/package.json` so its version matches the ToolBox version.'
+                            '### ❌ @pptb/types version mismatch\n' +
+                            'The base version (`major.minor.patch`) in `packages/types/package.json` does not match the version in `package.json`.\n\n' +
+                            '**To fix:** Update `packages/types/package.json` so its version matches the ToolBox version.'
                           );
                       }
 
