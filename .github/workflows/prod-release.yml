@@ -43,7 +43,7 @@ jobs:
               shell: bash
               run: |
                   TOOLBOX_VERSION=$(node -p "require('./package.json').version")
-                  TYPES_VERSION=$(node -p "require('./packages/package.json').version")
+                  TYPES_VERSION=$(node -p "require('./packages/types/package.json').version")
 
                   # Extract major.minor.patch from both versions (ignore pre-release tags)
                   TOOLBOX_BASE=$(echo "$TOOLBOX_VERSION" | cut -d'-' -f1)
@@ -54,7 +54,7 @@ jobs:
                     echo "The base version (major.minor.patch) must be identical for stable releases."
                     echo ""
                     echo "To fix this:"
-                    echo "1. Update packages/package.json version to match $TOOLBOX_VERSION"
+                    echo "1. Update packages/types/package.json version to match $TOOLBOX_VERSION"
                     echo "2. Commit the change and push"
                     exit 1
                   fi
