@@ -158,6 +158,64 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
+            - name: Generate app-update.yml metadata (Windows)
+              if: matrix.os == 'windows-latest'
+              shell: powershell
+              run: |
+                  $projectRoot = "${{ github.workspace }}"
+                  $unpackedDir = Join-Path $projectRoot "build/${{ matrix.win_unpacked_dir }}"
+                  $resourcesDir = Join-Path $unpackedDir "resources"
+                  $appUpdateYml = Join-Path $resourcesDir "app-update.yml"
+
+                  if (Test-Path $appUpdateYml) {
+                      Write-Host "app-update.yml already exists at $appUpdateYml"
+                      exit 0
+                  }
+
+                  $configPath = Join-Path $projectRoot "${{ matrix.config }}"
+                  $config = Get-Content $configPath -Raw | ConvertFrom-Json
+
+                  $parentConfig = $null
+                  if ($config.extends) {
+                      $parentPath = Join-Path $projectRoot $config.extends
+                      if (Test-Path $parentPath) {
+                          $parentConfig = Get-Content $parentPath -Raw | ConvertFrom-Json
+                      }
+                  }
+
+                  $publish = $null
+                  if ($config.publish) {
+                      $publish = $config.publish
+                  } elseif ($parentConfig -and $parentConfig.publish) {
+                      $publish = $parentConfig.publish
+                  } else {
+                      $publish = [pscustomobject]@{
+                          provider = "github"
+                          owner = "PowerPlatformToolBox"
+                          repo = "desktop-app"
+                      }
+                  }
+
+                  $packageJsonPath = Join-Path $projectRoot "package.json"
+                  $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
+                  $sanitizedName = ($packageJson.name -replace "[^a-zA-Z0-9._-]", "")
+                  $updaterCacheDirName = "{0}-updater" -f $sanitizedName.ToLowerInvariant()
+
+                  if (-not (Test-Path $resourcesDir)) {
+                      New-Item -ItemType Directory -Path $resourcesDir -Force | Out-Null
+                  }
+
+                  $lines = @()
+                  $lines += "provider: $($publish.provider)"
+                  if ($publish.owner) { $lines += "owner: $($publish.owner)" }
+                  if ($publish.repo) { $lines += "repo: $($publish.repo)" }
+                  if ($publish.releaseType) { $lines += "releaseType: $($publish.releaseType)" }
+                  if ($publish.channel) { $lines += "channel: $($publish.channel)" }
+                  $lines += "updaterCacheDirName: $updaterCacheDirName"
+
+                  Set-Content -Path $appUpdateYml -Value ($lines -join "`n") -NoNewline
+                  Write-Host "Generated app-update.yml at $appUpdateYml"
+
             - name: Validate app-update.yml exists (Windows)
               if: matrix.os == 'windows-latest'
               shell: powershell
