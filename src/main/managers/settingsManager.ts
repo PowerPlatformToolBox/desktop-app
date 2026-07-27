@@ -1,5 +1,15 @@
+import { randomBytes } from "crypto";
 import Store from "electron-store";
 import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
+import { buildPreviewFeatureFlags } from "../../common/types/settings";
+
+/**
+ * Generates a random authentication token for MCP server access
+ * Returns a 32-character hex string
+ */
+function generateMcpAccessToken(): string {
+    return randomBytes(16).toString("hex");
+}
 
 /**
  * Manages user settings using electron-store
@@ -29,13 +39,32 @@ export class SettingsManager {
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
+                enablePreviewFeatures: false, // Show preview/experimental features in the UI
+                previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
             },
         });
+
+        this.migratePreviewFeatureSettings();
 
         this.toolSettingsStore = new Store<{ [toolId: string]: ToolSettings }>({
             name: "tool-settings",
             defaults: {},
         });
+    }
+
+    /**
+     * Migrate legacy global preview toggle into per-feature flags while preserving
+     * existing per-feature settings for users already on newer versions.
+     */
+    private migratePreviewFeatureSettings(): void {
+        const legacyEnablePreviewFeatures = this.store.get("enablePreviewFeatures");
+        const currentPreviewFeatures = this.store.get("previewFeatures");
+        const normalizedPreviewFeatures = buildPreviewFeatureFlags(currentPreviewFeatures, typeof legacyEnablePreviewFeatures === "boolean" ? legacyEnablePreviewFeatures : undefined);
+
+        this.store.set("previewFeatures", normalizedPreviewFeatures);
+
+        const hasAnyPreviewFeatureEnabled = Object.values(normalizedPreviewFeatures).some((enabled) => enabled === true);
+        this.store.set("enablePreviewFeatures", hasAnyPreviewFeatureEnabled);
     }
 
     /**
@@ -315,6 +344,18 @@ export class SettingsManager {
         }
 
         return stored.map((entry) => this.normalizeLastUsedToolEntry(entry)).filter((entry): entry is LastUsedToolEntry => entry !== null);
+    }
+
+    /**
+     * Get the MCP access token, generating one if it doesn't exist
+     */
+    getMcpAccessToken(): string {
+        let token = this.store.get("mcpAccessToken");
+        if (!token) {
+            token = generateMcpAccessToken();
+            this.store.set("mcpAccessToken", token);
+        }
+        return token;
     }
 
     /**

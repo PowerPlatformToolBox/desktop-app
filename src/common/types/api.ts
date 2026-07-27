@@ -5,7 +5,7 @@
 
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
-import { DataverseConnection } from "./connection";
+import { Connection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
@@ -15,16 +15,16 @@ import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
  * Connections API namespace
  */
 export interface ConnectionsAPI {
-    add: (connection: DataverseConnection) => Promise<void>;
-    update: (id: string, updates: Partial<DataverseConnection>) => Promise<void>;
+    add: (connection: Connection) => Promise<void>;
+    update: (id: string, updates: Partial<Connection>) => Promise<void>;
     delete: (id: string) => Promise<void>;
-    getAll: () => Promise<DataverseConnection[]>;
-    getById: (connectionId: string) => Promise<DataverseConnection | null>;
-    test: (connection: DataverseConnection) => Promise<{ success: boolean; error?: string }>;
+    getAll: () => Promise<Connection[]>;
+    getById: (connectionId: string) => Promise<Connection | null>;
+    test: (connection: Connection) => Promise<{ success: boolean; error?: string }>;
     isTokenExpired: (connectionId: string) => Promise<boolean>;
     refreshToken: (connectionId: string) => Promise<{ success: boolean }>;
     authenticate: (connectionId: string) => Promise<void>;
-    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<DataverseConnection>[] }>;
+    exportConnections: (ids?: string[]) => Promise<{ version: 1; exportedAt: string; connections: Partial<Connection>[] }>;
     importConnections: (data: unknown) => Promise<{ imported: number; skipped: number; warnings: string[] }>;
 }
 
@@ -80,6 +80,56 @@ export interface EventsAPI {
 }
 
 /**
+ * Agent Invocation Log Entry
+ */
+export interface AgentInvocationLogEntry {
+    timestamp: string;
+    toolId: string;
+    toolName: string;
+    connectionId: string | null;
+    prefillSummary: string;
+    outcome: "completed" | "no-result" | "rejected";
+    invocationMode?: "one-way" | "two-way";
+    correlationId?: string;
+    error?: string;
+}
+
+/**
+ * Agent Invocation API namespace
+ */
+export interface AgentInvocationAPI {
+    getLogs: () => Promise<AgentInvocationLogEntry[]>;
+}
+
+/**
+ * MCP server details shown in the renderer UI
+ */
+export interface McpServerDetails {
+    address: string;
+    authHeaderName: string;
+    authHeaderValue: string;
+    isRunning: boolean;
+}
+
+export interface McpClientConfigWriteResult {
+    client: "claude-desktop" | "vscode";
+    os: "macos" | "windows" | "linux";
+    filePath: string;
+    serverName: string;
+}
+
+/**
+ * MCP server API namespace
+ */
+export interface McpServerAPI {
+    getDetails: () => Promise<McpServerDetails>;
+    start: () => Promise<McpServerDetails>;
+    stop: () => Promise<McpServerDetails>;
+    configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
+    configureVSCode: () => Promise<McpClientConfigWriteResult>;
+}
+
+/**
  * Troubleshooting API namespace
  */
 export interface TroubleshootingAPI {
@@ -112,6 +162,41 @@ export interface DataverseAPI {
 }
 
 /**
+ * Split layout state returned by the main process
+ */
+export interface SplitLayoutState {
+    isActive: boolean;
+    /** Ordered list of instanceIds assigned to the left pane. */
+    leftGroup: string[];
+    /** Ordered list of instanceIds assigned to the right pane. */
+    rightGroup: string[];
+    /** The currently visible (active) tool in the left pane. */
+    activeLeftInstanceId: string | null;
+    /** The currently visible (active) tool in the right pane. */
+    activeRightInstanceId: string | null;
+    /** Which pane receives newly opened tools. */
+    focusedPane: "left" | "right";
+    ratio: number;
+}
+
+/**
+ * Split Layout API namespace
+ */
+export interface SplitLayoutAPI {
+    activate: (leftInstanceId: string, rightInstanceId: string) => Promise<boolean>;
+    deactivate: () => Promise<boolean>;
+    setRatio: (ratio: number) => Promise<void>;
+    getState: () => Promise<SplitLayoutState>;
+    /** Make instanceId the active (visible) tool in its pane. Also focuses that pane. */
+    switchPane: (pane: "left" | "right", instanceId: string) => Promise<boolean>;
+    /** Move instanceId from its current group to targetPane. Collapses split if source becomes empty. */
+    moveToPane: (instanceId: string, targetPane: "left" | "right") => Promise<boolean>;
+    /** Set which pane receives newly opened tools. */
+    focusPane: (pane: "left" | "right") => Promise<void>;
+    onStateChanged: (callback: (state: SplitLayoutState) => void) => void;
+}
+
+/**
  * Main ToolboxAPI interface
  */
 export interface ToolboxAPI {
@@ -119,6 +204,7 @@ export interface ToolboxAPI {
     updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
+    getMcpAccessToken: () => Promise<string>;
 
     // Connections namespace
     connections: ConnectionsAPI;
@@ -178,7 +264,9 @@ export interface ToolboxAPI {
      * Subscribe to callee-tool-opened events. Fired once the callee BrowserView is ready
      * so the renderer can create a dedicated tab for the callee instance.
      */
-    onCalleeToolOpened: (callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void) => void;
+    onCalleeToolOpened: (
+        callback: (data: { calleeInstanceId: string; callerInstanceId: string; tool: Tool; primaryConnectionId: string | null; secondaryConnectionId: string | null }) => void,
+    ) => void;
     /**
      * Subscribe to callee-tool-closed events. Fired after the callee is auto-closed by
      * the main process so the renderer can remove the callee tab and return focus to the caller.
@@ -224,6 +312,9 @@ export interface ToolboxAPI {
     checkBetaPackage: (npmPackageName: string) => Promise<{ hasBeta: boolean; betaVersion?: string }>;
     /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
     installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
+
+    // Split layout namespace
+    splitLayout: SplitLayoutAPI;
 
     // Utils namespace
     utils: UtilsAPI;
@@ -291,4 +382,10 @@ export interface ToolboxAPI {
 
     // Dataverse namespace
     dataverse: DataverseAPI;
+
+    // Agent Invocation namespace
+    agentInvocation: AgentInvocationAPI;
+
+    // MCP server namespace
+    mcpServer: McpServerAPI;
 }

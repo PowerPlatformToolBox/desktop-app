@@ -34,6 +34,20 @@ interface SanitizedTerminalEnv {
     strippedKeys: string[];
 }
 
+function getNormalizedExecutableCandidates(rawExecutable: string): Set<string> {
+    const lowerRaw = rawExecutable.toLowerCase();
+    const pathSegments = lowerRaw.split(/[/\\]/);
+    const base = (pathSegments[pathSegments.length - 1] || lowerRaw).trim();
+    const baseWithoutExe = base.replace(/\.exe$/, "");
+
+    const candidates = new Set<string>([lowerRaw, base, baseWithoutExe]);
+    if (baseWithoutExe && !baseWithoutExe.endsWith(".exe")) {
+        candidates.add(`${baseWithoutExe}.exe`);
+    }
+
+    return candidates;
+}
+
 function sanitizeTerminalEnv(env?: Record<string, string>): SanitizedTerminalEnv {
     if (!env) {
         return { strippedKeys: [] };
@@ -238,12 +252,13 @@ function validateCommandSegment(segment: string): void {
 
     const rawExecutable = tokens[0];
     const executable = rawExecutable.toLowerCase();
+    const normalizedExecutableCandidates = getNormalizedExecutableCandidates(rawExecutable);
 
     if (/[;&|<>]/.test(rawExecutable)) {
         throw new Error(`Terminal command executable "${rawExecutable}" contains shell metacharacters.`);
     }
 
-    if (BLOCKED_TERMINAL_COMMANDS.has(executable)) {
+    if ([...normalizedExecutableCandidates].some((candidate) => BLOCKED_TERMINAL_COMMANDS.has(candidate))) {
         throw new Error(`Blocked unsafe terminal command "${rawExecutable}". Shell interpreters and privilege-escalation tools are not allowed.`);
     }
 
@@ -280,6 +295,13 @@ function parseTerminalCommand(command: string): ParsedTerminalCommand {
         rawCommand: trimmedCommand,
     };
 }
+
+// Test-only helpers used by unit tests to validate command hardening behavior without spawning a shell process.
+export const terminalManagerTestUtils = {
+    parseTerminalCommand,
+    validateCommandSegment,
+    getNormalizedExecutableCandidates,
+};
 
 function getShellType(shell: string): ShellType {
     const name = basename(shell)

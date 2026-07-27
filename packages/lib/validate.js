@@ -9,7 +9,7 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string }} Features */
+/** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -38,11 +38,20 @@
  * @typedef {{ properties?: Record<string, JsonSchemaProperty> }} JsonSchemaObject
  * @typedef {{
  *   version: string;
+ *   capabilities: string[];
  *   prefill?: JsonSchemaObject;
  *   returnTopic?: JsonSchemaObject;
  * }} InvocationConfig
  * @typedef {{
+ *   version: string;
+ *   invokable?: boolean;
+ *   modes?: ("one-way" | "two-way")[];
+ *   defaultMode?: "one-way" | "two-way";
+ *   timeoutMS?: number;
+ * }} AgentsConfig
+ * @typedef {{
  *   invocation?: InvocationConfig;
+ *   agents?: AgentsConfig;
  * }} PPTBConfig
  */
 
@@ -69,15 +78,7 @@ const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-
  * Node.js module that cannot import from the Electron/TypeScript source tree, both
  * lists must be updated together whenever a new tag is added.
  */
-const KNOWN_CAPABILITY_TAGS = [
-    "fetchxml",
-    "entity-picker",
-    "record-selector",
-    "solution-selector",
-    "webresource-editor",
-    "plugin-inspector",
-    "pcf-control-builder",
-];
+const KNOWN_CAPABILITY_TAGS = ["fetchxml", "entity-picker", "record-selector", "solution-selector", "webresource-editor", "plugin-inspector", "pcf-control-builder"];
 
 /**
  * Checks if a string is a valid URL.
@@ -311,9 +312,9 @@ async function validatePackageJson(packageJson, options = {}) {
         const features = packageJson.features;
 
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection' and 'minAPI' properties");
+            errors.push("features must be a non-array object with optional 'multiConnection', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI"];
+            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI", "enabledForPowerPlatformAPI"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
@@ -330,6 +331,12 @@ async function validatePackageJson(packageJson, options = {}) {
             if (features.minAPI !== undefined) {
                 if (typeof features.minAPI !== "string" || !SEMVER_REGEX.test(features.minAPI)) {
                     errors.push("features.minAPI must be a valid semantic version string (e.g., '1.0.0')");
+                }
+            }
+
+            if (features.enabledForPowerPlatformAPI !== undefined) {
+                if (typeof features.enabledForPowerPlatformAPI !== "boolean") {
+                    errors.push("features.enabledForPowerPlatformAPI must be a boolean (true or false)");
                 }
             }
         }
@@ -375,7 +382,7 @@ function validatePPTBConfig(config) {
         return { valid: false, errors, warnings };
     }
 
-    const VALID_ROOT_KEYS = ["invocation"];
+    const VALID_ROOT_KEYS = ["invocation", "agents"];
     const unknownRootKeys = Object.keys(config).filter((k) => !VALID_ROOT_KEYS.includes(k));
     if (unknownRootKeys.length > 0) {
         warnings.push(`pptb.config.json contains unrecognised root keys: ${unknownRootKeys.join(", ")}`);
@@ -436,6 +443,52 @@ function validatePPTBConfig(config) {
         }
     }
 
+    if (config.agents !== undefined) {
+        const agents = config.agents;
+
+        if (agents === null || typeof agents !== "object" || Array.isArray(agents)) {
+            errors.push("agents must be a non-array object");
+        } else {
+            if (agents.version === undefined || agents.version === null) {
+                errors.push("agents.version is required");
+            } else if (typeof agents.version !== "string") {
+                errors.push("agents.version must be a string");
+            } else if (!SEMVER_REGEX.test(agents.version)) {
+                errors.push(`agents.version "${agents.version}" is not a valid semantic version string (e.g. "1.0.0")`);
+            }
+
+            if (agents.invokable !== undefined && typeof agents.invokable !== "boolean") {
+                errors.push("agents.invokable must be a boolean (true or false)");
+            }
+
+            if (agents.modes !== undefined) {
+                if (!Array.isArray(agents.modes)) {
+                    errors.push("agents.modes must be an array");
+                } else {
+                    agents.modes.forEach((mode, idx) => {
+                        if (mode !== "one-way" && mode !== "two-way") {
+                            errors.push(`agents.modes[${idx}] must be either \"one-way\" or \"two-way\"`);
+                        }
+                    });
+                }
+            }
+
+            if (agents.defaultMode !== undefined) {
+                if (agents.defaultMode !== "one-way" && agents.defaultMode !== "two-way") {
+                    errors.push('agents.defaultMode must be either "one-way" or "two-way"');
+                } else if (agents.modes !== undefined && Array.isArray(agents.modes) && !agents.modes.includes(agents.defaultMode)) {
+                    errors.push("agents.defaultMode must be included in agents.modes");
+                }
+            }
+
+            if (agents.timeoutMS !== undefined) {
+                if (typeof agents.timeoutMS !== "number" || !Number.isFinite(agents.timeoutMS) || agents.timeoutMS <= 0) {
+                    errors.push("agents.timeoutMS must be a positive number");
+                }
+            }
+        }
+    }
+
     const valid = errors.length === 0;
 
     return {
@@ -445,6 +498,7 @@ function validatePPTBConfig(config) {
         packageInfo: valid
             ? {
                   invocation: config.invocation,
+                  agents: config.agents,
               }
             : undefined,
     };

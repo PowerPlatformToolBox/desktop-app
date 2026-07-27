@@ -37,6 +37,11 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                 </select>
             </div>
         </div>
+        <div class="checkbox-wrapper" id="power-platform-api-wrapper" style="margin-bottom: 12px;">
+            <input type="checkbox" id="connection-enabled-for-powerplatform-api" class="modal-checkbox" />
+            <label for="connection-enabled-for-powerplatform-api" class="checkbox-label">Enable for Power Platform API</label>
+        </div>
+        <p class="helper-text" id="power-platform-api-help" style="margin-top: 0; margin-bottom: 12px;">Check this to allow this connection to be used for Power Platform API tools.</p>
         <div class="form-group">
             <label for="connection-url">Environment URL</label>
             <input type="text" id="connection-url" class="modal-input" placeholder="https://org.crm.dynamics.com" />
@@ -103,7 +108,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                     <label for="connection-username">Username / Email (Optional)</label>
                     <input type="text" id="connection-username" class="modal-input" placeholder="user@domain.com" />
                     <p class="helper-text">Pre-fill the login prompt with a specific email address. Leave empty to choose from browser accounts.</p>
-                    <label for="connection-optional-client-id">Client ID (Optional)</label>
+                    <label for="connection-optional-client-id" id="connection-optional-client-id-label">Client ID (Optional)</label>
                     <input type="text" id="connection-optional-client-id" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
                     <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
                     <label for="connection-tenant-id">Tenant ID (Optional)</label>
@@ -131,7 +136,7 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
                         <input type="password" id="connection-password" class="modal-input" placeholder="password" />
                         <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle visibility">👁️</button>
                     </div>
-                    <label for="connection-optional-client-id-up">Client ID (Optional)</label>
+                    <label for="connection-optional-client-id-up" id="connection-optional-client-id-up-label">Client ID (Optional)</label>
                     <input type="text" id="connection-optional-client-id-up" class="modal-input" placeholder="51f81489-12ee-4a9e-aaae-a2591f45987d" />
                     <p class="helper-text">Override the default Azure AD App ID if needed. Leave empty to use the development app.</p>
                     <label for="connection-tenant-id-up">Tenant ID (Optional)</label>
@@ -150,9 +155,11 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
     <div id="connection-test-feedback" class="modal-feedback" role="alert" aria-live="polite"></div>
     <div class="modal-footer">
         <button id="test-connection-btn" class="fluent-button fluent-button-ghost" style="display: none">Test Connection</button>
+        <p id="connection-configure-note" class="helper-text" style="display: none; margin: 0; max-width: 420px;"></p>
         <span class="footer-spacer"></span>
         <button id="cancel-connection-btn" class="fluent-button fluent-button-secondary">Cancel</button>
-        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save Changes</button>
+        <button id="copy-script-save-btn" class="fluent-button fluent-button-secondary" style="display: none;">Copy Script &amp; Save</button>
+        <button id="confirm-connection-btn" class="fluent-button fluent-button-primary">Save</button>
     </div>
 
 </div>`;

@@ -1,3 +1,4 @@
+import { spawn } from "child_process";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -5,11 +6,14 @@ import * as http from "http";
 import * as https from "https";
 import * as path from "path";
 import {
+    AGENT_INVOCATION_CHANNELS,
     CONNECTION_CHANNELS,
     DATAVERSE_CHANNELS,
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
+    MCP_SERVER_CHANNELS,
     MODAL_WINDOW_CHANNELS,
+    POWERPLATFORM_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -36,9 +40,11 @@ import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
-import { NotificationWindowManager } from "./managers/notificationWindowManager";
+import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
+import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
+import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
 import { ToolBoxUtilityManager } from "./managers/toolboxUtilityManager";
 import { ToolFileSystemAccessManager } from "./managers/toolFileSystemAccessManager";
@@ -46,6 +52,8 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
+import { readLogEntries } from "./mcp/agentInvocationLogger";
+import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -72,7 +80,9 @@ class ToolBoxApp {
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private protocolHandlerManager: ProtocolHandlerManager;
     private toolWindowManager: ToolWindowManager | null = null;
+    private splitLayoutManager: SplitLayoutManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
+    private notificationHistoryWindowManager: NotificationHistoryWindowManager | null = null;
     private modalWindowManager: ModalWindowManager | null = null;
     private trayManager: TrayManager | null = null;
     private api: ToolBoxUtilityManager;
@@ -81,11 +91,14 @@ class ToolBoxApp {
     private authManager: AuthManager;
     private terminalManager: TerminalManager;
     private dataverseManager: DataverseManager;
+    private powerPlatformManager: PowerPlatformManager;
     private toolFilesystemAccessManager: ToolFileSystemAccessManager;
+    private mcpServerManager: McpServerManager;
     private tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+    private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
 
     /**
      * Resolve the application icon for the current release channel.
@@ -127,10 +140,30 @@ class ToolBoxApp {
             this.authManager = new AuthManager(this.browserManager);
             this.terminalManager = new TerminalManager();
             this.dataverseManager = new DataverseManager(this.connectionsManager, this.authManager);
+            this.powerPlatformManager = new PowerPlatformManager(this.connectionsManager, this.authManager);
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
+            this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
+            this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
+                () => this.mcpServerManager.isRunning(),
+                async () => {
+                    if (this.mcpServerManager.isRunning()) {
+                        await this.mcpServerManager.stop();
+
+                        // If the app is currently hidden to tray and MCP has just been
+                        // stopped, there is no background workload left to keep alive.
+                        // Quit so we only remain in background while MCP is running.
+                        if (this.mainWindow && !this.mainWindow.isVisible()) {
+                            app.quit();
+                        }
+
+                        return;
+                    }
+
+                    await this.mcpServerManager.start();
+                },
             );
 
             this.setupEventListeners();
@@ -264,6 +297,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_FAVORITE_TOOLS);
         ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
         ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN);
 
         // Connection handlers
         ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
@@ -278,6 +312,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(CONNECTION_CHANNELS.REFRESH_TOKEN);
         ipcMain.removeHandler(CONNECTION_CHANNELS.CHECK_BROWSER_INSTALLED);
         ipcMain.removeHandler(CONNECTION_CHANNELS.GET_BROWSER_PROFILES);
+        ipcMain.removeHandler(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION);
         ipcMain.removeHandler(CONNECTION_CHANNELS.EXPORT_CONNECTIONS);
         ipcMain.removeHandler(CONNECTION_CHANNELS.IMPORT_CONNECTIONS);
 
@@ -417,6 +452,19 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
+
+        // Power Platform handlers
+        ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
+
+        // Agent invocation logging handlers
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
+
+        // MCP server handlers
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.START);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE);
     }
 
     /**
@@ -467,9 +515,43 @@ class ToolBoxApp {
             this.settingsManager.setSetting(key, value);
         });
 
+        // MCP access token handler
+        ipcMain.handle(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN, () => {
+            return this.settingsManager.getMcpAccessToken();
+        });
+
         // Favorite tools
         ipcMain.handle(SETTINGS_CHANNELS.ADD_FAVORITE_TOOL, (_, toolId) => {
             return this.settingsManager.addFavoriteTool(toolId);
+        });
+
+        // Agent invocation logs (main UI only)
+        ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
+            return readLogEntries();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
+            return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.START, async () => {
+            await this.mcpServerManager.start();
+            this.trayManager?.refreshContextMenu();
+            return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.STOP, async () => {
+            await this.mcpServerManager.stop();
+            this.trayManager?.refreshContextMenu();
+            return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP, async () => {
+            return await this.mcpServerManager.configureClient("claude-desktop");
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE, async () => {
+            return await this.mcpServerManager.configureClient("vscode");
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REMOVE_FAVORITE_TOOL, (_, toolId) => {
@@ -772,6 +854,64 @@ class ToolBoxApp {
 
         ipcMain.handle(CONNECTION_CHANNELS.GET_BROWSER_PROFILES, (_, browserType: string) => {
             return this.browserManager.getBrowserProfiles(browserType);
+        });
+
+        ipcMain.handle(CONNECTION_CHANNELS.CONFIGURE_APP_REGISTRATION, async (_, requestRaw: unknown) => {
+            let clientId = "";
+            let includePowerPlatformPermissions = true;
+            let generateOnly = false;
+
+            if (typeof requestRaw === "string") {
+                clientId = requestRaw.trim();
+            } else if (requestRaw && typeof requestRaw === "object") {
+                const request = requestRaw as { clientId?: unknown; includePowerPlatformPermissions?: unknown; generateOnly?: unknown };
+                clientId = typeof request.clientId === "string" ? request.clientId.trim() : "";
+                includePowerPlatformPermissions = request.includePowerPlatformPermissions === true;
+                generateOnly = request.generateOnly === true;
+            }
+
+            if (!clientId) {
+                return {
+                    success: false,
+                    message: "Client ID is required before app registration can be configured.",
+                    script: this.buildConfigureAppRegistrationScript("[your-client-id]", includePowerPlatformPermissions),
+                };
+            }
+
+            if (!/^[0-9a-fA-F-]{32,36}$/.test(clientId)) {
+                return {
+                    success: false,
+                    message: "Client ID format is invalid. Provide a valid Entra application (client) ID.",
+                    script: this.buildConfigureAppRegistrationScript(clientId, includePowerPlatformPermissions),
+                };
+            }
+
+            const script = this.buildConfigureAppRegistrationScript(clientId, includePowerPlatformPermissions);
+            if (generateOnly) {
+                return {
+                    success: true,
+                    message: "App registration script generated successfully.",
+                    script,
+                };
+            }
+
+            const result = await this.executePowerShellScript(script);
+
+            if (result.success) {
+                return {
+                    success: true,
+                    message: "App registration was configured successfully.",
+                    script,
+                };
+            }
+
+            return {
+                success: false,
+                message: result.errorMessage,
+                script,
+                stdout: result.stdout,
+                stderr: result.stderr,
+            };
         });
 
         // Export connections handler
@@ -1247,9 +1387,7 @@ class ToolBoxApp {
 
             // Resolve the connection linked to the calling tool window
             const isSecondary = connectionTarget === "secondary";
-            const connectionId = isSecondary
-                ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
-                : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+            const connectionId = isSecondary ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id) : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
 
             const connection = connectionId ? this.connectionsManager.getConnectionById(connectionId) : null;
 
@@ -1432,6 +1570,51 @@ class ToolBoxApp {
                 minSupportedApiVersion: VersionManager.getMinSupportedApiVersion(),
             };
         });
+
+        // Power Platform API handlers
+        ipcMain.handle(
+            POWERPLATFORM_CHANNELS.REQUEST,
+            async (
+                event,
+                category:
+                    | "Analytics"
+                    | "AppManagement"
+                    | "Authorization"
+                    | "Connectivity"
+                    | "CopilotStudio"
+                    | "Dynamics"
+                    | "EnvironmentManagement"
+                    | "Governance"
+                    | "Licensing"
+                    | "PowerApps"
+                    | "PowerAutomate"
+                    | "PowerPages"
+                    | "ResourceQuery"
+                    | "UserManagement"
+                    | "WorkflowAgents",
+                method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+                relativePath = "",
+                body?: unknown,
+                customHeaders?: Record<string, string>,
+                connectionTarget?: "primary" | "secondary",
+            ) => {
+                try {
+                    const connectionId =
+                        connectionTarget === "secondary"
+                            ? this.toolWindowManager?.getSecondaryConnectionIdByWebContents(event.sender.id)
+                            : this.toolWindowManager?.getConnectionIdByWebContents(event.sender.id);
+
+                    if (!connectionId) {
+                        const targetMsg = connectionTarget === "secondary" ? "secondary connection" : "connection";
+                        throw new Error(`No ${targetMsg} found for this tool instance. Please ensure the tool is connected to an environment.`);
+                    }
+
+                    return await this.powerPlatformManager.request(connectionId, category, method, relativePath, body, customHeaders);
+                } catch (error) {
+                    throw new Error(`Power Platform request failed: ${(error as Error).message}`);
+                }
+            },
+        );
 
         // Dataverse API handlers
         // All handlers automatically get the connectionId from the calling tool's WebContents
@@ -2170,6 +2353,131 @@ class ToolBoxApp {
             }
         });
     }
+
+    private buildConfigureAppRegistrationScript(clientId: string, includePowerPlatformPermissions: boolean): string {
+        const safeClientId = clientId.replace(/'/g, "''");
+        const requiredPermissions = ["Connectivity.Connections.Read", "EnvironmentManagement.Environments.Read", "PowerApps.Apps.Read", "PowerAutomate.Flows.Read", "ResourceQuery.Resources.Read"];
+
+        const permissionsArray = requiredPermissions.map((permission) => `    '${permission}'`).join("\n");
+
+        const scriptLines = [
+            "$ErrorActionPreference = 'Stop'",
+            `$clientId = '${safeClientId}'`,
+            '$requiredRedirectUris = @("msal${clientId}://auth", "http://localhost")',
+            "",
+            "if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {",
+            "    Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force -AllowClobber",
+            "}",
+            "if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Applications)) {",
+            "    Install-Module Microsoft.Graph.Applications -Scope CurrentUser -Force -AllowClobber",
+            "}",
+            "Import-Module Microsoft.Graph.Authentication",
+            "Import-Module Microsoft.Graph.Applications",
+            "Connect-MgGraph -Scopes 'Application.ReadWrite.All' -NoWelcome",
+            "",
+            "$app = Get-MgApplication -Filter \"appId eq '$clientId'\"",
+            "if (-not $app) { throw \"Application with Client ID '$clientId' was not found.\" }",
+            "",
+            "$existingPublicRedirectUris = @()",
+            "if ($app.PublicClient -and $app.PublicClient.RedirectUris) { $existingPublicRedirectUris = @($app.PublicClient.RedirectUris) }",
+            "foreach ($requiredRedirectUri in $requiredRedirectUris) {",
+            "    if ($existingPublicRedirectUris -notcontains $requiredRedirectUri) {",
+            "        $existingPublicRedirectUris += $requiredRedirectUri",
+            "    }",
+            "}",
+        ];
+
+        if (includePowerPlatformPermissions) {
+            scriptLines.push(
+                "$requiredPermissions = @(",
+                permissionsArray,
+                ")",
+                "",
+                "$powerPlatformSp = Get-MgServicePrincipal -Filter \"displayName eq 'Power Platform API'\"",
+                'if (-not $powerPlatformSp) { throw "Power Platform API service principal was not found in this tenant." }',
+                "",
+                "$resourceAccess = @()",
+                "foreach ($permissionName in $requiredPermissions) {",
+                "    $scope = $powerPlatformSp.Oauth2PermissionScopes | Where-Object { $_.Value -eq $permissionName } | Select-Object -First 1",
+                "    if (-not $scope) { throw \"Permission '$permissionName' was not found on Power Platform API service principal.\" }",
+                "    $resourceAccess += @{ Id = $scope.Id; Type = 'Scope' }",
+                "}",
+                "",
+                "$existingRequired = @()",
+                "if ($app.RequiredResourceAccess) {",
+                "    foreach ($item in $app.RequiredResourceAccess) {",
+                "        $existingRequired += @{ ResourceAppId = $item.ResourceAppId; ResourceAccess = @($item.ResourceAccess | ForEach-Object { @{ Id = $_.Id; Type = $_.Type } }) }",
+                "    }",
+                "}",
+                "",
+                "$existingPowerPlatform = $existingRequired | Where-Object { $_.ResourceAppId -eq $powerPlatformSp.AppId } | Select-Object -First 1",
+                "if ($existingPowerPlatform) {",
+                "    $existingIds = @($existingPowerPlatform.ResourceAccess | ForEach-Object { $_.Id.ToString() })",
+                "    foreach ($entry in $resourceAccess) {",
+                "        if ($existingIds -notcontains $entry.Id.ToString()) {",
+                "            $existingPowerPlatform.ResourceAccess += $entry",
+                "        }",
+                "    }",
+                "} else {",
+                "    $existingRequired += @{ ResourceAppId = $powerPlatformSp.AppId; ResourceAccess = $resourceAccess }",
+                "}",
+                "",
+                "Update-MgApplication -ApplicationId $app.Id -PublicClient @{ RedirectUris = $existingPublicRedirectUris } -RequiredResourceAccess $existingRequired",
+            );
+        } else {
+            scriptLines.push("Update-MgApplication -ApplicationId $app.Id -PublicClient @{ RedirectUris = $existingPublicRedirectUris }");
+        }
+
+        scriptLines.push("Disconnect-MgGraph | Out-Null", "Write-Host 'App registration updated successfully.'");
+        return scriptLines.join("\n");
+    }
+
+    private executePowerShellScript(script: string): Promise<{ success: boolean; errorMessage: string; stdout: string; stderr: string }> {
+        return new Promise((resolve) => {
+            const psArgs = ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script];
+            const process = spawn("pwsh", psArgs, { windowsHide: true });
+
+            let stdout = "";
+            let stderr = "";
+
+            process.stdout.on("data", (chunk: Buffer) => {
+                stdout += chunk.toString();
+            });
+
+            process.stderr.on("data", (chunk: Buffer) => {
+                stderr += chunk.toString();
+            });
+
+            process.on("error", (error) => {
+                resolve({
+                    success: false,
+                    errorMessage: `Failed to launch PowerShell: ${error.message}`,
+                    stdout,
+                    stderr,
+                });
+            });
+
+            process.on("close", (exitCode) => {
+                if (exitCode === 0) {
+                    resolve({
+                        success: true,
+                        errorMessage: "",
+                        stdout,
+                        stderr,
+                    });
+                    return;
+                }
+
+                const errorMessage = stderr.trim() || stdout.trim() || "PowerShell script failed to execute.";
+                resolve({
+                    success: false,
+                    errorMessage,
+                    stdout,
+                    stderr,
+                });
+            });
+        });
+    }
     /**
      * Create application menu
      */
@@ -2542,6 +2850,36 @@ class ToolBoxApp {
     }
 
     /**
+     * Bring the main window to the foreground, creating it when needed.
+     * Used when the app is already running in the tray and receives a re-launch.
+     */
+    private showAndFocusMainWindow(): void {
+        if (!this.mainWindow) {
+            this.createWindow();
+            return;
+        }
+
+        if (this.mainWindow.isMinimized()) {
+            this.mainWindow.restore();
+        }
+
+        this.mainWindow.show();
+        this.mainWindow.focus();
+    }
+
+    /**
+     * Handle a second launch attempt by foregrounding the existing instance.
+     * If the window is still being created, defer focusing until creation completes.
+     */
+    public handleSecondInstanceLaunch(): void {
+        if (!this.mainWindow) {
+            this.shouldFocusAfterWindowCreation = true;
+        }
+
+        this.showAndFocusMainWindow();
+    }
+
+    /**
      * Register custom pptb-webview protocol for loading tool content
      * This provides isolation and CSP control for tool execution
      */
@@ -2576,13 +2914,22 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager,
         );
 
+        this.mcpServerManager.setToolWindowManager(this.toolWindowManager);
+
+        // Initialize SplitLayoutManager — depends on the shared toolViews map from ToolWindowManager
+        this.splitLayoutManager = new SplitLayoutManager(this.mainWindow, this.settingsManager, this.toolWindowManager.getToolViews());
+        this.toolWindowManager.setSplitLayoutManager(this.splitLayoutManager);
+
         // Set up callback to rebuild menu when active tool changes (debounced to prevent excessive recreation)
         this.toolWindowManager.setOnActiveToolChanged(() => {
             this.debouncedCreateMenu();
         });
 
         // Initialize NotificationWindowManager for overlay notifications
-        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow);
+        this.notificationWindowManager = new NotificationWindowManager(this.mainWindow, this.settingsManager);
+        // Initialize NotificationHistoryWindowManager for the bell-icon history panel
+        this.notificationHistoryWindowManager = new NotificationHistoryWindowManager(this.mainWindow, this.settingsManager);
+        this.notificationWindowManager.setHistoryManager(this.notificationHistoryWindowManager);
         // Initialize BrowserWindow-based modal manager
         this.modalWindowManager = new ModalWindowManager(this.mainWindow);
 
@@ -2605,13 +2952,34 @@ class ToolBoxApp {
             this.mainWindow.webContents.openDevTools({ mode: "detach" });
         }
 
+        this.mainWindow.on("close", (event) => {
+            if (this.isQuitting) {
+                return;
+            }
+
+            if (!this.mcpServerManager.isRunning()) {
+                // No MCP background workload: closing the window should terminate app.
+                this.isQuitting = true;
+                return;
+            }
+
+            event.preventDefault();
+            this.mainWindow?.hide();
+        });
+
         this.mainWindow.on("closed", () => {
             this.toolWindowManager?.destroy();
             this.toolWindowManager = null;
             this.notificationWindowManager = null;
+            this.notificationHistoryWindowManager = null;
             this.modalWindowManager = null;
             this.mainWindow = null;
         });
+
+        if (this.shouldFocusAfterWindowCreation) {
+            this.shouldFocusAfterWindowCreation = false;
+            this.showAndFocusMainWindow();
+        }
     }
 
     /**
@@ -3060,12 +3428,7 @@ class ToolBoxApp {
                 logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
                 // Bring app window to focus
-                if (this.mainWindow) {
-                    if (this.mainWindow.isMinimized()) {
-                        this.mainWindow.restore();
-                    }
-                    this.mainWindow.focus();
-                }
+                this.showAndFocusMainWindow();
 
                 // Deliver the IPC event to the renderer.  If the renderer is still
                 // loading (e.g. cold launch via protocol URL), defer until it finishes.
@@ -3111,15 +3474,7 @@ class ToolBoxApp {
                 // On macOS the app stays alive after the window is closed.
                 // When the user clicks the Dock icon (or the tray "Open" item),
                 // restore the existing window if it still exists, otherwise create a new one.
-                if (this.mainWindow) {
-                    if (this.mainWindow.isMinimized()) {
-                        this.mainWindow.restore();
-                    }
-                    this.mainWindow.show();
-                    this.mainWindow.focus();
-                } else {
-                    this.createWindow();
-                }
+                this.showAndFocusMainWindow();
             });
 
             app.on("window-all-closed", () => {
@@ -3132,11 +3487,13 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", () => {
+            app.on("before-quit", async () => {
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
                 this.trayManager?.destroy();
+                // Clean up MCP server
+                await this.mcpServerManager.stop();
                 // Clean up update checks
                 this.autoUpdateManager.disableAutoUpdateChecks();
                 // Clean up token expiry checks
@@ -3157,8 +3514,19 @@ class ToolBoxApp {
     }
 }
 
-// Create and initialize the application
-const toolboxApp = new ToolBoxApp();
-toolboxApp.initialize().catch((error) => {
-    logError(error instanceof Error ? error : new Error(String(error)));
-});
+// Enforce single-instance behavior for all channels and launch modes.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+    app.quit();
+} else {
+    const toolboxApp = new ToolBoxApp();
+
+    app.on("second-instance", () => {
+        toolboxApp.handleSecondInstanceLaunch();
+    });
+
+    // Create and initialize the application
+    toolboxApp.initialize().catch((error) => {
+        logError(error instanceof Error ? error : new Error(String(error)));
+    });
+}

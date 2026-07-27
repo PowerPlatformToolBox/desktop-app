@@ -4,6 +4,7 @@
  */
 
 import { logError } from "../../common/logger";
+import { buildPreviewFeatureFlags } from "../../common/types";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -17,12 +18,47 @@ import {
 import type { SettingsState } from "../types/index";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
+import {
+    applyPreviewFeaturesVisibility,
+    collectPreviewFeatureFlagsFromSettingsPanel,
+    getPreviewFeatureCheckboxId,
+    getPreviewFeatureDefinitions,
+    normalizePreviewFeatureFlags,
+} from "./previewFeatureManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, openToolDetailTab, registerCloseGuard } from "./toolManagement";
+import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
+
+function arePreviewFeatureFlagsEqual(left?: SettingsState["previewFeatures"], right?: SettingsState["previewFeatures"]): boolean {
+    const normalizedLeft = buildPreviewFeatureFlags(left);
+    const normalizedRight = buildPreviewFeatureFlags(right);
+    return Object.keys(normalizedLeft).every((featureId) => normalizedLeft[featureId as keyof typeof normalizedLeft] === normalizedRight[featureId as keyof typeof normalizedRight]);
+}
+
+function renderPreviewFeatureSettingsRows(): string {
+    return getPreviewFeatureDefinitions()
+        .map((feature) => {
+            const checkboxId = getPreviewFeatureCheckboxId(feature.id);
+            return `
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="${checkboxId}">${feature.label}</label>
+                        <p class="settings-vscode-item-description">${feature.description}</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="${checkboxId}" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        })
+        .join("");
+}
 
 /**
  * Load settings into the settings UI panel
@@ -45,6 +81,7 @@ export async function loadSettings(): Promise<void> {
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
+        const previewFeatures = normalizePreviewFeatureFlags(settings);
 
         // Store original settings for change detection
         originalSettings = {
@@ -60,6 +97,8 @@ export async function loadSettings(): Promise<void> {
             showEnvironmentColor: settings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR,
             categoryColorThickness: settings.categoryColorThickness ?? DEFAULT_CATEGORY_COLOR_THICKNESS,
             environmentColorThickness: settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
+            enablePreviewFeatures: Object.values(previewFeatures).some((enabled) => enabled === true),
+            previewFeatures,
         };
 
         themeSelect.value = settings.theme;
@@ -87,6 +126,12 @@ export async function loadSettings(): Promise<void> {
         if (environmentColorThicknessInput) {
             environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
         }
+        getPreviewFeatureDefinitions().forEach((feature) => {
+            const checkbox = document.getElementById(getPreviewFeatureCheckboxId(feature.id)) as HTMLInputElement | null;
+            if (checkbox) {
+                checkbox.checked = previewFeatures[feature.id] === true;
+            }
+        });
 
         const terminalFont = settings.terminalFont || DEFAULT_TERMINAL_FONT;
 
@@ -151,6 +196,8 @@ export async function saveSettings(): Promise<void> {
     const environmentColorThickness = environmentColorThicknessInput
         ? Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS))
         : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
+    const previewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
+    const enablePreviewFeatures = Object.values(previewFeatures).some((enabled) => enabled === true);
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -165,6 +212,8 @@ export async function saveSettings(): Promise<void> {
         showEnvironmentColor,
         categoryColorThickness,
         environmentColorThickness,
+        enablePreviewFeatures,
+        previewFeatures,
     };
 
     // Only include changed settings in the update
@@ -206,6 +255,12 @@ export async function saveSettings(): Promise<void> {
     if (currentSettings.environmentColorThickness !== originalSettings.environmentColorThickness) {
         changedSettings.environmentColorThickness = currentSettings.environmentColorThickness;
     }
+    if (currentSettings.enablePreviewFeatures !== (originalSettings.enablePreviewFeatures ?? false)) {
+        changedSettings.enablePreviewFeatures = currentSettings.enablePreviewFeatures;
+    }
+    if (!arePreviewFeatureFlagsEqual(currentSettings.previewFeatures, originalSettings.previewFeatures ?? buildPreviewFeatureFlags())) {
+        changedSettings.previewFeatures = currentSettings.previewFeatures;
+    }
 
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
@@ -215,6 +270,7 @@ export async function saveSettings(): Promise<void> {
         applyTheme(currentSettings.theme);
         applyTerminalFont(currentSettings.terminalFont);
         applyDebugMenuVisibility(currentSettings.showDebugMenu);
+        applyPreviewFeaturesVisibility(currentSettings.previewFeatures);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
         applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
 
@@ -296,6 +352,9 @@ function hasUnsavedChanges(): boolean {
         const val = Math.min(MAX_COLOR_BORDER_THICKNESS, Math.max(MIN_COLOR_BORDER_THICKNESS, Number(environmentColorThicknessInput.value) || DEFAULT_ENVIRONMENT_COLOR_THICKNESS));
         if (val !== (originalSettings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS)) return true;
     }
+
+    const currentPreviewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
+    if (!arePreviewFeatureFlagsEqual(currentPreviewFeatures, originalSettings.previewFeatures ?? buildPreviewFeatureFlags())) return true;
 
     return false;
 }
@@ -513,6 +572,11 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
             </section>
 
+            <section id="settings-section-preview" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Preview Features</h2>
+                ${renderPreviewFeatureSettingsRows()}
+            </section>
+
             <div class="settings-vscode-actions">
                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
                 <span class="settings-vscode-item-description">Changes apply instantly after saving.</span>
@@ -625,5 +689,5 @@ export async function openSettingsTab(): Promise<void> {
         if (!hasUnsavedChanges()) return true;
         return window.confirm("You have unsaved settings changes. Close anyway and discard them?");
     });
-    await openToolDetailTab("app-settings", "Settings", renderSettingsContent, "");
+    await openLocalPageAsTab("app-settings", "Settings", renderSettingsContent, "");
 }

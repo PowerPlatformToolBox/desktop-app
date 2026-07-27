@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { existsSync } from "fs";
 import * as path from "path";
+import { logError } from "../../common/logger";
 
 /**
  * TrayManager
@@ -20,10 +21,14 @@ export class TrayManager {
     private tray: Tray | null = null;
     private readonly getMainWindow: () => BrowserWindow | null;
     private readonly openMainWindow: () => void;
+    private readonly isMcpServerRunning: () => boolean;
+    private readonly toggleMcpServer: () => Promise<void>;
 
-    constructor(getMainWindow: () => BrowserWindow | null, openMainWindow: () => void) {
+    constructor(getMainWindow: () => BrowserWindow | null, openMainWindow: () => void, isMcpServerRunning: () => boolean, toggleMcpServer: () => Promise<void>) {
         this.getMainWindow = getMainWindow;
         this.openMainWindow = openMainWindow;
+        this.isMcpServerRunning = isMcpServerRunning;
+        this.toggleMcpServer = toggleMcpServer;
     }
 
     /**
@@ -77,6 +82,14 @@ export class TrayManager {
     }
 
     /**
+     * Rebuild the tray context menu to reflect current dynamic state
+     * (for example, MCP server running/stopped).
+     */
+    refreshContextMenu(): void {
+        this.updateContextMenu();
+    }
+
+    /**
      * Resolve the correct icon path for the current release channel.
      * Uses `icons/insider/icon.png` for insider builds; falls back to
      * `icons/icon.png` if the insider icon has not yet been placed.
@@ -120,10 +133,31 @@ export class TrayManager {
             return;
         }
 
+        const mcpRunning = this.isMcpServerRunning();
+        const mcpStatusLabel = mcpRunning ? "MCP Server: Running" : "MCP Server: Stopped";
+        const mcpToggleLabel = mcpRunning ? "Stop MCP Server" : "Start MCP Server";
+
         const contextMenu = Menu.buildFromTemplate([
             {
                 label: `Open ${this.appName}`,
                 click: () => this.showMainWindow(),
+            },
+            { type: "separator" },
+            {
+                label: mcpStatusLabel,
+                enabled: false,
+            },
+            {
+                label: mcpToggleLabel,
+                click: () => {
+                    void this.toggleMcpServer()
+                        .catch((error) => {
+                            logError(error instanceof Error ? error : new Error(String(error)));
+                        })
+                        .finally(() => {
+                            this.updateContextMenu();
+                        });
+                },
             },
             { type: "separator" },
             {

@@ -1,17 +1,17 @@
 import * as https from "https";
-import * as zlib from "zlib";
 import { promisify } from "util";
+import * as zlib from "zlib";
+import { logError, logWarn } from "../../common/logger";
 import {
-    DataverseConnection,
+    AttributeMetadataType,
+    Connection,
     ENTITY_RELATED_METADATA_BASE_PATHS,
     EntityRelatedMetadataPath,
     EntityRelatedMetadataResponse,
-    AttributeMetadataType,
     Label,
     LocalizedLabel,
     MetadataOperationOptions,
 } from "../../common/types";
-import { logWarn, logError } from "../../common/logger";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
@@ -172,7 +172,7 @@ export class DataverseManager {
      * Build a properly formatted API URL by combining base URL and path
      * Ensures no double slashes between base URL and path
      */
-    private buildApiUrl(connection: DataverseConnection, path: string): string {
+    private buildApiUrl(connection: Connection, path: string): string {
         // Ensure base URL doesn't end with slash and path doesn't start with slash
         const baseUrl = connection.url.replace(/\/$/, "");
         const cleanPath = path.replace(/^\//, "");
@@ -186,7 +186,7 @@ export class DataverseManager {
      * @param errorMessage The error message to throw if cache is invalid
      * @throws Error if MSAL cache is empty (tokens are cleared before throwing)
      */
-    private async ensureMsalCacheOrClearTokens(connection: DataverseConnection, connectionId: string, errorMessage: string): Promise<void> {
+    private async ensureMsalCacheOrClearTokens(connection: Connection, connectionId: string, errorMessage: string): Promise<void> {
         const hasAccount = await this.authManager.hasAccountInCache(connection);
         if (!hasAccount) {
             // MSAL cache is empty (e.g., after app restart), clear stored tokens to force re-authentication
@@ -201,7 +201,7 @@ export class DataverseManager {
      * Uses MSAL's automatic token refresh - no manual expiry checking needed
      * @param connectionId The ID of the connection to use
      */
-    private async getConnectionWithToken(connectionId: string): Promise<{ connection: DataverseConnection; accessToken: string }> {
+    private async getConnectionWithToken(connectionId: string): Promise<{ connection: Connection; accessToken: string }> {
         const connection = this.connectionsManager.getConnectionById(connectionId);
         if (!connection) {
             throw new Error(`Connection ${connectionId} not found. Please ensure the connection exists.`);
@@ -587,20 +587,15 @@ export class DataverseManager {
 
         // Build URL based on operation type
         if (request.entityName) {
-            
             const entitySetName = this.getEntitySetName(request.entityName);
-            if(request.entityId)
-            {
+            if (request.entityId) {
                 // Bound operation - Entity
                 url += `${entitySetName}(${request.entityId})/Microsoft.Dynamics.CRM.${request.operationName}`;
-            }else{
-
+            } else {
                 // Bound operation - Entity Collection
                 url += `${entitySetName}/Microsoft.Dynamics.CRM.${request.operationName}`;
             }
-            
-        } 
-        else {
+        } else {
             // Unbound operation
             url += request.operationName;
         }

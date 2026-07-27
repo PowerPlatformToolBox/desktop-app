@@ -7,6 +7,26 @@ import { logError, logWarn } from "../../common/logger";
  */
 export class EncryptionManager {
     /**
+     * Detect whether a value looks like canonical base64.
+     * This prevents accidental decryption attempts on plaintext inputs.
+     */
+    private isCanonicalBase64(value: string): boolean {
+        if (!value || value.length % 4 !== 0) {
+            return false;
+        }
+
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
+            return false;
+        }
+
+        try {
+            return Buffer.from(value, "base64").toString("base64") === value;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Check if encryption is available on this platform
      */
     isEncryptionAvailable(): boolean {
@@ -41,6 +61,11 @@ export class EncryptionManager {
 
         if (!this.isEncryptionAvailable()) {
             logWarn("Encryption not available, returning data as-is");
+            return encrypted;
+        }
+
+        // Values can legitimately be plaintext during migration/import paths.
+        if (!this.isCanonicalBase64(encrypted)) {
             return encrypted;
         }
 

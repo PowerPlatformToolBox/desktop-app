@@ -164,7 +164,7 @@ export function getToolDetailModalControllerScript(config: ToolDetailModalContro
                 readmeContainer.textContent = markdown;
             }
         } catch (error) {
-            captureException("Failed to load README", error);
+            console.error("Failed to load README", error);
             readmeContainer.textContent = "Unable to load README.";
         }
     };

@@ -198,11 +198,23 @@ export function getModalStyles(isDarkTheme: boolean): string {
         display: none;
         padding: 10px 12px;
         border-radius: 8px;
-        border: 1px solid rgba(255, 77, 109, 0.35);
-        background: rgba(255, 77, 109, 0.12);
-        color: #ffb3c1;
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.04)" : "rgba(0, 0, 0, 0.04)"};
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.85)"};
         font-size: 13px;
         line-height: 1.4;
+    }
+
+    .modal-feedback.success {
+        border-color: rgba(16, 124, 16, 0.35);
+        background: rgba(16, 124, 16, 0.12);
+        color: ${isDarkTheme ? "#9fd89f" : "#0f6c0f"};
+    }
+
+    .modal-feedback.error {
+        border-color: rgba(255, 77, 109, 0.35);
+        background: rgba(255, 77, 109, 0.12);
+        color: ${isDarkTheme ? "#ffb3c1" : "#a4262c"};
     }
 
     .modal-warning {
@@ -441,6 +453,21 @@ export function getModalStyles(isDarkTheme: boolean): string {
         border-radius: 4px;
         background: ${isDarkTheme ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)"};
         font-size: 11px;
+    }
+
+    .power-platform-api-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        background: ${isDarkTheme ? "rgba(14, 99, 156, 0.22)" : "rgba(14, 99, 156, 0.14)"};
+        color: ${isDarkTheme ? "#89d7ff" : "#0e639c"};
+        border: 1px solid ${isDarkTheme ? "rgba(76, 194, 255, 0.35)" : "rgba(14, 99, 156, 0.35)"};
     }
 
     .fluent-button:disabled {
@@ -712,6 +739,31 @@ export function getModalStyles(isDarkTheme: boolean): string {
 
     .connection-group-items.collapsed {
         display: none;
+    }
+
+    .checkbox-wrapper {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .modal-checkbox {
+        margin-top: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.16)"};
+        background: ${isDarkTheme ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)"};
+        cursor: pointer;
+        accent-color: #0e639c;
+    }
+
+    .checkbox-label {
+        font-size: 13px;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.9)" : "rgba(0, 0, 0, 0.8)"};
+        cursor: pointer;
+        user-select: none;
     }
 </style>`;
 }

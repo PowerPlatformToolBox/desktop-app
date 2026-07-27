@@ -1,5 +1,5 @@
-import { getModalStyles } from "../sharedStyles";
 import { escapeHtml } from "../../utils/toolIconResolver";
+import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -99,9 +99,7 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     }
 </style>`;
 
-    const toolNameHtml = toolName
-        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
-        : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
+    const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Multi-Connection ${isSecondaryRequired ? "Required" : "Optional"}</p>`;
 
     const body = `
 
@@ -116,8 +114,11 @@ export function getSelectMultiConnectionModalView(isDarkTheme: boolean, isSecond
     <div class="modal-body">
         <div class="info-message">
             This tool requires a primary connection${isSecondaryRequired ? " and a secondary connection" : ". A secondary connection is optional"}. Please select ${
-        isSecondaryRequired ? "both connections" : "at least a primary connection"
-    } to continue.
+                isSecondaryRequired ? "both connections" : "at least a primary connection"
+            } to continue.
+        </div>
+        <div id="power-platform-api-info-multi" class="modal-warning" style="display: none; margin-bottom: 12px;">
+            <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
         </div>
         
         <div class="modal-search-container">

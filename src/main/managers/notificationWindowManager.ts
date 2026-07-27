@@ -1,5 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
+import { resolveTheme } from "../utilities/theme";
+import { SettingsManager } from "./settingsManager";
 
 interface NotificationOptions {
     title: string;
@@ -7,6 +9,463 @@ interface NotificationOptions {
     type?: "info" | "success" | "warning" | "error";
     duration?: number;
     actions?: Array<{ label: string; callback: string }>;
+}
+
+/** A single entry stored in the persistent notification history. */
+export interface NotificationHistoryEntry {
+    title: string;
+    body: string;
+    type: "info" | "success" | "warning" | "error";
+    /** ISO-8601 timestamp string (serialisable across process boundaries). */
+    timestamp: string;
+}
+
+const HISTORY_MAX_SIZE = 100;
+const HISTORY_WINDOW_TITLE = "Notification History";
+
+/**
+ * NotificationHistoryWindowManager
+ *
+ * Manages an always-on-top frameless BrowserWindow that displays the
+ * persistent notification history.  The window is created lazily when the
+ * user first clicks the bell button, then shown/hidden on subsequent clicks.
+ *
+ * History data is owned by the main process so the window is always in sync
+ * regardless of renderer reloads.
+ */
+export class NotificationHistoryWindowManager {
+    private historyWindow: BrowserWindow | null = null;
+    private mainWindow: BrowserWindow;
+    private settingsManager: SettingsManager;
+    private history: NotificationHistoryEntry[] = [];
+    private unreadCount: number = 0;
+    private isPanelOpen: boolean = false;
+
+    private readonly WINDOW_WIDTH = 380;
+    private readonly WINDOW_HEIGHT = 480;
+    /** Horizontal gap between the right edge of the history window and the right edge of the main window */
+    private readonly HORIZONTAL_MARGIN = 12;
+    /** Vertical offset from the bottom of the main window to the bottom of the history window (accounts for footer height) */
+    private readonly FOOTER_OFFSET = 40;
+
+    constructor(mainWindow: BrowserWindow, settingsManager: SettingsManager) {
+        this.mainWindow = mainWindow;
+        this.settingsManager = settingsManager;
+        this.setupIpcHandlers();
+        this.setupMainWindowListeners();
+    }
+
+    private isDarkTheme(): boolean {
+        const theme = this.settingsManager.getSetting("theme") ?? "system";
+        return resolveTheme(theme) === "dark";
+    }
+
+    /**
+     * Called by NotificationWindowManager whenever a new notification is shown
+     * so the history window can track all notifications.
+     */
+    addNotification(options: { title: string; body: string; type?: string }): void {
+        const VALID_TYPES: ReadonlyArray<NotificationHistoryEntry["type"]> = ["info", "success", "warning", "error"];
+        const rawType = options.type;
+        const type = (rawType && (VALID_TYPES as readonly string[]).includes(rawType) ? rawType : "info") as NotificationHistoryEntry["type"];
+
+        this.history.unshift({ title: options.title, body: options.body, type, timestamp: new Date().toISOString() });
+        if (this.history.length > HISTORY_MAX_SIZE) {
+            this.history.pop();
+        }
+        this.unreadCount++;
+        this.sendBadgeUpdate();
+    }
+
+    private setupIpcHandlers(): void {
+        this.removeIpcHandlers();
+        ipcMain.on("notification-history:open", () => this.openHistoryPanel());
+        ipcMain.on("notification-history:close", () => this.closeHistoryPanel());
+        ipcMain.on("notification-history:clear", () => this.clearHistory());
+    }
+
+    private removeIpcHandlers(): void {
+        ipcMain.removeAllListeners("notification-history:open");
+        ipcMain.removeAllListeners("notification-history:close");
+        ipcMain.removeAllListeners("notification-history:clear");
+    }
+
+    private setupMainWindowListeners(): void {
+        this.mainWindow.on("move", () => this.updateWindowPosition());
+        this.mainWindow.on("resize", () => this.updateWindowPosition());
+        this.mainWindow.on("minimize", () => {
+            if (this.isPanelOpen) this.closeHistoryPanel();
+        });
+        this.mainWindow.on("closed", () => this.destroy());
+    }
+
+    private openHistoryPanel(): void {
+        if (!this.historyWindow) {
+            this.createHistoryWindow();
+        }
+
+        this.isPanelOpen = true;
+        this.unreadCount = 0;
+        this.sendBadgeUpdate();
+        this.updateWindowContent();
+        this.updateWindowPosition();
+        this.historyWindow!.show();
+
+        // Tell the renderer the panel is now open so it can update aria-pressed.
+        this.mainWindow.webContents.send("notification-history:opened");
+    }
+
+    private closeHistoryPanel(): void {
+        this.isPanelOpen = false;
+        this.historyWindow?.hide();
+        // Tell the renderer the panel closed (triggered by blur, Escape, or explicit close).
+        this.mainWindow.webContents.send("notification-history:closed");
+    }
+
+    private clearHistory(): void {
+        this.history = [];
+        this.unreadCount = 0;
+        this.sendBadgeUpdate();
+        if (this.isPanelOpen) {
+            this.updateWindowContent();
+        }
+    }
+
+    private sendBadgeUpdate(): void {
+        this.mainWindow.webContents.send("notification:badge-update", this.unreadCount);
+    }
+
+    private createHistoryWindow(): void {
+        this.historyWindow = new BrowserWindow({
+            width: this.WINDOW_WIDTH,
+            height: this.WINDOW_HEIGHT,
+            title: HISTORY_WINDOW_TITLE,
+            frame: false,
+            transparent: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            resizable: false,
+            movable: false,
+            minimizable: false,
+            maximizable: false,
+            closable: false,
+            focusable: true,
+            show: false,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: false,
+                preload: path.join(__dirname, "notificationPreload.js"),
+            },
+        });
+
+        this.historyWindow.setParentWindow(this.mainWindow);
+
+        // Close the panel when the window loses OS focus (user clicked elsewhere).
+        this.historyWindow.on("blur", () => {
+            if (this.isPanelOpen) this.closeHistoryPanel();
+        });
+
+        this.historyWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(this.generateHistoryHTML())}`);
+    }
+
+    private updateWindowContent(): void {
+        if (!this.historyWindow) return;
+        this.historyWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(this.generateHistoryHTML())}`);
+    }
+
+    private updateWindowPosition(): void {
+        if (!this.historyWindow) return;
+        const mainBounds = this.mainWindow.getBounds();
+        const x = mainBounds.x + mainBounds.width - this.WINDOW_WIDTH - this.HORIZONTAL_MARGIN;
+        const y = mainBounds.y + mainBounds.height - this.WINDOW_HEIGHT - this.FOOTER_OFFSET;
+        this.historyWindow.setBounds({ x, y, width: this.WINDOW_WIDTH, height: this.WINDOW_HEIGHT });
+    }
+
+    private formatTimestamp(isoString: string): string {
+        const date = new Date(isoString);
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        if (isToday) {
+            return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+        }
+        return date.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    }
+
+    private escapeHtml(text: string): string {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    private generateHistoryHTML(): string {
+        const dark = this.isDarkTheme();
+
+        const icons: Record<NotificationHistoryEntry["type"], string> = {
+            info: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
+            success:
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm3.844 4.844a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5z"/></svg>',
+            warning:
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 4h1v4h-1V4z"/><path d="M8 11a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
+            error: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zM4.646 4.646a.5.5 0 0 0 0 .708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646a.5.5 0 0 0-.708 0z"/></svg>',
+        };
+
+        const hasHistory = this.history.length > 0;
+        const listHTML = hasHistory
+            ? this.history
+                  .map(
+                      (entry) => `
+                <div class="notification-history-entry notification-history-entry--${entry.type}" role="listitem">
+                    <span class="notification-history-entry__icon">${icons[entry.type]}</span>
+                    <div class="notification-history-entry__body">
+                        <div class="notification-history-entry__title" title="${this.escapeHtml(entry.title)}">${this.escapeHtml(entry.title)}</div>
+                        <div class="notification-history-entry__message" title="${this.escapeHtml(entry.body)}">${this.escapeHtml(entry.body)}</div>
+                    </div>
+                    <div class="notification-history-entry__meta">
+                        <span class="notification-history-entry__time">${this.formatTimestamp(entry.timestamp)}</span>
+                        <button type="button" class="notification-history-entry__copy" aria-label="Copy notification">Copy</button>
+                    </div>
+                </div>`,
+                  )
+                  .join("")
+            : "";
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <title>${HISTORY_WINDOW_TITLE}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { color-scheme: ${dark ? "dark" : "light"}; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: ${dark ? "#1e1e1e" : "#ffffff"};
+            color: ${dark ? "#cccccc" : "#1f1f1f"};
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #notification-history-panel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            border: 1px solid ${dark ? "#3c3c3c" : "#e0e0e0"};
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .notification-history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid ${dark ? "#3c3c3c" : "#e0e0e0"};
+            flex-shrink: 0;
+            background: ${dark ? "#252526" : "#f5f5f5"};
+        }
+        .notification-history-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        #notification-clear-all-btn {
+            font-size: 11px;
+            color: ${dark ? "#9d9d9d" : "#616161"};
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+        #notification-clear-all-btn:hover { color: ${dark ? "#d4d4d4" : "#1f1f1f"}; background: ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}; }
+        #notification-history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        #notification-history-empty {
+            padding: 24px 16px;
+            text-align: center;
+            font-size: 12px;
+            color: ${dark ? "#9d9d9d" : "#9e9e9e"};
+        }
+        .notification-history-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 12px;
+            border-left: 3px solid transparent;
+            transition: background 0.12s ease;
+        }
+        .notification-history-entry:hover { background: ${dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}; }
+        .notification-history-entry + .notification-history-entry { border-top: 1px solid ${dark ? "#3c3c3c" : "#eeeeee"}; }
+        .notification-history-entry--info    { border-left-color: #0078d4; }
+        .notification-history-entry--success { border-left-color: #107c10; }
+        .notification-history-entry--warning { border-left-color: #c17a00; }
+        .notification-history-entry--error   { border-left-color: #d13438; }
+        .notification-history-entry__icon { flex-shrink: 0; margin-top: 2px; }
+        .notification-history-entry--info    .notification-history-entry__icon { color: #0078d4; }
+        .notification-history-entry--success .notification-history-entry__icon { color: #107c10; }
+        .notification-history-entry--warning .notification-history-entry__icon { color: #c17a00; }
+        .notification-history-entry--error   .notification-history-entry__icon { color: #d13438; }
+        .notification-history-entry__body { flex: 1; min-width: 0; }
+        .notification-history-entry__title {
+            font-size: 12px;
+            font-weight: 600;
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+        .notification-history-entry__message {
+            font-size: 11px;
+            color: ${dark ? "#9d9d9d" : "#616161"};
+            line-height: 1.4;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .notification-history-entry__meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .notification-history-entry__time {
+            font-size: 10px;
+            color: ${dark ? "#6b6b6b" : "#9e9e9e"};
+            white-space: nowrap;
+        }
+        .notification-history-entry__copy {
+            font-size: 10px;
+            color: ${dark ? "#9d9d9d" : "#616161"};
+            background: transparent;
+            border: 1px solid ${dark ? "#4a4a4a" : "#bdbdbd"};
+            border-radius: 3px;
+            padding: 1px 6px;
+            cursor: pointer;
+            transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .notification-history-entry__copy:hover {
+            color: ${dark ? "#d4d4d4" : "#1f1f1f"};
+            background: ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"};
+            border-color: ${dark ? "#6a6a6a" : "#9e9e9e"};
+        }
+        .notification-history-entry__copy.is-copied {
+            color: ${dark ? "#9cdcfe" : "#0078d4"};
+            border-color: #0078d4;
+        }
+    </style>
+</head>
+<body>
+    <div id="notification-history-panel">
+        <div class="notification-history-header">
+            <span class="notification-history-title">Notifications</span>
+            <button type="button" id="notification-clear-all-btn">Clear All</button>
+        </div>
+        <div id="notification-history-list" role="list">${listHTML}</div>
+        <div id="notification-history-empty"${hasHistory ? ' style="display:none"' : ""}>No notifications yet</div>
+    </div>
+    <script>
+        function copyTextWithFallback(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+
+            return new Promise(function(resolve, reject) {
+                try {
+                    var textarea = document.createElement("textarea");
+                    textarea.value = text;
+                    textarea.setAttribute("readonly", "");
+                    textarea.style.position = "fixed";
+                    textarea.style.top = "-1000px";
+                    textarea.style.left = "-1000px";
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    var copied = document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    if (copied) {
+                        resolve();
+                    } else {
+                        reject(new Error("Copy command failed"));
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        document.getElementById("notification-clear-all-btn").addEventListener("click", function() {
+            window.electron.clearHistory();
+        });
+
+        document.getElementById("notification-history-list").addEventListener("click", function(e) {
+            var eventTarget = e.target;
+            if (!(eventTarget instanceof Element)) {
+                return;
+            }
+
+            var target = eventTarget.closest(".notification-history-entry__copy");
+            if (!(target instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            var entry = target.closest(".notification-history-entry");
+            if (!entry) return;
+
+            var titleElement = entry.querySelector(".notification-history-entry__title");
+            var messageElement = entry.querySelector(".notification-history-entry__message");
+            var timeElement = entry.querySelector(".notification-history-entry__time");
+
+            var title = titleElement ? titleElement.textContent.trim() : "";
+            var message = messageElement ? messageElement.textContent.trim() : "";
+            var time = timeElement ? timeElement.textContent.trim() : "";
+
+            var clipboardText = "Notification" + "\\n" + "Title: " + title + "\\n" + "Message: " + message + "\\n" + "Time: " + time;
+
+            copyTextWithFallback(clipboardText)
+                .then(function() {
+                    target.textContent = "Copied";
+                    target.classList.add("is-copied");
+                    window.setTimeout(function() {
+                        target.textContent = "Copy";
+                        target.classList.remove("is-copied");
+                    }, 1200);
+                })
+                .catch(function() {
+                    target.textContent = "Failed";
+                    window.setTimeout(function() {
+                        target.textContent = "Copy";
+                    }, 1200);
+                });
+        });
+
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "Escape") { window.electron.closeHistoryPanel(); }
+        });
+    </script>
+</body>
+</html>`;
+    }
+
+    destroy(): void {
+        this.removeIpcHandlers();
+        if (this.historyWindow) {
+            this.historyWindow.destroy();
+            this.historyWindow = null;
+        }
+        this.history = [];
+        this.unreadCount = 0;
+        this.isPanelOpen = false;
+    }
 }
 
 /**
@@ -22,17 +481,30 @@ interface NotificationOptions {
 export class NotificationWindowManager {
     private notificationWindow: BrowserWindow | null = null;
     private mainWindow: BrowserWindow;
+    private settingsManager: SettingsManager;
     private notifications: NotificationOptions[] = [];
+    private historyManager: NotificationHistoryWindowManager | null = null;
     private readonly MAX_NOTIFICATIONS = 3;
     private readonly WINDOW_WIDTH = 400;
     private readonly NOTIFICATION_HEIGHT = 100;
     private readonly PADDING = 16;
 
-    constructor(mainWindow: BrowserWindow) {
+    constructor(mainWindow: BrowserWindow, settingsManager: SettingsManager) {
         this.mainWindow = mainWindow;
+        this.settingsManager = settingsManager;
         this.createNotificationWindow();
         this.setupIpcHandlers();
         this.setupMainWindowListeners();
+    }
+
+    private isDarkTheme(): boolean {
+        const theme = this.settingsManager.getSetting("theme") ?? "system";
+        return resolveTheme(theme) === "dark";
+    }
+
+    /** Wire up the history manager so each shown notification is also recorded. */
+    setHistoryManager(manager: NotificationHistoryWindowManager): void {
+        this.historyManager = manager;
     }
 
     /**
@@ -130,6 +602,7 @@ export class NotificationWindowManager {
 
         ipcMain.handle("notification:show", async (event, options: NotificationOptions) => {
             this.showNotification(options);
+            this.historyManager?.addNotification(options);
         });
 
         ipcMain.on("notification:dismiss", (event, index: number) => {
@@ -222,6 +695,8 @@ export class NotificationWindowManager {
      * Generate HTML for the notification window
      */
     private generateHTML(): string {
+        const dark = this.isDarkTheme();
+
         const icons = {
             info: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.568 1.031A6.8 6.8 0 0 1 12.76 3.05a7.06 7.06 0 0 1 .46 9.39 6.85 6.85 0 0 1-8.58 1.74 7 7 0 0 1-3.12-3.5 7.12 7.12 0 0 1-.23-4.71 7 7 0 0 1 2.77-3.79 6.8 6.8 0 0 1 4.508-1.149zM9.04 13.88a5.89 5.89 0 0 0 3.18-2.630 6.07 6.07 0 0 0 .29-5.12 5.94 5.94 0 0 0-2.23-2.8 5.82 5.82 0 0 0-4.59-.61 6 6 0 0 0-3.7 3.17 6.1 6.1 0 0 0 .24 5.58 5.93 5.93 0 0 0 3.39 2.78 5.82 5.82 0 0 0 3.42-.37z"/><path d="M7.5 6h1v3h-1V6z"/><path d="M8 10.5a.5.5 0 1 0 0 1 .5.5 0 0 0 0-1z"/></svg>',
             success:
@@ -270,6 +745,8 @@ export class NotificationWindowManager {
             box-sizing: border-box;
         }
 
+        :root { color-scheme: ${dark ? "dark" : "light"}; }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: transparent;
@@ -278,7 +755,7 @@ export class NotificationWindowManager {
         }
 
         .notification {
-            background: #2d2d2d;
+            background: ${dark ? "#2d2d2d" : "#ffffff"};
             border-left: 3px solid;
             border-radius: 4px;
             padding: 12px;
@@ -286,8 +763,8 @@ export class NotificationWindowManager {
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            color: #cccccc;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, ${dark ? "0.4" : "0.15"});
+            color: ${dark ? "#cccccc" : "#1f1f1f"};
         }
 
         .notification.info { border-left-color: #007acc; }
@@ -321,13 +798,13 @@ export class NotificationWindowManager {
             font-weight: 600;
             font-size: 13px;
             margin-bottom: 4px;
-            color: #ffffff;
+            color: ${dark ? "#ffffff" : "#000000"};
         }
 
         .notification-message {
             font-size: 12px;
             line-height: 1.4;
-            color: #cccccc;
+            color: ${dark ? "#cccccc" : "#444444"};
         }
 
         .notification-actions {
@@ -354,7 +831,7 @@ export class NotificationWindowManager {
         .notification-close {
             background: none;
             border: none;
-            color: #999999;
+            color: ${dark ? "#999999" : "#666666"};
             font-size: 20px;
             line-height: 1;
             cursor: pointer;
@@ -366,7 +843,7 @@ export class NotificationWindowManager {
         }
 
         .notification-close:hover {
-            color: #ffffff;
+            color: ${dark ? "#ffffff" : "#000000"};
         }
 
         @keyframes slideIn {

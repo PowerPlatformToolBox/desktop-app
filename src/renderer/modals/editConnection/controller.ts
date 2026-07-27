@@ -1,3 +1,5 @@
+import { getModalFeedbackScriptHelpers } from "../feedbackScript";
+
 export interface EditConnectionModalChannelIds {
     submit: string;
     submitReady: string;
@@ -29,10 +31,29 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const saveButton = document.getElementById("confirm-connection-btn");
+    const copyScriptSaveButton = document.getElementById("copy-script-save-btn");
+    const configureNote = document.getElementById("connection-configure-note");
     const testFeedback = document.getElementById("connection-test-feedback");
+    const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
+    const ppApiWrapper = document.getElementById("power-platform-api-wrapper");
+    const ppApiHelp = document.getElementById("power-platform-api-help");
     const browserTypeSelect = document.getElementById("connection-browser-type");
     const browserProfileSelect = document.getElementById("connection-browser-profile");
     const browserWarning = document.getElementById("browser-not-installed-warning");
+    const interactiveClientIdInput = document.getElementById("connection-optional-client-id");
+    const usernamePasswordClientIdInput = document.getElementById("connection-optional-client-id-up");
+    const interactiveClientIdLabel = document.getElementById("connection-optional-client-id-label");
+    const usernamePasswordClientIdLabel = document.getElementById("connection-optional-client-id-up-label");
+    const POWER_PLATFORM_ADMIN_PERMISSIONS = [
+        "Connectivity.Connections.Read",
+        "EnvironmentManagement.Environments.Read",
+        "PowerApps.Apps.Read",
+        "PowerAutomate.Flows.Read",
+        "ResourceQuery.Resources.Read",
+    ];
+    const supportsPowerPlatformApi = (authType) => authType === "interactive" || authType === "usernamePassword";
+    let pendingConfigureSaveScript = "";
+    let configureSaveInFlight = false;
     const getBrowserProfileSelection = () => {
         const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
         if (!select) {
@@ -48,6 +69,154 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         return { value, name: datasetName || fallbackName };
     };
 
+    const getCurrentClientId = () => {
+        const authType = authTypeSelect?.value || "interactive";
+        if (authType === "clientSecret") {
+            return getInputValue("connection-client-id");
+        }
+        if (authType === "usernamePassword") {
+            return getInputValue("connection-optional-client-id-up");
+        }
+        if (authType === "interactive") {
+            return getInputValue("connection-optional-client-id");
+        }
+        return "";
+    };
+
+    const shouldShowConfigureFooter = () => {
+        return Boolean(getCurrentClientId()) || (ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked);
+    };
+
+    const isPowerPlatformApiEnabled = () => {
+        return ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked;
+    };
+
+    const getPrimaryActionLabel = () => {
+        return shouldShowConfigureFooter() ? "Configure & Save" : "Save";
+    };
+
+    const getManualActionLabel = () => {
+        return shouldShowConfigureFooter() ? "Copy Script & Save" : "Save";
+    };
+
+    const getConfigureNoteText = () => {
+        // const redirectNote = "Reply URLs to set: msal<client-id>://auth and http://localhost.";
+        if (isPowerPlatformApiEnabled()) {
+            return "Configure & Save will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
+        }
+
+        return "Configure & Save will update reply URLs only. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
+    };
+
+    const buildAdminHandOffScript = (validationMessage) => {
+        const clientId = getCurrentClientId() || "[your-client-id]";
+        const includePowerPlatformPermissions = isPowerPlatformApiEnabled();
+        const scriptPermissions = POWER_PLATFORM_ADMIN_PERMISSIONS.map((permission) => '    "' + permission + '"').join("\\n");
+        const scriptLines = [
+            "# Power Platform ToolBox client setup handoff",
+            "# Validation issue: " + validationMessage,
+            "# PPTB requires Mobile and desktop application redirect URIs. Register both entries below in Entra.",
+            '$clientId = "' + clientId + '"',
+            '$redirectUris = @("msal" + $clientId + "://auth", "http://localhost")',
+            "",
+            'Write-Host "Client ID to register:" $clientId',
+            'Write-Host "Redirect URIs to add under Mobile and desktop applications:"',
+            'foreach ($redirectUri in $redirectUris) {',
+            '    Write-Host (" - " + $redirectUri)',
+            '}',
+        ];
+
+        if (includePowerPlatformPermissions) {
+            scriptLines.push(
+                '$requiredPermissions = @(',
+                scriptPermissions,
+                ")",
+                'Write-Host "Power Platform API permissions to add:"',
+                'foreach ($permission in $requiredPermissions) {',
+                '    Write-Host (" - " + $permission)',
+                '}',
+            );
+        }
+
+        scriptLines.push('Write-Host "If the app registration is already configured, re-open PPTB and try Configure & Save again."');
+        return scriptLines.join("\\n");
+    };
+
+    const updateConfigureFooterState = () => {
+        const isConfigureMode = shouldShowConfigureFooter();
+        if (configureNote) {
+            configureNote.style.display = isConfigureMode ? "block" : "none";
+            configureNote.textContent = isConfigureMode ? getConfigureNoteText() : "";
+        }
+        if (copyScriptSaveButton instanceof HTMLButtonElement) {
+            copyScriptSaveButton.style.display = isConfigureMode ? "inline-flex" : "none";
+            if (!copyScriptSaveButton.disabled) {
+                copyScriptSaveButton.textContent = getManualActionLabel();
+            }
+        }
+        if (saveButton instanceof HTMLButtonElement && !saveButton.disabled) {
+            saveButton.textContent = getPrimaryActionLabel();
+        }
+    };
+
+    const copyAdminHandOffScript = async (validationMessage) => {
+        const script = pendingConfigureSaveScript || buildAdminHandOffScript(validationMessage);
+        try {
+            await window.toolboxAPI.utils.copyToClipboard(script);
+        } catch {
+            // Copy is best-effort; still continue with the failure message.
+        }
+
+        await window.toolboxAPI.utils.showNotification({
+            title: "Setup script copied",
+            body: "The PowerShell handoff script has been copied for your admin.",
+            type: "warning",
+        });
+    };
+
+    const getGeneratedAppRegistrationScript = async () => {
+        const clientId = getCurrentClientId();
+        if (!clientId || !window.toolboxAPI?.connections?.configureAppRegistration) {
+            return "";
+        }
+
+        try {
+            const generatedResult = await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled(), true);
+            if (generatedResult && typeof generatedResult.script === "string" && generatedResult.script.trim().length > 0) {
+                return generatedResult.script;
+            }
+        } catch {
+            // Fall back to the local handoff script.
+        }
+
+        return "";
+    };
+
+    const runConfigureAndSavePreflight = async () => {
+        if (!shouldShowConfigureFooter()) {
+            return { success: true };
+        }
+
+        const clientId = getCurrentClientId();
+        if (!clientId) {
+            return {
+                success: false,
+                message: "Client ID is required before Configure & Save can update app registration.",
+                script: buildAdminHandOffScript("Client ID is missing."),
+            };
+        }
+
+        if (!window.toolboxAPI?.connections?.configureAppRegistration) {
+            return {
+                success: false,
+                message: "App registration automation API is unavailable in this modal.",
+                script: buildAdminHandOffScript("App registration automation API is unavailable in this modal."),
+            };
+        }
+
+        return await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled());
+    };
+
     // Store the original connection ID
     let connectionId = null;
 
@@ -57,11 +226,44 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     const updateAuthVisibility = () => {
         const authType = authTypeSelect?.value || "interactive";
+        const showPowerPlatformApiOption = supportsPowerPlatformApi(authType);
         if (interactiveFields) interactiveFields.style.display = authType === "interactive" ? "flex" : "none";
         if (clientSecretFields) clientSecretFields.style.display = authType === "clientSecret" ? "flex" : "none";
         if (usernamePasswordFields) usernamePasswordFields.style.display = authType === "usernamePassword" ? "flex" : "none";
         if (connectionStringFields) connectionStringFields.style.display = authType === "connectionString" ? "flex" : "none";
         if (testButton) testButton.style.display = (authType === "interactive" || authType === "connectionString") ? "none" : "inline-flex";
+        if (ppApiWrapper) ppApiWrapper.style.display = showPowerPlatformApiOption ? "" : "none";
+        if (ppApiHelp) ppApiHelp.style.display = showPowerPlatformApiOption ? "" : "none";
+        if (!showPowerPlatformApiOption && ppApiCheckbox instanceof HTMLInputElement) {
+            ppApiCheckbox.checked = false;
+        }
+        updatePowerPlatformClientIdRequirement();
+        updateConfigureFooterState();
+    };
+
+    const updatePowerPlatformClientIdRequirement = () => {
+        const requiresClientId = ppApiCheckbox instanceof HTMLInputElement ? ppApiCheckbox.checked : false;
+
+        if (interactiveClientIdInput instanceof HTMLInputElement) {
+            interactiveClientIdInput.required = requiresClientId;
+        }
+        if (usernamePasswordClientIdInput instanceof HTMLInputElement) {
+            usernamePasswordClientIdInput.required = requiresClientId;
+        }
+
+        if (interactiveClientIdLabel) {
+            interactiveClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+        }
+        if (usernamePasswordClientIdLabel) {
+            usernamePasswordClientIdLabel.textContent = requiresClientId ? "Client ID (Required for Power Platform API)" : "Client ID (Optional)";
+        }
+        updateConfigureFooterState();
+    };
+
+    const confirmPowerPlatformApiConsent = () => {
+        return window.confirm(
+            "Power Platform API access requires admin-approved privileges and a properly configured Client ID.\\n\\nIf required privileges are missing, tools may not work as expected.\\n\\nSelect OK to Agree and continue.\\nSelect Cancel to keep this option disabled.",
+        );
     };
 
     const loadBrowserProfiles = async () => {
@@ -131,13 +333,19 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         }
     };
 
-    const updateTestFeedback = (message) => {
+    ${getModalFeedbackScriptHelpers()}
+
+    const updateTestFeedback = (data) => {
         if (!testFeedback) return;
+        const message = getFeedbackMessage(data);
         if (typeof message === "string" && message.trim().length > 0) {
+            const feedbackType = getFeedbackType(data);
             testFeedback.textContent = message;
+            testFeedback.className = "modal-feedback " + feedbackType;
             testFeedback.style.display = "block";
         } else {
             testFeedback.textContent = "";
+            testFeedback.className = "modal-feedback";
             testFeedback.style.display = "none";
         }
     };
@@ -172,6 +380,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         usernamePasswordTenantId: getInputValue("connection-tenant-id-up"),
         connectionString: getInputValue("connection-string-input"),
         browserType: getInputValue("connection-browser-type") || "default",
+        enabledForPowerPlatformAPI: (document.getElementById("connection-enabled-for-powerplatform-api")?.checked) ?? false,
         category: (() => {
             const sel = document.getElementById("connection-category-select");
             if (!(sel instanceof HTMLSelectElement)) return "";
@@ -211,6 +420,12 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         if (envSelect) envSelect.value = connection.environment || "Dev";
         
         if (authTypeSelect) authTypeSelect.value = connection.authenticationType || "interactive";
+
+        const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
+        if (ppApiCheckbox instanceof HTMLInputElement) {
+            ppApiCheckbox.checked = connection.enabledForPowerPlatformAPI === true;
+        }
+        updatePowerPlatformClientIdRequirement();
         
         // Populate browser settings (applies to all auth types)
         setInputValue("connection-browser-type", connection.browserType || "default");
@@ -299,6 +514,11 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
             setInputValue("connection-client-id", connection.clientId);
             setInputValue("connection-client-secret", connection.clientSecret);
             setInputValue("connection-tenant-id-cs", connection.tenantId);
+            // Populate Power Platform API checkbox for client secret auth
+            const ppApiCheckbox = document.getElementById("connection-enabled-for-powerplatform-api");
+            if (ppApiCheckbox instanceof HTMLInputElement) {
+                ppApiCheckbox.checked = connection.enabledForPowerPlatformAPI === true;
+            }
         } else if (connection.authenticationType === "usernamePassword") {
             setInputValue("connection-username-up", connection.username);
             setInputValue("connection-password", connection.password);
@@ -309,6 +529,7 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
         }
         
         updateAuthVisibility();
+        updateConfigureFooterState();
     };
 
     const setButtonState = (button, isLoading, loadingLabel, defaultLabel) => {
@@ -337,6 +558,17 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
 
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
+
+    ppApiCheckbox?.addEventListener("change", () => {
+        if (ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked) {
+            const agreed = confirmPowerPlatformApiConsent();
+            if (!agreed) {
+                ppApiCheckbox.checked = false;
+            }
+        }
+        updatePowerPlatformClientIdRequirement();
+    });
+    updatePowerPlatformClientIdRequirement();
 
     // Environment color picker setup
     const envSelectEl = document.getElementById("connection-environment");
@@ -455,14 +687,65 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     }
     clearCategoryColorBtn?.addEventListener("click", resetCategoryColor);
 
+    [interactiveClientIdInput, usernamePasswordClientIdInput, authTypeSelect, ppApiCheckbox].forEach((element) => {
+        element?.addEventListener?.("input", updateConfigureFooterState);
+        element?.addEventListener?.("change", updateConfigureFooterState);
+    });
+
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {
         loadBrowserProfiles();
     });
 
-    saveButton?.addEventListener("click", () => {
-        setButtonState(saveButton, true, "Saving...", "Save Changes");
-        modalBridge.send(CHANNELS.submit, collectFormData());
+    saveButton?.addEventListener("click", async () => {
+        const formData = collectFormData();
+        configureSaveInFlight = true;
+        pendingConfigureSaveScript = "";
+        setButtonState(saveButton, true, "Configuring...", getPrimaryActionLabel());
+        setButtonState(copyScriptSaveButton, true, "Working...", getManualActionLabel());
+
+        try {
+            const configureResult = await runConfigureAndSavePreflight();
+            if (!configureResult?.success) {
+                const failureMessage = typeof configureResult?.message === "string" && configureResult.message.trim().length > 0 ? configureResult.message : "Failed to configure app registration.";
+                pendingConfigureSaveScript = typeof configureResult?.script === "string" && configureResult.script.trim().length > 0 ? configureResult.script : buildAdminHandOffScript(failureMessage);
+                await copyAdminHandOffScript(failureMessage);
+                updateTestFeedback({ message: failureMessage, type: "error" });
+                configureSaveInFlight = false;
+                setButtonState(saveButton, false, "", getPrimaryActionLabel());
+                setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
+                return;
+            }
+        } catch (error) {
+            const failureMessage = (error instanceof Error && error.message) || "Failed to configure app registration.";
+            pendingConfigureSaveScript = buildAdminHandOffScript(failureMessage);
+            await copyAdminHandOffScript(failureMessage);
+            updateTestFeedback({ message: failureMessage, type: "error" });
+            configureSaveInFlight = false;
+            setButtonState(saveButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
+            return;
+        }
+
+        modalBridge.send(CHANNELS.submit, formData);
+    });
+
+    copyScriptSaveButton?.addEventListener("click", async () => {
+        const formData = collectFormData();
+        setButtonState(copyScriptSaveButton, true, "Copying...", getManualActionLabel());
+        setButtonState(saveButton, true, "Working...", getPrimaryActionLabel());
+
+        try {
+            const generatedScript = await getGeneratedAppRegistrationScript();
+            pendingConfigureSaveScript = generatedScript || buildAdminHandOffScript("Manual setup requested by user.");
+            await copyAdminHandOffScript("Manual setup requested by user.");
+            modalBridge.send(CHANNELS.submit, formData);
+        } catch (error) {
+            const failureMessage = (error instanceof Error && error.message) || "Failed to copy setup script.";
+            updateTestFeedback({ message: failureMessage, type: "error" });
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
+            setButtonState(saveButton, false, "", getPrimaryActionLabel());
+        }
     });
 
     testButton?.addEventListener("click", () => {
@@ -475,13 +758,21 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     modalBridge.onMessage?.((payload) => {
         if (!payload || typeof payload !== "object") return;
         if (payload.channel === CHANNELS.submitReady) {
-            setButtonState(saveButton, false, "", "Save Changes");
+            configureSaveInFlight = false;
+            pendingConfigureSaveScript = "";
+            setButtonState(saveButton, false, "", getPrimaryActionLabel());
+            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
         }
         if (payload.channel === CHANNELS.testReady) {
             setButtonState(testButton, false, "", "Test Connection");
         }
         if (payload.channel === CHANNELS.testFeedback) {
-            updateTestFeedback(typeof payload.data === "string" ? payload.data : "");
+            if (configureSaveInFlight && typeof payload.data === "string" && payload.data.trim().length > 0) {
+                pendingConfigureSaveScript = buildAdminHandOffScript(payload.data);
+                void copyAdminHandOffScript(payload.data);
+                configureSaveInFlight = false;
+            }
+            updateTestFeedback(payload.data);
         }
         if (payload.channel === CHANNELS.populateConnection) {
             populateFormData(payload.data);

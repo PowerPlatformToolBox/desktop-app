@@ -1,10 +1,10 @@
-import { spawn, execSync } from "child_process";
+import { execSync, spawn } from "child_process";
+import { shell } from "electron";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { shell } from "electron";
-import { DataverseConnection } from "../../common/types";
 import { logInfo, logWarn } from "../../common/logger";
+import { Connection } from "../../common/types";
 
 /**
  * Manages browser detection, profile enumeration, and browser launching
@@ -284,7 +284,7 @@ export class BrowserManager {
      * Open URL in browser with optional profile support
      * Falls back to default browser if profile browser is not found
      */
-    public async openBrowserWithProfile(url: string, connection: DataverseConnection): Promise<void> {
+    public async openBrowserWithProfile(url: string, connection: Connection): Promise<void> {
         const browserType = connection.browserType || "default";
         const profileName = connection.browserProfile;
 

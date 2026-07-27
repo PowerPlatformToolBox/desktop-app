@@ -69,6 +69,14 @@ export const BLOCKED_TERMINAL_COMMANDS = new Set([
     "powershell.exe",
     "pwsh",
     "pwsh.exe",
+    // Runtime interpreters/hosts that can evaluate arbitrary code or spawn child processes
+    "node",
+    "node.exe",
+    "nodejs",
+    "dotnet",
+    "dotnet.exe",
+    "csi",
+    "csi.exe",
     // Privilege escalation
     "sudo",
     "su",
@@ -133,6 +141,9 @@ export const BLOCKED_TERMINAL_COMMANDS = new Set([
     "schtasks.exe",
     "vssadmin.exe",
     "wevtutil.exe",
+    "conhost",
+    "conhost.exe",
+    "start",
     // macOS-specific
     "osascript",
     "open",

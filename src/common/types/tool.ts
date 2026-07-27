@@ -35,6 +35,12 @@ export interface ToolFeatures {
      * @example "1.0.12"
      */
     minAPI?: string;
+    /**
+     * Whether this tool requires connections enabled for Power Platform API
+     * When true, only connections with Client ID/Secret authentication and
+     * enabledForPowerPlatformAPI=true will be shown in the connection selection modal.
+     */
+    enabledForPowerPlatformAPI?: boolean;
 }
 
 /**
@@ -66,6 +72,7 @@ export interface Tool {
     minAPI?: string; // Minimum ToolBox API version required
     maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
+    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];
 }
@@ -130,6 +137,7 @@ export interface ToolManifest {
     createdAt?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
     maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
+    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];
 }

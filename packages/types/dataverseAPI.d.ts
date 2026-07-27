@@ -1544,6 +1544,12 @@ declare global {
          */
         dataverseAPI: DataverseAPI.API;
     }
+    interface GlobalThis {
+        /**
+         * Dataverse Web API accessible to headless tools via globalThis
+         */
+        dataverseAPI: DataverseAPI.API;
+    }
 }
 
 export = DataverseAPI;

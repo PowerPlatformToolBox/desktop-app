@@ -5,7 +5,7 @@
 
 import { logWarn } from "../../common/logger";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
-import { openToolDetailTab } from "./toolManagement";
+import { openLocalPageAsTab } from "./toolManagement";
 
 const WHATS_NEW_TAB_ID = "whats-new";
 const WHATS_NEW_TAB_TITLE = "What's New";
@@ -65,7 +65,7 @@ export async function openWhatsNewTab(versionOverride?: string): Promise<void> {
     const websiteUrl = normalizedVersion ? buildWhatsNewWebsiteUrl(normalizedVersion) : "";
     const markdownUrl = normalizedVersion ? buildWhatsNewMarkdownUrl(normalizedVersion) : "";
 
-    await openToolDetailTab(
+    await openLocalPageAsTab(
         WHATS_NEW_TAB_ID,
         WHATS_NEW_TAB_TITLE,
         (panel) => {

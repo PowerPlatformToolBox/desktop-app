@@ -55,6 +55,10 @@ export class ToolManager extends EventEmitter {
         });
     }
 
+    getRegistryManager(): ToolRegistryManager {
+        return this.registryManager;
+    }
+
     private createToolFromInstalledManifest(manifest: ToolManifest): Tool {
         const tool: Tool = {
             id: manifest.id,
@@ -79,6 +83,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
         };
 
@@ -150,6 +155,7 @@ export class ToolManager extends EventEmitter {
             minAPI: manifest.minAPI,
             maxAPI: manifest.maxAPI,
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
         };
 
@@ -371,9 +377,7 @@ export class ToolManager extends EventEmitter {
                 fs.rmSync(toolPath, { recursive: true, force: true });
             }
         } else if (tool?.localPath) {
-            if (fs.existsSync(tool.localPath)) {
-                fs.rmSync(tool.localPath, { recursive: true, force: true });
-            }
+            // Do not delete local development tools, just unload them
         } else {
             await this.registryManager.uninstallTool(toolId);
         }
@@ -668,6 +672,7 @@ export class ToolManager extends EventEmitter {
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
+        let mcpHeadlessEnabled = false;
         const pptbConfigPath = path.join(toolPath, "pptb.config.json");
         if (fs.existsSync(pptbConfigPath)) {
             try {
@@ -675,6 +680,17 @@ export class ToolManager extends EventEmitter {
                 const caps = pptbConfig?.invocation?.capabilities;
                 if (Array.isArray(caps) && caps.length > 0) {
                     capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+
+                const agentsConfig = pptbConfig?.agents;
+                if (agentsConfig && typeof agentsConfig === "object" && !Array.isArray(agentsConfig)) {
+                    const agentsRecord = agentsConfig as Record<string, unknown>;
+                    const invokable = agentsRecord.invokable === true;
+                    const supportsHeadlessFlag = agentsRecord.headless === true;
+                    const executionModes = agentsRecord.executionModes;
+                    const supportsHeadlessExecutionMode = Array.isArray(executionModes) && executionModes.some((mode) => mode === "headless");
+
+                    mcpHeadlessEnabled = invokable && (supportsHeadlessFlag || supportsHeadlessExecutionMode);
                 }
             } catch (err) {
                 logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
@@ -704,6 +720,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
@@ -883,6 +900,7 @@ export class ToolManager extends EventEmitter {
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
+        let mcpHeadlessEnabled = false;
         const pptbConfigPath = path.join(localPath, "pptb.config.json");
         if (fs.existsSync(pptbConfigPath)) {
             try {
@@ -890,6 +908,17 @@ export class ToolManager extends EventEmitter {
                 const caps = pptbConfig?.invocation?.capabilities;
                 if (Array.isArray(caps) && caps.length > 0) {
                     capabilities = (caps as unknown[]).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+                }
+
+                const agentsConfig = pptbConfig?.agents;
+                if (agentsConfig && typeof agentsConfig === "object" && !Array.isArray(agentsConfig)) {
+                    const agentsRecord = agentsConfig as Record<string, unknown>;
+                    const invokable = agentsRecord.invokable === true;
+                    const supportsHeadlessFlag = agentsRecord.headless === true;
+                    const executionModes = agentsRecord.executionModes;
+                    const supportsHeadlessExecutionMode = Array.isArray(executionModes) && executionModes.some((mode) => mode === "headless");
+
+                    mcpHeadlessEnabled = invokable && (supportsHeadlessFlag || supportsHeadlessExecutionMode);
                 }
             } catch (err) {
                 logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
@@ -919,6 +948,7 @@ export class ToolManager extends EventEmitter {
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
             website: packageJson.homepage,
             readmeUrl: packageJson.readme,
+            mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
         };
 

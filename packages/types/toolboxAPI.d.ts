@@ -16,6 +16,18 @@ declare namespace ToolBoxAPI {
         connectionId?: string | null;
         secondaryConnectionUrl?: string | null;
         secondaryConnectionId?: string | null;
+        /**
+         * Invocation metadata injected by PPTB when the tool is launched by another
+         * tool or by the MCP server. Tools should treat this as optional and
+         * branch on `source`/`mode` rather than assuming it is always present.
+         */
+        invocationContext?: {
+            source?: "tool" | "mcp";
+            mode?: "one-way" | "two-way";
+            correlationId?: string;
+            timeoutMs?: number;
+            expectsResponse?: boolean;
+        };
     }
 
     /**
@@ -75,9 +87,9 @@ declare namespace ToolBoxAPI {
     }
 
     /**
-     * Dataverse connection configuration
+     * Power Platform ToolBox connection configuration
      */
-    export interface DataverseConnection {
+    export interface Connection {
         id: string;
         name: string;
         url: string;
@@ -85,6 +97,8 @@ declare namespace ToolBoxAPI {
         category?: string;
         environmentColor?: string;
         categoryColor?: string;
+        enabledForPowerPlatformAPI?: boolean;
+        scopesForPowerPlatformAPI?: string[];
         createdAt?: string;
         lastUsedAt?: string;
         /**
@@ -94,6 +108,11 @@ declare namespace ToolBoxAPI {
          */
         isActive?: boolean;
     }
+
+    /**
+     * @deprecated Use Connection instead.
+     */
+    export type DataverseConnection = Connection;
 
     /**
      * Tool information
@@ -150,12 +169,12 @@ declare namespace ToolBoxAPI {
         /**
          * Get the currently active Dataverse connection
          */
-        getActiveConnection: () => Promise<DataverseConnection | null>;
+        getActiveConnection: () => Promise<Connection | null>;
 
         /**
          * Get the secondary connection for multi-connection tools
          */
-        getSecondaryConnection: () => Promise<DataverseConnection | null>;
+        getSecondaryConnection: () => Promise<Connection | null>;
     }
 
     /**
@@ -455,16 +474,15 @@ declare namespace ToolBoxAPI {
         getLaunchContext: () => Promise<Record<string, unknown> | null>;
 
         /**
-         * Returns data back to the caller tool that launched this tool.
+         * Return data back to the tool that launched this one. If the tool was not
+         * launched by another tool, this is a no-op.
          *
-         * The value resolves the `Promise` returned by the caller's
-         * `invocation.launchTool()` call.  **After calling `returnData`, PPTB
-         * automatically closes the callee window** — the callee does not need to
-         * close itself.
-         *
-         * If this tool was not launched by another tool, the call is a no-op.
+         * For MCP launches, one-way mode may omit a payload entirely from the
+         * caller's response lifecycle, but the tool can still call `returnData()` to
+         * complete a local flow if it wants to.
          *
          * @param returnData The data to pass back to the caller
+         * @returns Promise that resolves when the data has been handed off
          */
         returnData: (returnData: Record<string, unknown>) => Promise<void>;
 
@@ -498,7 +516,11 @@ declare namespace ToolBoxAPI {
          * @param prefillData  Data to pre-populate the target tool's state
          * @param options      Optional connection overrides and launch flags
          */
-        launchTool: (targetToolId: string, prefillData?: Record<string, unknown>, options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean }) => Promise<unknown>;
+        launchTool: (
+            targetToolId: string,
+            prefillData?: Record<string, unknown>,
+            options?: { primaryConnectionId?: string | null; secondaryConnectionId?: string | null; noReturn?: boolean },
+        ) => Promise<unknown>;
 
         /**
          * Find installed tools that declare a given capability tag in their
@@ -547,6 +569,19 @@ declare namespace ToolBoxAPI {
  * Global window interface extension for ToolBox tools
  */
 declare global {
+    interface GlobalThis {
+        /**
+         * The organized ToolBox API for headless tools.
+         * Windowed tools should continue to use window.toolboxAPI.
+         */
+        toolboxAPI: ToolBoxAPI.API;
+
+        /**
+         * Tool context available at startup
+         */
+        TOOLBOX_CONTEXT?: ToolBoxAPI.ToolContext;
+    }
+
     interface Window {
         /**
          * The organized ToolBox API for tools

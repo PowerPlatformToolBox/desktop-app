@@ -7,9 +7,18 @@ import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
 import { ConnectionsManager } from "./connectionsManager";
 import { SettingsManager } from "./settingsManager";
+import { SplitLayoutManager } from "./splitLayoutManager";
 import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
+
+interface InvocationContextMetadata {
+    source?: "tool" | "mcp";
+    mode?: "one-way" | "two-way";
+    correlationId?: string;
+    timeoutMs?: number;
+    expectsResponse?: boolean;
+}
 
 /**
  * ToolWindowManager
@@ -67,6 +76,7 @@ export class ToolWindowManager {
             resolved: boolean;
             /** When true the caller does not expect return data; banner shows a "nothing returned" warning. */
             noReturn?: boolean;
+            invocationContext?: InvocationContextMetadata;
         }
     > = new Map();
     /**
@@ -92,6 +102,8 @@ export class ToolWindowManager {
     private activeToolId: string | null = null;
     private boundsUpdatePending: boolean = false;
     private frameScheduled = false;
+    /** Optional split layout manager — injected after construction via setSplitLayoutManager(). */
+    private splitLayoutManager: SplitLayoutManager | null = null;
     private boundsResponseListener: (event: Electron.IpcMainEvent, bounds: { x: number; y: number; width: number; height: number }) => void;
     private terminalVisibilityListener: () => void;
     private bannerVisibilityListener: () => void;
@@ -218,11 +230,7 @@ export class ToolWindowManager {
         // (in response to an INVOCATION_PROMPT_CONNECTIONS push to the main renderer).
         ipcMain.handle(
             TOOL_WINDOW_CHANNELS.PROVIDE_INVOCATION_CONNECTIONS,
-            async (
-                _event,
-                requestId: string,
-                result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null,
-            ) => {
+            async (_event, requestId: string, result: { primaryConnectionId: string | null; secondaryConnectionId: string | null } | null) => {
                 const prompt = this.pendingConnectionPrompts.get(requestId);
                 if (!prompt) return;
                 this.pendingConnectionPrompts.delete(requestId);
@@ -466,6 +474,7 @@ export class ToolWindowManager {
                     ? {
                           callerInstanceId: pending.callerInstanceId,
                           prefillData: pending.prefillData,
+                          invocationContext: pending.invocationContext,
                       }
                     : {}),
                 ...(prefillData && !pending ? { prefillData } : {}),
@@ -532,6 +541,7 @@ export class ToolWindowManager {
         secondaryConnectionId: string | null,
         prefillData: Record<string, unknown>,
         noReturn?: boolean,
+        invocationContext?: InvocationContextMetadata,
     ): Promise<unknown> {
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
@@ -539,7 +549,7 @@ export class ToolWindowManager {
         }
 
         // FXS connection auto-inheritance: use caller's primary connection when none is specified
-        const effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
+        let effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
 
         // Multi-connection: if the callee requires a secondary connection but none was provided,
         // ask the main renderer to show the multi-connection selector before launching the tool.
@@ -551,12 +561,8 @@ export class ToolWindowManager {
             const isSecondaryRequired = multiConnectionMode === "required";
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
-                const connectionResult = await this.promptForInvocationConnections(
-                    requestId,
-                    tool.name,
-                    isSecondaryRequired,
-                    effectivePrimaryConnectionId,
-                );
+                const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
+                effectivePrimaryConnectionId = connectionResult.primaryConnectionId;
                 effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
             } catch (err) {
                 throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
@@ -571,6 +577,7 @@ export class ToolWindowManager {
                 reject,
                 resolved: false,
                 noReturn: noReturn ?? false,
+                invocationContext,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
 
@@ -687,6 +694,39 @@ export class ToolWindowManager {
                 return false;
             }
 
+            // ── Split-mode handling ───────────────────────────────────────────────────
+            // When split is active, all tool switches are handled here regardless of
+            // whether the instance is already in a pane or is a brand-new tool.
+            if (this.splitLayoutManager?.isActive) {
+                const pane = this.splitLayoutManager.getPaneForInstance(instanceId);
+                if (pane) {
+                    // Already in a pane — make it the visible (active) tool for that pane
+                    this.splitLayoutManager.setActiveInPane(pane, instanceId);
+                } else {
+                    // New tool not yet in any pane — route to the focused pane
+                    this.splitLayoutManager.addToolToFocusedPane(instanceId);
+                }
+
+                this.activeToolId = instanceId;
+                this.invokeActiveToolChangedCallback();
+
+                const invocationEntryS = this.pendingInvocations.get(instanceId);
+                if (invocationEntryS) {
+                    const callerToolNameS = this.toolInstanceNames.get(invocationEntryS.callerInstanceId) ?? "Caller";
+                    if (invocationEntryS.noReturn) {
+                        this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                    } else {
+                        this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: true, callerToolName: callerToolNameS });
+                    }
+                } else {
+                    this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.INVOCATION_BANNER_STATE, { visible: false });
+                }
+
+                logInfo(`[ToolWindowManager] Split mode: ${pane ? "active in " + pane + " pane" : "added to focused pane"} → ${instanceId}`);
+                this.scheduleBoundsUpdate();
+                return true;
+            }
+
             // Hide current tool if any
             if (this.activeToolId && this.activeToolId !== instanceId) {
                 const currentView = this.toolViews.get(this.activeToolId);
@@ -796,6 +836,9 @@ export class ToolWindowManager {
 
             // Revoke filesystem access for this specific tool instance
             this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+
+            // Notify split layout manager so it can deactivate split if a pane tool closed
+            this.splitLayoutManager?.handleToolClosed(instanceId);
 
             logInfo(`[ToolWindowManager] Tool instance closed: ${instanceId}`);
             return true;
@@ -988,6 +1031,13 @@ export class ToolWindowManager {
      * Apply the bounds to the active tool view
      */
     private applyToolViewBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+        // ── Split-mode: delegate entirely to SplitLayoutManager ──────────────────
+        if (this.splitLayoutManager?.isActive) {
+            this.splitLayoutManager.applyLayout(bounds);
+            this.boundsUpdatePending = false;
+            return;
+        }
+
         if (!this.activeToolId) return;
 
         const toolView = this.toolViews.get(this.activeToolId);
@@ -1259,6 +1309,22 @@ export class ToolWindowManager {
      */
     getActiveToolId(): string | null {
         return this.activeToolId;
+    }
+
+    /**
+     * Expose the internal BrowserView map so SplitLayoutManager can reference the same
+     * instance without duplicating state.  Callers must not mutate the map directly.
+     */
+    getToolViews(): Map<string, BrowserView> {
+        return this.toolViews;
+    }
+
+    /**
+     * Wire up the SplitLayoutManager.  Must be called after construction so that the
+     * shared toolViews reference is already stable.
+     */
+    setSplitLayoutManager(manager: SplitLayoutManager): void {
+        this.splitLayoutManager = manager;
     }
 
     /**

@@ -11,6 +11,7 @@
     --text-color: #{$text-color};
     --text-primary: #{$text-color};
     --text-secondary: #605e5c;
+    --text-muted: #{$text-muted};
     --bg-color: #{$bg-color};
     --card-background: #{$bg-color};
     --input-background: #f3f2f1;
@@ -62,6 +63,7 @@ body.dark-theme {
     --text-color: #{$dark-text-color};
     --text-primary: #{$dark-text-color};
     --text-secondary: #c8c6c4;
+    --text-muted: #{$dark-text-muted};
     --bg-color: #{$dark-bg-color};
     --card-background: #2d2d30;
     --input-background: #1e1e1e;
@@ -1087,6 +1089,17 @@ body.dark-theme .settings-section-card {
     font-size: 11px;
 }
 
+.power-platform-api-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    color: var(--primary-color);
+    border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
 .connection-actions {
     display: flex;
     gap: 8px;
@@ -1601,6 +1614,48 @@ body.dark-theme .settings-section-card {
     height: 40px;
     min-height: 40px;
     position: relative;
+    overflow: hidden;
+
+    /* ── Split-active layout ─────────────────────────────────────────────────
+     * When .split-active is added, the left/right tab containers sit side by
+     * side.  Their flex-basis values are set via JS (--split-left-basis /
+     * --split-right-basis) so the separator aligns with the content divider.
+     */
+    &.split-active {
+        overflow: visible; // allow tab bar shadow to be visible
+
+        #left-tabs-container {
+            flex: 0 0 var(--split-left-basis, 50%);
+            min-width: 80px;
+            max-width: calc(100% - 80px - 4px);
+            border-right: none;
+        }
+
+        #right-tabs-container {
+            flex: 1 1 auto;
+            min-width: 80px;
+            overflow: hidden;
+        }
+    }
+}
+
+/* ── Split-pane tab-bar visual separator ────────────────────────────────────── */
+
+.split-tabs-bar-divider {
+    flex: 0 0 4px;
+    width: 4px;
+    align-self: stretch;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    z-index: 5;
+}
+
+/* Right tab bar drop-zone highlight when a tab is dragged over it */
+#right-tabs-container.drag-over-pane,
+#left-tabs-container.drag-over-pane {
+    background: color-mix(in srgb, var(--accent-color, #6a00ff) 12%, transparent);
+    outline: 1px solid var(--accent-color, #6a00ff);
+    outline-offset: -1px;
 }
 
 .tool-panel-controls {
@@ -1855,6 +1910,61 @@ body.dark-theme .settings-section-card {
     flex: 1;
     position: relative;
     overflow: hidden;
+}
+
+/* ── Split-pane divider ───────────────────────────────────────────────────── */
+
+.split-pane-divider {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background-color: var(--border-color);
+    cursor: col-resize;
+    z-index: 2;
+    user-select: none;
+    transition: background-color 0.15s ease;
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -4px;
+        right: -4px;
+        bottom: 0;
+    }
+
+    &:hover,
+    &.dragging {
+        background-color: var(--accent-color, #6a00ff);
+    }
+}
+
+/* ── Split-pane tab badges (L / R) ───────────────────────────────────────── */
+
+.split-pane-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    margin-right: 4px;
+    flex-shrink: 0;
+    pointer-events: none;
+    background-color: var(--accent-color, #6a00ff);
+    color: #fff;
+}
+
+.tool-tab.split-pane-left .split-pane-badge {
+    background-color: var(--accent-color, #6a00ff);
+}
+
+.tool-tab.split-pane-right .split-pane-badge {
+    background-color: var(--accent-color-alt, #00b4d8);
 }
 
 .tool-panel-content-wrapper {
@@ -2163,6 +2273,60 @@ body.dark-theme .settings-vscode-item:hover {
     align-self: flex-start;
 }
 
+.mcp-settings-item {
+    margin-bottom: 8px;
+}
+
+.mcp-settings-item-spaced {
+    margin-bottom: 16px;
+}
+
+.mcp-server-item-control {
+    width: 360px;
+}
+
+.mcp-server-control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 8px;
+}
+
+.mcp-server-value-input {
+    flex: 1;
+    min-width: 0;
+    font-family: monospace;
+}
+
+.mcp-copy-icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.mcp-copy-icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mcp-client-connect-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mcp-server-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mcp-server-action-status {
+    min-height: 18px;
+}
+
 /* Checkbox with label */
 .settings-vscode-checkbox-label {
     display: inline-flex;
@@ -2204,6 +2368,8 @@ body.dark-theme .settings-vscode-item:hover {
     z-index: 10;
     justify-content: end;
     flex-direction: row-reverse;
+    // justify-content: end;
+    // flex-direction: row-reverse;
 }
 
 .tool-detail-tab-header {
@@ -2265,6 +2431,18 @@ body.dark-theme .settings-vscode-item:hover {
     background: var(--input-background);
     font-size: 12px;
     color: var(--text-color);
+}
+
+.tool-detail-tab-tags .tool-mcp-headless-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-detail-tab-tags .tool-mcp-headless-badge img {
+    width: 12px;
+    height: 12px;
+    display: block;
 }
 
 .tool-detail-tab-name {
@@ -2970,6 +3148,31 @@ img.tool-item-icon-img {
     margin-right: 4px;
 }
 
+.tool-mcp-headless-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(0, 120, 212, 0.08);
+    color: var(--text-color);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.tool-mcp-headless-badge img {
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+
+body.dark-theme .tool-mcp-headless-badge {
+    background: rgba(0, 120, 212, 0.18);
+}
+
 .tool-item-pptb.deprecated {
     border-left: 3px solid #d83b01;
     background: rgba(216, 59, 1, 0.05);
@@ -3063,6 +3266,12 @@ img.tool-item-icon-img {
     margin-left: 38px;
 }
 
+.tool-item-compact .tool-item-top-tags.has-mcp-badge {
+    display: flex !important;
+    margin-left: 38px;
+    padding-top: 4px;
+}
+
 /* Compact mode styles for marketplace */
 .marketplace-item-compact {
     padding: 8px 12px !important;
@@ -3082,6 +3291,12 @@ img.tool-item-icon-img {
 .marketplace-item-compact .marketplace-item-author-pptb {
     font-size: 11px;
     margin-left: 38px;
+}
+
+.marketplace-item-compact .marketplace-item-top-tags.has-mcp-badge {
+    display: flex !important;
+    margin-left: 38px;
+    padding-top: 4px;
 }
 
 /* VSCode-style marketplace list */
@@ -5808,4 +6023,61 @@ body.dark-theme .global-search-item-badge.badge-settings {
 .invocation-banner-dismiss-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: #fff;
+}
+
+.mcp-subheader {
+    margin: 8px 0 16px;
+    font-weight: normal;
+    text-transform: none;
+}
+
+/* ── Notification Bell Button ───────────────────────────────────────────── */
+
+.footer-bell-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition:
+        color 0.15s ease,
+        background 0.15s ease;
+    flex-shrink: 0;
+}
+
+.footer-bell-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-color);
+}
+
+.dark-theme .footer-bell-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.footer-bell-btn[aria-pressed="true"] {
+    color: var(--accent-color, #0078d4);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: #d13438;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    pointer-events: none;
 }

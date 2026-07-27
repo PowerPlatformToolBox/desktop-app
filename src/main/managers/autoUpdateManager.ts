@@ -1,7 +1,10 @@
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import { autoUpdater } from "electron-updater";
 import { EventEmitter } from "events";
+import * as fs from "fs";
+import * as path from "path";
 import { EVENT_CHANNELS } from "../../common/ipc/channels";
+import { logWarn } from "../../common/logger";
 
 /**
  * Manages application auto-updates using electron-updater
@@ -10,6 +13,7 @@ export class AutoUpdateManager extends EventEmitter {
     private mainWindow: BrowserWindow | null = null;
     private updateCheckInterval: NodeJS.Timeout | null = null;
     private isChecking = false;
+    private readonly appUpdateConfigPath = path.join(process.resourcesPath, "app-update.yml");
 
     constructor() {
         super();
@@ -93,10 +97,48 @@ export class AutoUpdateManager extends EventEmitter {
     }
 
     /**
+     * Determine whether the installed app has the updater metadata electron-updater needs.
+     */
+    private canCheckForUpdates(): boolean {
+        if (!app.isPackaged) {
+            return false;
+        }
+
+        return fs.existsSync(this.appUpdateConfigPath);
+    }
+
+    /**
+     * Report that auto-updates are unavailable for the current installation.
+     */
+    private reportAutoUpdateUnavailable(action: string): void {
+        let message = "Automatic updates are unavailable for this installation.";
+
+        if (!app.isPackaged) {
+            message = "Automatic updates are only available in packaged releases.";
+            logWarn(`Skipping auto-update ${action}: app is not packaged`);
+        } else if (process.platform === "win32") {
+            message = "Automatic updates are only supported for the Windows NSIS (.exe) installer. If this app was installed via MSI, download the latest release manually from GitHub Releases.";
+            logWarn(`Skipping auto-update ${action}: ${this.appUpdateConfigPath} not found (likely non-NSIS Windows install)`);
+        } else {
+            message = "Automatic updates are unavailable because updater metadata is missing from this installation.";
+            logWarn(`Skipping auto-update ${action}: ${this.appUpdateConfigPath} not found`);
+        }
+
+        this.isChecking = false;
+        this.emit("update-error", new Error(message));
+        this.sendToRenderer(EVENT_CHANNELS.UPDATE_ERROR, message);
+    }
+
+    /**
      * Check for updates manually
      */
     async checkForUpdates(): Promise<void> {
         if (this.isChecking) {
+            return;
+        }
+
+        if (!this.canCheckForUpdates()) {
+            this.reportAutoUpdateUnavailable("check");
             return;
         }
 
@@ -112,6 +154,11 @@ export class AutoUpdateManager extends EventEmitter {
      * Download the available update
      */
     async downloadUpdate(): Promise<void> {
+        if (!this.canCheckForUpdates()) {
+            this.reportAutoUpdateUnavailable("download");
+            return;
+        }
+
         try {
             await autoUpdater.downloadUpdate();
         } catch (error) {
@@ -133,6 +180,11 @@ export class AutoUpdateManager extends EventEmitter {
     enableAutoUpdateChecks(intervalHours = 6): void {
         // Clear existing interval if any
         this.disableAutoUpdateChecks();
+
+        if (!this.canCheckForUpdates()) {
+            this.reportAutoUpdateUnavailable("scheduled check");
+            return;
+        }
 
         // Check for updates now
         this.checkForUpdates();

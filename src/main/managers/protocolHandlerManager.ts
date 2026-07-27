@@ -1,4 +1,4 @@
-import { app, dialog } from "electron";
+import { app } from "electron";
 import { logError, logInfo, logWarn } from "../../common/logger";
 
 /**
@@ -99,30 +99,12 @@ export class ProtocolHandlerManager {
 
     /**
      * Initialize early protocol listeners - must be called BEFORE app.whenReady().
-     * For stable packaged builds (protocolEnabled), acquires the single-instance lock
-     * to prevent duplicate stable instances and registers open-url / second-instance
-     * event handlers so no deep link is lost before the main window exists.
-     *
-     * Insider and dev builds skip both the single-instance lock and the protocol
-     * event listeners so they can run alongside a stable installation without
-     * interfering with it.
+     * Protocol-specific listeners (open-url and protocol URL forwarding) are only
+     * registered when protocol handling is enabled for this channel/build.
      */
     initialize(): void {
-        // Insider and dev builds must not acquire the single-instance lock so that
-        // they can run alongside a stable installation on the same machine.
         if (!this.protocolEnabled) {
-            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping single-instance lock and protocol event listeners");
-            return;
-        }
-
-        // Stable packaged builds: acquire the single-instance lock to prevent a
-        // second stable instance from starting and to receive protocol URLs forwarded
-        // via the second-instance event.
-        const gotTheLock = app.requestSingleInstanceLock();
-        if (!gotTheLock) {
-            logInfo("[ProtocolHandler] Another stable instance is already running, quitting this instance");
-            dialog.showErrorBox("Power Platform ToolBox is already running", "Only one instance of Power Platform ToolBox can be open at a time.\n\nPlease switch to the existing window.");
-            app.quit();
+            logInfo("[ProtocolHandler] pptb:// protocol disabled (local/dev run or insider build); skipping protocol event listeners");
             return;
         }
 

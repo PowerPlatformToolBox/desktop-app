@@ -1,5 +1,5 @@
-import { getModalStyles } from "../sharedStyles";
 import { escapeHtml } from "../../utils/toolIconResolver";
+import { getModalStyles } from "../sharedStyles";
 
 export interface ModalViewTemplate {
     styles: string;
@@ -11,9 +11,7 @@ export interface ModalViewTemplate {
  */
 export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: string): ModalViewTemplate {
     const styles = getModalStyles(isDarkTheme);
-    const toolNameHtml = toolName
-        ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>`
-        : `<p class="modal-eyebrow">Connections</p>`;
+    const toolNameHtml = toolName ? `<p class="modal-eyebrow">${escapeHtml(toolName)}</p>` : `<p class="modal-eyebrow">Connections</p>`;
 
     const body = `
 
@@ -28,6 +26,9 @@ export function getSelectConnectionModalView(isDarkTheme: boolean, toolName?: st
     <div class="modal-body">
         <div class="info-message">
             Please select a connection to connect to your Dataverse environment before using this tool.
+        </div>
+        <div id="power-platform-api-info" class="modal-warning" style="display: none; margin-bottom: 12px;">
+            <span>This tool uses Power Platform API. Selecting a connection that is not enabled for PP API may cause issues while using this tool.</span>
         </div>
         <div class="modal-search-container">
             <div class="modal-search-bar">

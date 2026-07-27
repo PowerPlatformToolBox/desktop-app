@@ -3,12 +3,13 @@
  * Handles homepage display, data loading, and user interactions
  */
 
+import { logError } from "../../common/logger";
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { filterMarketplaceByNew } from "./marketplaceManagement";
+import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
-import { logError } from "../../common/logger";
 
 function normalizeHomepageError(error: unknown, fallbackMessage: string): Error {
     if (error instanceof Error) {
@@ -365,6 +366,9 @@ async function loadRecentlyUsedTools(allTools: any[], recentEntries: LastUsedToo
 function renderToolsList(container: HTMLElement, tools: any[]): void {
     // Clear existing content
     container.innerHTML = "";
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
+    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
 
     tools.forEach((tool) => {
         // Create tool item
@@ -391,15 +395,28 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
         const infoContainer = document.createElement("div");
         infoContainer.className = "quick-tool-info";
 
+        const nameRow = document.createElement("div");
+        nameRow.className = "quick-tool-name-row";
+
         const nameDiv = document.createElement("div");
         nameDiv.className = "quick-tool-name";
         nameDiv.textContent = tool.name;
+
+        nameRow.appendChild(nameDiv);
+        if (mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true) {
+            const mcpBadge = document.createElement("span");
+            mcpBadge.className = "quick-tool-mcp-badge";
+            mcpBadge.setAttribute("title", "MCP headless enabled");
+            mcpBadge.setAttribute("aria-label", "MCP headless enabled");
+            mcpBadge.innerHTML = `<img src="${mcpIconPath}" alt="" aria-hidden="true" />`;
+            nameRow.appendChild(mcpBadge);
+        }
 
         const versionDiv = document.createElement("div");
         versionDiv.className = "quick-tool-version";
         versionDiv.textContent = `v${tool.version}`;
 
-        infoContainer.appendChild(nameDiv);
+        infoContainer.appendChild(nameRow);
         infoContainer.appendChild(versionDiv);
 
         // Assemble the tool item
@@ -420,6 +437,9 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
 
 function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry: LastUsedToolEntry }[]): void {
     container.innerHTML = "";
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
+    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
 
     items.forEach(({ tool, entry }) => {
         const toolItem = document.createElement("div");
@@ -443,15 +463,28 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         const infoContainer = document.createElement("div");
         infoContainer.className = "quick-tool-info";
 
+        const nameRow = document.createElement("div");
+        nameRow.className = "quick-tool-name-row";
+
         const nameDiv = document.createElement("div");
         nameDiv.className = "quick-tool-name";
         nameDiv.textContent = tool.name;
+
+        nameRow.appendChild(nameDiv);
+        if (mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true) {
+            const mcpBadge = document.createElement("span");
+            mcpBadge.className = "quick-tool-mcp-badge";
+            mcpBadge.setAttribute("title", "MCP headless enabled");
+            mcpBadge.setAttribute("aria-label", "MCP headless enabled");
+            mcpBadge.innerHTML = `<img src="${mcpIconPath}" alt="" aria-hidden="true" />`;
+            nameRow.appendChild(mcpBadge);
+        }
 
         const versionDiv = document.createElement("div");
         versionDiv.className = "quick-tool-version";
         versionDiv.textContent = `v${tool.version}`;
 
-        infoContainer.appendChild(nameDiv);
+        infoContainer.appendChild(nameRow);
         infoContainer.appendChild(versionDiv);
 
         const connectionLabel = entry.primaryConnection?.name || entry.primaryConnection?.url || entry.primaryConnection?.id || null;

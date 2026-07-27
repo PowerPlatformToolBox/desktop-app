@@ -2,6 +2,8 @@
  * Renderer-specific type definitions
  */
 
+import type { PreviewFeatureFlags } from "../../common/types";
+
 /**
  * Interface for an open tool instance
  */
@@ -62,6 +64,8 @@ export interface SettingsState {
     showEnvironmentColor?: boolean;
     categoryColorThickness?: number;
     environmentColorThickness?: number;
+    enablePreviewFeatures?: boolean;
+    previewFeatures?: PreviewFeatureFlags;
 }
 
 /**
@@ -103,4 +107,5 @@ export interface ToolDetail {
     maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     npmPackageName?: string; // npm package name used for pre-release version detection
+    mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
 }

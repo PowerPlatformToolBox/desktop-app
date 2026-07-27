@@ -37,6 +37,7 @@ export const SETTINGS_CHANNELS = {
     ADD_LAST_USED_TOOL: "add-last-used-tool",
     GET_LAST_USED_TOOLS: "get-last-used-tools",
     CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
+    GET_MCP_ACCESS_TOKEN: "get-mcp-access-token",
 } as const;
 
 // Connection-related IPC channels
@@ -53,6 +54,7 @@ export const CONNECTION_CHANNELS = {
     REFRESH_TOKEN: "refresh-connection-token",
     CHECK_BROWSER_INSTALLED: "check-browser-installed",
     GET_BROWSER_PROFILES: "get-browser-profiles",
+    CONFIGURE_APP_REGISTRATION: "configure-app-registration",
     EXPORT_CONNECTIONS: "export-connections",
     IMPORT_CONNECTIONS: "import-connections",
 } as const;
@@ -231,9 +233,28 @@ export const DATAVERSE_CHANNELS = {
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
 } as const;
 
+// Power Platform API-related IPC channels
+export const POWERPLATFORM_CHANNELS = {
+    REQUEST: "powerplatform.request",
+} as const;
+
 // Protocol handler-related IPC channels
 export const PROTOCOL_CHANNELS = {
     PROTOCOL_INSTALL_TOOL: "protocol:install-tool",
+} as const;
+
+// Agent Invocation Logging channels
+export const AGENT_INVOCATION_CHANNELS = {
+    GET_LOGS: "agent-invocation:get-logs",
+} as const;
+
+// MCP server status/details channels
+export const MCP_SERVER_CHANNELS = {
+    GET_DETAILS: "mcp-server:get-details",
+    START: "mcp-server:start",
+    STOP: "mcp-server:stop",
+    CONFIGURE_CLAUDE_DESKTOP: "mcp-server:configure-claude-desktop",
+    CONFIGURE_VSCODE: "mcp-server:configure-vscode",
 } as const;
 
 // Event-related IPC channels (from main to renderer)
@@ -265,6 +286,22 @@ export const MODAL_WINDOW_CHANNELS = {
     CLOSE: "modal-window:close",
     MESSAGE: "modal-window:event",
     RENDERER_MESSAGE: "modal-window:renderer-message",
+} as const;
+
+// Split layout channels
+export const SPLIT_LAYOUT_CHANNELS = {
+    ACTIVATE: "split-layout:activate",
+    DEACTIVATE: "split-layout:deactivate",
+    SET_RATIO: "split-layout:set-ratio",
+    GET_STATE: "split-layout:get-state",
+    /** setActiveInPane(pane, instanceId) — make a group member the visible tool in its pane */
+    SWITCH_PANE: "split-layout:switch-pane",
+    /** moveToPane(instanceId, targetPane) — move a tab from one group to another */
+    MOVE_TO_PANE: "split-layout:move-to-pane",
+    /** setFocusedPane(pane) — set which pane receives newly opened tools */
+    FOCUS_PANE: "split-layout:focus-pane",
+    /** Pushed from main to renderer when split state changes */
+    STATE_CHANGED: "split-layout:state-changed",
 } as const;
 
 // Type helper to extract channel names

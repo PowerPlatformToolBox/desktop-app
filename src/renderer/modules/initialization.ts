@@ -28,13 +28,27 @@ import {
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
+import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
-import { setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
+import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
-import { applyAppearanceSettings, closeAllTools, initializeCalleeToolListeners, initializeInvocationBanner, initializeInvocationConnectionsPrompt, initializeTabScrollButtons, launchTool, restoreSession, setupKeyboardShortcuts, showHomePage } from "./toolManagement";
+import {
+    applyAppearanceSettings,
+    closeAllTools,
+    initializeCalleeToolListeners,
+    initializeInvocationBanner,
+    initializeInvocationConnectionsPrompt,
+    initializeTabScrollButtons,
+    initSplitLayout,
+    launchTool,
+    restoreSession,
+    setupKeyboardShortcuts,
+    showHomePage,
+} from "./toolManagement";
 import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
 
 /**
@@ -58,6 +72,9 @@ export async function initializeApplication(): Promise<void> {
         // called after restoreSession which meant the main process could not get correct
         // BrowserView bounds during session restore, causing tools to fill the whole window.
         setupToolPanelBoundsListener();
+
+        // Set up the split-pane divider and listen for state changes from the main process
+        initSplitLayout();
 
         // Set up Activity Bar navigation
         setupActivityBar();
@@ -97,6 +114,10 @@ export async function initializeApplication(): Promise<void> {
 
         // Set up global search command palette
         initializeGlobalSearch();
+
+        // Set up notification history panel (bell icon in footer) early so the click
+        // handler is registered before any async operations that might delay init.
+        initNotificationHistoryPanel();
 
         // Load and apply theme settings on startup
         await loadInitialSettings();
@@ -225,6 +246,16 @@ function setupActivityBar(): void {
     if (settingsActivityBtn) {
         settingsActivityBtn.addEventListener("click", () => {
             openSettingsTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
+
+    // Agent invocation logs button opens a tab
+    const agentInvocationLogsBtn = document.getElementById("mcp-btn");
+    if (agentInvocationLogsBtn) {
+        agentInvocationLogsBtn.addEventListener("click", () => {
+            openAgentInvocationLogsTab().catch((err) => {
                 logError(err instanceof Error ? err : new Error(String(err)));
             });
         });
@@ -616,6 +647,7 @@ async function loadInitialSettings(): Promise<void> {
     applyTheme(settings.theme);
     applyTerminalFont(settings.terminalFont || DEFAULT_TERMINAL_FONT);
     applyDebugMenuVisibility(settings.showDebugMenu ?? false);
+    applyPreviewFeaturesVisibility(normalizePreviewFeatureFlags(settings));
     setDefaultNotificationDuration(settings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION);
     applyAppearanceSettings(
         settings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR,
@@ -782,6 +814,7 @@ function setupToolPanelBoundsListener(): void {
                 width: Math.round(rect.width),
                 height: adjustedHeight,
             };
+
             logInfo("[Renderer] Sending tool panel bounds:", bounds);
             window.api.send("get-tool-panel-bounds-response", bounds);
         } else {

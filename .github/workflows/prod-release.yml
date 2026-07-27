@@ -153,6 +153,26 @@ jobs:
                   SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
+            - name: Validate app-update.yml exists (Windows)
+              if: matrix.os == 'windows-latest'
+              shell: powershell
+              run: |
+                  $unpackedDir = Join-Path "${{ github.workspace }}/build" "${{ matrix.win_unpacked_dir }}"
+                  $resourcesDir = Join-Path $unpackedDir "resources"
+                  $appUpdateYml = Join-Path $resourcesDir "app-update.yml"
+
+                  if (-not (Test-Path $appUpdateYml)) {
+                      Write-Host "❌ Missing updater config: $appUpdateYml"
+                      Write-Host "Windows in-app auto-update requires NSIS metadata in resources/app-update.yml."
+                      if (Test-Path $resourcesDir) {
+                          Write-Host "Contents of resources directory:"
+                          Get-ChildItem $resourcesDir | Select-Object Name, Length
+                      }
+                      exit 1
+                  }
+
+                  Write-Host "✅ Found updater config: $appUpdateYml"
+
             - name: Sign application binaries with Azure Trusted Signing (Windows)
               if: matrix.os == 'windows-latest'
               uses: azure/artifact-signing-action@v1

@@ -101,11 +101,11 @@ jobs:
                   fi
 
             - name: Comment PR with bundle size
-              if: github.event_name == 'pull_request'
+              if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
               uses: actions/github-script@v7
               with:
                   script: |
-                      const fs = require('fs');
+                      const MARKER = '<!-- bundle-size-bot -->';
 
                       // Read bundle sizes
                       const mainSize = ${{ steps.analyze.outputs.main_size }};
@@ -121,7 +121,7 @@ jobs:
                         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
                       };
 
-                      const body = `## Bundle Size Report 📦
+                      const body = `${MARKER}\n## Bundle Size Report 📦
 
                       | Bundle | Size |
                       |--------|------|
@@ -141,9 +141,26 @@ jobs:
                       ---
                       *Bundle size tracking is now active! This helps prevent bundle bloat.*`;
 
-                      github.rest.issues.createComment({
-                        issue_number: context.issue.number,
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        body: body
+                      const { data: comments } = await github.rest.issues.listComments({
+                          issue_number: context.issue.number,
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
                       });
+
+                      const existing = comments.find((comment) => comment.body && comment.body.includes(MARKER));
+
+                      if (existing) {
+                          await github.rest.issues.updateComment({
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              comment_id: existing.id,
+                              body,
+                          });
+                      } else {
+                          await github.rest.issues.createComment({
+                              issue_number: context.issue.number,
+                              owner: context.repo.owner,
+                              repo: context.repo.repo,
+                              body,
+                          });
+                      }
