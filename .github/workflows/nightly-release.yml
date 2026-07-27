@@ -145,19 +145,6 @@ jobs:
                   description: Power Platform ToolBox (Insider)
                   description-url: https://github.com/PowerPlatformToolBox/desktop-app
 
-            - name: Package installers from signed directory (Windows)
-              if: matrix.os == 'windows-latest'
-              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/${{ matrix.win_unpacked_dir }}
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
-                  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-                  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-
             - name: Generate app-update.yml metadata (Windows)
               if: matrix.os == 'windows-latest'
               shell: powershell
@@ -235,6 +222,19 @@ jobs:
                   }
 
                   Write-Host "✅ Found updater config: $appUpdateYml"
+
+            - name: Package installers from signed directory (Windows)
+              if: matrix.os == 'windows-latest'
+              run: pnpm exec electron-builder --config ${{ matrix.config }} --prepackaged build/${{ matrix.win_unpacked_dir }}
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+                  APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
+                  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
             - name: Sign Windows installers with Azure Trusted Signing
               if: matrix.os == 'windows-latest'
