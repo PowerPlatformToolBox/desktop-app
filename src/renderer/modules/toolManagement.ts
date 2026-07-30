@@ -486,20 +486,87 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent — store required domains (for future re-consent detection) and selected optional domains
+                // Collect all required and all presented optional domains for storage
                 const requiredDomainsSet = new Set<string>();
+                const allOptionalDomainsSet = new Set<string>();
                 for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
                     if (Array.isArray(sources)) {
                         for (const s of sources) {
                             const entry = normalizeCspExceptionSource(s);
-                            if (!entry.optional) {
+                            if (entry.optional) {
+                                allOptionalDomainsSet.add(entry.domain);
+                            } else {
                                 requiredDomainsSet.add(entry.domain);
                             }
                         }
                     }
                 }
                 const requiredDomains = Array.from(requiredDomainsSet).sort();
-                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
+                const seenOptionalDomains = Array.from(allOptionalDomainsSet).sort();
+                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains, seenOptionalDomains);
+            } else {
+                // Consent already exists — check whether the tool has new permissions since last consent.
+                const allConsents = await window.toolboxAPI.getCspConsents();
+                const existingConsent = allConsents[tool.id];
+
+                const currentRequiredSet = new Set<string>();
+                const currentOptionalSet = new Set<string>();
+                for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
+                    if (Array.isArray(sources)) {
+                        for (const s of sources) {
+                            const entry = normalizeCspExceptionSource(s);
+                            if (entry.optional) {
+                                currentOptionalSet.add(entry.domain);
+                            } else {
+                                currentRequiredSet.add(entry.domain);
+                            }
+                        }
+                    }
+                }
+
+                const previousRequired: string[] = existingConsent?.required ?? [];
+                const previousOptional: string[] = existingConsent?.optional ?? [];
+                // seenOptional tracks all optional domains presented at consent time (approved or declined).
+                // Falls back to the approved optional list for records created before this field was added.
+                const previousSeenOptional: string[] = existingConsent?.seenOptional ?? previousOptional;
+
+                // A permission is considered "new" when it was not present at all during the previous consent.
+                const newRequired = [...currentRequiredSet].filter((d) => !previousRequired.includes(d)).sort();
+                const newOptional = [...currentOptionalSet].filter((d) => !previousSeenOptional.includes(d)).sort();
+
+                if (newRequired.length > 0 || newOptional.length > 0) {
+                    // New permissions detected — re-trigger consent modal with context.
+                    let approvedNewOptional: string[] | null = null;
+                    try {
+                        approvedNewOptional = await openCspExceptionModal(tool, {
+                            previouslyApprovedRequired: previousRequired,
+                            previouslyApprovedOptional: previousOptional,
+                            newRequired,
+                            newOptional,
+                        });
+                    } catch (error) {
+                        logInfo("CSP re-consent modal closed without selection:", { error });
+                        approvedNewOptional = null;
+                    }
+
+                    if (approvedNewOptional === null) {
+                        // User declined the new permissions — keep the existing consent unchanged and cancel launch.
+                        window.toolboxAPI.utils.showNotification({
+                            title: "Tool Launch Cancelled",
+                            body: `You declined the new security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
+                            type: "warning",
+                        });
+                        return;
+                    }
+
+                    // Merge new required domains with previously approved required domains.
+                    const updatedRequired = [...new Set([...previousRequired, ...newRequired])].sort();
+                    // Merge new approved optional domains with previously approved optional domains.
+                    const updatedOptional = [...new Set([...previousOptional, ...approvedNewOptional])].sort();
+                    // Update the seen-optional set to include all optional domains now visible.
+                    const updatedSeenOptional = [...new Set([...previousSeenOptional, ...currentOptionalSet])].sort();
+                    await window.toolboxAPI.grantCspConsent(tool.id, updatedRequired, updatedOptional, updatedSeenOptional);
+                }
             }
         }
 

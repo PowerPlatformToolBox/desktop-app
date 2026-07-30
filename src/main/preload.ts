@@ -146,8 +146,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) =>
-        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains, seenOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 

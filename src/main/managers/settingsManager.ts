@@ -206,10 +206,11 @@ export class SettingsManager {
      * @param toolId - The tool ID
      * @param requiredDomains - The required (non-optional) domains at the time of consent
      * @param approvedOptionalDomains - Optional domains approved by the user (empty means none approved)
+     * @param seenOptionalDomains - All optional domains presented to the user (approved or declined), used for re-consent detection
      */
-    grantCspConsent(toolId: string, requiredDomains: string[] = [], approvedOptionalDomains: string[] = []): void {
+    grantCspConsent(toolId: string, requiredDomains: string[] = [], approvedOptionalDomains: string[] = [], seenOptionalDomains: string[] = []): void {
         const cspConsents = this.store.get("cspConsents") || {};
-        cspConsents[toolId] = { allowed: true, required: requiredDomains, optional: approvedOptionalDomains };
+        cspConsents[toolId] = { allowed: true, required: requiredDomains, optional: approvedOptionalDomains, seenOptional: seenOptionalDomains };
         this.store.set("cspConsents", cspConsents);
     }
 

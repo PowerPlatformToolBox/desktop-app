@@ -7,11 +7,28 @@ export interface ModalViewTemplate {
     body: string;
 }
 
+/**
+ * Context provided when re-triggering consent because the tool has new permissions since
+ * the user last approved. Contains the previously approved domains and the newly added ones.
+ */
+export interface CspReconsentContext {
+    /** Required domains that were approved in the previous consent. */
+    previouslyApprovedRequired: string[];
+    /** Optional domains that were approved by the user in the previous consent. */
+    previouslyApprovedOptional: string[];
+    /** Required domains added since the last consent (must be approved to continue). */
+    newRequired: string[];
+    /** Optional domains added since the last consent (user may selectively approve). */
+    newOptional: string[];
+}
+
 export interface CspExceptionModalViewModel {
     toolName: string;
     authors: string[];
     cspExceptions: { [directive: string]: CspExceptionSource[] };
     isDarkTheme: boolean;
+    /** When present, renders the modal in re-consent mode, highlighting only the new permissions. */
+    reconsentContext?: CspReconsentContext;
 }
 
 /**
@@ -34,9 +51,13 @@ function renderMarkdownInline(text: string): string {
  * Returns the view markup (styles + body) for the CSP exception modal BrowserWindow.
  * Required and optional exceptions are shown in separate sections.
  * Optional exceptions have checkboxes so the user can selectively approve them.
+ *
+ * When `reconsentContext` is provided (re-consent mode), only the newly added permissions
+ * are shown for approval and previously approved permissions are displayed as informational context.
  */
 export function getCspExceptionModalView(model: CspExceptionModalViewModel): ModalViewTemplate {
     const isDarkTheme = model.isDarkTheme;
+    const isReconsent = !!model.reconsentContext;
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
@@ -45,14 +66,16 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const hasMailtoOnly = directiveKeys.length === 1 && directiveKeys[0] === "mailto";
     const hasMailto = directiveKeys.includes("mailto");
 
-    const modalTitle = hasMailtoOnly ? "Email Permission Required" : "Permission Request";
+    const modalTitle = isReconsent ? "Updated Permissions" : hasMailtoOnly ? "Email Permission Required" : "Permission Request";
     // These are intentional sentence fragments that complete the phrase
     // "<ToolName> by <Authors> <modalDescription>" in the modal body template below.
-    const modalDescription = hasMailtoOnly
-        ? "wants to open email links in your default email client."
-        : hasMailto
-          ? "wants to access external resources and open email links."
-          : "wants to connect to websites outside this application.";
+    const modalDescription = isReconsent
+        ? "has been updated with new permissions that require your approval."
+        : hasMailtoOnly
+          ? "wants to open email links in your default email client."
+          : hasMailto
+            ? "wants to access external resources and open email links."
+            : "wants to connect to websites outside this application.";
 
     // Build flat map of unique CSP source entries across all directives, keyed by domain
     const allEntries = new Map<string, { domain: string; exceptionReason?: string; optional?: boolean }>();
@@ -87,9 +110,6 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         }
     }
 
-    const requiredEntries = Array.from(allEntries.values()).filter((e) => !e.optional);
-    const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
-
     const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false): string => {
         // Use a human-readable label for the special mailto: sentinel domain.
         const domainLabel = entry.domain === "mailto:" ? "Email links (mailto:)" : entry.domain;
@@ -112,21 +132,78 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         return `<li>${domainHtml}${reasonHtml}</li>`;
     };
 
-    const requiredHtml = requiredEntries.map((e) => renderEntryItem(e, true, true)).join("");
-    const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true, false)).join("");
+    let requiredSectionHtml = "";
+    let optionalSectionHtml = "";
+    let previouslyApprovedSectionHtml = "";
 
-    const requiredSectionHtml =
-        requiredEntries.length > 0
-            ? `
+    if (isReconsent && model.reconsentContext) {
+        // Re-consent mode: show only the NEW permissions for approval, and previously approved as context.
+        const ctx = model.reconsentContext;
+
+        const newRequiredEntries = ctx.newRequired.map((domain) => allEntries.get(domain) ?? { domain });
+        const newOptionalEntries = ctx.newOptional.map((domain) => allEntries.get(domain) ?? { domain });
+
+        const newRequiredHtml = newRequiredEntries.map((e) => renderEntryItem(e, true, true)).join("");
+        const newOptionalHtml = newOptionalEntries.map((e) => renderEntryItem(e, true, false)).join("");
+
+        requiredSectionHtml =
+            newRequiredEntries.length > 0
+                ? `
+        <div class="csp-section-label">New Required</div>
+        <div class="csp-exceptions-list">
+            <ul>${newRequiredHtml}</ul>
+        </div>`
+                : "";
+
+        optionalSectionHtml =
+            newOptionalEntries.length > 0
+                ? `
+        <div class="csp-section-label csp-section-label-optional">
+            New Optional
+            <span class="csp-section-sublabel">Uncheck any you do not want to allow</span>
+        </div>
+        <div class="csp-exceptions-list csp-exceptions-list-optional">
+            <ul>${newOptionalHtml}</ul>
+        </div>`
+                : "";
+
+        // Build the previously approved section (required + optional combined, informational only)
+        const prevApprovedDomains = [...ctx.previouslyApprovedRequired, ...ctx.previouslyApprovedOptional];
+        if (prevApprovedDomains.length > 0) {
+            const prevEntriesHtml = prevApprovedDomains
+                .map((domain) => {
+                    const entry = allEntries.get(domain) ?? { domain };
+                    return renderEntryItem(entry);
+                })
+                .join("");
+            previouslyApprovedSectionHtml = `
+        <div class="csp-section-label csp-section-label-previous">
+            Previously Approved
+        </div>
+        <div class="csp-exceptions-list csp-exceptions-list-previous">
+            <ul>${prevEntriesHtml}</ul>
+        </div>`;
+        }
+    } else {
+        // Initial consent mode: show all required and optional entries.
+        const requiredEntries = Array.from(allEntries.values()).filter((e) => !e.optional);
+        const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
+
+        const requiredHtml = requiredEntries.map((e) => renderEntryItem(e, true, true)).join("");
+        const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true, false)).join("");
+
+        requiredSectionHtml =
+            requiredEntries.length > 0
+                ? `
         <div class="csp-section-label">Required</div>
         <div class="csp-exceptions-list">
             <ul>${requiredHtml}</ul>
         </div>`
-            : "";
+                : "";
 
-    const optionalSectionHtml =
-        optionalEntries.length > 0
-            ? `
+        optionalSectionHtml =
+            optionalEntries.length > 0
+                ? `
         <div class="csp-section-label csp-section-label-optional">
             Optional
             <span class="csp-section-sublabel">Uncheck any you do not want to allow</span>
@@ -134,7 +211,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         <div class="csp-exceptions-list csp-exceptions-list-optional">
             <ul>${optionalHtml}</ul>
         </div>`
-            : "";
+                : "";
+    }
 
     const styles =
         getModalStyles(isDarkTheme) +
@@ -183,6 +261,11 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         color: ${isDarkTheme ? "rgba(76, 194, 255, 0.8)" : "rgba(0, 110, 200, 0.8)"};
     }
 
+    .csp-section-label-previous {
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.35)"};
+        margin-top: 16px;
+    }
+
     .csp-section-sublabel {
         font-size: 10px;
         font-weight: 400;
@@ -203,6 +286,10 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     .csp-exceptions-list-optional {
         border-color: ${isDarkTheme ? "rgba(76, 194, 255, 0.2)" : "rgba(0, 110, 200, 0.2)"};
+    }
+
+    .csp-exceptions-list-previous {
+        opacity: 0.6;
     }
 
     .csp-exceptions-list ul {
@@ -324,6 +411,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         <p>Only allow if you trust this tool and the author(s) who created it.</p>
         ${requiredSectionHtml}
         ${optionalSectionHtml}
+        ${previouslyApprovedSectionHtml}
         <div class="csp-warning">
             <p>
                 <strong>⚠️ Only allow if you trust this tool.</strong>

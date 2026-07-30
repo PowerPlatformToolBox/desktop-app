@@ -5,6 +5,7 @@
 
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
 import { getCspExceptionModalControllerScript } from "../modals/cspException/controller";
+import type { CspReconsentContext } from "../modals/cspException/view";
 import { getCspExceptionModalView } from "../modals/cspException/view";
 import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 
@@ -30,12 +31,18 @@ const cspExceptionModalPromiseHandlers: CspExceptionModalPromiseHandlers = {
 };
 let cspExceptionModalClosedHandler: ((payload: ModalWindowClosedPayload) => void) | null = null;
 
+export type { CspReconsentContext };
+
 /**
  * Open the CSP exception consent modal.
  * Returns a promise that resolves with the list of approved optional domains if the user accepts,
  * or null if the user declines.
+ *
+ * @param tool - The tool requiring CSP consent
+ * @param reconsentContext - When provided, the modal will show a re-consent view that highlights
+ *   only the new permissions while showing previously approved ones as informational context.
  */
-export async function openCspExceptionModal(tool: any): Promise<string[] | null> {
+export async function openCspExceptionModal(tool: any, reconsentContext?: CspReconsentContext): Promise<string[] | null> {
     return new Promise((resolve, reject) => {
         initializeCspExceptionModalBridge();
 
@@ -56,7 +63,7 @@ export async function openCspExceptionModal(tool: any): Promise<string[] | null>
 
         showBrowserWindowModal({
             id: "csp-exception-browser-modal",
-            html: buildCspExceptionModalHtml(tool),
+            html: buildCspExceptionModalHtml(tool, reconsentContext),
             width: CSP_EXCEPTION_MODAL_DIMENSIONS.width,
             height: CSP_EXCEPTION_MODAL_DIMENSIONS.height,
         }).catch(reject);
@@ -127,7 +134,7 @@ function handleCspConsentDeclined(): void {
 /**
  * Build the CSP exception modal HTML
  */
-function buildCspExceptionModalHtml(tool: any): string {
+function buildCspExceptionModalHtml(tool: any, reconsentContext?: CspReconsentContext): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
     const { styles, body } = getCspExceptionModalView({
@@ -135,6 +142,7 @@ function buildCspExceptionModalHtml(tool: any): string {
         authors: tool.authors || [],
         cspExceptions: tool.cspExceptions || {},
         isDarkTheme,
+        reconsentContext,
     });
     const script = getCspExceptionModalControllerScript(CSP_EXCEPTION_MODAL_CHANNELS);
     return `${styles}\n${body}\n${script}`.trim();

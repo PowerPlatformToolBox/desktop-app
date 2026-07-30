@@ -94,6 +94,8 @@ export interface CspConsentRecord {
     allowed: boolean;
     required: string[];
     optional: string[];
+    /** All optional domains that were presented to the user at the time of consent (approved or declined). */
+    seenOptional: string[];
 }
 
 /**

@@ -132,6 +132,29 @@ describe("SettingsManager", () => {
             manager.revokeCspConsent("tool-a");
             expect(manager.hasCspConsent("tool-a")).toBe(false);
         });
+
+        it("grantCspConsent stores seenOptional domains", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com", "analytics.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual(["cdn.example.com", "analytics.example.com"]);
+        });
+
+        it("grantCspConsent defaults seenOptional to empty array when omitted", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual([]);
+        });
+
+        it("getCspConsents includes seenOptional in returned record", () => {
+            manager.grantCspConsent("tool-b", [], ["opt1.com"], ["opt1.com", "opt2.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-b"]).toMatchObject({
+                allowed: true,
+                required: [],
+                optional: ["opt1.com"],
+                seenOptional: ["opt1.com", "opt2.com"],
+            });
+        });
     });
 
     // -----------------------------------------------------------------------
