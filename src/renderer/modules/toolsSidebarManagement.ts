@@ -112,20 +112,20 @@ export async function loadSidebarTools(): Promise<void> {
             // Search filter
             if (searchTerm) {
                 const haystacks: string[] = [t.name || "", t.description || ""];
-                if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
-                if (t.categories && t.categories.length) haystacks.push(t.categories.join(", "));
+                if (Array.isArray(t.authors) && t.authors.length) haystacks.push(t.authors.join(", "));
+                if (Array.isArray(t.categories) && t.categories.length) haystacks.push(t.categories.join(", "));
                 if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
                     return false;
                 }
             }
 
             // Category filter
-            if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
+            if (selectedCategory && (!Array.isArray(t.categories) || !t.categories.includes(selectedCategory))) {
                 return false;
             }
 
             // Author filter
-            if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+            if (selectedAuthor && (!Array.isArray(t.authors) || !t.authors.includes(selectedAuthor))) {
                 return false;
             }
 
@@ -240,7 +240,7 @@ export async function loadSidebarTools(): Promise<void> {
                 const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
                 // Show up to two categories, with a +N indicator if more remain
                 const categoriesHtml = (() => {
-                    if (!tool.categories || !tool.categories.length) return "";
+                    if (!Array.isArray(tool.categories) || !tool.categories.length) return "";
                     const visibleCategories = tool.categories.slice(0, 2);
                     const remainingCount = tool.categories.length - visibleCategories.length;
                     const visibleHtml = visibleCategories.map((t) => `<span class="tool-tag">${t}</span>`).join("");
@@ -266,7 +266,7 @@ export async function loadSidebarTools(): Promise<void> {
                 }${tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}${
                     tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""
                 }</div>`;
-                const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
+                const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
                 const mcpBadgeHtml =
                     mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true
                         ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
@@ -525,10 +525,10 @@ function populateInstalledToolsFilters(tools: ToolDetail[]): void {
     const authors = new Set<string>();
 
     tools.forEach((tool) => {
-        if (tool.categories) {
+        if (Array.isArray(tool.categories)) {
             tool.categories.forEach((cat) => categories.add(cat));
         }
-        if (tool.authors) {
+        if (Array.isArray(tool.authors)) {
             tool.authors.forEach((author) => authors.add(author));
         }
     });

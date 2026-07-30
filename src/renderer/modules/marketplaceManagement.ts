@@ -151,8 +151,8 @@ export async function loadMarketplace(): Promise<void> {
         // Search filter
         if (searchTerm) {
             const haystacks: string[] = [t.name || "", t.description || ""];
-            if (t.authors && t.authors.length) haystacks.push(t.authors.join(", "));
-            if (t.categories && t.categories.length) haystacks.push(t.categories.join(", "));
+            if (Array.isArray(t.authors) && t.authors.length) haystacks.push(t.authors.join(", "));
+            if (Array.isArray(t.categories) && t.categories.length) haystacks.push(t.categories.join(", "));
             if (!haystacks.some((h) => h.toLowerCase().includes(searchTerm))) {
                 return false;
             }
@@ -161,12 +161,12 @@ export async function loadMarketplace(): Promise<void> {
         const toolIsNew = isToolNew(t);
 
         // Category filter
-        if (selectedCategory && (!t.categories || !t.categories.includes(selectedCategory))) {
+        if (selectedCategory && (!Array.isArray(t.categories) || !t.categories.includes(selectedCategory))) {
             return false;
         }
 
         // Author filter
-        if (selectedAuthor && (!t.authors || !t.authors.includes(selectedAuthor))) {
+        if (selectedAuthor && (!Array.isArray(t.authors) || !t.authors.includes(selectedAuthor))) {
             return false;
         }
 
@@ -252,7 +252,7 @@ export async function loadMarketplace(): Promise<void> {
             const isNewTool = isToolNew(tool);
 
             // Show all categories for this tool
-            const categoriesHtml = tool.categories && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
+            const categoriesHtml = Array.isArray(tool.categories) && tool.categories.length ? tool.categories.map((t) => `<span class="tool-tag">${t}</span>`).join("") : "";
             const isDeprecated = tool.status === "deprecated";
             const isUnsupported = tool.isSupported === false;
             const unsupportedRequirement = getUnsupportedRequirement(tool, versionInfo);
@@ -264,7 +264,7 @@ export async function loadMarketplace(): Promise<void> {
                 ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
                 ${tool.mau !== undefined ? `<span class="marketplace-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}
             </div>`;
-            const authorsDisplay = `by ${tool.authors && tool.authors.length ? tool.authors.join(", ") : ""}`;
+            const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
 
             // Icon handling using utility function
             const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
@@ -466,10 +466,10 @@ function populateMarketplaceFilters(): void {
     const authors = new Set<string>();
 
     toolLibrary.forEach((tool) => {
-        if (tool.categories) {
+        if (Array.isArray(tool.categories)) {
             tool.categories.forEach((cat) => categories.add(cat));
         }
-        if (tool.authors) {
+        if (Array.isArray(tool.authors)) {
             tool.authors.forEach((author) => authors.add(author));
         }
     });
@@ -511,7 +511,7 @@ export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Pr
  * Render tool detail content into the given panel element
  */
 function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstalled: boolean): void {
-    const authorsDisplay = tool.authors?.length ? tool.authors.join(", ") : "Unknown author";
+    const authorsDisplay = Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : "Unknown author";
     const metaBadges: string[] = [];
     if (tool.version) metaBadges.push(`v${tool.version}`);
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);

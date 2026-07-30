@@ -7,8 +7,9 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
 
 /**
@@ -80,6 +81,18 @@ interface SupabaseTool {
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
 }
 
+interface AzureBlobRegistryFile {
+    tools?: Array<
+        OfflineMockRegistryTool & {
+            downloadurl?: string;
+            readmeurl?: string;
+            website?: string;
+            published_at?: string;
+            authors?: string[] | string;
+        }
+    >;
+}
+
 /**
  * Supabase community_links table row
  */
@@ -123,40 +136,6 @@ const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = [
 ];
 
 /**
- * Local registry JSON file structure
- */
-interface LocalRegistryFile {
-    version?: string;
-    updatedAt?: string;
-    description?: string;
-    tools: LocalRegistryTool[];
-}
-
-interface LocalRegistryTool {
-    id: string;
-    name: string;
-    description: string;
-    authors?: string[];
-    version: string;
-    downloadUrl: string;
-    icon?: string;
-    checksum?: string;
-    size?: number;
-    publishedAt?: string;
-    tags?: string[];
-    readme?: string;
-    minToolboxVersion?: string;
-    repository?: string;
-    homepage?: string;
-    license?: string;
-    cspExceptions?: CspExceptions;
-    features?: Record<string, unknown>;
-    status?: string; // Tool lifecycle status: active, deprecated, archived
-    minAPI?: string; // Minimum ToolBox API version required
-    maxAPI?: string; // Maximum ToolBox API version tested
-}
-
-/**
  * Manages tool installation from a registry (marketplace)
  * Registry for discovering and managing tool installations
  */
@@ -165,7 +144,6 @@ export class ToolRegistryManager extends EventEmitter {
     private manifestPath: string;
     private supabase: SupabaseClient | null = null;
     private useLocalFallback: boolean = false;
-    private localRegistryPath: string;
     private installIdManager: InstallIdManager | null = null;
     private azureBlobBaseUrl: string;
 
@@ -192,7 +170,6 @@ export class ToolRegistryManager extends EventEmitter {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
-        this.localRegistryPath = path.join(__dirname, "data", "registry.json");
         this.installIdManager = installIdManager || null;
         this.azureBlobBaseUrl = azureBlobBaseUrl || AZURE_BLOB_BASE_URL;
 
@@ -407,9 +384,9 @@ export class ToolRegistryManager extends EventEmitter {
                 .on("error", reject);
         });
 
-        let registryData: LocalRegistryFile;
+        let registryData: AzureBlobRegistryFile;
         try {
-            registryData = JSON.parse(rawJson) as LocalRegistryFile;
+            registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
         } catch (parseError) {
             throw new Error(`Failed to parse Azure Blob registry.json from ${registryUrl}: ${(parseError as Error).message}`);
         }
@@ -425,14 +402,14 @@ export class ToolRegistryManager extends EventEmitter {
                 id: tool.id,
                 name: tool.name,
                 description: tool.description,
-                authors: tool.authors,
+                authors: this.normalizeAuthorList(tool.authors),
                 version: tool.version,
-                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || ""),
                 checksum: tool.checksum,
                 size: tool.size,
-                publishedAt: tool.publishedAt || new Date().toISOString(),
+                publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
                 repository: tool.repository,
-                website: tool.homepage,
+                website: tool.homepage || tool.website,
                 icon: tool.icon,
                 cspExceptions: tool.cspExceptions,
                 features: tool.features,
@@ -478,45 +455,20 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async fetchLocalRegistry(): Promise<ToolRegistryEntry[]> {
         try {
-            logInfo(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
+            const { tools: localTools, sourcePath } = loadOfflineMockRegistryTools();
 
-            if (!fs.existsSync(this.localRegistryPath)) {
-                logWarn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
+            if (sourcePath) {
+                logInfo(`[ToolRegistry] Fetching registry via mock utility from: ${sourcePath}`);
+            } else {
+                logWarn("[ToolRegistry] Offline mock registry source could not be resolved by utility");
+            }
+
+            if (!localTools.length) {
+                logInfo("[ToolRegistry] No tools available from utility-managed offline mock registry");
                 return [];
             }
 
-            const data = fs.readFileSync(this.localRegistryPath, "utf-8");
-            const registryData: LocalRegistryFile = JSON.parse(data);
-
-            if (!registryData.tools || registryData.tools.length === 0) {
-                logInfo(`[ToolRegistry] No tools found in local registry`);
-                return [];
-            }
-
-            const tools: ToolRegistryEntry[] = registryData.tools
-                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
-                .map((tool) => ({
-                    id: tool.id,
-                    name: tool.name,
-                    description: tool.description,
-                    authors: tool.authors,
-                    version: tool.version,
-                    icon: tool.icon,
-                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
-                    checksum: tool.checksum,
-                    size: tool.size,
-                    publishedAt: tool.publishedAt || new Date().toISOString(),
-                    tags: tool.tags,
-                    readme: tool.readme,
-                    repository: tool.repository,
-                    website: tool.homepage,
-                    cspExceptions: tool.cspExceptions,
-                    features: tool.features,
-                    license: tool.license,
-                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
-                    minAPI: tool.minAPI,
-                    maxAPI: tool.maxAPI,
-                }));
+            const tools: ToolRegistryEntry[] = this.mapLocalRegistryTools(localTools);
 
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
@@ -524,6 +476,56 @@ export class ToolRegistryManager extends EventEmitter {
             logError("[ToolRegistry] Failed to fetch local registry", error);
             throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Normalize local-registry rows into runtime tool entries.
+     */
+    private mapLocalRegistryTools(localTools: OfflineMockRegistryTool[]): ToolRegistryEntry[] {
+        return localTools
+            .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+            .map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                authors: this.normalizeAuthorList(tool.authors),
+                version: tool.version,
+                icon: tool.icon,
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || new Date().toISOString(),
+                tags: tool.tags,
+                readme: tool.readme,
+                repository: tool.repository,
+                website: tool.homepage,
+                cspExceptions: tool.cspExceptions,
+                features: tool.features,
+                license: tool.license,
+                status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                minAPI: tool.minAPI,
+                maxAPI: tool.maxAPI,
+            }));
+    }
+
+    /**
+     * Normalize legacy/malformed author values into a string array.
+     */
+    private normalizeAuthorList(authors: unknown): string[] | undefined {
+        if (Array.isArray(authors)) {
+            const normalized = authors.filter((a): a is string => typeof a === "string" && a.trim().length > 0);
+            return normalized.length ? normalized : undefined;
+        }
+
+        if (typeof authors === "string" && authors.trim().length > 0) {
+            const splitAuthors = authors
+                .split(",")
+                .map((a) => a.trim())
+                .filter((a) => a.length > 0);
+            return splitAuthors.length ? splitAuthors : [authors.trim()];
+        }
+
+        return undefined;
     }
 
     /**
@@ -819,7 +821,7 @@ export class ToolRegistryManager extends EventEmitter {
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
-        let authors: string[] | undefined = manifestEntry.authors;
+        let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
         const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
 
         if ((!authors || authors.length === 0) && legacyAuthor) {

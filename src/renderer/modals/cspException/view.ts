@@ -38,7 +38,7 @@ function renderMarkdownInline(text: string): string {
 export function getCspExceptionModalView(model: CspExceptionModalViewModel): ModalViewTemplate {
     const isDarkTheme = model.isDarkTheme;
 
-    const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
+    const authorsList = Array.isArray(model.authors) && model.authors.length ? model.authors.join(", ") : "Unknown";
 
     // Determine which types of permissions are being requested for dynamic title/description.
     const directiveKeys = Object.keys(model.cspExceptions);
