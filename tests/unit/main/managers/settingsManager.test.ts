@@ -132,6 +132,47 @@ describe("SettingsManager", () => {
             manager.revokeCspConsent("tool-a");
             expect(manager.hasCspConsent("tool-a")).toBe(false);
         });
+
+        it("grantCspConsent stores seenOptional domains", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com", "analytics.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual(["cdn.example.com", "analytics.example.com"]);
+        });
+
+        it("grantCspConsent defaults seenOptional to empty array when omitted", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual([]);
+        });
+
+        it("getCspConsents includes seenOptional in returned record", () => {
+            manager.grantCspConsent("tool-b", [], ["opt1.com"], ["opt1.com", "opt2.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-b"]).toMatchObject({
+                allowed: true,
+                required: [],
+                optional: ["opt1.com"],
+                seenOptional: ["opt1.com", "opt2.com"],
+            });
+        });
+
+        it("grantCspConsent overwrites stale removed domains when a tool update syncs the consent record", () => {
+            manager.grantCspConsent(
+                "tool-c",
+                ["api.example.com", "legacy-required.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+            );
+
+            manager.grantCspConsent("tool-c", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com"]);
+
+            expect(manager.getCspConsents()["tool-c"]).toEqual({
+                allowed: true,
+                required: ["api.example.com"],
+                optional: ["cdn.example.com"],
+                seenOptional: ["cdn.example.com"],
+            });
+        });
     });
 
     // -----------------------------------------------------------------------

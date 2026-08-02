@@ -5,6 +5,7 @@
 
 import { logError } from "../../common/logger";
 import { loadSidebarCommunityResources } from "./communityResourcesSidebarManagement";
+import { loadSidebarConsentReview } from "./cspConsentReviewSidebarManagement";
 import { loadSettings } from "./settingsManagement";
 
 // Track current sidebar
@@ -54,6 +55,13 @@ export function switchSidebar(sidebarId: string): void {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
+
+            // Load consent review when re-expanding consent sidebar
+            if (sidebarId === "consents") {
+                loadSidebarConsentReview().catch((err) => {
+                    logError(err instanceof Error ? err : new Error(String(err)));
+                });
+            }
         }
         window.api?.send("sidebar-layout-changed");
         return;
@@ -91,6 +99,13 @@ export function switchSidebar(sidebarId: string): void {
     // Load links when switching to links sidebar
     if (sidebarId === "links") {
         loadSidebarCommunityResources().catch((err) => {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        });
+    }
+
+    // Load consent review when switching to consent sidebar
+    if (sidebarId === "consents") {
+        loadSidebarConsentReview().catch((err) => {
             logError(err instanceof Error ? err : new Error(String(err)));
         });
     }

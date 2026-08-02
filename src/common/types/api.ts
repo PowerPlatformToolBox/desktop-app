@@ -224,7 +224,7 @@ export interface ToolboxAPI {
 
     // CSP consent management
     hasCspConsent: (toolId: string) => Promise<boolean>;
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => Promise<void>;
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
     getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
 

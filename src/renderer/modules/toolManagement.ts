@@ -4,8 +4,8 @@
  */
 
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { normalizeCspExceptionSource, type CspExceptionSource } from "../../common/types";
 import type { Connection } from "../../common/types/connection";
+import { getCspConsentDelta, getNormalizedCspDomains } from "../../common/utils/cspConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -486,20 +486,54 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     return;
                 }
 
-                // Grant consent — store required domains (for future re-consent detection) and selected optional domains
-                const requiredDomainsSet = new Set<string>();
-                for (const sources of Object.values(tool.cspExceptions as Record<string, CspExceptionSource[]>)) {
-                    if (Array.isArray(sources)) {
-                        for (const s of sources) {
-                            const entry = normalizeCspExceptionSource(s);
-                            if (!entry.optional) {
-                                requiredDomainsSet.add(entry.domain);
-                            }
-                        }
+                const normalizedDomains = getNormalizedCspDomains(tool.cspExceptions);
+                await window.toolboxAPI.grantCspConsent(tool.id, normalizedDomains.required, approvedOptionalDomains, normalizedDomains.optional);
+            } else {
+                // Consent already exists — check whether the tool has new permissions since last consent.
+                const allConsents = await window.toolboxAPI.getCspConsents();
+                const existingConsent = allConsents[tool.id];
+
+                const consentDelta = getCspConsentDelta(tool.cspExceptions, existingConsent);
+                const { currentRequired, currentOptional, previousRequired, approvedOptional, newRequired, newOptional, retainedSeenOptional, removedRequired, removedOptional } = consentDelta;
+
+                if (newRequired.length > 0 || newOptional.length > 0) {
+                    // New permissions detected — re-trigger consent modal with context.
+                    let approvedNewOptional: string[] | null = null;
+                    try {
+                        approvedNewOptional = await openCspExceptionModal(tool, {
+                            previouslyApprovedRequired: previousRequired,
+                            previouslyApprovedOptional: approvedOptional,
+                            newRequired,
+                            newOptional,
+                        });
+                    } catch (error) {
+                        logInfo("CSP re-consent modal closed without selection:", { error });
+                        approvedNewOptional = null;
                     }
+
+                    if (approvedNewOptional === null) {
+                        // User declined the new permissions — keep the existing consent unchanged and cancel launch.
+                        window.toolboxAPI.utils.showNotification({
+                            title: "Tool Launch Cancelled",
+                            body: `You declined the new security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
+                            type: "warning",
+                        });
+                        return;
+                    }
+
+                    const updatedRequired = currentRequired;
+                    const updatedOptional = [...new Set([...approvedOptional, ...approvedNewOptional])].sort();
+                    const updatedSeenOptional = currentOptional;
+                    await window.toolboxAPI.grantCspConsent(tool.id, updatedRequired, updatedOptional, updatedSeenOptional);
+                } else if (
+                    removedRequired.length > 0 ||
+                    removedOptional.length > 0 ||
+                    approvedOptional.length !== (existingConsent?.optional ?? []).length ||
+                    retainedSeenOptional.length !== (existingConsent?.seenOptional ?? existingConsent?.optional ?? []).length
+                ) {
+                    // Tool update removed one or more previously stored exceptions — silently prune stale consent state.
+                    await window.toolboxAPI.grantCspConsent(tool.id, currentRequired, approvedOptional, retainedSeenOptional);
                 }
-                const requiredDomains = Array.from(requiredDomainsSet).sort();
-                await window.toolboxAPI.grantCspConsent(tool.id, requiredDomains, approvedOptionalDomains);
             }
         }
 
