@@ -224,8 +224,32 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     }
 
     .modal-body p {
-        margin-bottom: 16px;
         line-height: 1.6;
+    }
+
+    .modal-body {
+        font-size: 13px;
+        font-weight: 400;
+        overflow: hidden;
+        padding-right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+    }
+
+    .csp-description {
+        margin: 0;
+        flex: 0 0 auto;
+    }
+
+    .csp-permissions-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .tool-info {
@@ -239,9 +263,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     }
 
     .tool-author {
-        font-size: 13px;
+        font-size: 15px;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.6)" : "rgba(0, 0, 0, 0.6)"};
-        margin-top: 4px;
     }
 
     .csp-section-label {
@@ -250,8 +273,6 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.45)"};
-        margin-bottom: 6px;
-        margin-top: 12px;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -263,7 +284,6 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
 
     .csp-section-label-previous {
         color: ${isDarkTheme ? "rgba(255, 255, 255, 0.35)" : "rgba(0, 0, 0, 0.35)"};
-        margin-top: 16px;
     }
 
     .csp-section-sublabel {
@@ -280,8 +300,9 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         border-radius: 8px;
         padding: 8px 12px;
         margin-bottom: 4px;
-        max-height: 160px;
+        max-height: 140px;
         overflow-y: auto;
+        min-height: 0;
     }
 
     .csp-exceptions-list-optional {
@@ -356,7 +377,8 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         border: 1px solid rgba(255, 185, 0, 0.3);
         border-radius: 8px;
         padding: 12px;
-        margin: 16px 0;
+        margin: 0;
+        flex: 0 0 auto;
     }
 
     .csp-warning p {
@@ -404,14 +426,15 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         </div>
     </div>
     <div class="modal-body">
-        <p>
+        <p class="csp-description">
             <strong class="tool-name">${escapeHtml(model.toolName)}</strong> by <span class="tool-author">${escapeHtml(authorsList)}</span>
             ${escapeHtml(modalDescription)}
         </p>
-        <p>Only allow if you trust this tool and the author(s) who created it.</p>
-        ${requiredSectionHtml}
-        ${optionalSectionHtml}
-        ${previouslyApprovedSectionHtml}
+        <div class="csp-permissions-container">
+            ${requiredSectionHtml}
+            ${optionalSectionHtml}
+            ${previouslyApprovedSectionHtml}
+        </div>
         <div class="csp-warning">
             <p>
                 <strong>⚠️ Only allow if you trust this tool.</strong>
