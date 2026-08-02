@@ -155,6 +155,24 @@ describe("SettingsManager", () => {
                 seenOptional: ["opt1.com", "opt2.com"],
             });
         });
+
+        it("grantCspConsent overwrites stale removed domains when a tool update syncs the consent record", () => {
+            manager.grantCspConsent(
+                "tool-c",
+                ["api.example.com", "legacy-required.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+            );
+
+            manager.grantCspConsent("tool-c", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com"]);
+
+            expect(manager.getCspConsents()["tool-c"]).toEqual({
+                allowed: true,
+                required: ["api.example.com"],
+                optional: ["cdn.example.com"],
+                seenOptional: ["cdn.example.com"],
+            });
+        });
     });
 
     // -----------------------------------------------------------------------

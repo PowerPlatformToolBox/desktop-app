@@ -104,6 +104,11 @@ export function updateConnectionIconsForTheme(): void {
         exportIcon.src = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
     }
 
+    const consentsOpenTabIcon = document.getElementById("consents-open-tab-icon") as HTMLImageElement | null;
+    if (consentsOpenTabIcon) {
+        consentsOpenTabIcon.src = isDarkTheme ? "icons/dark/expand.svg" : "icons/light/expand.svg";
+    }
+
     // Update category group export icons
     const exportIconPath = isDarkTheme ? "icons/dark/export.svg" : "icons/light/export.svg";
     document.querySelectorAll(".connection-group-export-icon").forEach((img) => {

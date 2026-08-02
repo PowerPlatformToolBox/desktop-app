@@ -27,6 +27,10 @@ export interface CspExceptionModalViewModel {
     authors: string[];
     cspExceptions: { [directive: string]: CspExceptionSource[] };
     isDarkTheme: boolean;
+    mode?: "consent" | "manage";
+    hasGrantedConsent?: boolean;
+    /** Optional domains that should be pre-selected in manage mode. */
+    preselectedOptionalDomains?: string[];
     /** When present, renders the modal in re-consent mode, highlighting only the new permissions. */
     reconsentContext?: CspReconsentContext;
 }
@@ -58,6 +62,8 @@ function renderMarkdownInline(text: string): string {
 export function getCspExceptionModalView(model: CspExceptionModalViewModel): ModalViewTemplate {
     const isDarkTheme = model.isDarkTheme;
     const isReconsent = !!model.reconsentContext;
+    const mode = model.mode ?? "consent";
+    const isManageMode = mode === "manage";
 
     const authorsList = model.authors && model.authors.length ? model.authors.join(", ") : "Unknown";
 
@@ -66,16 +72,18 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     const hasMailtoOnly = directiveKeys.length === 1 && directiveKeys[0] === "mailto";
     const hasMailto = directiveKeys.includes("mailto");
 
-    const modalTitle = isReconsent ? "Updated Permissions" : hasMailtoOnly ? "Email Permission Required" : "Permission Request";
+    const modalTitle = isManageMode ? "Manage Permissions" : isReconsent ? "Updated Permissions" : hasMailtoOnly ? "Email Permission Required" : "Permission Request";
     // These are intentional sentence fragments that complete the phrase
     // "<ToolName> by <Authors> <modalDescription>" in the modal body template below.
-    const modalDescription = isReconsent
-        ? "has been updated with new permissions that require your approval."
-        : hasMailtoOnly
-          ? "wants to open email links in your default email client."
-          : hasMailto
-            ? "wants to access external resources and open email links."
-            : "wants to connect to websites outside this application.";
+    const modalDescription = isManageMode
+        ? "permissions can be adjusted below. Choose Grant All, Revoke All, or make selective changes to optional entries."
+        : isReconsent
+          ? "has been updated with new permissions that require your approval."
+          : hasMailtoOnly
+            ? "wants to open email links in your default email client."
+            : hasMailto
+              ? "wants to access external resources and open email links."
+              : "wants to connect to websites outside this application.";
 
     // Build flat map of unique CSP source entries across all directives, keyed by domain
     const allEntries = new Map<string, { domain: string; exceptionReason?: string; optional?: boolean }>();
@@ -110,18 +118,19 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         }
     }
 
-    const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false): string => {
+    const renderEntryItem = (entry: { domain: string; exceptionReason?: string }, isCheckbox = false, isDisabled = false, isChecked = true): string => {
         // Use a human-readable label for the special mailto: sentinel domain.
         const domainLabel = entry.domain === "mailto:" ? "Email links (mailto:)" : entry.domain;
         const domainHtml = `<code class="csp-exception-domain-code">${escapeHtml(domainLabel)}</code>`;
         const reasonHtml = entry.exceptionReason ? `<div class="csp-exception-reason">${renderMarkdownInline(entry.exceptionReason)}</div>` : "";
         if (isCheckbox) {
             const disabledAttr = isDisabled ? " disabled" : "";
+            const checkedAttr = isChecked ? " checked" : "";
             const itemClass = isDisabled ? "csp-optional-item csp-required-item" : "csp-optional-item";
             return `
             <li class="${itemClass}">
                 <label class="csp-optional-label">
-                    <input type="checkbox" class="csp-optional-checkbox" value="${escapeHtml(entry.domain)}" checked${disabledAttr}>
+                    <input type="checkbox" class="csp-optional-checkbox" value="${escapeHtml(entry.domain)}"${checkedAttr}${disabledAttr}>
                     <span class="csp-optional-content">
                         ${domainHtml}
                         ${reasonHtml}
@@ -135,6 +144,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     let requiredSectionHtml = "";
     let optionalSectionHtml = "";
     let previouslyApprovedSectionHtml = "";
+    let optionalEntriesCount = 0;
 
     if (isReconsent && model.reconsentContext) {
         // Re-consent mode: show only the NEW permissions for approval, and previously approved as context.
@@ -188,9 +198,11 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
         // Initial consent mode: show all required and optional entries.
         const requiredEntries = Array.from(allEntries.values()).filter((e) => !e.optional);
         const optionalEntries = Array.from(allEntries.values()).filter((e) => e.optional);
+        optionalEntriesCount = optionalEntries.length;
+        const preselectedOptionalSet = new Set(model.preselectedOptionalDomains ?? optionalEntries.map((entry) => entry.domain));
 
         const requiredHtml = requiredEntries.map((e) => renderEntryItem(e, true, true)).join("");
-        const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true, false)).join("");
+        const optionalHtml = optionalEntries.map((e) => renderEntryItem(e, true, false, preselectedOptionalSet.has(e.domain))).join("");
 
         requiredSectionHtml =
             requiredEntries.length > 0
@@ -416,12 +428,68 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
     }
 </style>`;
 
+    const selectedOptionalCount = model.preselectedOptionalDomains?.length ?? optionalEntriesCount;
+    const hasOptionalEntries = optionalEntriesCount > 0;
+    const hasGrantedConsent = model.hasGrantedConsent === true;
+    const hasAllOptionalSelected = hasOptionalEntries && selectedOptionalCount === optionalEntriesCount;
+    const hasNoOptionalSelected = selectedOptionalCount === 0;
+
+    let manageActionsHtml = `<button id="csp-cancel-btn" class="fluent-button fluent-button-secondary">Cancel</button>`;
+    if (hasGrantedConsent) {
+        if (hasOptionalEntries) {
+            if (hasAllOptionalSelected) {
+                manageActionsHtml += `
+        <button id="csp-revoke-all-btn" class="fluent-button fluent-button-secondary">Revoke All</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Make Changes</button>`;
+            } else if (hasNoOptionalSelected) {
+                manageActionsHtml += `
+        <button id="csp-grant-all-btn" class="fluent-button fluent-button-secondary">Grant All</button>
+        <button id="csp-revoke-all-btn" class="fluent-button fluent-button-secondary">Revoke All</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Make Changes</button>`;
+            } else {
+                manageActionsHtml += `
+        <button id="csp-grant-all-btn" class="fluent-button fluent-button-secondary">Grant All</button>
+        <button id="csp-revoke-all-btn" class="fluent-button fluent-button-secondary">Revoke All</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Make Changes</button>`;
+            }
+        } else {
+            manageActionsHtml += `
+        <button id="csp-revoke-all-btn" class="fluent-button fluent-button-primary">Revoke All</button>`;
+        }
+    } else {
+        if (hasOptionalEntries) {
+            if (hasNoOptionalSelected) {
+                manageActionsHtml += `
+        <button id="csp-grant-all-btn" class="fluent-button fluent-button-secondary">Grant All</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Make Changes</button>`;
+            } else {
+                manageActionsHtml += `
+        <button id="csp-grant-all-btn" class="fluent-button fluent-button-secondary">Grant All</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Make Changes</button>`;
+            }
+        } else {
+            manageActionsHtml += `
+        <button id="csp-grant-all-btn" class="fluent-button fluent-button-primary">Grant All</button>`;
+        }
+    }
+
+    const footerHtml = isManageMode
+        ? `
+    <div class="modal-footer modal-footer-manage">
+        ${manageActionsHtml}
+    </div>`
+        : `
+    <div class="modal-footer">
+        <button id="csp-decline-btn" class="fluent-button fluent-button-secondary">Decline</button>
+        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Allow &amp; Continue</button>
+    </div>`;
+
     const body = `
 
 <div class="modal-panel">
     <div class="modal-header">
         <div>
-            <p class="modal-eyebrow">⚠️ Permission Request</p>
+            <p class="modal-eyebrow">${isManageMode ? "⚙️ Permission Management" : "⚠️ Permission Request"}</p>
             <h3>${escapeHtml(modalTitle)}</h3>
         </div>
     </div>
@@ -445,10 +513,7 @@ export function getCspExceptionModalView(model: CspExceptionModalViewModel): Mod
             </p>
         </div>
     </div>
-    <div class="modal-footer">
-        <button id="csp-decline-btn" class="fluent-button fluent-button-secondary">Decline</button>
-        <button id="csp-accept-btn" class="fluent-button fluent-button-primary">Allow &amp; Continue</button>
-    </div>
+    ${footerHtml}
 
 </div>`;
 
