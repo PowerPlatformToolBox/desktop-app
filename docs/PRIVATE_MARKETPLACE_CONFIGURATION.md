@@ -34,6 +34,7 @@ The private registry should look like this:
             "id": "my-private-tool",
             "name": "My Private Tool",
             "description": "Example private tool",
+            "authors": ["Contoso Tools Team"],
             "version": "1.0.0",
             "downloadUrl": "https://example.com/packages/my-private-tool.tar.gz",
             "status": "active"
@@ -41,6 +42,8 @@ The private registry should look like this:
     ]
 }
 ```
+
+Important: the marketplace UI text shown as "by ..." is populated from `authors` in each tool entry.
 
 Each tool entry should include at least:
 
@@ -113,6 +116,7 @@ In the registry file, each tool should point to a package URL that also includes
             "id": "my-private-tool",
             "name": "My Private Tool",
             "description": "Example tool hosted in Azure Blob",
+            "authors": ["Contoso Tools Team"],
             "version": "1.0.0",
             "downloadUrl": "https://<storage-account>.blob.core.windows.net/pptb-tools/packages/my-private-tool-1.0.0.tar.gz?<sas-token>",
             "status": "active"
@@ -271,3 +275,4 @@ If the private marketplace does not appear as expected:
 - Check that the JSON uses the expected `tools` array format.
 - Ensure the source is enabled in settings.
 - Confirm the tool IDs are unique or that private sources are intended to override the built-in marketplace entries.
+- If the tool shows a blank "by" label, confirm the tool entry includes `authors` (array or comma-separated string).
