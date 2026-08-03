@@ -83,7 +83,18 @@ export class SettingsManager {
     }
 
     private normalizeMarketplaceSources(sources?: MarketplaceSource[]): MarketplaceSource[] {
-        const normalized = (sources || []).filter((source) => Boolean(source?.id && source?.label && source?.url));
+        const normalized = (sources || []).filter((source) => {
+            if (!source?.id || !source?.label) {
+                return false;
+            }
+
+            // The built-in source can be configured with an empty URL when AZURE_BLOB_BASE_URL is not set.
+            if (source.id === "builtin-pptb") {
+                return true;
+            }
+
+            return Boolean(source.url);
+        });
         const builtIn = normalized.find((source) => source.id === "builtin-pptb");
         if (!builtIn) {
             normalized.unshift(this.getDefaultMarketplaceSources()[0]);
