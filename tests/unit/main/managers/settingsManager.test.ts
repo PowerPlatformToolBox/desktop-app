@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import { MarketplaceSource } from "../../../../src/common/types";
 import { SettingsManager } from "../../../../src/main/managers/settingsManager";
 
 // electron-store is replaced by the manual mock at tests/__mocks__/electron-store.ts
@@ -44,6 +45,72 @@ describe("SettingsManager", () => {
         it("round-trips a setting value", () => {
             manager.setSetting("notificationDuration", 3000);
             expect(manager.getSetting("notificationDuration")).toBe(3000);
+        });
+    });
+
+    describe("marketplace sources", () => {
+        it("includes a built-in marketplace source by default", () => {
+            const sources = manager.getMarketplaceSources();
+            expect(sources).toEqual(expect.arrayContaining([expect.objectContaining({ id: "builtin-pptb", type: "builtin", enabled: true })]));
+        });
+
+        it("keeps the built-in marketplace enabled when no private source exists", () => {
+            manager.setBuiltinMarketplaceEnabled(false);
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(true);
+        });
+
+        it("allows disabling the built-in marketplace when a private source exists", () => {
+            const privateSource: MarketplaceSource = {
+                id: "contoso-private",
+                type: "private",
+                label: "Contoso private marketplace",
+                url: "https://example.contoso.test/registry.json",
+                enabled: true,
+            };
+
+            manager.addMarketplaceSource(privateSource);
+            manager.setBuiltinMarketplaceEnabled(false);
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(false);
+        });
+
+        it("keeps the built-in marketplace enabled when no private source is available", () => {
+            const sources: MarketplaceSource[] = [
+                {
+                    id: "builtin-pptb",
+                    type: "builtin",
+                    label: "Power Platform ToolBox marketplace",
+                    url: "https://example.test/registry.json",
+                    enabled: false,
+                },
+            ];
+
+            manager.updateUserSettings({ marketplaceSources: sources });
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(true);
+        });
+
+        it("allows the built-in marketplace to stay disabled when a private source is enabled", () => {
+            const sources: MarketplaceSource[] = [
+                {
+                    id: "builtin-pptb",
+                    type: "builtin",
+                    label: "Power Platform ToolBox marketplace",
+                    url: "https://example.test/registry.json",
+                    enabled: false,
+                },
+                {
+                    id: "contoso-private",
+                    type: "private",
+                    label: "Contoso private marketplace",
+                    url: "https://example.contoso.test/registry.json",
+                    enabled: true,
+                },
+            ];
+
+            manager.updateUserSettings({ marketplaceSources: sources });
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(false);
         });
     });
 

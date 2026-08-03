@@ -7,7 +7,7 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
@@ -146,6 +146,7 @@ export class ToolRegistryManager extends EventEmitter {
     private useLocalFallback: boolean = false;
     private installIdManager: InstallIdManager | null = null;
     private azureBlobBaseUrl: string;
+    private settingsManager: { getMarketplaceSources(): MarketplaceSource[] } | null = null;
 
     // Registry fetch de-duping + caching
     private registryFetchInFlight: Promise<ToolRegistryEntry[]> | null = null;
@@ -166,12 +167,20 @@ export class ToolRegistryManager extends EventEmitter {
     // Capability tags change rarely; use a longer TTL so the fetch happens at most once per session.
     private static readonly CAPABILITY_TAGS_CACHE_TTL_MS = 300_000; // 5 minutes
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
+    constructor(
+        toolsDirectory: string,
+        supabaseUrl?: string,
+        supabaseKey?: string,
+        installIdManager?: InstallIdManager,
+        azureBlobBaseUrl?: string,
+        settingsManager?: { getMarketplaceSources(): MarketplaceSource[] },
+    ) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
         this.installIdManager = installIdManager || null;
         this.azureBlobBaseUrl = azureBlobBaseUrl || AZURE_BLOB_BASE_URL;
+        this.settingsManager = settingsManager || null;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -216,18 +225,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         this.registryFetchInFlight = (async () => {
-            // Use remote/local fallback if Supabase is not configured
-            if (this.useLocalFallback) {
-                const tools = await this.fetchFallbackRegistry();
-                this.registryCache = {
-                    tools,
-                    fetchedAtMs: Date.now(),
-                    source: this.azureBlobBaseUrl ? "azureBlob" : "local",
-                };
-                return tools;
-            }
-
-            const tools = await this.fetchRegistryFromSupabase();
+            const tools = await this.fetchRegistryFromConfiguredSources();
             this.registryCache = {
                 tools,
                 fetchedAtMs: Date.now(),
@@ -240,6 +238,117 @@ export class ToolRegistryManager extends EventEmitter {
             return await this.registryFetchInFlight;
         } finally {
             this.registryFetchInFlight = null;
+        }
+    }
+
+    private async fetchRegistryFromConfiguredSources(): Promise<ToolRegistryEntry[]> {
+        const configuredSources = this.settingsManager?.getMarketplaceSources() ?? [];
+        const enabledSources = configuredSources.filter((source) => source.enabled);
+
+        if (enabledSources.length === 0) {
+            return [];
+        }
+
+        const mergedTools = new Map<string, ToolRegistryEntry>();
+
+        for (const source of enabledSources) {
+            const tools = source.type === "builtin" ? await this.fetchBuiltinRegistryForSource(source) : await this.fetchRegistryFromMarketplaceUrl(source);
+            tools.forEach((tool) => {
+                const existingTool = mergedTools.get(tool.id);
+                const shouldOverride = !existingTool || source.type === "private" || existingTool.marketplaceSourceType !== "private";
+                if (!shouldOverride) {
+                    return;
+                }
+
+                mergedTools.set(tool.id, {
+                    ...tool,
+                    marketplaceSourceId: source.id,
+                    marketplaceSourceLabel: source.label,
+                    marketplaceSourceType: source.type,
+                });
+            });
+        }
+
+        return Array.from(mergedTools.values());
+    }
+
+    private async fetchBuiltinRegistryForSource(_: MarketplaceSource): Promise<ToolRegistryEntry[]> {
+        if (this.useLocalFallback) {
+            return this.fetchFallbackRegistry();
+        }
+
+        try {
+            return await this.fetchRegistryFromSupabase();
+        } catch (error) {
+            logWarn(`[ToolRegistry] Built-in marketplace fetch failed, falling back to local/azure registry`, error);
+            return this.fetchFallbackRegistry();
+        }
+    }
+
+    private async fetchRegistryFromMarketplaceUrl(source: MarketplaceSource): Promise<ToolRegistryEntry[]> {
+        if (!source.url) {
+            logWarn(`[ToolRegistry] Marketplace source ${source.id} is missing a URL`);
+            return [];
+        }
+
+        try {
+            const registryUrl = source.url;
+            logInfo(`[ToolRegistry] Fetching registry from marketplace source ${source.id}: ${registryUrl}`);
+
+            const rawJson = await new Promise<string>((resolve, reject) => {
+                const protocol = registryUrl.startsWith("https") ? https : http;
+                protocol
+                    .get(registryUrl, (res) => {
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`Marketplace registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
+                            return;
+                        }
+                        const chunks: Buffer[] = [];
+                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                        res.on("error", reject);
+                    })
+                    .on("error", reject);
+            });
+
+            let registryData: AzureBlobRegistryFile;
+            try {
+                registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
+            } catch (parseError) {
+                throw new Error(`Failed to parse registry JSON from ${registryUrl}: ${(parseError as Error).message}`);
+            }
+
+            if (!registryData.tools || registryData.tools.length === 0) {
+                logInfo(`[ToolRegistry] No tools found in marketplace source ${source.id}`);
+                return [];
+            }
+
+            return registryData.tools
+                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+                .map((tool) => ({
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    authors: this.normalizeAuthorList(tool.authors),
+                    version: tool.version,
+                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || "", registryUrl),
+                    checksum: tool.checksum,
+                    size: tool.size,
+                    publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
+                    repository: tool.repository,
+                    website: tool.homepage || tool.website,
+                    icon: tool.icon,
+                    cspExceptions: tool.cspExceptions,
+                    features: tool.features,
+                    license: tool.license,
+                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    marketplaceSourceId: source.id,
+                    marketplaceSourceLabel: source.label,
+                    marketplaceSourceType: source.type,
+                }));
+        } catch (error) {
+            logWarn(`[ToolRegistry] Failed to fetch marketplace source ${source.id}`, error);
+            return [];
         }
     }
 
@@ -429,13 +538,21 @@ export class ToolRegistryManager extends EventEmitter {
      * Azure Blob Storage (e.g. "my-tool-1.0.0.tar.gz" → "<base>/packages/my-tool-1.0.0/my-tool-1.0.0.tar.gz").
      * Returns an empty string when the URL is relative but azureBlobBaseUrl is not configured.
      */
-    private resolveDownloadUrl(downloadUrl: string): string {
+    private resolveDownloadUrl(downloadUrl: string, baseUrl?: string): string {
         if (!downloadUrl) {
             logWarn("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source");
             return "";
         }
         if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
             return downloadUrl;
+        }
+
+        if (baseUrl) {
+            try {
+                return new URL(downloadUrl, baseUrl).toString();
+            } catch {
+                // Fall back to the existing behavior below if the URL cannot be resolved.
+            }
         }
         // Relative filename – resolve to <base>/packages/<folder>/<filename>
         // where <folder> = filename without the .tar.gz extension
@@ -749,6 +866,9 @@ export class ToolRegistryManager extends EventEmitter {
             maxAPI, // Maximum API version tested (from @pptb/types)
             mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
+            marketplaceSourceId: tool.marketplaceSourceId,
+            marketplaceSourceLabel: tool.marketplaceSourceLabel,
+            marketplaceSourceType: tool.marketplaceSourceType,
         };
 
         // Save to manifest file

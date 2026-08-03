@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, MarketplaceSource, Tool, ToolFeatures, ToolManifest } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
@@ -38,10 +38,17 @@ export class ToolManager extends EventEmitter {
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
     private updatingTools: Set<string> = new Set();
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
+    constructor(
+        toolsDirectory: string,
+        supabaseUrl?: string,
+        supabaseKey?: string,
+        installIdManager?: InstallIdManager,
+        azureBlobBaseUrl?: string,
+        settingsManager?: { getMarketplaceSources(): MarketplaceSource[] },
+    ) {
         super();
         this.toolsDirectory = toolsDirectory;
-        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl);
+        this.registryManager = new ToolRegistryManager(toolsDirectory, supabaseUrl, supabaseKey, installIdManager, azureBlobBaseUrl, settingsManager);
         this.ensureToolsDirectory();
 
         // Forward registry events
@@ -85,6 +92,9 @@ export class ToolManager extends EventEmitter {
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
+            marketplaceSourceId: manifest.marketplaceSourceId,
+            marketplaceSourceLabel: manifest.marketplaceSourceLabel,
+            marketplaceSourceType: manifest.marketplaceSourceType,
         };
 
         const cached = this.analyticsCache.get(tool.id);
@@ -157,6 +167,9 @@ export class ToolManager extends EventEmitter {
             isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
+            marketplaceSourceId: manifest.marketplaceSourceId,
+            marketplaceSourceLabel: manifest.marketplaceSourceLabel,
+            marketplaceSourceType: manifest.marketplaceSourceType,
         };
 
         const cached = this.analyticsCache.get(tool.id);
