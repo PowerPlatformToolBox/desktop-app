@@ -78,12 +78,12 @@ function renderMarketplaceSourcesList(sources: MarketplaceSource[]): string {
         .map((source) => {
             const sourceId = source.id || `marketplace-${Math.random().toString(36).slice(2, 9)}`;
             return `
-                <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(sourceId)}" style="display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--border-color, #d1d1d1);">
-                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                        <input type="text" class="fluent-input settings-vscode-input" data-field="label" value="${escapeHtml(source.label || "")}" placeholder="Display name" style="flex:1 1 180px;" />
-                        <input type="text" class="fluent-input settings-vscode-input" data-field="url" value="${escapeHtml(source.url || "")}" placeholder="https://.../registry.json" style="flex:2 1 280px;" />
+                <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(sourceId)}">
+                    <div class="settings-vscode-marketplace-source-fields">
+                        <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-label-input" data-field="label" value="${escapeHtml(source.label || "")}" placeholder="Display name" />
+                        <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-url-input" data-field="url" value="${escapeHtml(source.url || "")}" placeholder="https://.../registry.json" />
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div class="settings-vscode-marketplace-source-actions">
                         <label class="settings-vscode-checkbox-label">
                             <input type="checkbox" class="settings-vscode-checkbox" data-field="enabled" ${source.enabled ? "checked" : ""} />
                             <span>Enabled</span>
@@ -747,12 +747,12 @@ export function renderSettingsContent(panel: HTMLElement): void {
             marketplaceSourcesList.insertAdjacentHTML(
                 "beforeend",
                 `
-                    <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(nextSourceId)}" style="display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--border-color, #d1d1d1);">
-                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                            <input type="text" class="fluent-input settings-vscode-input" data-field="label" placeholder="Display name" style="flex:1 1 180px;" />
-                            <input type="text" class="fluent-input settings-vscode-input" data-field="url" placeholder="https://.../registry.json" style="flex:2 1 280px;" />
+                    <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(nextSourceId)}">
+                        <div class="settings-vscode-marketplace-source-fields">
+                            <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-label-input" data-field="label" placeholder="Display name" />
+                            <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-url-input" data-field="url" placeholder="https://.../registry.json" />
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div class="settings-vscode-marketplace-source-actions">
                             <label class="settings-vscode-checkbox-label">
                                 <input type="checkbox" class="settings-vscode-checkbox" data-field="enabled" checked />
                                 <span>Enabled</span>

@@ -78,7 +78,7 @@ For a secure private marketplace deployment, the recommended approach is:
 
 ## Example: Azure Blob Storage with SAS-Based Access (v1)
 
-For the current v1 implementation, a practical pattern is to host the registry and package files in Azure Blob Storage and provide the app with a read-only SAS URL for the registry endpoint. This is supported in v1.
+For the current v1 implementation, a practical pattern is to host the registry and package files in Azure Blob Storage and let each end user supply their own read-only SAS token when configuring the marketplace URL in the app. The admin can generate and keep the SAS token private, while each user pastes their own token into the marketplace source URL. This is supported in v1.
 
 Authenticated private marketplace flows that require the desktop app to sign in with Entra ID are planned for v2.
 
@@ -96,13 +96,15 @@ Authenticated private marketplace flows that require the desktop app to sign in 
 
 ### Example registry.json
 
+The admin can generate a SAS token for the registry blob (or for the container containing it), keep it safe, and use that SAS token to configure the marketplace source URL in the app settings.
+
 Use the registry URL below as the marketplace source URL in the app settings:
 
 ```text
 https://<storage-account>.blob.core.windows.net/pptb-tools/registry.json?<sas-token>
 ```
 
-And in the registry file, each tool should point to a package URL that also includes the SAS token:
+In the registry file, each tool should point to a package URL that also includes the SAS token so the app can download the package content:
 
 ```json
 {
@@ -128,6 +130,68 @@ And in the registry file, each tool should point to a package URL that also incl
 5. Put the registry URL with the SAS token into the desktop app as the private marketplace source URL.
 6. In the `registry.json` file, ensure every `downloadUrl` also includes the SAS token so the app can download the tool packages.
 7. If the package files are stored in a subfolder, include that path in the `downloadUrl`.
+
+### Example: generate a SAS token per individual blob and append it to the marketplace URL
+
+Each user appends their own SAS token to the marketplace URL they configure in the app.
+
+Example for generating a read-only SAS token for accessing the marketplace registry blob:
+
+```bash
+az storage blob generate-sas \
+  --account-name <storage-account-name> \
+  --container-name <container-name> \
+  --name registry.json \
+  --permissions r \
+  --expiry 2030-01-01T00:00:00Z \
+  --https-only \
+  --auth-mode login
+```
+
+The command returns a query string similar to:
+
+```text
+se=2030-01-01T00%3A00%3A00Z&sp=r&sv=2024-11-04&sr=b&sig=abc123...
+```
+
+Append that query string to the full blob URL and use it as the marketplace source URL in the app settings:
+
+```text
+https://<storage-account>.blob.core.windows.net/<container-name>/registry.json?se=2030-01-01T00%3A00%3A00Z&sp=r&sv=2024-11-04&sr=b&sig=abc123...
+```
+
+This pattern is useful when you want short-lived, per-scope access to a private marketplace while keeping the SAS values private and letting each user configure their own marketplace URL.
+
+### Packaging tools as .tar.gz for the marketplace
+
+The marketplace expects tool packages to be distributed as `.tar.gz` archives. A typical approach is to package the tool folder contents so the archive can be downloaded and extracted by the app.
+
+If you are working from a local tool folder such as:
+
+```text
+<your-tool-directory>
+```
+
+you can create a package like this. Run the command from the directory that contains the tool's package.json:
+
+```bash
+cd <your-tool-directory>
+
+tar -czf my-private-tool-1.0.0.tar.gz .
+```
+
+This produces a tarball named `my-private-tool-1.0.0.tar.gz` that contains the tool contents.
+
+If you want the archive to contain the tool in a subfolder rather than the current directory contents, you can first create a staging folder:
+
+```bash
+mkdir -p /tmp/pptb-package
+cp -R <your-tool-directory> /tmp/pptb-package/my-private-tool
+cd /tmp/pptb-package
+tar -czf my-private-tool-1.0.0.tar.gz my-private-tool
+```
+
+Upload the resulting `.tar.gz` file to your Azure Blob container and use its URL as the package download location.
 
 ### Azure deployment example
 
