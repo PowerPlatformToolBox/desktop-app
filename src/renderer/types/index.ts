@@ -2,7 +2,7 @@
  * Renderer-specific type definitions
  */
 
-import type { PreviewFeatureFlags } from "../../common/types";
+import type { MarketplaceSource, PreviewFeatureFlags } from "../../common/types";
 
 /**
  * Interface for an open tool instance
@@ -66,6 +66,7 @@ export interface SettingsState {
     environmentColorThickness?: number;
     enablePreviewFeatures?: boolean;
     previewFeatures?: PreviewFeatureFlags;
+    marketplaceSources?: MarketplaceSource[];
 }
 
 /**

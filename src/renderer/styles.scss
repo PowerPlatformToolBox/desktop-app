@@ -2473,6 +2473,37 @@ body.dark-theme .settings-vscode-item:hover {
     align-self: flex-start;
 }
 
+.settings-vscode-marketplace-source-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border-color, #d1d1d1);
+}
+
+.settings-vscode-marketplace-source-fields {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.settings-vscode-marketplace-source-label-input {
+    flex: 1 1 180px;
+}
+
+.settings-vscode-marketplace-source-url-input {
+    flex: 2 1 280px;
+}
+
+.settings-vscode-marketplace-source-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .mcp-settings-item {
     margin-bottom: 8px;
 }

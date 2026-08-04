@@ -132,6 +132,7 @@ class ToolBoxApp {
                 process.env.SUPABASE_ANON_KEY,
                 this.installIdManager,
                 process.env.AZURE_BLOB_BASE_URL,
+                this.settingsManager,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.protocolHandlerManager = new ProtocolHandlerManager();

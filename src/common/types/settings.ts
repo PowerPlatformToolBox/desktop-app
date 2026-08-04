@@ -85,6 +85,15 @@ export interface LastUsedToolUpdate {
     lastUsedAt?: string;
 }
 
+export interface MarketplaceSource {
+    id: string;
+    type: "builtin" | "private";
+    label: string;
+    url: string;
+    enabled: boolean;
+    description?: string;
+}
+
 /**
  * Per-tool CSP consent record.
  * Stores whether consent was granted, and which required/optional domains were
@@ -134,4 +143,5 @@ export interface UserSettings {
     splitDividerRatio?: number; // Persisted position of the split-pane divider (0.15–0.85)
     enablePreviewFeatures?: boolean; // Show preview/experimental features in the UI
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
+    marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
 }

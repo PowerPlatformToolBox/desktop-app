@@ -1,7 +1,8 @@
 import { randomBytes } from "crypto";
 import Store from "electron-store";
-import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, ToolSettings, UserSettings } from "../../common/types";
+import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, ToolSettings, UserSettings } from "../../common/types";
 import { buildPreviewFeatureFlags } from "../../common/types/settings";
+import { AZURE_BLOB_BASE_URL } from "../constants";
 
 /**
  * Generates a random authentication token for MCP server access
@@ -41,6 +42,7 @@ export class SettingsManager {
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
+                marketplaceSources: this.getDefaultMarketplaceSources(),
             },
         });
 
@@ -67,11 +69,99 @@ export class SettingsManager {
         this.store.set("enablePreviewFeatures", hasAnyPreviewFeatureEnabled);
     }
 
+    private getDefaultMarketplaceSources(): MarketplaceSource[] {
+        return [
+            {
+                id: "builtin-pptb",
+                type: "builtin",
+                label: "Power Platform ToolBox marketplace",
+                url: AZURE_BLOB_BASE_URL ? `${AZURE_BLOB_BASE_URL}/registry.json` : "",
+                enabled: true,
+                description: "Built-in public marketplace",
+            },
+        ];
+    }
+
+    private normalizeMarketplaceSources(sources?: MarketplaceSource[]): MarketplaceSource[] {
+        const normalized = (sources || []).filter((source) => {
+            if (!source?.id || !source?.label) {
+                return false;
+            }
+
+            // The built-in source can be configured with an empty URL when AZURE_BLOB_BASE_URL is not set.
+            if (source.id === "builtin-pptb") {
+                return true;
+            }
+
+            return Boolean(source.url);
+        });
+        const builtIn = normalized.find((source) => source.id === "builtin-pptb");
+        if (!builtIn) {
+            normalized.unshift(this.getDefaultMarketplaceSources()[0]);
+        }
+
+        const normalizedSources = normalized.map((source, index) => ({
+            ...source,
+            id: source.id || `marketplace-${index + 1}`,
+            type: source.type || (source.id === "builtin-pptb" ? "builtin" : "private"),
+            enabled: typeof source.enabled === "boolean" ? source.enabled : source.type === "builtin" ? true : false,
+        }));
+
+        const builtInSource = normalizedSources.find((source) => source.id === "builtin-pptb");
+        if (builtInSource) {
+            const hasPrivateEnabledSource = normalizedSources.some((source) => source.id !== "builtin-pptb" && source.enabled);
+            builtInSource.enabled = hasPrivateEnabledSource ? builtInSource.enabled : true;
+        }
+
+        return normalizedSources;
+    }
+
+    private getMarketplaceSourcesFromStore(): MarketplaceSource[] {
+        const storedSources = this.store.get("marketplaceSources");
+        return this.normalizeMarketplaceSources(storedSources as MarketplaceSource[] | undefined);
+    }
+
+    private persistMarketplaceSources(sources: MarketplaceSource[]): void {
+        this.store.set("marketplaceSources", this.normalizeMarketplaceSources(sources));
+    }
+
+    getMarketplaceSources(): MarketplaceSource[] {
+        return this.getMarketplaceSourcesFromStore();
+    }
+
+    addMarketplaceSource(source: MarketplaceSource): MarketplaceSource[] {
+        const sources = this.getMarketplaceSourcesFromStore();
+        const nextSources = [...sources, source];
+        this.persistMarketplaceSources(nextSources);
+        return this.getMarketplaceSources();
+    }
+
+    setBuiltinMarketplaceEnabled(enabled: boolean): void {
+        const sources = this.getMarketplaceSourcesFromStore();
+        const builtInIndex = sources.findIndex((source) => source.id === "builtin-pptb");
+        if (builtInIndex === -1) {
+            return;
+        }
+
+        const hasPrivateSource = sources.some((source) => source.id !== "builtin-pptb" && source.enabled);
+        const nextEnabled = hasPrivateSource ? enabled : true;
+        sources[builtInIndex] = {
+            ...sources[builtInIndex],
+            enabled: nextEnabled,
+        };
+
+        this.persistMarketplaceSources(sources);
+    }
+
     /**
      * Get all user settings
      */
     getUserSettings(): UserSettings {
-        return this.store.store;
+        const settings = this.store.store;
+        return {
+            ...settings,
+            marketplaceSources: this.getMarketplaceSourcesFromStore(),
+        };
     }
 
     /**
@@ -79,6 +169,11 @@ export class SettingsManager {
      */
     updateUserSettings(settings: Partial<UserSettings>): void {
         Object.entries(settings).forEach(([key, value]) => {
+            if (key === "marketplaceSources" && Array.isArray(value)) {
+                this.store.set(key as keyof UserSettings, this.normalizeMarketplaceSources(value as MarketplaceSource[]));
+                return;
+            }
+
             this.store.set(key as keyof UserSettings, value);
         });
     }
