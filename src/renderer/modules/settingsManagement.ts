@@ -15,7 +15,9 @@ import {
     MAX_COLOR_BORDER_THICKNESS,
     MIN_COLOR_BORDER_THICKNESS,
 } from "../constants";
+import { getModalStyles } from "../modals/sharedStyles";
 import type { SettingsState } from "../types/index";
+import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import {
@@ -25,8 +27,6 @@ import {
     getPreviewFeatureDefinitions,
     normalizePreviewFeatureFlags,
 } from "./previewFeatureManagement";
-import { getModalStyles } from "../modals/sharedStyles";
-import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
