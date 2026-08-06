@@ -2940,6 +2940,8 @@ class ToolBoxApp {
         this.mainWindow = new BrowserWindow({
             width: 1200,
             height: 800,
+            // Hide until content is ready to avoid a blank-white window flash during load.
+            show: false,
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
@@ -2992,14 +2994,21 @@ class ToolBoxApp {
         // Load the index.html
         this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 
+        // Show the window as soon as content is ready so the user never sees a blank flash.
+        this.mainWindow.once("ready-to-show", () => {
+            this.mainWindow?.show();
+        });
+
         // After the renderer is ready, auto-open What's New if an auto-update was installed.
         this.mainWindow.webContents.once("did-finish-load", () => {
             this.openWhatsNewIfPending();
         });
 
-        // Open DevTools in development
+        // Open DevTools in development — use "undocked" so it stays within the same
+        // window frame rather than spawning a separate OS window (which looks like a
+        // duplicate app instance to the user).
         if (process.env.NODE_ENV === "development") {
-            this.mainWindow.webContents.openDevTools({ mode: "detach" });
+            this.mainWindow.webContents.openDevTools({ mode: "undocked" });
         }
 
         this.mainWindow.on("close", (event) => {
