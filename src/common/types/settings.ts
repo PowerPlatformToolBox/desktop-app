@@ -140,6 +140,7 @@ export interface UserSettings {
     categoryColorThickness?: number; // Thickness in pixels of the category color border under the tab
     environmentColorThickness?: number; // Thickness in pixels of the environment color border around the tool panel
     mcpAccessToken?: string; // Access token for local MCP server authentication
+    sentryConsent?: "yes" | "no" | null; // User consent for Sentry error/warning telemetry (null = not yet asked)
     splitDividerRatio?: number; // Persisted position of the split-pane divider (0.15–0.85)
     enablePreviewFeatures?: boolean; // Show preview/experimental features in the UI
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID

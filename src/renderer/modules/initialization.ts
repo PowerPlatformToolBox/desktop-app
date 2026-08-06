@@ -5,6 +5,7 @@
 
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { checkAndHandleSentryConsent } from "./sentryConsentManagement";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -122,6 +123,9 @@ export async function initializeApplication(): Promise<void> {
         // Load and apply theme settings on startup
         await loadInitialSettings();
         logCheckpoint("Initial settings loaded");
+
+        // Check Sentry consent and initialize telemetry (or prompt the user if not yet decided).
+        void checkAndHandleSentryConsent();
 
         // Load tools library from registry
         await loadToolsLibrary().catch((error) => {

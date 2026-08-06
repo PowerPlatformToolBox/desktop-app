@@ -866,5 +866,38 @@
         </div>
 
         <script type="module" src="renderer.ts"></script>
+
+        <!-- Sentry Consent Modal -->
+        <div id="sentry-consent-overlay" class="sentry-consent-overlay" style="display: none" role="dialog" aria-modal="true" aria-labelledby="sentry-consent-title">
+            <div class="sentry-consent-panel">
+                <div class="sentry-consent-header">
+                    <h2 class="sentry-consent-title" id="sentry-consent-title">Help Improve Power Platform ToolBox</h2>
+                </div>
+                <div class="sentry-consent-body">
+                    <p class="sentry-consent-intro">
+                        We'd like to collect anonymous diagnostic data to help us find and fix issues faster.
+                        <strong>No personal information will ever be collected.</strong>
+                    </p>
+                    <div class="sentry-consent-details">
+                        <p class="sentry-consent-details-title">What will be captured:</p>
+                        <ul class="sentry-consent-list">
+                            <li>Install ID (anonymous unique identifier)</li>
+                            <li>Installed version</li>
+                            <li>Operating system</li>
+                            <li>CPU architecture</li>
+                            <li>Warnings and errors only (no user data)</li>
+                        </ul>
+                    </div>
+                    <p class="sentry-consent-note">
+                        You can change this preference at any time in
+                        <strong>Settings &rarr; Privacy &amp; Telemetry</strong>.
+                    </p>
+                </div>
+                <div class="sentry-consent-footer">
+                    <button type="button" id="sentry-consent-no-btn" class="fluent-button fluent-button-secondary">No, thanks</button>
+                    <button type="button" id="sentry-consent-yes-btn" class="fluent-button fluent-button-primary">Yes, I agree</button>
+                </div>
+            </div>
+        </div>
     </body>
 </html>

@@ -6,6 +6,7 @@ import {
     EVENT_CHANNELS,
     FILESYSTEM_CHANNELS,
     MCP_SERVER_CHANNELS,
+    SENTRY_CHANNELS,
     SETTINGS_CHANNELS,
     SPLIT_LAYOUT_CHANNELS,
     TERMINAL_CHANNELS,
@@ -426,6 +427,12 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),
         configureVSCode: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_VSCODE),
+    },
+
+    // Sentry consent - Only for PPTB UI
+    sentry: {
+        getConsent: (): Promise<"yes" | "no" | null> => ipcRenderer.invoke(SENTRY_CHANNELS.GET_CONSENT),
+        setConsent: (consent: "yes" | "no"): Promise<void> => ipcRenderer.invoke(SENTRY_CHANNELS.SET_CONSENT, consent),
     },
 });
 

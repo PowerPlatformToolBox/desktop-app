@@ -14,6 +14,7 @@ import {
     MCP_SERVER_CHANNELS,
     MODAL_WINDOW_CHANNELS,
     POWERPLATFORM_CHANNELS,
+    SENTRY_CHANNELS,
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
@@ -43,6 +44,7 @@ import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
+import { disableSentryMain, initSentryMain } from "./managers/sentryManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -122,6 +124,12 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
+
+            // Initialize Sentry early if the user has already given consent.
+            const sentryConsent = this.settingsManager.getSetting("sentryConsent");
+            if (sentryConsent === "yes") {
+                void initSentryMain(this.settingsManager, this.installIdManager);
+            }
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -299,6 +307,10 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.IS_FAVORITE_TOOL);
         ipcMain.removeHandler(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL);
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_MCP_ACCESS_TOKEN);
+
+        // Sentry channels
+        ipcMain.removeHandler(SENTRY_CHANNELS.GET_CONSENT);
+        ipcMain.removeHandler(SENTRY_CHANNELS.SET_CONSENT);
 
         // Connection handlers
         ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
@@ -515,6 +527,20 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, (_, key, value) => {
             this.settingsManager.setSetting(key, value);
+        });
+
+        // Sentry consent handlers
+        ipcMain.handle(SENTRY_CHANNELS.GET_CONSENT, () => {
+            return this.settingsManager.getSetting("sentryConsent") ?? null;
+        });
+
+        ipcMain.handle(SENTRY_CHANNELS.SET_CONSENT, async (_, consent: "yes" | "no") => {
+            this.settingsManager.setSetting("sentryConsent", consent);
+            if (consent === "yes") {
+                await initSentryMain(this.settingsManager, this.installIdManager);
+            } else {
+                disableSentryMain();
+            }
         });
 
         // MCP access token handler

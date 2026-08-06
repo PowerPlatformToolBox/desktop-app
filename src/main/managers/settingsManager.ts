@@ -43,6 +43,7 @@ export class SettingsManager {
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
                 marketplaceSources: this.getDefaultMarketplaceSources(),
+                sentryConsent: null, // null = not yet asked; "yes" or "no" after user responds
             },
         });
 

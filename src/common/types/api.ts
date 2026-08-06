@@ -131,6 +131,14 @@ export interface McpServerAPI {
 }
 
 /**
+ * Sentry consent API namespace
+ */
+export interface SentryAPI {
+    getConsent: () => Promise<"yes" | "no" | null>;
+    setConsent: (consent: "yes" | "no") => Promise<void>;
+}
+
+/**
  * Troubleshooting API namespace
  */
 export interface TroubleshootingAPI {
@@ -389,4 +397,7 @@ export interface ToolboxAPI {
 
     // MCP server namespace
     mcpServer: McpServerAPI;
+
+    // Sentry consent namespace
+    sentry: SentryAPI;
 }

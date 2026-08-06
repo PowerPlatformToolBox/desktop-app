@@ -30,6 +30,7 @@ import {
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
+import { updateSentryConsent } from "./sentryConsentManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
@@ -387,6 +388,30 @@ export async function loadSettings(): Promise<void> {
 
         // Apply current terminal font
         applyTerminalFont(terminalFont);
+    }
+
+    // Load and wire up the Sentry consent toggle independently of other settings
+    // (it saves immediately on change rather than waiting for the Save button).
+    const sentryConsentCheck = document.getElementById("sidebar-sentry-consent-check") as HTMLInputElement | null;
+    if (sentryConsentCheck) {
+        try {
+            const consent = await window.toolboxAPI.sentry.getConsent();
+            sentryConsentCheck.checked = consent === "yes";
+        } catch (err) {
+            logError(err instanceof Error ? err : new Error(String(err)));
+        }
+
+        // Remove any previously attached listener to avoid duplicates on re-render.
+        const existing = (sentryConsentCheck as HTMLInputElement & { _pptbSentryHandler?: EventListener })._pptbSentryHandler;
+        if (existing) {
+            sentryConsentCheck.removeEventListener("change", existing);
+        }
+
+        const handler: EventListener = () => {
+            void updateSentryConsent(sentryConsentCheck.checked ? "yes" : "no");
+        };
+        (sentryConsentCheck as HTMLInputElement & { _pptbSentryHandler?: EventListener })._pptbSentryHandler = handler;
+        sentryConsentCheck.addEventListener("change", handler);
     }
 }
 
@@ -851,6 +876,25 @@ export function renderSettingsContent(panel: HTMLElement): void {
             <section id="settings-section-preview" class="settings-vscode-section">
                 <h2 class="settings-vscode-section-title">Preview Features</h2>
                 ${renderPreviewFeatureSettingsRows()}
+            </section>
+
+            <section id="settings-section-privacy" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Privacy &amp; Telemetry</h2>
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-sentry-consent-check">Send anonymous diagnostic data</label>
+                        <p class="settings-vscode-item-description">
+                            Help improve Power Platform ToolBox by sending anonymous warnings and error reports.
+                            Only non-personal data is captured: install ID, version, OS, and architecture.
+                        </p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-sentry-consent-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
             </section>
 
             <div class="settings-vscode-actions">

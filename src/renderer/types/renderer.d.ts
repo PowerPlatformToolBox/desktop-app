@@ -27,6 +27,9 @@ declare global {
             send: (channel: string, ...args: unknown[]) => void;
         };
     }
+
+    /** Sentry DSN injected at build time by Vite. Empty string when not configured. */
+    const __SENTRY_DSN__: string;
 }
 
 declare module "*.svg?raw" {

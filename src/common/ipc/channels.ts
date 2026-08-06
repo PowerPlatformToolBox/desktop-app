@@ -305,5 +305,11 @@ export const SPLIT_LAYOUT_CHANNELS = {
     STATE_CHANGED: "split-layout:state-changed",
 } as const;
 
+// Sentry consent channels
+export const SENTRY_CHANNELS = {
+    GET_CONSENT: "sentry:get-consent",
+    SET_CONSENT: "sentry:set-consent",
+} as const;
+
 // Type helper to extract channel names
 export type ChannelName<T> = T[keyof T];
