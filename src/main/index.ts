@@ -348,6 +348,8 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_CONTEXT);
+        ipcMain.removeHandler(TOOL_CHANNELS.CHECK_BETA_PACKAGE);
+        ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL);
 
         // Tool settings handlers
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TOOL_SETTINGS);
@@ -394,6 +396,13 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
         ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_SUPABASE_CONNECTIVITY);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_REGISTRY_FILE);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_USER_SETTINGS);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_TOOL_SETTINGS);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_CONNECTIONS);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD);
+        ipcMain.removeHandler(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -466,6 +475,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(DATAVERSE_CHANNELS.UPDATE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.DELETE_OPTION_VALUE);
         ipcMain.removeHandler(DATAVERSE_CHANNELS.ORDER_OPTION);
+        ipcMain.removeHandler(DATAVERSE_CHANNELS.GET_CSDL_DOCUMENT);
 
         // Power Platform handlers
         ipcMain.removeHandler(POWERPLATFORM_CHANNELS.REQUEST);
