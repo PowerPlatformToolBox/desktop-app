@@ -69,7 +69,11 @@ export async function loadSidebarTools(): Promise<void> {
         const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
         const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
         const mcpEnabledFilterRow = document.getElementById("tools-mcp-enabled-filter-row") as HTMLElement | null;
+        const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
+        const privateMarketplaceFilterRow = document.getElementById("tools-private-marketplace-filter-row") as HTMLElement | null;
         const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
+        const userSettings = await window.toolboxAPI.getUserSettings();
+        const hasConfiguredPrivateMarketplace = (userSettings.marketplaceSources || []).some((source) => source.type === "private");
 
         if (mcpEnabledFilterRow) {
             mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
@@ -77,15 +81,22 @@ export async function loadSidebarTools(): Promise<void> {
         if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
             mcpEnabledFilter.checked = false;
         }
+        if (privateMarketplaceFilterRow) {
+            privateMarketplaceFilterRow.style.display = hasConfiguredPrivateMarketplace ? "" : "none";
+        }
+        if (!hasConfiguredPrivateMarketplace && privateMarketplaceFilter) {
+            privateMarketplaceFilter.checked = false;
+        }
 
         const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
         const showUpdateRequiredOnly = !!updateRequiredFilter?.checked;
         const showMcpEnabledOnly = mcpPreviewUiEnabled && !!mcpEnabledFilter?.checked;
+        const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && !!privateMarketplaceFilter?.checked;
 
         // Update filter button indicator and one-click clear button visibility
-        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly);
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly);
         const toolsFilterBtn = document.getElementById("tools-filter-btn");
         if (toolsFilterBtn) {
             toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -139,6 +150,10 @@ export async function loadSidebarTools(): Promise<void> {
                 return false;
             }
 
+            if (showPrivateMarketplaceOnly && t.marketplaceSourceType !== "private") {
+                return false;
+            }
+
             // Deprecated filter
             if (t.status === "deprecated") {
                 if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-marketplace") {
@@ -178,7 +193,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Empty state when no matches after filtering
         if (sortedTools.length === 0) {
             const hasSearchTerm = searchTerm.length > 0;
-            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly;
+            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly;
             const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
@@ -259,6 +274,8 @@ export async function loadSidebarTools(): Promise<void> {
                     toolSourceClass = "tool-item-pptb-local";
                 } else if (tool.id.startsWith("npm-")) {
                     toolSourceClass = "tool-item-pptb-npm";
+                } else if (tool.marketplaceSourceType === "private") {
+                    toolSourceClass = "tool-item-pptb-private-marketplace";
                 }
 
                 const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${
@@ -458,6 +475,7 @@ export async function loadSidebarTools(): Promise<void> {
     const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
     const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
     const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+    const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
 
     if (searchInput && !(searchInput as any)._pptbBound) {
         (searchInput as any)._pptbBound = true;
@@ -491,6 +509,13 @@ export async function loadSidebarTools(): Promise<void> {
     if (mcpEnabledFilter && !mcpEnabledFilter._pptbBound) {
         mcpEnabledFilter._pptbBound = true;
         mcpEnabledFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    if (privateMarketplaceFilter && !privateMarketplaceFilter._pptbBound) {
+        privateMarketplaceFilter._pptbBound = true;
+        privateMarketplaceFilter.addEventListener("change", () => {
             loadSidebarTools();
         });
     }
@@ -798,6 +823,11 @@ function clearAllFilters(): void {
         mcpEnabledFilter.checked = false;
     }
 
+    const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
+    if (privateMarketplaceFilter) {
+        privateMarketplaceFilter.checked = false;
+    }
+
     // Reload the sidebar tools to reflect the cleared filters
     loadSidebarTools();
 }
@@ -827,6 +857,11 @@ export function clearInstalledToolsDropdownFilters(): void {
     const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
     if (mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
+    }
+
+    const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
+    if (privateMarketplaceFilter) {
+        privateMarketplaceFilter.checked = false;
     }
 
     // Reload the sidebar tools to reflect the cleared filters

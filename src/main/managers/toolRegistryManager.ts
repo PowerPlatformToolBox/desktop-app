@@ -979,6 +979,9 @@ export class ToolRegistryManager extends EventEmitter {
             minAPI: manifestEntry.minAPI,
             maxAPI: manifestEntry.maxAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
+            marketplaceSourceId: manifestEntry.marketplaceSourceId,
+            marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
+            marketplaceSourceType: manifestEntry.marketplaceSourceType,
         };
     }
 

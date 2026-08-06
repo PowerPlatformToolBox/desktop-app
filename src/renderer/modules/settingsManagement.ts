@@ -25,6 +25,8 @@ import {
     getPreviewFeatureDefinitions,
     normalizePreviewFeatureFlags,
 } from "./previewFeatureManagement";
+import { getModalStyles } from "../modals/sharedStyles";
+import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
@@ -142,6 +144,140 @@ function collectMarketplaceSourcesFromSettingsPanel(): MarketplaceSource[] {
     });
 
     return sources;
+}
+
+function shouldPromptRestartForMarketplaceSourceChanges(previousSources: MarketplaceSource[], nextSources: MarketplaceSource[]): boolean {
+    const previousBuiltInEnabled = previousSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
+    const nextBuiltInEnabled = nextSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
+
+    const builtInChanged = previousBuiltInEnabled !== nextBuiltInEnabled;
+
+    const normalizePrivateSources = (sources: MarketplaceSource[]) =>
+        sources
+            .filter((source) => source.type === "private")
+            .map((source) => ({
+                id: source.id,
+                label: source.label,
+                url: source.url,
+                enabled: source.enabled,
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id));
+
+    const privateSourcesChanged = JSON.stringify(normalizePrivateSources(previousSources)) !== JSON.stringify(normalizePrivateSources(nextSources));
+
+    return builtInChanged || privateSourcesChanged;
+}
+
+async function promptRestartForMarketplaceSourceChanges(): Promise<boolean> {
+    const modalId = "marketplace-source-restart-required";
+    const restartChannel = "settings:marketplace-restart-now";
+    const laterChannel = "settings:marketplace-restart-later";
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const styles = `${getModalStyles(isDarkTheme)}
+<style>
+    .restart-required-hero {
+        border: 1px solid ${isDarkTheme ? "rgba(0, 180, 216, 0.35)" : "rgba(14, 99, 156, 0.25)"};
+        background: ${isDarkTheme ? "linear-gradient(135deg, rgba(0, 180, 216, 0.15) 0%, rgba(106, 0, 255, 0.18) 100%)" : "linear-gradient(135deg, rgba(14, 99, 156, 0.08) 0%, rgba(106, 0, 255, 0.1) 100%)"};
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+    }
+
+    .restart-required-hero-title {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .restart-required-hero-text {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: ${isDarkTheme ? "rgba(255,255,255,0.88)" : "rgba(31,31,31,0.88)"};
+    }
+
+    .restart-required-note {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: ${isDarkTheme ? "rgba(255,255,255,0.75)" : "rgba(31,31,31,0.72)"};
+    }
+</style>`;
+    const body = `
+<div class="modal-panel">
+    <div class="modal-header">
+        <div>
+            <p class="modal-eyebrow">Marketplace</p>
+            <h3>Restart Required</h3>
+        </div>
+        <button class="icon-button" id="marketplace-restart-close-btn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="restart-required-hero">
+            <p class="restart-required-hero-title">Marketplace source changes were saved</p>
+            <p class="restart-required-hero-text">Restart Power Platform ToolBox to apply marketplace source updates.</p>
+        </div>
+        <p class="restart-required-note">You added a private marketplace source or disabled the built-in marketplace. These changes take effect after restarting the app.</p>
+    </div>
+    <div class="modal-footer">
+        <button type="button" id="marketplace-restart-later-btn" class="fluent-button fluent-button-secondary">Later</button>
+        <button type="button" id="marketplace-restart-now-btn" class="fluent-button fluent-button-primary">Restart Now</button>
+    </div>
+</div>`;
+    const script = `
+<script>
+(() => {
+    const bridge = window.modalBridge;
+    if (!bridge) return;
+
+    const restartNow = () => bridge.send(${JSON.stringify(restartChannel)});
+    const restartLater = () => bridge.send(${JSON.stringify(laterChannel)});
+
+    document.getElementById("marketplace-restart-now-btn")?.addEventListener("click", restartNow);
+    document.getElementById("marketplace-restart-later-btn")?.addEventListener("click", restartLater);
+    document.getElementById("marketplace-restart-close-btn")?.addEventListener("click", restartLater);
+})();
+</script>`;
+
+    const html = `${styles}\n${body}\n${script}`;
+
+    return await new Promise<boolean>((resolve) => {
+        let shouldRestart = false;
+
+        const onMessage = (payload: { channel: string }) => {
+            if (payload?.channel === restartChannel) {
+                shouldRestart = true;
+                void window.toolboxAPI.utils.closeModalWindow();
+                return;
+            }
+
+            if (payload?.channel === laterChannel) {
+                shouldRestart = false;
+                void window.toolboxAPI.utils.closeModalWindow();
+            }
+        };
+
+        const onClosed = () => {
+            offBrowserWindowModalMessage(onMessage);
+            offBrowserWindowModalClosed(onClosed);
+            resolve(shouldRestart);
+        };
+
+        onBrowserWindowModalMessage(onMessage);
+        onBrowserWindowModalClosed(onClosed);
+
+        showBrowserWindowModal({
+            id: modalId,
+            html,
+            width: 520,
+            height: 320,
+        }).catch((error) => {
+            offBrowserWindowModalMessage(onMessage);
+            offBrowserWindowModalClosed(onClosed);
+            logError(error instanceof Error ? error : new Error(String(error)));
+            resolve(false);
+        });
+    });
 }
 
 /**
@@ -312,6 +448,8 @@ export async function saveSettings(): Promise<void> {
         marketplaceSources,
     };
 
+    const requiresRestartForMarketplaceSources = shouldPromptRestartForMarketplaceSourceChanges(originalSettings.marketplaceSources ?? [], currentSettings.marketplaceSources);
+
     // Only include changed settings in the update
     const changedSettings: any = {};
 
@@ -393,6 +531,13 @@ export async function saveSettings(): Promise<void> {
             body: "Your settings have been saved.",
             type: "success",
         });
+
+        if (changedSettings.marketplaceSources !== undefined && requiresRestartForMarketplaceSources) {
+            const shouldRestart = await promptRestartForMarketplaceSourceChanges();
+            if (shouldRestart) {
+                await window.toolboxAPI.utils.restartApp();
+            }
+        }
     }
     // If no changes, do nothing (no notification shown)
 }
@@ -762,18 +907,22 @@ export function renderSettingsContent(panel: HTMLElement): void {
                     </div>
                 `,
             );
-            const addedRow = marketplaceSourcesList.lastElementChild as HTMLElement | null;
-            addedRow?.querySelector("[data-action='remove-marketplace-source']")?.addEventListener("click", () => {
-                addedRow.remove();
-            });
         });
-    }
 
-    marketplaceSourcesList?.querySelectorAll<HTMLElement>("[data-action='remove-marketplace-source']").forEach((button) => {
-        button.addEventListener("click", () => {
-            button.closest(".settings-vscode-marketplace-source-row")?.remove();
-        });
-    });
+        const list = marketplaceSourcesList as HTMLElement & { _pptbBound?: boolean };
+        if (!list._pptbBound) {
+            list._pptbBound = true;
+            list.addEventListener("click", (event) => {
+                const target = event.target as HTMLElement | null;
+                const removeButton = target?.closest("[data-action='remove-marketplace-source']") as HTMLButtonElement | null;
+                if (!removeButton) {
+                    return;
+                }
+
+                removeButton.closest(".settings-vscode-marketplace-source-row")?.remove();
+            });
+        }
+    }
 
     // Wire up font help link
     const fontHelpLink = panel.querySelector("#font-help-link") as HTMLAnchorElement | null;

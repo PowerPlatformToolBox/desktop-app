@@ -62,6 +62,9 @@ export async function loadToolsLibrary(): Promise<void> {
                     isSupported: tool.isSupported, // Include compatibility status
                     npmPackageName: tool.npmPackageName, // Include npm package name for pre-release detection
                     mcpHeadlessEnabled: tool.mcpHeadlessEnabled,
+                    marketplaceSourceId: tool.marketplaceSourceId,
+                    marketplaceSourceLabel: tool.marketplaceSourceLabel,
+                    marketplaceSourceType: tool.marketplaceSourceType,
                 }) as ToolDetail,
         );
 
@@ -106,8 +109,12 @@ export async function loadMarketplace(): Promise<void> {
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
     const mcpEnabledFilterRow = document.getElementById("marketplace-mcp-enabled-filter-row") as HTMLElement | null;
+    const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
+    const privateMarketplaceFilterRow = document.getElementById("marketplace-private-marketplace-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
     const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
+    const userSettings = await window.toolboxAPI.getUserSettings();
+    const hasConfiguredPrivateMarketplace = (userSettings.marketplaceSources || []).some((source) => source.type === "private");
 
     if (mcpEnabledFilterRow) {
         mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
@@ -115,16 +122,23 @@ export async function loadMarketplace(): Promise<void> {
     if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
     }
+    if (privateMarketplaceFilterRow) {
+        privateMarketplaceFilterRow.style.display = hasConfiguredPrivateMarketplace ? "" : "none";
+    }
+    if (!hasConfiguredPrivateMarketplace && privateMarketplaceFilter) {
+        privateMarketplaceFilter.checked = false;
+    }
 
     const searchTerm = searchInput?.value ? searchInput.value.toLowerCase() : "";
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
     const showNewOnly = newFilter?.checked || false;
     const showMcpEnabledOnly = mcpPreviewUiEnabled && (mcpEnabledFilter?.checked || false);
+    const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && (privateMarketplaceFilter?.checked || false);
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Update filter button indicator and one-click clear button visibility
-    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly);
+    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly);
     const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterBtn) {
         marketplaceFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -180,6 +194,10 @@ export async function loadMarketplace(): Promise<void> {
             return false;
         }
 
+        if (showPrivateMarketplaceOnly && t.marketplaceSourceType !== "private") {
+            return false;
+        }
+
         // Deprecated filter
         if (t.status === "deprecated") {
             if (deprecatedToolsVisibility === "hide-all" || deprecatedToolsVisibility === "show-installed") {
@@ -214,7 +232,7 @@ export async function loadMarketplace(): Promise<void> {
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         const hasSearchTerm = searchTerm.length > 0;
-        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
@@ -433,6 +451,13 @@ export async function loadMarketplace(): Promise<void> {
     if (mcpEnabledFilter && !(mcpEnabledFilter as any)._pptbBound) {
         (mcpEnabledFilter as any)._pptbBound = true;
         mcpEnabledFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    if (privateMarketplaceFilter && !(privateMarketplaceFilter as any)._pptbBound) {
+        (privateMarketplaceFilter as any)._pptbBound = true;
+        privateMarketplaceFilter.addEventListener("change", () => {
             loadMarketplace();
         });
     }
@@ -764,6 +789,11 @@ function clearMarketplaceFilters(): void {
         mcpEnabledFilter.checked = false;
     }
 
+    const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
+    if (privateMarketplaceFilter) {
+        privateMarketplaceFilter.checked = false;
+    }
+
     // Reload the marketplace to reflect the cleared filters
     loadMarketplace();
 }
@@ -795,6 +825,11 @@ export function clearMarketplaceDropdownFilters(): void {
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
     if (mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
+    }
+
+    const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
+    if (privateMarketplaceFilter) {
+        privateMarketplaceFilter.checked = false;
     }
 
     // Reload the marketplace to reflect the cleared filters

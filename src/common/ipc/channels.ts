@@ -159,6 +159,7 @@ export const UTIL_CHANNELS = {
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
+    RESTART_APP: "restart-app",
 } as const;
 
 // Filesystem-related IPC channels

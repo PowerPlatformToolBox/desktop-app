@@ -381,6 +381,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
+        ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -1208,6 +1209,12 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.SEND_MODAL_MESSAGE, (_, payload: ModalWindowMessagePayload) => {
             this.modalWindowManager?.sendMessageToModal(payload);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.RESTART_APP, () => {
+            this.isQuitting = true;
+            app.relaunch();
+            app.quit();
         });
 
         // Clipboard handler
