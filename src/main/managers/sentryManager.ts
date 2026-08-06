@@ -110,18 +110,33 @@ export function disableSentryMain(): void {
 // ---------------------------------------------------------------------------
 
 let _handlersRegistered = false;
+// Re-entrancy guard: prevents our handler from recursively re-triggering itself
+// when Sentry's async send (captureException) produces its own unhandled rejection.
+let _inErrorHandler = false;
 
 function registerProcessHandlers(): void {
     if (_handlersRegistered) return;
     _handlersRegistered = true;
 
     process.on("uncaughtException", (error: Error) => {
-        logError(error);
+        if (_inErrorHandler) return;
+        _inErrorHandler = true;
+        try {
+            logError(error);
+        } finally {
+            _inErrorHandler = false;
+        }
     });
 
     process.on("unhandledRejection", (reason: unknown) => {
-        const error = reason instanceof Error ? reason : new Error(String(reason));
-        logError(error);
+        if (_inErrorHandler) return;
+        _inErrorHandler = true;
+        try {
+            const error = reason instanceof Error ? reason : new Error(String(reason));
+            logError(error);
+        } finally {
+            _inErrorHandler = false;
+        }
     });
 }
 

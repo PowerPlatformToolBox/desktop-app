@@ -96,19 +96,34 @@ export function disableSentryRenderer(): void {
 // ---------------------------------------------------------------------------
 
 let _handlersRegistered = false;
+// Re-entrancy guard: prevents our handler from recursively re-triggering itself
+// when Sentry's async send (captureException) produces its own unhandled rejection.
+let _inWindowErrorHandler = false;
 
 function registerWindowHandlers(): void {
     if (_handlersRegistered) return;
     _handlersRegistered = true;
 
     window.addEventListener("error", (event: ErrorEvent) => {
-        const error = event.error instanceof Error ? event.error : new Error(event.message ?? "Uncaught error");
-        logError(error);
+        if (_inWindowErrorHandler) return;
+        _inWindowErrorHandler = true;
+        try {
+            const error = event.error instanceof Error ? event.error : new Error(event.message ?? "Uncaught error");
+            logError(error);
+        } finally {
+            _inWindowErrorHandler = false;
+        }
     });
 
     window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
-        const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason ?? "Unhandled rejection"));
-        logError(error);
+        if (_inWindowErrorHandler) return;
+        _inWindowErrorHandler = true;
+        try {
+            const error = event.reason instanceof Error ? event.reason : new Error(String(event.reason ?? "Unhandled rejection"));
+            logError(error);
+        } finally {
+            _inWindowErrorHandler = false;
+        }
     });
 }
 
