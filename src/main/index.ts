@@ -3018,7 +3018,6 @@ class ToolBoxApp {
             // Closing the app window should terminate the entire application, regardless
             // of MCP server state.
             this.isQuitting = true;
-            event.preventDefault();
             app.quit();
         });
 
