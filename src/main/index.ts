@@ -3015,18 +3015,11 @@ class ToolBoxApp {
             if (this.isQuitting) {
                 return;
             }
-
-            if (!this.mcpServerManager.isRunning()) {
-                // No MCP background workload: closing the app window should terminate the
-                // entire app process (including auxiliary hidden windows).
-                this.isQuitting = true;
-                event.preventDefault();
-                app.quit();
-                return;
-            }
-
+            // Closing the app window should terminate the entire application, regardless
+            // of MCP server state.
+            this.isQuitting = true;
             event.preventDefault();
-            this.mainWindow?.hide();
+            app.quit();
         });
 
         this.mainWindow.on("closed", () => {
