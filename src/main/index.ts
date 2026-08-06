@@ -3011,7 +3011,7 @@ class ToolBoxApp {
             this.mainWindow.webContents.openDevTools({ mode: "undocked" });
         }
 
-        this.mainWindow.on("close", (event) => {
+        this.mainWindow.on("close", () => {
             if (this.isQuitting) {
                 return;
             }
