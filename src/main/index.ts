@@ -3011,12 +3011,16 @@ class ToolBoxApp {
             this.mainWindow.webContents.openDevTools({ mode: "undocked" });
         }
 
-        this.mainWindow.on("close", () => {
+        this.mainWindow.on("close", (event) => {
             if (this.isQuitting) {
                 return;
             }
-            // Closing the app window should terminate the entire application, regardless
-            // of MCP server state.
+            if (this.mcpServerManager.isRunning()) {
+                event.preventDefault();
+                this.mainWindow?.hide();
+                return;
+            }
+
             this.isQuitting = true;
             app.quit();
         });
