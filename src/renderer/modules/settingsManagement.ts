@@ -217,7 +217,7 @@ async function promptRestartForMarketplaceSourceChanges(): Promise<boolean> {
             <p class="restart-required-hero-title">Marketplace source changes were saved</p>
             <p class="restart-required-hero-text">Restart Power Platform ToolBox to apply marketplace source updates.</p>
         </div>
-        <p class="restart-required-note">You added a private marketplace source or disabled the built-in marketplace. These changes take effect after restarting the app.</p>
+        <p class="restart-required-note">Marketplace source was changed. These changes take effect after restarting the app.</p>
     </div>
     <div class="modal-footer">
         <button type="button" id="marketplace-restart-later-btn" class="fluent-button fluent-button-secondary">Later</button>
