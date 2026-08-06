@@ -185,6 +185,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
+        restartApp: () => ipcRenderer.invoke(UTIL_CHANNELS.RESTART_APP),
     },
 
     // Troubleshooting namespace - organized like other features

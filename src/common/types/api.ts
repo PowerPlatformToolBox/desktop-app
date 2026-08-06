@@ -40,6 +40,7 @@ export interface UtilsAPI {
     showModalWindow: (options: ModalWindowOptions) => Promise<void>;
     closeModalWindow: () => Promise<void>;
     sendModalMessage: (payload: ModalWindowMessagePayload) => Promise<void>;
+    restartApp: () => Promise<void>;
 }
 
 /**
