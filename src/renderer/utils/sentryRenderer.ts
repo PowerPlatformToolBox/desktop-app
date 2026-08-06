@@ -50,8 +50,13 @@ export async function initSentryRenderer(installId: string, appVersion: string, 
             release: appVersion,
             environment: channel ?? "stable",
             tracesSampleRate: 0,
+            // Disable session replay entirely so the rrweb-snapshot bundle (and its
+            // missing source map) is never loaded.  Setting both rates to 0 is not
+            // enough because the Replay integration is still registered by default and
+            // triggers the source-map DevTools warning on pnpm installs.
             replaysSessionSampleRate: 0,
             replaysOnErrorSampleRate: 0,
+            integrations: (defaults: unknown[]) => defaults.filter((i: unknown) => (i as { name?: string }).name !== "Replay"),
             beforeSend(event: Record<string, unknown>) {
                 return scrubSentryEvent(event);
             },

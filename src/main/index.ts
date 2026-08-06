@@ -2931,6 +2931,12 @@ class ToolBoxApp {
      * Create the main application window
      */
     private createWindow(): void {
+        // Guard against creating a second window when one already exists.
+        if (this.mainWindow) {
+            this.showAndFocusMainWindow();
+            return;
+        }
+
         this.mainWindow = new BrowserWindow({
             width: 1200,
             height: 800,
