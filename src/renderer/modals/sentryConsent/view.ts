@@ -45,14 +45,17 @@ export function getSentryConsentModalView(model: SentryConsentModalViewModel): {
         <p class="telemetry-consent-note">What will be captured:</p>
         <ul class="telemetry-consent-list">
             <li>Install ID (anonymous unique identifier)</li>
-            <li>Installed version</li>
-            <li>Operating system</li>
-            <li>CPU architecture</li>
+            <li>Installed version (${model.appVersion})</li>
+            <li>Operating system (${model.platform})</li>
+            <li>CPU architecture (${model.arch})</li>
             <li>Warning and error logs</li>
         </ul>
         <p class="telemetry-consent-note">
             You can change this preference at any time in
-            <strong>Settings &rarr; Privacy &amp; Telemetry</strong>
+            <strong>Settings &rarr; Telemetry</strong>
+        </p>
+        <p class="telemetry-consent-note">
+            No existing data will be backfilled. Telemetry collection starts after the next app restart.
         </p>
     </div>
     <div class="modal-footer">
