@@ -13,8 +13,9 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
     setSentryTelemetryConsent(consent);
 
     if (consent !== "yes") {
-        if (isRendererSentryInitialized && typeof Sentry.close === "function") {
-            await Sentry.close();
+        const sentryWithClose = Sentry as typeof Sentry & { close?: () => Promise<unknown> };
+        if (isRendererSentryInitialized && typeof sentryWithClose.close === "function") {
+            await sentryWithClose.close();
         }
 
         isRendererSentryInitialized = false;

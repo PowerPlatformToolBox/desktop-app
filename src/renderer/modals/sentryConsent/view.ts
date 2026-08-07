@@ -1,4 +1,3 @@
-import { escapeHtml } from "../../utils/toolIconResolver";
 import { getModalStyles } from "../sharedStyles";
 
 export interface SentryConsentModalViewModel {
@@ -6,6 +5,10 @@ export interface SentryConsentModalViewModel {
     appVersion: string;
     platform: string;
     arch: string;
+}
+
+function escapeHtml(value: string): string {
+    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 export function getSentryConsentModalView(model: SentryConsentModalViewModel): { styles: string; body: string } {
