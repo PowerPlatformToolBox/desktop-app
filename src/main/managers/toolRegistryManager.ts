@@ -1111,37 +1111,15 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
-            // Fetch current analytics row so we can increment only the downloads column,
-            // leaving mau and rating untouched (a bare upsert would reset those to null).
-            const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
+            // Use the atomic DB-side RPC to avoid read-modify-write race conditions
+            // when multiple machines download the same tool concurrently.
+            const { error } = await this.supabase.rpc("increment_tool_downloads", { p_tool_id: toolId });
 
-            if (fetchError && fetchError.code !== "PGRST116") {
-                // PGRST116 is "no rows found" - that's okay
-                throw fetchError;
+            if (error) {
+                throw error;
             }
 
-            const newDownloads = (existingAnalytics?.downloads || 0) + 1;
-
-            if (existingAnalytics) {
-                // Row exists — update only the downloads column to avoid overwriting mau/rating.
-                // Note: a race condition between concurrent downloads from different machines
-                // could cause a count to be lost; resolving this fully requires a DB-side atomic
-                // increment RPC (e.g. `downloads = downloads + 1`).
-                const { error: updateError } = await this.supabase.from("tool_analytics").update({ downloads: newDownloads }).eq("tool_id", toolId);
-
-                if (updateError) {
-                    throw updateError;
-                }
-            } else {
-                // No row yet — insert a new one
-                const { error: insertError } = await this.supabase.from("tool_analytics").insert({ tool_id: toolId, downloads: newDownloads });
-
-                if (insertError) {
-                    throw insertError;
-                }
-            }
-
-            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
+            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
             logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
@@ -1180,58 +1158,20 @@ export class ToolRegistryManager extends EventEmitter {
             const now = new Date();
             const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-            // Insert or update the usage record
-            // This table should have a unique constraint on (tool_id, install_id, year_month)
-            const { error: usageError } = await this.supabase.from("tool_usage_tracking").upsert(
-                {
-                    tool_id: toolId,
-                    install_id: installId,
-                    year_month: yearMonth,
-                    last_used_at: now.toISOString(),
-                },
-                {
-                    onConflict: "tool_id,install_id,year_month",
-                },
-            );
+            // Single atomic RPC: upserts the usage row, recounts MAU, and updates tool_analytics
+            // — all in one DB round-trip with no race conditions.
+            const { error } = await this.supabase.rpc("track_tool_usage", {
+                p_tool_id: toolId,
+                p_install_id: installId,
+                p_year_month: yearMonth,
+                p_last_used_at: now.toISOString(),
+            });
 
-            if (usageError) {
-                throw usageError;
+            if (error) {
+                throw error;
             }
 
-            // Now update the aggregated MAU count in tool_analytics
-            // Count distinct machines for this tool in the current month
-            const { count, error: countError } = await this.supabase.from("tool_usage_tracking").select("*", { count: "exact", head: true }).eq("tool_id", toolId).eq("year_month", yearMonth);
-
-            if (countError) {
-                throw countError;
-            }
-
-            // Update the tool_analytics table with current month's MAU.
-            // Check whether a row already exists so we can update only the mau column
-            // instead of upserting a partial record that would reset downloads/rating to null.
-            const { data: existingAnalytics, error: analyticsFetchError } = await this.supabase.from("tool_analytics").select("tool_id").eq("tool_id", toolId).maybeSingle();
-
-            if (analyticsFetchError && analyticsFetchError.code !== "PGRST116") {
-                throw analyticsFetchError;
-            }
-
-            if (existingAnalytics) {
-                // Row exists — update only the mau column to avoid overwriting downloads/rating
-                const { error: analyticsError } = await this.supabase.from("tool_analytics").update({ mau: count || 0 }).eq("tool_id", toolId);
-
-                if (analyticsError) {
-                    throw analyticsError;
-                }
-            } else {
-                // No row yet — insert a new one
-                const { error: analyticsError } = await this.supabase.from("tool_analytics").insert({ tool_id: toolId, mau: count || 0 });
-
-                if (analyticsError) {
-                    throw analyticsError;
-                }
-            }
-
-            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
+            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
