@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     const azureBlobBaseUrl = env.AZURE_BLOB_BASE_URL || process.env.AZURE_BLOB_BASE_URL || "";
     const updatesOrigin = env.PPTB_UPDATES_ORIGIN || process.env.PPTB_UPDATES_ORIGIN || "https://www.powerplatformtoolbox.com";
     const channel = env.PPTB_CHANNEL || process.env.PPTB_CHANNEL || "stable";
+    const sentryDsn = env.SENTRY_DSN || process.env.SENTRY_DSN || "";
 
     if (supabaseUrl && supabaseKey) {
         console.log("[Vite] Supabase credentials loaded successfully");
@@ -40,6 +41,7 @@ export default defineConfig(({ mode }) => {
         "process.env.AZURE_BLOB_BASE_URL": JSON.stringify(azureBlobBaseUrl),
         "process.env.PPTB_UPDATES_ORIGIN": JSON.stringify(updatesOrigin),
         "process.env.PPTB_CHANNEL": JSON.stringify(channel),
+        "process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
     };
 
     return {

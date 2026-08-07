@@ -1,3 +1,49 @@
+// Initialize Sentry as early as possible in the main process
+import * as Sentry from "@sentry/electron/main";
+import { getSentryConfig, scrubSentryEvent } from "../common/sentry";
+import { addBreadcrumb, initializeSentryHelper, setSentryMachineId } from "../common/sentryHelper";
+
+const _sentryConfig = getSentryConfig();
+if (_sentryConfig) {
+    Sentry.init({
+        dsn: _sentryConfig.dsn,
+        environment: _sentryConfig.environment,
+        release: _sentryConfig.release,
+        tracesSampleRate: _sentryConfig.tracesSampleRate,
+        // Enable structured logs only in development to avoid telemetry noise
+        enableLogs: _sentryConfig.environment === "development",
+        integrations: [
+            Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
+            Sentry.httpIntegration(),
+            Sentry.nodeContextIntegration(),
+            Sentry.contextLinesIntegration(),
+            Sentry.localVariablesIntegration(),
+            Sentry.modulesIntegration(),
+        ],
+        beforeSend(event) {
+            // Scrub PII before sending any event to Sentry
+            const scrubbed = scrubSentryEvent(event);
+
+            if (!scrubbed.tags) scrubbed.tags = {};
+            scrubbed.tags.process = "main";
+
+            if (!scrubbed.contexts) scrubbed.contexts = {};
+            scrubbed.contexts.os = {
+                name: process.platform,
+                version: process.getSystemVersion ? process.getSystemVersion() : "unknown",
+            };
+
+            return scrubbed;
+        },
+    });
+
+    initializeSentryHelper(Sentry);
+    logInfo("[Sentry] Initialized in main process");
+    addBreadcrumb("Main process Sentry initialized", "init", "info");
+} else {
+    logInfo("[Sentry] Telemetry disabled - no DSN configured");
+}
+
 import { spawn } from "child_process";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme, shell } from "electron";
 import * as fs from "fs";
@@ -3417,6 +3463,11 @@ class ToolBoxApp {
 
             await app.whenReady();
             logCheckpoint("Electron app ready");
+
+            // Set the install ID in Sentry context for correlating events across sessions
+            if (_sentryConfig) {
+                setSentryMachineId(this.installIdManager.getInstallId());
+            }
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();
