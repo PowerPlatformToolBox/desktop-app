@@ -1,5 +1,4 @@
-import type { TelemetryConsentChoice } from "../../common/types";
-import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
+import type { ModalWindowClosedPayload, ModalWindowMessagePayload, TelemetryConsentChoice } from "../../common/types";
 import { getSentryConsentModalControllerScript } from "../modals/sentryConsent/controller";
 import { getSentryConsentModalView } from "../modals/sentryConsent/view";
 import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
@@ -13,7 +12,7 @@ const SENTRY_CONSENT_MODAL_ID = "sentry-consent-browser-modal";
 
 const SENTRY_CONSENT_MODAL_DIMENSIONS = {
     width: 560,
-    height: 500,
+    height: 470,
 };
 
 interface SentryConsentModalPromiseHandlers {

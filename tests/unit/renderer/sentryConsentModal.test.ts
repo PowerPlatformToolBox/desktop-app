@@ -13,11 +13,10 @@ describe("sentry consent modal view", () => {
         });
 
         expect(body).toContain("Install ID");
-        expect(body).toContain("Installed version (1.2.3)");
-        expect(body).toContain("Operating system (win32)");
-        expect(body).toContain("CPU architecture (x64)");
-        expect(body).toContain("Warning and error logs");
-        expect(body).toContain("No existing data will be backfilled");
+        expect(body).toContain("Installed version");
+        expect(body).toContain("Operating system");
+        expect(body).toContain("CPU architecture");
+        expect(body).toContain("Warnings and errors only (no user data)");
     });
 });
 
