@@ -1111,7 +1111,8 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
-            // Fetch current analytics
+            // Fetch current analytics row so we can increment only the downloads column,
+            // leaving mau and rating untouched (a bare upsert would reset those to null).
             const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
 
             if (fetchError && fetchError.code !== "PGRST116") {
@@ -1119,22 +1120,25 @@ export class ToolRegistryManager extends EventEmitter {
                 throw fetchError;
             }
 
-            const currentDownloads = existingAnalytics?.downloads || 0;
-            const newDownloads = currentDownloads + 1;
+            const newDownloads = (existingAnalytics?.downloads || 0) + 1;
 
-            // Upsert the analytics record
-            const { error: upsertError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    downloads: newDownloads,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
+            if (existingAnalytics) {
+                // Row exists — update only the downloads column to avoid overwriting mau/rating.
+                // Note: a race condition between concurrent downloads from different machines
+                // could cause a count to be lost; resolving this fully requires a DB-side atomic
+                // increment RPC (e.g. `downloads = downloads + 1`).
+                const { error: updateError } = await this.supabase.from("tool_analytics").update({ downloads: newDownloads }).eq("tool_id", toolId);
 
-            if (upsertError) {
-                throw upsertError;
+                if (updateError) {
+                    throw updateError;
+                }
+            } else {
+                // No row yet — insert a new one
+                const { error: insertError } = await this.supabase.from("tool_analytics").insert({ tool_id: toolId, downloads: newDownloads });
+
+                if (insertError) {
+                    throw insertError;
+                }
             }
 
             logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
@@ -1202,19 +1206,29 @@ export class ToolRegistryManager extends EventEmitter {
                 throw countError;
             }
 
-            // Update the tool_analytics table with current month's MAU
-            const { error: analyticsError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    mau: count || 0,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
+            // Update the tool_analytics table with current month's MAU.
+            // Check whether a row already exists so we can update only the mau column
+            // instead of upserting a partial record that would reset downloads/rating to null.
+            const { data: existingAnalytics, error: analyticsFetchError } = await this.supabase.from("tool_analytics").select("tool_id").eq("tool_id", toolId).maybeSingle();
 
-            if (analyticsError) {
-                throw analyticsError;
+            if (analyticsFetchError && analyticsFetchError.code !== "PGRST116") {
+                throw analyticsFetchError;
+            }
+
+            if (existingAnalytics) {
+                // Row exists — update only the mau column to avoid overwriting downloads/rating
+                const { error: analyticsError } = await this.supabase.from("tool_analytics").update({ mau: count || 0 }).eq("tool_id", toolId);
+
+                if (analyticsError) {
+                    throw analyticsError;
+                }
+            } else {
+                // No row yet — insert a new one
+                const { error: analyticsError } = await this.supabase.from("tool_analytics").insert({ tool_id: toolId, mau: count || 0 });
+
+                if (analyticsError) {
+                    throw analyticsError;
+                }
             }
 
             logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
