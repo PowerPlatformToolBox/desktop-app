@@ -55,6 +55,7 @@ import { VersionManager } from "./managers/versionManager";
 import { readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
+import { applyMainSentryConsent } from "./sentryRuntime";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -122,6 +123,7 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
+            void applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -504,8 +506,11 @@ class ToolBoxApp {
             return this.settingsManager.getUserSettings();
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
+        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
+            if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
+                await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
+            }
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
 
@@ -513,8 +518,11 @@ class ToolBoxApp {
             return this.settingsManager.getSetting(key);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, (_, key, value) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
             this.settingsManager.setSetting(key, value);
+            if (key === "sentryTelemetryConsent") {
+                await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
+            }
         });
 
         // MCP access token handler

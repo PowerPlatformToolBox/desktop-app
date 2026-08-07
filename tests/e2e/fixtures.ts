@@ -15,6 +15,78 @@ interface AppFixtures {
     window: Page;
 }
 
+async function dismissTelemetryConsentModalIfPresent(electronApp: ElectronApplication): Promise<void> {
+    const deadline = Date.now() + 20_000;
+
+    while (Date.now() < deadline) {
+        for (const candidate of electronApp.windows()) {
+            try {
+                const declineButton = candidate.locator("#sentry-consent-no-btn");
+                if ((await declineButton.count()) === 0) {
+                    continue;
+                }
+
+                const isVisible = await declineButton
+                    .first()
+                    .isVisible()
+                    .catch(() => false);
+
+                if (!isVisible) {
+                    continue;
+                }
+
+                await declineButton.first().click();
+                await candidate
+                    .waitForEvent("close", {
+                        timeout: 5_000,
+                    })
+                    .catch(() => {
+                        // Modal may hide in-place depending on platform window behavior.
+                    });
+                return;
+            } catch {
+                // Ignore transient windows while the app is still loading.
+            }
+        }
+
+        for (const candidate of electronApp.windows()) {
+            try {
+                const settingsButton = candidate.locator("#settings-activity-btn");
+                const hasSettingsButton = (await settingsButton.count()) > 0;
+                if (!hasSettingsButton) {
+                    continue;
+                }
+
+                const settingsVisible = await settingsButton
+                    .first()
+                    .isVisible()
+                    .catch(() => false);
+                if (!settingsVisible) {
+                    continue;
+                }
+
+                const backdropVisible = await candidate
+                    .locator("#modal-backdrop")
+                    .isVisible()
+                    .catch(() => false);
+                if (!backdropVisible) {
+                    return;
+                }
+            } catch {
+                // Ignore transient windows while the app is still loading.
+            }
+        }
+
+        await electronApp
+            .waitForEvent("window", {
+                timeout: 500,
+            })
+            .catch(() => {
+                // No new window on every poll iteration.
+            });
+    }
+}
+
 async function resolveMainWindow(electronApp: ElectronApplication): Promise<Page> {
     const deadline = Date.now() + 30_000;
 
@@ -70,7 +142,9 @@ export const test = base.extend<AppFixtures>({
     },
 
     window: async ({ electronApp }, use) => {
+        await dismissTelemetryConsentModalIfPresent(electronApp);
         const win = await resolveMainWindow(electronApp);
+        await expect(win.locator("#modal-backdrop")).toBeHidden({ timeout: 15_000 });
         await use(win);
     },
 });
