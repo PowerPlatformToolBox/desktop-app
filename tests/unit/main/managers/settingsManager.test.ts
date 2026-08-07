@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import { normalizeTelemetryConsent } from "../../../../src/common/telemetryConsent";
 import { MarketplaceSource } from "../../../../src/common/types";
 import { SettingsManager } from "../../../../src/main/managers/settingsManager";
 
@@ -22,6 +23,7 @@ describe("SettingsManager", () => {
             expect(settings.autoUpdate).toBe(true);
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
+            expect(settings.sentryTelemetryConsent).toBeNull();
         });
     });
 
@@ -45,6 +47,29 @@ describe("SettingsManager", () => {
         it("round-trips a setting value", () => {
             manager.setSetting("notificationDuration", 3000);
             expect(manager.getSetting("notificationDuration")).toBe(3000);
+        });
+    });
+
+    describe("Sentry telemetry consent", () => {
+        it("stores a yes consent choice", () => {
+            manager.setSentryTelemetryConsent("yes");
+            expect(manager.getSentryTelemetryConsent()).toBe("yes");
+        });
+
+        it("stores a no consent choice", () => {
+            manager.updateUserSettings({ sentryTelemetryConsent: "no" });
+            expect(manager.getSentryTelemetryConsent()).toBe("no");
+        });
+
+        it("clears an unset consent choice", () => {
+            manager.setSentryTelemetryConsent("yes");
+            manager.setSentryTelemetryConsent(null);
+            expect(manager.getSentryTelemetryConsent()).toBeNull();
+        });
+
+        it("normalizes invalid consent values to null", () => {
+            manager.setSetting("sentryTelemetryConsent", "invalid" as never);
+            expect(normalizeTelemetryConsent(manager.getUserSettings().sentryTelemetryConsent)).toBeNull();
         });
     });
 

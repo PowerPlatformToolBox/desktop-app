@@ -36,6 +36,7 @@ export const PREVIEW_FEATURE_IDS = {
 
 export type PreviewFeatureId = (typeof PREVIEW_FEATURE_IDS)[keyof typeof PREVIEW_FEATURE_IDS];
 export type PreviewFeatureFlags = Partial<Record<PreviewFeatureId, boolean>>;
+export type TelemetryConsentChoice = "yes" | "no";
 
 export const PREVIEW_FEATURE_DEFAULTS: Record<PreviewFeatureId, boolean> = {
     [PREVIEW_FEATURE_IDS.MCP_SERVER]: false,
@@ -144,4 +145,5 @@ export interface UserSettings {
     enablePreviewFeatures?: boolean; // Show preview/experimental features in the UI
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
+    sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
 }

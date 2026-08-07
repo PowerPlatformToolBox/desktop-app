@@ -6,6 +6,7 @@
  * Sentry from the appropriate subpath in the calling code
  */
 
+import type { TelemetryConsentChoice } from "./types";
 import { scrubPii, scrubPiiFromObject } from "./sentry";
 
 // Define types for Sentry operations (these are compatible with both main and renderer)
@@ -22,6 +23,7 @@ export interface SentryTransaction {
 }
 
 let machineId: string | null = null;
+let telemetryConsent: TelemetryConsentChoice | null = null;
 // Use any type for flexibility across different Sentry module versions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sentryModule: any = null;
@@ -55,6 +57,19 @@ function isDevelopmentEnvironment(): boolean {
 export function initializeSentryHelper(sentry: any): void {
     sentryModule = sentry;
     isDevelopment = isDevelopmentEnvironment();
+}
+
+export function resetSentryHelper(): void {
+    sentryModule = null;
+    machineId = null;
+}
+
+export function setSentryTelemetryConsent(consent: TelemetryConsentChoice | null): void {
+    telemetryConsent = consent;
+}
+
+export function hasSentryTelemetryConsent(): boolean {
+    return telemetryConsent === "yes";
 }
 
 /**

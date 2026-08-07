@@ -5,6 +5,7 @@
 
 import { logError } from "../../common/logger";
 import { buildPreviewFeatureFlags, type MarketplaceSource } from "../../common/types";
+import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -27,6 +28,7 @@ import {
     getPreviewFeatureDefinitions,
     normalizePreviewFeatureFlags,
 } from "./previewFeatureManagement";
+import { applyRendererSentryConsent } from "./sentryRuntime";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
@@ -64,6 +66,24 @@ function renderPreviewFeatureSettingsRows(): string {
             `;
         })
         .join("");
+}
+
+function renderSentryTelemetrySettingsRow(): string {
+    return `
+        <div class="settings-vscode-item">
+            <div class="settings-vscode-item-info">
+                <label class="settings-vscode-item-label" for="sidebar-sentry-telemetry-consent-select">Sentry Log Collection</label>
+                <p class="settings-vscode-item-description">Choose whether ToolBox may send your install ID, installed version, OS, CPU architecture, and warning/error logs to Sentry. No historical data is backfilled.</p>
+            </div>
+            <div class="settings-vscode-item-control">
+                <select id="sidebar-sentry-telemetry-consent-select" class="fluent-select settings-vscode-select">
+                    <option value="">Not decided (show prompt again)</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+        </div>
+    `;
 }
 
 function renderMarketplaceSourcesList(sources: MarketplaceSource[]): string {
@@ -298,12 +318,15 @@ export async function loadSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const marketplaceBuiltinCheck = document.getElementById("sidebar-marketplace-builtin-check") as HTMLInputElement | null;
     const marketplaceSourcesList = document.getElementById("marketplace-sources-list") as HTMLElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         const previewFeatures = normalizePreviewFeatureFlags(settings);
+        const sentryTelemetryConsent = normalizeTelemetryConsent(settings.sentryTelemetryConsent);
 
         // Store original settings for change detection
         originalSettings = {
@@ -322,6 +345,7 @@ export async function loadSettings(): Promise<void> {
             enablePreviewFeatures: Object.values(previewFeatures).some((enabled) => enabled === true),
             previewFeatures,
             marketplaceSources: settings.marketplaceSources ?? [],
+            sentryTelemetryConsent,
         };
 
         themeSelect.value = settings.theme;
@@ -355,6 +379,9 @@ export async function loadSettings(): Promise<void> {
         }
         if (marketplaceSourcesList) {
             marketplaceSourcesList.innerHTML = renderMarketplaceSourcesList(settings.marketplaceSources ?? []);
+        }
+        if (sentryTelemetryConsentSelect) {
+            sentryTelemetryConsentSelect.value = sentryTelemetryConsent ?? "";
         }
         getPreviewFeatureDefinitions().forEach((feature) => {
             const checkbox = document.getElementById(getPreviewFeatureCheckboxId(feature.id)) as HTMLInputElement | null;
@@ -429,6 +456,7 @@ export async function saveSettings(): Promise<void> {
     const previewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
     const enablePreviewFeatures = Object.values(previewFeatures).some((enabled) => enabled === true);
     const marketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
+    const sentryTelemetryConsent = normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value);
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -446,6 +474,7 @@ export async function saveSettings(): Promise<void> {
         enablePreviewFeatures,
         previewFeatures,
         marketplaceSources,
+        sentryTelemetryConsent,
     };
 
     const requiresRestartForMarketplaceSources = shouldPromptRestartForMarketplaceSourceChanges(originalSettings.marketplaceSources ?? [], currentSettings.marketplaceSources);
@@ -498,6 +527,9 @@ export async function saveSettings(): Promise<void> {
     if (JSON.stringify(currentSettings.marketplaceSources) !== JSON.stringify(originalSettings.marketplaceSources ?? [])) {
         changedSettings.marketplaceSources = currentSettings.marketplaceSources;
     }
+    if ((currentSettings.sentryTelemetryConsent ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) {
+        changedSettings.sentryTelemetryConsent = currentSettings.sentryTelemetryConsent;
+    }
 
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
@@ -510,6 +542,7 @@ export async function saveSettings(): Promise<void> {
         applyPreviewFeaturesVisibility(currentSettings.previewFeatures);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
         applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
+        await applyRendererSentryConsent(currentSettings.sentryTelemetryConsent ?? null);
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {
@@ -562,6 +595,7 @@ function hasUnsavedChanges(): boolean {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any;
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement | null;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
@@ -585,6 +619,7 @@ function hasUnsavedChanges(): boolean {
     if (toolDisplayModeSelect.value !== (originalSettings.toolDisplayMode ?? "standard")) return true;
     if (terminalFont !== (originalSettings.terminalFont || DEFAULT_TERMINAL_FONT)) return true;
     if (notificationDurationSelect && Number(notificationDurationSelect.value) !== (originalSettings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION)) return true;
+    if ((normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value) ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) return true;
     if (restoreSessionCheck && restoreSessionCheck.checked !== (originalSettings.restoreSessionOnStartup ?? true)) return true;
     if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
     if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
@@ -846,6 +881,11 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
 
                 <div id="marketplace-sources-list"></div>
+            </section>
+
+            <section id="settings-section-telemetry" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Telemetry</h2>
+                ${renderSentryTelemetrySettingsRow()}
             </section>
 
             <section id="settings-section-preview" class="settings-vscode-section">

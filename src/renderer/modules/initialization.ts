@@ -3,45 +3,8 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-// Initialize Sentry as early as possible in the renderer process
-import * as Sentry from "@sentry/electron/renderer";
-import { getSentryConfig, scrubSentryEvent } from "../../common/sentry";
-import { addBreadcrumb, initializeSentryHelper, logInfo as sentryLogInfo } from "../../common/sentryHelper";
-
-const _sentryConfig = getSentryConfig();
-if (_sentryConfig) {
-    Sentry.init({
-        dsn: _sentryConfig.dsn,
-        environment: _sentryConfig.environment,
-        release: _sentryConfig.release,
-        tracesSampleRate: _sentryConfig.tracesSampleRate,
-        replaysSessionSampleRate: _sentryConfig.replaysSessionSampleRate,
-        replaysOnErrorSampleRate: _sentryConfig.replaysOnErrorSampleRate,
-        enableLogs: _sentryConfig.environment === "development",
-        integrations: [
-            Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
-            Sentry.browserTracingIntegration({ enableLongTask: true }),
-            Sentry.contextLinesIntegration(),
-        ],
-        beforeSend(event) {
-            // Scrub PII before sending any event to Sentry
-            const scrubbed = scrubSentryEvent(event);
-
-            if (!scrubbed.tags) scrubbed.tags = {};
-            scrubbed.tags.process = "renderer";
-
-            return scrubbed;
-        },
-    });
-
-    initializeSentryHelper(Sentry);
-    sentryLogInfo("[Sentry] Initialized in renderer process");
-    addBreadcrumb("Renderer process Sentry initialized", "init", "info");
-} else {
-    sentryLogInfo("[Sentry] Telemetry disabled - no DSN configured");
-}
-
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
+import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -70,6 +33,8 @@ import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
+import { openSentryConsentModal } from "./sentryConsentModal";
+import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { handleTerminalClosed, handleTerminalCommandCompleted, handleTerminalCreated, handleTerminalError, handleTerminalOutput, setupTerminalPanel } from "./terminalManagement";
@@ -94,8 +59,6 @@ import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSid
  * Sets up all event listeners, loads initial data, and restores session
  */
 export async function initializeApplication(): Promise<void> {
-    logCheckpoint("Renderer initialization started");
-
     try {
         // Signal the main process that the renderer is starting fresh so it can clean up
         // any stale BrowserViews left over from a previous session (e.g. after a force-reload).
@@ -103,6 +66,24 @@ export async function initializeApplication(): Promise<void> {
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
 
         initializeBrowserWindowModals();
+        const initialSettings = await window.toolboxAPI.getUserSettings();
+        applyTheme(initialSettings.theme);
+        await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent));
+
+        if (shouldPromptForTelemetryConsent(initialSettings.sentryTelemetryConsent)) {
+            const consentChoice = await openSentryConsentModal({
+                appVersion: await window.toolboxAPI.getAppVersion().catch(() => "unknown"),
+                platform: typeof process !== "undefined" ? process.platform : "unknown",
+                arch: typeof process !== "undefined" ? process.arch : "unknown",
+            });
+
+            if (consentChoice !== null) {
+                await window.toolboxAPI.updateUserSettings({ sentryTelemetryConsent: consentChoice });
+                await applyRendererSentryConsent(consentChoice);
+            }
+        }
+
+        logCheckpoint("Renderer initialization started");
         initializeAddConnectionModalBridge();
 
         // Register the tool panel bounds listener early so it is available when tools are

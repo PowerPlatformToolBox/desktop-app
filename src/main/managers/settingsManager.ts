@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import Store from "electron-store";
-import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, ToolSettings, UserSettings } from "../../common/types";
+import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, TelemetryConsentChoice, ToolSettings, UserSettings } from "../../common/types";
+import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import { buildPreviewFeatureFlags } from "../../common/types/settings";
 import { AZURE_BLOB_BASE_URL } from "../constants";
 
@@ -161,6 +162,7 @@ export class SettingsManager {
         return {
             ...settings,
             marketplaceSources: this.getMarketplaceSourcesFromStore(),
+            sentryTelemetryConsent: normalizeTelemetryConsent(settings.sentryTelemetryConsent),
         };
     }
 
@@ -171,6 +173,11 @@ export class SettingsManager {
         Object.entries(settings).forEach(([key, value]) => {
             if (key === "marketplaceSources" && Array.isArray(value)) {
                 this.store.set(key as keyof UserSettings, this.normalizeMarketplaceSources(value as MarketplaceSource[]));
+                return;
+            }
+
+            if (key === "sentryTelemetryConsent") {
+                this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
                 return;
             }
 
@@ -189,7 +196,25 @@ export class SettingsManager {
      * Set a specific setting value
      */
     setSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): void {
+        if (key === "sentryTelemetryConsent") {
+            this.setSentryTelemetryConsent(normalizeTelemetryConsent(value));
+            return;
+        }
+
         this.store.set(key, value);
+    }
+
+    getSentryTelemetryConsent(): TelemetryConsentChoice | null {
+        return normalizeTelemetryConsent(this.store.get("sentryTelemetryConsent"));
+    }
+
+    setSentryTelemetryConsent(consent: TelemetryConsentChoice | null): void {
+        if (consent === null) {
+            this.store.delete("sentryTelemetryConsent");
+            return;
+        }
+
+        this.store.set("sentryTelemetryConsent", consent);
     }
 
     /**
