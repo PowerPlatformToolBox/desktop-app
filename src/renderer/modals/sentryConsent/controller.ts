@@ -11,7 +11,6 @@ export function getSentryConsentModalControllerScript(channels: SentryConsentMod
     const CHANNELS = ${serializedChannels};
     const modalBridge = window.modalBridge;
     if (!modalBridge) {
-        console.warn("modalBridge API is unavailable");
         return;
     }
 

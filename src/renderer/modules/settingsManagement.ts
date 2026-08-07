@@ -321,7 +321,6 @@ export async function loadSettings(): Promise<void> {
     const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const marketplaceBuiltinCheck = document.getElementById("sidebar-marketplace-builtin-check") as HTMLInputElement | null;
     const marketplaceSourcesList = document.getElementById("marketplace-sources-list") as HTMLElement | null;
-    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
@@ -434,6 +433,7 @@ export async function saveSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
