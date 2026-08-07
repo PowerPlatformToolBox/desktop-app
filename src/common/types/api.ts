@@ -136,6 +136,7 @@ export interface McpServerAPI {
 export interface SentryAPI {
     getConsent: () => Promise<"yes" | "no" | null>;
     setConsent: (consent: "yes" | "no") => Promise<void>;
+    smokeTest: () => Promise<boolean>;
 }
 
 /**

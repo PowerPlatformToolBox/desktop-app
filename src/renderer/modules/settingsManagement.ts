@@ -27,10 +27,10 @@ import {
     getPreviewFeatureDefinitions,
     normalizePreviewFeatureFlags,
 } from "./previewFeatureManagement";
+import { runSentryTelemetrySmokeTest, updateSentryConsent } from "./sentryConsentManagement";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
-import { updateSentryConsent } from "./sentryConsentManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
@@ -895,6 +895,17 @@ export function renderSettingsContent(panel: HTMLElement): void {
                         </label>
                     </div>
                 </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Send test telemetry</span>
+                        <p class="settings-vscode-item-description">Send a warning and an error to verify that Sentry is receiving events.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <button id="sidebar-send-sentry-test-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Send test event</button>
+                        <div id="sentry-test-status-message" class="settings-vscode-item-description" style="display: none; margin-top: 6px"></div>
+                    </div>
+                </div>
             </section>
 
             <div class="settings-vscode-actions">
@@ -924,6 +935,20 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 .catch((err) => {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
+        });
+    }
+
+    const sentryTestBtn = panel.querySelector("#sidebar-send-sentry-test-btn") as HTMLButtonElement | null;
+    const sentryTestStatus = panel.querySelector("#sentry-test-status-message") as HTMLElement | null;
+    if (sentryTestBtn) {
+        sentryTestBtn.addEventListener("click", () => {
+            void (async () => {
+                const sent = await runSentryTelemetrySmokeTest();
+                if (sentryTestStatus) {
+                    sentryTestStatus.textContent = sent ? "Test events sent. Check Sentry Issues in a few seconds." : "Enable telemetry first, then try again.";
+                    sentryTestStatus.style.display = "block";
+                }
+            })();
         });
     }
 

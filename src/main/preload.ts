@@ -433,6 +433,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     sentry: {
         getConsent: (): Promise<"yes" | "no" | null> => ipcRenderer.invoke(SENTRY_CHANNELS.GET_CONSENT),
         setConsent: (consent: "yes" | "no"): Promise<void> => ipcRenderer.invoke(SENTRY_CHANNELS.SET_CONSENT, consent),
+        smokeTest: (): Promise<boolean> => ipcRenderer.invoke(SENTRY_CHANNELS.SMOKE_TEST),
     },
 });
 

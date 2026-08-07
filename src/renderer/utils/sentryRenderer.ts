@@ -31,8 +31,7 @@ let _initialized = false;
  * @param channel - Release channel ("stable", "beta", etc.).
  */
 export async function initSentryRenderer(installId: string, appVersion: string, channel: string): Promise<void> {
-    // __SENTRY_DSN__ is replaced at build time by Vite (see vite.config.ts).
-    const dsn: string = typeof __SENTRY_DSN__ !== "undefined" ? __SENTRY_DSN__ : "";
+    const dsn = (typeof __SENTRY_DSN__ !== "undefined" ? __SENTRY_DSN__ : "") as string;
     if (!dsn) {
         logInfo("[Sentry] No DSN configured in renderer — telemetry disabled");
         return;
@@ -56,9 +55,29 @@ export async function initSentryRenderer(installId: string, appVersion: string, 
             // triggers the source-map DevTools warning on pnpm installs.
             replaysSessionSampleRate: 0,
             replaysOnErrorSampleRate: 0,
-            integrations: (defaults: unknown[]) => defaults.filter((i: unknown) => (i as { name?: string }).name !== "Replay"),
+            integrations: (defaults: unknown[]) => {
+                const filtered = defaults.filter((integration: unknown) => (integration as { name?: string }).name !== "Replay");
+                const extraIntegrations = [
+                    ...(typeof Sentry.captureConsoleIntegration === "function" ? [Sentry.captureConsoleIntegration({ levels: ["error", "warn"] })] : []),
+                    ...(typeof Sentry.httpIntegration === "function" ? [Sentry.httpIntegration()] : []),
+                    ...(typeof Sentry.browserApiErrorsIntegration === "function" ? [Sentry.browserApiErrorsIntegration()] : []),
+                ];
+                return [...filtered, ...extraIntegrations];
+            },
             beforeSend(event: Record<string, unknown>) {
-                return scrubSentryEvent(event);
+                const processedEvent = scrubSentryEvent(event);
+                const tags = (processedEvent.tags ?? {}) as Record<string, unknown>;
+                tags.process = "renderer";
+                processedEvent.tags = tags;
+
+                const contexts = (processedEvent.contexts ?? {}) as Record<string, unknown>;
+                contexts.os = {
+                    name: navigator.platform,
+                    version: navigator.userAgent,
+                };
+                processedEvent.contexts = contexts;
+
+                return processedEvent;
             },
             beforeSendTransaction() {
                 return null;

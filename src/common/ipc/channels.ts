@@ -309,6 +309,7 @@ export const SPLIT_LAYOUT_CHANNELS = {
 export const SENTRY_CHANNELS = {
     GET_CONSENT: "sentry:get-consent",
     SET_CONSENT: "sentry:set-consent",
+    SMOKE_TEST: "sentry:smoke-test",
 } as const;
 
 // Type helper to extract channel names

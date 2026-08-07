@@ -48,8 +48,8 @@ export default defineConfig(({ mode }) => {
     // renderer cannot read process.env at runtime after bundling.
     const rendererEnvDefines = {
         ...envDefines,
-        // Expose DSN through a window global so sentryRenderer.ts can read it.
-        "__SENTRY_DSN__": JSON.stringify(sentryDsn),
+        // Expose DSN through a window global so the shared Sentry runtime helper can read it.
+        __SENTRY_DSN__: JSON.stringify(sentryDsn),
     };
 
     return {

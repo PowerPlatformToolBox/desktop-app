@@ -9,7 +9,7 @@
  * Settings → Privacy & Telemetry.
  */
 
-import { logError, logInfo } from "../../common/logger";
+import { logError, logInfo, logWarn } from "../../common/logger";
 import { disableSentryRenderer, initSentryRenderer } from "../utils/sentryRenderer";
 
 // ---------------------------------------------------------------------------
@@ -121,6 +121,32 @@ export async function updateSentryConsent(consent: "yes" | "no"): Promise<void> 
         }
     } catch (err) {
         logError(err instanceof Error ? err : new Error(String(err)));
+    }
+}
+
+/**
+ * Send a small smoke-test warning and error to Sentry when telemetry is enabled.
+ * Returns true when a test event was sent, false when consent is not enabled.
+ */
+export async function runSentryTelemetrySmokeTest(): Promise<boolean> {
+    try {
+        const consent = await window.toolboxAPI.sentry.getConsent();
+        if (consent !== "yes") {
+            logInfo("[Sentry] Telemetry smoke test skipped because consent is not enabled");
+            return false;
+        }
+
+        const sent = await window.toolboxAPI.sentry.smokeTest();
+        if (sent) {
+            return true;
+        }
+
+        logWarn("[Sentry] Manual telemetry smoke test (warning)");
+        logError(new Error("[Sentry] Manual telemetry smoke test (error)"));
+        return false;
+    } catch (err) {
+        logError(err instanceof Error ? err : new Error(String(err)));
+        return false;
     }
 }
 

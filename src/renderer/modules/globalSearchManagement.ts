@@ -96,7 +96,9 @@ export function openGlobalSearch(): void {
             if (previousActiveInstanceId) {
                 // Only flag restoration when there is actually a tool to restore.
                 shouldRestoreToolOnClose = true;
-                void window.toolboxAPI.hideToolWindows();
+                void window.toolboxAPI.hideToolWindows().catch(() => {
+                    // Ignore if the tool-window manager is not yet available.
+                });
             }
         })
         .catch((err: unknown) => {

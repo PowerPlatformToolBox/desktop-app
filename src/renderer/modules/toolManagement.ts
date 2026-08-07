@@ -890,8 +890,8 @@ export async function switchToTool(instanceId: string): Promise<void> {
     // Handle tool detail tabs (no BrowserView - content is rendered inline)
     if (openTool?.isDetailTab) {
         // Hide any active BrowserView
-        window.toolboxAPI.hideToolWindows().catch((error: any) => {
-            logError(error instanceof Error ? error : new Error(String(error)));
+        window.toolboxAPI.hideToolWindows().catch(() => {
+            // Ignore if the tool-window manager is not ready yet.
         });
 
         // Hide the BrowserView placeholder so detail panel gets full space

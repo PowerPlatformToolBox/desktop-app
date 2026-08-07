@@ -44,7 +44,7 @@ import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
-import { disableSentryMain, initSentryMain } from "./managers/sentryManager";
+import { disableSentryMain, initSentryMain, sendSentryTestEvent } from "./managers/sentryManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -116,6 +116,29 @@ class ToolBoxApp {
             }
         }
         return path.join(__dirname, "../../icons/icon.png");
+    }
+
+    private resolveSentryDsn(): string {
+        const fromEnv = process.env.SENTRY_DSN;
+        if (typeof fromEnv === "string" && fromEnv.trim()) {
+            return fromEnv.trim();
+        }
+
+        const appRoot = app.getAppPath();
+        const envPath = path.join(appRoot, ".env");
+        if (fs.existsSync(envPath)) {
+            try {
+                const content = fs.readFileSync(envPath, "utf8");
+                const match = content.match(/^\s*SENTRY_DSN\s*=\s*(.+)$/m);
+                if (match?.[1]) {
+                    return match[1].trim().replace(/^['"]|['"]$/g, "");
+                }
+            } catch {
+                // Fall back to empty string if the .env file cannot be read.
+            }
+        }
+
+        return "";
     }
 
     constructor() {
@@ -311,6 +334,7 @@ class ToolBoxApp {
         // Sentry channels
         ipcMain.removeHandler(SENTRY_CHANNELS.GET_CONSENT);
         ipcMain.removeHandler(SENTRY_CHANNELS.SET_CONSENT);
+        ipcMain.removeHandler(SENTRY_CHANNELS.SMOKE_TEST);
 
         // Connection handlers
         ipcMain.removeHandler(CONNECTION_CHANNELS.ADD_CONNECTION);
@@ -551,6 +575,16 @@ class ToolBoxApp {
             } else {
                 disableSentryMain();
             }
+        });
+
+        ipcMain.handle(SENTRY_CHANNELS.SMOKE_TEST, async () => {
+            const consent = this.settingsManager.getSetting("sentryConsent");
+            if (consent !== "yes") {
+                return false;
+            }
+
+            await initSentryMain(this.settingsManager, this.installIdManager);
+            return await sendSentryTestEvent();
         });
 
         // MCP access token handler
