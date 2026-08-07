@@ -7,6 +7,7 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { captureException } from "../../common/sentryHelper";
 import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
@@ -1140,6 +1141,10 @@ export class ToolRegistryManager extends EventEmitter {
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
             logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolDownload" },
+                extra: { toolId },
+            });
         }
     }
 
@@ -1216,6 +1221,10 @@ export class ToolRegistryManager extends EventEmitter {
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolUsage" },
+                extra: { toolId },
+            });
         }
     }
 
