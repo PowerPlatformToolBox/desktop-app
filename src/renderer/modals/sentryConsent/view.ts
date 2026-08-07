@@ -55,7 +55,7 @@ export function getSentryConsentModalView(model: SentryConsentModalViewModel): {
             <strong>Settings &rarr; Telemetry</strong>
         </p>
         <p class="telemetry-consent-note">
-            No existing data will be backfilled. Telemetry collection starts after the next app restart.
+            No existing data will be backfilled. Full telemetry coverage (including main-process logs) starts after the next app restart.
         </p>
     </div>
     <div class="modal-footer">
