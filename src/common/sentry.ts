@@ -93,6 +93,12 @@ const PII_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
     { pattern: /https:\/\/[a-z0-9-]+\.crm[0-9]*\.dynamics\.com/gi, replacement: "https://[org].crm.dynamics.com" },
     // IP addresses (v4)
     { pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g, replacement: "[ip]" },
+    // Windows file-system paths that may contain usernames (e.g. C:\Users\Alice\...)
+    { pattern: /[a-zA-Z]:\\Users\\[^\\]+\\/g, replacement: "[path]\\" },
+    // Unix file-system paths that may contain usernames (e.g. /home/alice/...)
+    { pattern: /\/(?:home|Users)\/[^/\s"'<>]+/g, replacement: "[path]" },
+    // Tokens / keys: long base64-like or hex sequences (32+ chars)
+    { pattern: /\b[a-zA-Z0-9_-]{32,}\b/g, replacement: "[token]" },
 ];
 
 /**
@@ -122,7 +128,15 @@ export function scrubPiiFromObject(obj: unknown): unknown {
         for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
             // Redact known sensitive keys entirely
             const lowerKey = key.toLowerCase();
-            if (lowerKey === "password" || lowerKey === "token" || lowerKey === "secret" || lowerKey === "accesstoken" || lowerKey === "refreshtoken" || lowerKey === "apikey" || lowerKey === "authorization") {
+            if (
+                lowerKey === "password" ||
+                lowerKey === "token" ||
+                lowerKey === "secret" ||
+                lowerKey === "accesstoken" ||
+                lowerKey === "refreshtoken" ||
+                lowerKey === "apikey" ||
+                lowerKey === "authorization"
+            ) {
                 result[key] = "[redacted]";
             } else {
                 result[key] = scrubPiiFromObject(value);
