@@ -2,7 +2,7 @@
  * Renderer-specific type definitions
  */
 
-import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice } from "../../common/types";
+import type { MarketplaceSource, PreviewFeatureFlags, ProxySettings, TelemetryConsentChoice } from "../../common/types";
 
 /**
  * Interface for an open tool instance
@@ -68,6 +68,7 @@ export interface SettingsState {
     previewFeatures?: PreviewFeatureFlags;
     marketplaceSources?: MarketplaceSource[];
     sentryTelemetryConsent?: TelemetryConsentChoice | null;
+    proxy?: ProxySettings;
 }
 
 /**

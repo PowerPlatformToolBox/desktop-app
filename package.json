@@ -81,6 +81,8 @@
     "ansi-to-html": "^0.7.2",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
+    "http-proxy-agent": "^5.0.0",
+    "https-proxy-agent": "^5.0.1",
     "marked": "17.0.3",
     "pino": "^9.14.0",
     "pino-pretty": "^13.1.3",
