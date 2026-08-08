@@ -1116,7 +1116,9 @@ export class ToolRegistryManager extends EventEmitter {
             const { error } = await this.supabase.rpc("increment_tool_downloads", { p_tool_id: toolId });
 
             if (error) {
-                throw error;
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
             logInfo(`[ToolRegistry] Download tracked successfully for ${toolId}`);
@@ -1168,7 +1170,9 @@ export class ToolRegistryManager extends EventEmitter {
             });
 
             if (error) {
-                throw error;
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
             logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId}`);
