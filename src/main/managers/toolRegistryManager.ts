@@ -7,6 +7,7 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { captureException } from "../../common/sentryHelper";
 import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
@@ -1110,36 +1111,24 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
-            // Fetch current analytics
-            const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
+            // Use the atomic DB-side RPC to avoid read-modify-write race conditions
+            // when multiple machines download the same tool concurrently.
+            const { error } = await this.supabase.rpc("increment_tool_downloads", { p_tool_id: toolId });
 
-            if (fetchError && fetchError.code !== "PGRST116") {
-                // PGRST116 is "no rows found" - that's okay
-                throw fetchError;
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
-            const currentDownloads = existingAnalytics?.downloads || 0;
-            const newDownloads = currentDownloads + 1;
-
-            // Upsert the analytics record
-            const { error: upsertError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    downloads: newDownloads,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
-
-            if (upsertError) {
-                throw upsertError;
-            }
-
-            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
+            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
             logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolDownload" },
+                extra: { toolId },
+            });
         }
     }
 
@@ -1171,51 +1160,29 @@ export class ToolRegistryManager extends EventEmitter {
             const now = new Date();
             const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-            // Insert or update the usage record
-            // This table should have a unique constraint on (tool_id, install_id, year_month)
-            const { error: usageError } = await this.supabase.from("tool_usage_tracking").upsert(
-                {
-                    tool_id: toolId,
-                    install_id: installId,
-                    year_month: yearMonth,
-                    last_used_at: now.toISOString(),
-                },
-                {
-                    onConflict: "tool_id,install_id,year_month",
-                },
-            );
+            // Single atomic RPC: upserts the usage row, recounts MAU, and updates tool_analytics
+            // — all in one DB round-trip with no race conditions.
+            const { error } = await this.supabase.rpc("track_tool_usage", {
+                p_tool_id: toolId,
+                p_install_id: installId,
+                p_year_month: yearMonth,
+                p_last_used_at: now.toISOString(),
+            });
 
-            if (usageError) {
-                throw usageError;
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
-            // Now update the aggregated MAU count in tool_analytics
-            // Count distinct machines for this tool in the current month
-            const { count, error: countError } = await this.supabase.from("tool_usage_tracking").select("*", { count: "exact", head: true }).eq("tool_id", toolId).eq("year_month", yearMonth);
-
-            if (countError) {
-                throw countError;
-            }
-
-            // Update the tool_analytics table with current month's MAU
-            const { error: analyticsError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    mau: count || 0,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
-
-            if (analyticsError) {
-                throw analyticsError;
-            }
-
-            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
+            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolUsage" },
+                extra: { toolId },
+            });
         }
     }
 
