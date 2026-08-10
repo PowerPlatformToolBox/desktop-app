@@ -40,14 +40,14 @@
    - `python3 -m http.server 9000 --directory /tmp`
 3. Start mitmproxy:
    - `mitmproxy --listen-host 127.0.0.1 --listen-port 8888`
-2. Configure OS proxy auto-config:
+4. Configure OS proxy auto-config:
    - **Windows**: Settings → Network & Internet → Proxy → Use setup script.
    - **macOS**: System Settings → Network → active adapter → Details → Proxies → Automatic Proxy Configuration.
    - PAC URL: `http://127.0.0.1:9000/proxy.pac`
-4. In ToolBox, set mode to **Auto-detect system proxy**.
-5. Restart the app.
-6. Use **Test Connection** and verify traffic routes according to PAC rules.
-7. Confirm behavior in proxy/PAC server logs.
+5. In ToolBox, set mode to **Auto-detect system proxy**.
+6. Restart the app.
+7. Use **Test Connection** and verify traffic routes according to PAC rules.
+8. Confirm behavior in proxy/PAC server logs.
 
 ## 3) TLS interception simulation (custom CA bundle)
 
