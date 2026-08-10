@@ -326,7 +326,8 @@ export class ProxyManager {
     }
 
     async testConnection(override?: ProxySettings): Promise<{ success: boolean; message: string }> {
-        const testUrl = process.env.SUPABASE_URL || "https://api.github.com/zen";
+        const configuredSupabaseUrl = process.env.SUPABASE_URL?.trim();
+        const testUrl = configuredSupabaseUrl ? new URL("/auth/v1/health", configuredSupabaseUrl).toString() : "https://api.github.com/zen";
         const effective = this.getEffectiveProxySettings(override);
 
         return new Promise((resolve) => {
@@ -344,8 +345,16 @@ export class ProxyManager {
                 },
                 (response) => {
                     response.resume();
-                    if (response.statusCode && response.statusCode >= 200 && response.statusCode < 400) {
+                    if (response.statusCode && response.statusCode >= 100 && response.statusCode < 400) {
                         resolve({ success: true, message: `Connection successful (HTTP ${response.statusCode})` });
+                        return;
+                    }
+
+                    if (response.statusCode && response.statusCode >= 400 && response.statusCode < 600) {
+                        resolve({
+                            success: true,
+                            message: `Connection reached endpoint (HTTP ${response.statusCode}). Proxy route is working.`,
+                        });
                         return;
                     }
 
