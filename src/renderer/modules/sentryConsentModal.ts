@@ -12,7 +12,7 @@ const SENTRY_CONSENT_MODAL_ID = "sentry-consent-browser-modal";
 
 const SENTRY_CONSENT_MODAL_DIMENSIONS = {
     width: 560,
-    height: 470,
+    height: 480,
 };
 
 interface SentryConsentModalPromiseHandlers {

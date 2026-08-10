@@ -71,23 +71,24 @@ export function getSentryConsentModalView(model: SentryConsentModalViewModel): {
     </div>
     <div class="modal-body">
         <p class="telemetry-consent-note">
-            We'd like to collect anonymous diagnostic data to help us find and fix issues faster.
+            We only share anonymous diagnostic telemetry when an error occurs, so we can find and fix issues faster.
             <strong>No personal information will ever be collected.</strong>
         </p>
         <div class="telemetry-consent-details">
-            <p class="telemetry-consent-details-title">What will be captured:</p>
+            <p class="telemetry-consent-details-title">When an error occurs, we share only:</p>
             <ul class="telemetry-consent-list">
                 <li>Install ID (anonymous unique identifier)</li>
                 <li>Installed version</li>
                 <li>Operating system</li>
                 <li>CPU architecture</li>
-                <li>Warnings and errors only (no user data)</li>
+                <li>Error information</li>
             </ul>
         </div>
         <p class="telemetry-consent-prefooter">
             You can change this preference at any time in
             <strong>Settings &rarr; Telemetry</strong>
             <br>Full telemetry starts after the next app restart.
+            <br>Read our <a href="https://www.powerplatformtoolbox.com/policy/privacy" target="_blank">Privacy Policy</a>.
         </p>
     </div>
     <div class="modal-footer">
