@@ -6,7 +6,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import { logError, logInfo } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { Connection, ToolManifest } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
@@ -290,6 +290,21 @@ export class McpServerManager {
             this.agentToolsCache = null;
             logInfo("[MCP] Agent tool list invalidated: tool uninstalled");
         });
+
+        this.toolManager.on("tool:loaded", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool loaded");
+        });
+
+        this.toolManager.on("tool:unloaded", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool unloaded");
+        });
+
+        this.toolManager.on("tool:update-completed", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool updated");
+        });
     }
 
     setToolWindowManager(twm: ToolWindowManager): void {
@@ -419,9 +434,55 @@ export class McpServerManager {
 
     private async getAgentTools(): Promise<AgentTool[]> {
         if (this.agentToolsCache === null) {
-            this.agentToolsCache = { tools: await getAgentInvokableTools(this.toolRegistryManager) };
+            this.agentToolsCache = {
+                tools: await getAgentInvokableTools(this.toolRegistryManager, {
+                    toolManager: this.toolManager,
+                }),
+            };
         }
         return this.agentToolsCache.tools;
+    }
+
+    private resolveExecutionManifest(toolId: string): ToolManifest | null {
+        const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+        if (installedManifest) {
+            return installedManifest;
+        }
+
+        const loadedTool = this.toolManager.getTool(toolId);
+        if (!loadedTool?.localPath) {
+            return null;
+        }
+
+        return {
+            id: loadedTool.id,
+            name: loadedTool.name,
+            version: loadedTool.version,
+            description: loadedTool.description,
+            installPath: loadedTool.localPath,
+            installedAt: new Date().toISOString(),
+            source: "local",
+            authors: loadedTool.authors,
+            icon: loadedTool.icon,
+            cspExceptions: loadedTool.cspExceptions,
+            categories: loadedTool.categories,
+            license: loadedTool.license,
+            downloads: loadedTool.downloads,
+            rating: loadedTool.rating,
+            mau: loadedTool.mau,
+            readme: loadedTool.readmeUrl,
+            features: loadedTool.features,
+            status: loadedTool.status,
+            repository: loadedTool.repository,
+            website: loadedTool.website,
+            minAPI: loadedTool.minAPI,
+            maxAPI: loadedTool.maxAPI,
+            mcpHeadlessEnabled: loadedTool.mcpHeadlessEnabled,
+            capabilities: loadedTool.capabilities,
+            marketplaceSourceId: loadedTool.marketplaceSourceId,
+            marketplaceSourceLabel: loadedTool.marketplaceSourceLabel,
+            marketplaceSourceType: loadedTool.marketplaceSourceType,
+        };
     }
 
     private inferMode(tool: AgentTool, payload: Record<string, unknown>, requestedMode: AgentInvocationMode | undefined): AgentInvocationMode {
@@ -815,10 +876,10 @@ export class McpServerManager {
             switch (executionMode) {
                 case "headless": {
                     const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
-                    const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+                    const executionManifest = this.resolveExecutionManifest(toolId);
                     let resolvedAuthContext: ResolvedHeadlessAuthContext;
 
-                    if (!installedManifest) {
+                    if (!executionManifest) {
                         const errorText = `Tool manifest not found for: ${toolId}`;
                         logInvocationWithMeta({
                             toolId,
@@ -855,7 +916,7 @@ export class McpServerManager {
                             timeoutMs: effectiveTimeoutMs,
                             execute: async (jobId) => {
                                 const result = await invokeHeadlessTool(
-                                    installedManifest,
+                                    executionManifest,
                                     prefillData,
                                     {
                                         toolId,

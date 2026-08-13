@@ -131,6 +131,7 @@ export interface UserSettings {
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
     restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
+    keepMcpServerRunning?: boolean; // Keep MCP server running by auto-starting it when tools open/reopen
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;

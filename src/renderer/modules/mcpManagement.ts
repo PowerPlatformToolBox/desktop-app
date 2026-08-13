@@ -36,6 +36,20 @@ export function renderMCPServerContent(panel: HTMLElement): void {
 
                 <div class="settings-vscode-item mcp-settings-item">
                     <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Startup Behavior</span>
+                        <p class="settings-vscode-item-description">Automatically keep MCP available by restarting it when tools are opened or reopened.</p>
+                    </div>
+                    <div class="settings-vscode-item-control mcp-server-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="mcp-keep-running-checkbox" class="settings-vscode-checkbox" />
+                            Keep MCP Server Running
+                        </label>
+                        <span id="mcp-keep-running-status" class="settings-vscode-item-description mcp-server-action-status"></span>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item mcp-settings-item">
+                    <div class="settings-vscode-item-info">
                         <span class="settings-vscode-item-label">Server Address</span>
                         <p class="settings-vscode-item-description">Use this HTTP endpoint when configuring your MCP client.</p>
                     </div>
@@ -166,7 +180,7 @@ function updateMcpServerStatusUi(isRunning: boolean): void {
  */
 async function loadAndRenderLogs(): Promise<void> {
     try {
-        const [serverDetails, logs] = await Promise.all([window.toolboxAPI.mcpServer.getDetails(), window.toolboxAPI.agentInvocation.getLogs()]);
+        const [serverDetails, logs, userSettings] = await Promise.all([window.toolboxAPI.mcpServer.getDetails(), window.toolboxAPI.agentInvocation.getLogs(), window.toolboxAPI.getUserSettings()]);
         const container = document.getElementById("mcp-container");
         const emptyState = document.getElementById("mcp-empty");
         const table = document.getElementById("invocation-logs-table");
@@ -192,6 +206,7 @@ async function loadAndRenderLogs(): Promise<void> {
         wireCopyButton("copy-mcp-auth-header-name-btn", () => serverDetails.authHeaderName, "MCP auth header name copied");
         wireCopyButton("copy-mcp-auth-header-value-btn", () => serverDetails.authHeaderValue, "MCP auth token copied");
         wireMcpServerToggleButton();
+        wireKeepMcpServerRunningToggle(serverDetails.isRunning, Boolean(userSettings.keepMcpServerRunning));
         wireClientConfigButtons();
 
         if (logs.length === 0) {
@@ -228,6 +243,66 @@ async function loadAndRenderLogs(): Promise<void> {
             container.innerHTML = `<div class="empty-state"><p>Error loading logs</p><p class="empty-state-hint">${escapeHtml(error instanceof Error ? error.message : String(error))}</p></div>`;
         }
     }
+}
+
+function wireKeepMcpServerRunningToggle(isServerRunning: boolean, initialKeepRunning: boolean): void {
+    const checkbox = document.getElementById("mcp-keep-running-checkbox") as HTMLInputElement | null;
+    const status = document.getElementById("mcp-keep-running-status") as HTMLSpanElement | null;
+
+    if (!checkbox || !status || checkbox.dataset.bound === "true") {
+        return;
+    }
+
+    const setStatus = (message: string, isError: boolean): void => {
+        status.textContent = message;
+        status.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-secondary, #8a8886)";
+    };
+
+    checkbox.checked = initialKeepRunning;
+    setStatus(initialKeepRunning ? "Enabled" : "Disabled", false);
+
+    checkbox.dataset.bound = "true";
+    checkbox.addEventListener("change", () => {
+        void (async () => {
+            const enabled = checkbox.checked;
+            checkbox.disabled = true;
+            setStatus("Saving...", false);
+
+            try {
+                await window.toolboxAPI.updateUserSettings({ keepMcpServerRunning: enabled });
+
+                if (enabled && !isServerRunning) {
+                    const details = await window.toolboxAPI.mcpServer.start();
+                    updateMcpServerStatusUi(details.isRunning);
+                    isServerRunning = details.isRunning;
+                    setStatus("Enabled. MCP server started.", false);
+                    await window.toolboxAPI.utils.showNotification({
+                        title: "MCP Keep Running Enabled",
+                        body: "MCP server started and will auto-start when tools are reopened.",
+                        type: "success",
+                    });
+                } else {
+                    setStatus(enabled ? "Enabled" : "Disabled", false);
+                    await window.toolboxAPI.utils.showNotification({
+                        title: enabled ? "MCP Keep Running Enabled" : "MCP Keep Running Disabled",
+                        body: enabled ? "MCP server will auto-start when tools are reopened." : "MCP server will not auto-start when tools are reopened.",
+                        type: "success",
+                    });
+                }
+            } catch (error) {
+                checkbox.checked = !enabled;
+                setStatus("Failed to update setting.", true);
+                logError("Failed to update MCP keep-running setting", error);
+                await window.toolboxAPI.utils.showNotification({
+                    title: "MCP Keep Running Update Failed",
+                    body: "Unable to update Keep MCP Server Running setting.",
+                    type: "error",
+                });
+            } finally {
+                checkbox.disabled = false;
+            }
+        })();
+    });
 }
 
 function wireClientConfigButtons(): void {

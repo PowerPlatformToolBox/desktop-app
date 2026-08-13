@@ -54,8 +54,8 @@ import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
 import { readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
-import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 import { applyMainSentryConsent } from "./sentryRuntime";
+import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -66,6 +66,11 @@ const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
 const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
 const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:", "mailto:"]);
 const OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:"]);
+
+function isExpectedAutoUpdateUnavailableError(errorMessage: string): boolean {
+    const normalized = errorMessage.toLowerCase();
+    return normalized.includes("only available in packaged releases") || normalized.includes("updater metadata is missing") || normalized.includes("only supported for the windows nsis");
+}
 
 const isFaviconAllowedHost = (hostname: string): boolean => {
     if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
@@ -100,6 +105,7 @@ class ToolBoxApp {
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
     private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
+    private mcpAutoStartInProgress = false;
 
     /**
      * Resolve the application icon for the current release channel.
@@ -123,7 +129,10 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
-            void applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
+            void applyMainSentryConsent(
+                this.settingsManager.getSentryTelemetryConsent(),
+                this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+            );
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -277,6 +286,11 @@ class ToolBoxApp {
         });
 
         this.autoUpdateManager.on("update-error", (error) => {
+            if (error?.message && isExpectedAutoUpdateUnavailableError(error.message)) {
+                logInfo(`[AutoUpdate] Suppressing expected update-unavailable notification: ${error.message}`);
+                return;
+            }
+
             this.api.showNotification({
                 title: "Update Error",
                 body: `Failed to check for updates: ${error.message}`,
@@ -509,7 +523,10 @@ class ToolBoxApp {
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
             if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
-                await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
+                await applyMainSentryConsent(
+                    this.settingsManager.getSentryTelemetryConsent(),
+                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                );
             }
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
@@ -521,7 +538,10 @@ class ToolBoxApp {
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
             this.settingsManager.setSetting(key, value);
             if (key === "sentryTelemetryConsent") {
-                await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
+                await applyMainSentryConsent(
+                    this.settingsManager.getSentryTelemetryConsent(),
+                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                );
             }
         });
 
@@ -2940,6 +2960,9 @@ class ToolBoxApp {
         this.toolWindowManager.setOnActiveToolChanged(() => {
             this.debouncedCreateMenu();
         });
+        this.toolWindowManager.setOnToolLaunched(async () => {
+            await this.ensureMcpServerRunningForMode("tool-launch");
+        });
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow, this.settingsManager);
@@ -2961,6 +2984,7 @@ class ToolBoxApp {
         // After the renderer is ready, auto-open What's New if an auto-update was installed.
         this.mainWindow.webContents.once("did-finish-load", () => {
             this.openWhatsNewIfPending();
+            void this.ensureMcpServerRunningForMode("startup");
         });
 
         // Open DevTools in development
@@ -2995,6 +3019,37 @@ class ToolBoxApp {
         if (this.shouldFocusAfterWindowCreation) {
             this.shouldFocusAfterWindowCreation = false;
             this.showAndFocusMainWindow();
+        }
+    }
+
+    private async ensureMcpServerRunningForMode(mode: "tool-launch" | "startup"): Promise<void> {
+        const keepMcpServerRunning = this.settingsManager.getSetting("keepMcpServerRunning");
+        if (!keepMcpServerRunning || this.mcpServerManager.isRunning() || this.mcpAutoStartInProgress) {
+            return;
+        }
+
+        this.mcpAutoStartInProgress = true;
+        try {
+            await this.mcpServerManager.start();
+            this.trayManager?.refreshContextMenu();
+            const body =
+                mode === "startup"
+                    ? "MCP server was automatically started at startup because Keep MCP Server Running is enabled."
+                    : "MCP server was automatically started because Keep MCP Server Running is enabled.";
+            this.api.showNotification({
+                title: "MCP Server Started",
+                body,
+                type: "success",
+            });
+        } catch (error) {
+            logError(`[MCP] Failed to auto-start server (${mode})`, error);
+            this.api.showNotification({
+                title: "MCP Server Auto-Start Failed",
+                body: mode === "startup" ? "Unable to automatically start MCP server at startup." : "Unable to automatically start MCP server after tool launch.",
+                type: "error",
+            });
+        } finally {
+            this.mcpAutoStartInProgress = false;
         }
     }
 

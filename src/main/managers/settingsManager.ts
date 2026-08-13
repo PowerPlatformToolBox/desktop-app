@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import Store from "electron-store";
-import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, TelemetryConsentChoice, ToolSettings, UserSettings } from "../../common/types";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
+import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, TelemetryConsentChoice, ToolSettings, UserSettings } from "../../common/types";
 import { buildPreviewFeatureFlags } from "../../common/types/settings";
 import { AZURE_BLOB_BASE_URL } from "../constants";
 
@@ -41,6 +41,7 @@ export class SettingsManager {
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
                 restoreSessionOnStartup: true, // Reopen previously open tools on app start
+                keepMcpServerRunning: false, // Auto-start MCP server when tools open/reopen
                 enablePreviewFeatures: false, // Show preview/experimental features in the UI
                 previewFeatures: buildPreviewFeatureFlags(), // Per-feature preview toggles
                 marketplaceSources: this.getDefaultMarketplaceSources(),
