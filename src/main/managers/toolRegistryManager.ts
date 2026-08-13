@@ -35,6 +35,10 @@ interface SupabaseAnalyticsRow {
     mau?: number; // Monthly Active Users
 }
 
+function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
+    return typeof value === "number" ? value : undefined;
+}
+
 interface SupabaseCategoryRow {
     categories?: {
         name?: string;
@@ -409,9 +413,9 @@ export class ToolRegistryManager extends EventEmitter {
                 let mau: number | undefined;
                 if (tool.tool_analytics) {
                     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
-                    downloads = analytics?.downloads;
-                    rating = analytics?.rating;
-                    mau = analytics?.mau;
+                    downloads = getOptionalAnalyticsNumber(analytics?.downloads);
+                    rating = getOptionalAnalyticsNumber(analytics?.rating);
+                    mau = getOptionalAnalyticsNumber(analytics?.mau);
                 }
 
                 return {
@@ -1007,7 +1011,11 @@ export class ToolRegistryManager extends EventEmitter {
             (data || []).forEach((row: any) => {
                 const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
                 if (analytics) {
-                    map.set(row.id as string, analytics as SupabaseAnalyticsRow);
+                    map.set(row.id as string, {
+                        downloads: getOptionalAnalyticsNumber(analytics.downloads),
+                        rating: getOptionalAnalyticsNumber(analytics.rating),
+                        mau: getOptionalAnalyticsNumber(analytics.mau),
+                    });
                 }
             });
         } catch (error) {

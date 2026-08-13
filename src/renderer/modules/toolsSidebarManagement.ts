@@ -5,10 +5,12 @@
 
 import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
+import { formatRatingMarkup } from "../utils/rating";
+import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
-import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
+import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
@@ -280,7 +282,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${
                     tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""
-                }${tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}${
+                }${formatRatingMarkup(tool.rating, { className: "tool-metric", title: "Rating", prefix: "⭐ " })}${
                     tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""
                 }</div>`;
                 const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
@@ -592,6 +594,9 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const detailsIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
     const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const repositoryIconPath = isDarkTheme ? "icons/dark/marketplace.svg" : "icons/light/marketplace.svg";
+    const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
+    const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
 
     const hasUpdate = !!tool.hasUpdate;
     const latestVersion = tool.latestVersion;
@@ -618,6 +623,14 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
             <img src="${detailsIconPath}" class="context-menu-icon" alt="" />
             <span>See Details</span>
         </div>
+        ${
+            repositoryUrl
+                ? `<div class="context-menu-item" data-menu-action="repository">
+            <img src="${repositoryIconPath}" class="context-menu-icon" alt="" />
+            <span>Repository</span>
+        </div>`
+                : ""
+        }
         <div class="context-menu-item" data-menu-action="uninstall">
             <img src="${uninstallIconPath}" class="context-menu-icon" alt="" />
             <span>Uninstall</span>
@@ -708,6 +721,16 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
 
         if (action === "details") {
             await openToolDetail(tool, true);
+            return;
+        }
+
+        if (action === "repository") {
+            if (!repositoryUrl) return;
+            try {
+                await window.toolboxAPI.openExternal(repositoryUrl);
+            } catch (error) {
+                logError("Failed to open repository link", error);
+            }
             return;
         }
 

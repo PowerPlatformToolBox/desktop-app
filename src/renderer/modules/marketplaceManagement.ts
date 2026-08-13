@@ -7,6 +7,8 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
+import { formatRatingMarkup } from "../utils/rating";
+import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
@@ -279,7 +281,7 @@ export async function loadMarketplace(): Promise<void> {
             const newBadgeHtml = isNewTool ? '<span class="marketplace-item-new-badge">NEW</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
-                ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
+                ${formatRatingMarkup(tool.rating, { className: "marketplace-metric", title: "Rating", prefix: "⭐ " })}
                 ${tool.mau !== undefined ? `<span class="marketplace-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}
             </div>`;
             const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
@@ -526,9 +528,16 @@ function isToolNew(tool: ToolDetail): boolean {
  * Open tool detail as a tab (replaces the old BrowserWindow modal approach)
  */
 export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
+    const libraryTool = toolLibrary.find((libraryEntry) => libraryEntry.id === tool.id);
+    const toolForDetail: ToolDetail = {
+        ...tool,
+        repository: tool.repository || libraryTool?.repository,
+        website: tool.website || libraryTool?.website,
+        readmeUrl: tool.readmeUrl || libraryTool?.readmeUrl,
+    };
     const tabId = `tool-detail-${tool.id}`;
     await openLocalPageAsTab(tabId, tool.name, (panel: HTMLElement) => {
-        renderToolDetailContent(panel, tool, isInstalled);
+        renderToolDetailContent(panel, toolForDetail, isInstalled);
     });
 }
 
@@ -552,18 +561,20 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const categoryTagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
-    const ratingsHtml = tool.rating !== undefined ? `<span>${tool.rating.toFixed(1)} ★</span>` : "";
+    const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: " ⭐" });
 
     const iconHtml = buildToolIconHtml(tool);
 
     const linkItems: string[] = [];
     const reviewUrl = `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`;
     linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-tab-link" href="${escapeHtml(reviewUrl)}" data-url="${escapeHtml(reviewUrl)}">Leave a review</a>`);
-    if (tool.repository) {
-        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(tool.repository)}" data-url="${escapeHtml(tool.repository)}">Repository</a>`);
+    const repositoryUrl = normalizeRepositoryUrl(tool.repository);
+    if (repositoryUrl) {
+        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
     }
-    if (tool.website) {
-        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(tool.website)}" data-url="${escapeHtml(tool.website)}">Website</a>`);
+    const websiteUrl = normalizeHttpsUrl(tool.website);
+    if (websiteUrl) {
+        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(websiteUrl)}" data-url="${escapeHtml(websiteUrl)}">Website</a>`);
     }
     const linksMarkup = linkItems.length ? `<div class="tool-detail-tab-links">${linkItems.join('<span aria-hidden="true"> • </span>')}</div>` : "";
 
