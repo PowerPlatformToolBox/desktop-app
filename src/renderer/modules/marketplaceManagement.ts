@@ -7,6 +7,7 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
+import { formatRatingMarkup } from "../utils/rating";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
@@ -280,7 +281,7 @@ export async function loadMarketplace(): Promise<void> {
             const newBadgeHtml = isNewTool ? '<span class="marketplace-item-new-badge">NEW</span>' : "";
             const analyticsHtml = `<div class="marketplace-analytics-left">
                 ${tool.downloads !== undefined ? `<span class="marketplace-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""}
-                ${tool.rating !== undefined ? `<span class="marketplace-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}
+                ${formatRatingMarkup(tool.rating, { className: "marketplace-metric", title: "Rating", prefix: "⭐ " })}
                 ${tool.mau !== undefined ? `<span class="marketplace-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""}
             </div>`;
             const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
@@ -560,7 +561,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const categoryTagsMarkup = categories.length ? categories.map((tag) => `<span>${tag}</span>`).join("") : "";
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
-    const ratingsHtml = tool.rating !== undefined ? `<span>${tool.rating.toFixed(1)} ★</span>` : "";
+    const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: " ⭐" });
 
     const iconHtml = buildToolIconHtml(tool);
 

@@ -5,9 +5,10 @@
 
 import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
+import { formatRatingMarkup } from "../utils/rating";
+import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
-import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
@@ -281,7 +282,7 @@ export async function loadSidebarTools(): Promise<void> {
 
                 const analyticsHtml = `<div class="tool-analytics-left">${sourceIconHtml}${
                     tool.downloads !== undefined ? `<span class="tool-metric" title="Downloads">⬇ ${tool.downloads}</span>` : ""
-                }${tool.rating !== undefined ? `<span class="tool-metric" title="Rating">⭐ ${tool.rating.toFixed(1)}</span>` : ""}${
+                }${formatRatingMarkup(tool.rating, { className: "tool-metric", title: "Rating", prefix: "⭐ " })}${
                     tool.mau !== undefined ? `<span class="tool-metric" title="Monthly Active Users">👥 ${tool.mau}</span>` : ""
                 }</div>`;
                 const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
