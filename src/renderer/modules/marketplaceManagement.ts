@@ -7,6 +7,7 @@ import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Tool } from "../../common/types";
 import type { ToolDetail } from "../types/index";
 import { renderMarkdownToSafeHtml, wireExternalLinks } from "../utils/markdown";
+import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
@@ -528,7 +529,6 @@ function isToolNew(tool: ToolDetail): boolean {
 export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
     const libraryTool = toolLibrary.find((libraryEntry) => libraryEntry.id === tool.id);
     const toolForDetail: ToolDetail = {
-        ...libraryTool,
         ...tool,
         repository: tool.repository || libraryTool?.repository,
         website: tool.website || libraryTool?.website,
@@ -538,16 +538,6 @@ export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Pr
     await openLocalPageAsTab(tabId, tool.name, (panel: HTMLElement) => {
         renderToolDetailContent(panel, toolForDetail, isInstalled);
     });
-}
-
-function normalizeRepositoryUrl(repository?: string): string | null {
-    if (typeof repository !== "string") return null;
-    const trimmed = repository.trim();
-    if (!trimmed) return null;
-    if (trimmed.startsWith("git+https://")) return trimmed.replace(/^git\+/, "").replace(/\.git$/i, "");
-    if (trimmed.startsWith("https://")) return trimmed.replace(/\.git$/i, "");
-    if (trimmed.startsWith("http://")) return trimmed.replace(/\.git$/i, "");
-    return null;
 }
 
 /**
@@ -581,8 +571,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (repositoryUrl) {
         linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
     }
-    if (tool.website) {
-        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(tool.website)}" data-url="${escapeHtml(tool.website)}">Website</a>`);
+    const websiteUrl = normalizeHttpsUrl(tool.website);
+    if (websiteUrl) {
+        linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(websiteUrl)}" data-url="${escapeHtml(websiteUrl)}">Website</a>`);
     }
     const linksMarkup = linkItems.length ? `<div class="tool-detail-tab-links">${linkItems.join('<span aria-hidden="true"> • </span>')}</div>` : "";
 

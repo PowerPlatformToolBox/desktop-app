@@ -7,6 +7,7 @@ import { logError, logInfo } from "../../common/logger";
 import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
+import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
@@ -579,16 +580,6 @@ function closeActiveToolContextMenu(): void {
     activeToolContextMenu = null;
 }
 
-function normalizeRepositoryUrl(repository?: string): string | null {
-    if (typeof repository !== "string") return null;
-    const trimmed = repository.trim();
-    if (!trimmed) return null;
-    if (trimmed.startsWith("git+https://")) return trimmed.replace(/^git\+/, "").replace(/\.git$/i, "");
-    if (trimmed.startsWith("https://")) return trimmed.replace(/\.git$/i, "");
-    if (trimmed.startsWith("http://")) return trimmed.replace(/\.git$/i, "");
-    return null;
-}
-
 function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdate?: boolean; latestVersion?: string }, anchor: HTMLElement, isDarkTheme: boolean): void {
     // Toggle: if clicking the same anchor, close existing menu
     if (activeToolContextMenu && activeToolContextMenu.anchor === anchor) {
@@ -602,7 +593,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const detailsIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
     const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
-    const repositoryIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
+    const repositoryIconPath = isDarkTheme ? "icons/dark/marketplace.svg" : "icons/light/marketplace.svg";
     const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
 
