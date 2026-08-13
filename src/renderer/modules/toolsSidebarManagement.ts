@@ -8,7 +8,7 @@ import { ToolDetail } from "../types/index";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
-import { loadMarketplace, openToolDetail } from "./marketplaceManagement";
+import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
 import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
@@ -579,6 +579,16 @@ function closeActiveToolContextMenu(): void {
     activeToolContextMenu = null;
 }
 
+function normalizeRepositoryUrl(repository?: string): string | null {
+    if (typeof repository !== "string") return null;
+    const trimmed = repository.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("git+https://")) return trimmed.replace(/^git\+/, "").replace(/\.git$/i, "");
+    if (trimmed.startsWith("https://")) return trimmed.replace(/\.git$/i, "");
+    if (trimmed.startsWith("http://")) return trimmed.replace(/\.git$/i, "");
+    return null;
+}
+
 function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdate?: boolean; latestVersion?: string }, anchor: HTMLElement, isDarkTheme: boolean): void {
     // Toggle: if clicking the same anchor, close existing menu
     if (activeToolContextMenu && activeToolContextMenu.anchor === anchor) {
@@ -592,6 +602,9 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const detailsIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
     const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
+    const repositoryIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
+    const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
+    const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
 
     const hasUpdate = !!tool.hasUpdate;
     const latestVersion = tool.latestVersion;
@@ -618,6 +631,14 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
             <img src="${detailsIconPath}" class="context-menu-icon" alt="" />
             <span>See Details</span>
         </div>
+        ${
+            repositoryUrl
+                ? `<div class="context-menu-item" data-menu-action="repository">
+            <img src="${repositoryIconPath}" class="context-menu-icon" alt="" />
+            <span>Repository</span>
+        </div>`
+                : ""
+        }
         <div class="context-menu-item" data-menu-action="uninstall">
             <img src="${uninstallIconPath}" class="context-menu-icon" alt="" />
             <span>Uninstall</span>
@@ -708,6 +729,16 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
 
         if (action === "details") {
             await openToolDetail(tool, true);
+            return;
+        }
+
+        if (action === "repository") {
+            if (!repositoryUrl) return;
+            try {
+                await window.toolboxAPI.openExternal(repositoryUrl);
+            } catch (error) {
+                logError("Failed to open repository link", error);
+            }
             return;
         }
 

@@ -526,10 +526,28 @@ function isToolNew(tool: ToolDetail): boolean {
  * Open tool detail as a tab (replaces the old BrowserWindow modal approach)
  */
 export async function openToolDetail(tool: ToolDetail, isInstalled: boolean): Promise<void> {
+    const libraryTool = toolLibrary.find((libraryEntry) => libraryEntry.id === tool.id);
+    const toolForDetail: ToolDetail = {
+        ...libraryTool,
+        ...tool,
+        repository: tool.repository || libraryTool?.repository,
+        website: tool.website || libraryTool?.website,
+        readmeUrl: tool.readmeUrl || libraryTool?.readmeUrl,
+    };
     const tabId = `tool-detail-${tool.id}`;
     await openLocalPageAsTab(tabId, tool.name, (panel: HTMLElement) => {
-        renderToolDetailContent(panel, tool, isInstalled);
+        renderToolDetailContent(panel, toolForDetail, isInstalled);
     });
+}
+
+function normalizeRepositoryUrl(repository?: string): string | null {
+    if (typeof repository !== "string") return null;
+    const trimmed = repository.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("git+https://")) return trimmed.replace(/^git\+/, "").replace(/\.git$/i, "");
+    if (trimmed.startsWith("https://")) return trimmed.replace(/\.git$/i, "");
+    if (trimmed.startsWith("http://")) return trimmed.replace(/\.git$/i, "");
+    return null;
 }
 
 /**
@@ -559,8 +577,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const linkItems: string[] = [];
     const reviewUrl = `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`;
     linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-tab-link" href="${escapeHtml(reviewUrl)}" data-url="${escapeHtml(reviewUrl)}">Leave a review</a>`);
-    if (tool.repository) {
-        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(tool.repository)}" data-url="${escapeHtml(tool.repository)}">Repository</a>`);
+    const repositoryUrl = normalizeRepositoryUrl(tool.repository);
+    if (repositoryUrl) {
+        linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
     }
     if (tool.website) {
         linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(tool.website)}" data-url="${escapeHtml(tool.website)}">Website</a>`);
