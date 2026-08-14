@@ -1,23 +1,23 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "Node16",
-    "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "Node16",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "types": ["node"],
-    "allowSyntheticDefaultImports": true,
-    "isolatedModules": true
-  },
-  "include": ["src/main/**/*", "src/common/**/*"],
-  "exclude": ["node_modules", "dist", "build", "src/renderer"]
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "Node16",
+        "lib": ["ES2022"],
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "moduleResolution": "Node16",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "types": ["node"],
+        "allowSyntheticDefaultImports": true,
+        "isolatedModules": true
+    },
+    "include": ["src/main/**/*", "src/common/**/*"],
+    "exclude": ["node_modules", "dist", "build", "src/renderer"]
 }

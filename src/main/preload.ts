@@ -417,11 +417,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Agent invocation logging - Only for PPTB UI
     agentInvocation: {
         getLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.GET_LOGS),
+        clearLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS),
     },
 
     // MCP server details - Only for PPTB UI
     mcpServer: {
         getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
+        getJobStatus: (jobId: string) => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_JOB_STATUS, jobId),
+        clearLogs: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CLEAR_LOGS),
         start: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.START),
         stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),

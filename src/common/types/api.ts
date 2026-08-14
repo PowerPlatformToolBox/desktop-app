@@ -96,10 +96,41 @@ export interface AgentInvocationLogEntry {
 }
 
 /**
+ * Log entry captured for a headless MCP job.
+ */
+export interface HeadlessJobLogEntry {
+    timestamp: string;
+    level: "debug" | "info" | "warn" | "error";
+    message: string;
+}
+
+/**
+ * Headless MCP job details shown in the renderer drill-down view.
+ */
+export interface HeadlessJobDetails {
+    jobId: string;
+    toolId: string;
+    toolName: string;
+    status: "pending" | "in_progress" | "completed" | "failed";
+    createdAt: string;
+    startedAt?: string;
+    completedAt?: string;
+    timeoutMs: number;
+    progress?: {
+        percent: number;
+        message?: string;
+    };
+    result?: Record<string, unknown>;
+    error?: string;
+    logs?: HeadlessJobLogEntry[];
+}
+
+/**
  * Agent Invocation API namespace
  */
 export interface AgentInvocationAPI {
     getLogs: () => Promise<AgentInvocationLogEntry[]>;
+    clearLogs: () => Promise<void>;
 }
 
 /**
@@ -124,6 +155,8 @@ export interface McpClientConfigWriteResult {
  */
 export interface McpServerAPI {
     getDetails: () => Promise<McpServerDetails>;
+    getJobStatus: (jobId: string) => Promise<HeadlessJobDetails | null>;
+    clearLogs: () => Promise<void>;
     start: () => Promise<McpServerDetails>;
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;

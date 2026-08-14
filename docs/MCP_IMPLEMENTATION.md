@@ -182,6 +182,25 @@ export async function invokeHeadless(input: Record<string, unknown>, context: { 
 
 The globals are installed directly on `globalThis`, so tool code written for windowed execution (`window.dataverseAPI.queryData(...)`) continues to work unchanged because `window` is aliased to `globalThis` by the headless runtime.
 
+### Headless Tool Logs
+
+Headless invocations now capture tool messages into the live job record so the MCP Server page can drill into an invocation and show its runtime output.
+
+The supported logging surface is the `context.logger` object passed to `invokeHeadless(...)`:
+
+```typescript
+export async function invokeHeadless(
+    input: Record<string, unknown>,
+    context: { logger: { debug(message: string): void; info(message: string): void; warn(message: string): void; error(message: string): void } },
+) {
+    context.logger.info("Starting headless work");
+    context.logger.warn("Using fallback data source");
+    context.logger.error("Something failed");
+}
+```
+
+These messages are stored with the job, surfaced in the MCP Server detail pane, and kept bounded so the log history does not grow without limit.
+
 ## Tool Runtime Context
 
 When a tool is launched by MCP, `toolboxAPI.invocation.getLaunchContext()` returns the prefill data. If present, invocation metadata is attached under `__pptb`.
@@ -224,3 +243,4 @@ The runtime currently:
 - Use MCP Inspector as the manual test harness for this feature area.
 - Verify that `list-tools` shows the supported modes and that `call-tool` returns the expected one-way or two-way response.
 - Check that invocation logs redact connection-related identifiers and sensitive payload fields.
+- In the PPTB renderer, the MCP Server page now refreshes live and supports drilling into a selected invocation to inspect the captured job logs, progress, result, and error state.

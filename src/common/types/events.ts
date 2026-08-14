@@ -18,6 +18,7 @@ export enum ToolBoxEvent {
     TERMINAL_OUTPUT = "terminal:output",
     TERMINAL_COMMAND_COMPLETED = "terminal:command:completed",
     TERMINAL_ERROR = "terminal:error",
+    MCP_HEADLESS_JOB_UPDATED = "mcp:headless-job-updated",
 }
 
 /**

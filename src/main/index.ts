@@ -52,7 +52,7 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
-import { readLogEntries } from "./mcp/agentInvocationLogger";
+import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
@@ -156,6 +156,15 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setJobChangeHandler((jobId) => {
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
+                        event: ToolBoxEvent.MCP_HEADLESS_JOB_UPDATED,
+                        data: { jobId },
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+            });
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -476,9 +485,15 @@ class ToolBoxApp {
 
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS);
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS);
 
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CLEAR_LOGS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CLEAR_LOGS);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.START);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
@@ -560,8 +575,21 @@ class ToolBoxApp {
             return readLogEntries();
         });
 
+        ipcMain.handle(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS, () => {
+            clearLogEntries();
+        });
+
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
             return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_JOB_STATUS, (_, jobId: string) => {
+            return this.mcpServerManager.getJobStatus(jobId);
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CLEAR_LOGS, () => {
+            clearLogEntries();
+            this.mcpServerManager.clearLogs();
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.START, async () => {

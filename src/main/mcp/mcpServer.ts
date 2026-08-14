@@ -18,7 +18,7 @@ import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
 import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
-import { createHeadlessLogger, invokeHeadlessTool } from "./headlessToolRuntime";
+import { invokeHeadlessTool } from "./headlessToolRuntime";
 import { JsonObjectSchema } from "./schemaConverter";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
@@ -318,6 +318,10 @@ export class McpServerManager {
         this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager);
     }
 
+    setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
+        this.headlessInvocationManager.setJobChangeHandler(handler);
+    }
+
     isRunning(): boolean {
         return this.httpServer !== null;
     }
@@ -334,6 +338,14 @@ export class McpServerManager {
             authHeaderValue: this.expectedToken,
             isRunning: this.isRunning(),
         };
+    }
+
+    getJobStatus(jobId: string): HeadlessJobRecord | null {
+        return this.headlessInvocationManager.getJob(jobId);
+    }
+
+    clearLogs(): void {
+        this.headlessInvocationManager.clearLogs();
     }
 
     async configureClient(client: SupportedClient): Promise<McpClientConfigWriteResult> {
@@ -627,7 +639,9 @@ export class McpServerManager {
                 } else if (connection.refreshToken) {
                     authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
                 } else {
-                    throw new Error(`Interactive connection '${connection.name}' has no reusable session. Reconnect this connection from UI first, then retry headless invocation.`);
+                    // An agent-specified connection name should be able to trigger a fresh interactive sign-in
+                    // when there is no reusable session saved for that headless invocation.
+                    authResult = await this.authManager.authenticateInteractive(connection);
                 }
                 break;
             case "connectionString":
@@ -915,6 +929,13 @@ export class McpServerManager {
                             toolName: displayName,
                             timeoutMs: effectiveTimeoutMs,
                             execute: async (jobId) => {
+                                const jobLogger = {
+                                    debug: (message: string) => this.headlessInvocationManager.appendLog(jobId, "debug", message),
+                                    info: (message: string) => this.headlessInvocationManager.appendLog(jobId, "info", message),
+                                    warn: (message: string) => this.headlessInvocationManager.appendLog(jobId, "warn", message),
+                                    error: (message: string) => this.headlessInvocationManager.appendLog(jobId, "error", message),
+                                };
+
                                 const result = await invokeHeadlessTool(
                                     executionManifest,
                                     prefillData,
@@ -929,7 +950,7 @@ export class McpServerManager {
                                         updateProgress: (percent, message) => {
                                             this.headlessInvocationManager.updateProgress(jobId, percent, message);
                                         },
-                                        logger: createHeadlessLogger(toolId),
+                                        logger: jobLogger,
                                     },
                                     {
                                         settingsManager: this.settingsManager,

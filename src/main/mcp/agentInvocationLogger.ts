@@ -84,12 +84,19 @@ export function readLogEntries(): AgentInvocationLogEntry[] {
     const logPath = getLogFilePath();
 
     try {
-        if (!fs.existsSync(logPath)) {
+        const candidatePaths = [logPath, ...Array.from({ length: MAX_BACKUP_COUNT }, (_, idx) => `${logPath}.${idx + 1}`)];
+        const existingPaths = candidatePaths.filter((candidatePath) => fs.existsSync(candidatePath));
+
+        if (existingPaths.length === 0) {
             return [];
         }
 
-        const content = fs.readFileSync(logPath, { encoding: "utf-8" });
-        const lines = content.split("\n").filter((line) => line.trim().length > 0);
+        const lines: string[] = [];
+        for (const existingPath of existingPaths) {
+            const content = fs.readFileSync(existingPath, { encoding: "utf-8" });
+            const parsedLines = content.split("\n").filter((line) => line.trim().length > 0);
+            lines.push(...parsedLines);
+        }
 
         return lines
             .map((line) => {
