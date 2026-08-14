@@ -190,6 +190,24 @@ export function getModalStyles(isDarkTheme: boolean): string {
         flex-wrap: wrap;
     }
 
+    .connection-modal-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .connection-modal-footer-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        flex-wrap: nowrap;
+        width: 100%;
+    }
+
+    .connection-modal-footer-note {
+        max-width: none;
+    }
+
     .footer-spacer {
         flex: 1;
     }

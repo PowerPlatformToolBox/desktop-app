@@ -30,6 +30,7 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const connectionStringFields = document.getElementById("connection-string-fields");
     const testButton = document.getElementById("test-connection-btn");
     const addButton = document.getElementById("confirm-connection-btn");
+    const configureButton = document.getElementById("configure-app-btn");
     const copyScriptSaveButton = document.getElementById("copy-script-save-btn");
     const configureNote = document.getElementById("connection-configure-note");
     const testFeedback = document.getElementById("connection-test-feedback");
@@ -52,7 +53,6 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     ];
     const supportsPowerPlatformApi = (authType) => authType === "interactive" || authType === "usernamePassword";
     let pendingConfigureSaveScript = "";
-    let configureSaveInFlight = false;
     const getBrowserProfileSelection = () => {
         const select = browserProfileSelect instanceof HTMLSelectElement ? browserProfileSelect : null;
         if (!select) {
@@ -90,17 +90,9 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         return ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked;
     };
 
-    const getPrimaryActionLabel = () => {
-        const isConfigureMode = shouldShowConfigureFooter();
-        const authType = authTypeSelect?.value || "interactive";
-        if (!isConfigureMode) {
-            return "Add";
-        }
-        if (authType === "clientSecret") {
-            return "Configure & Add";
-        }
-        return "Configure & Add";
-    };
+    const getPrimaryActionLabel = () => "Add";
+
+    const getConfigureButtonLabel = () => "Configure App";
 
     const getManualActionLabel = () => {
         return shouldShowConfigureFooter() ? "Copy Script & Add" : "Add";
@@ -109,10 +101,10 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     const getConfigureNoteText = () => {
         // const redirectNote = "Reply URLs to set: msal<client-id>://auth and http://localhost.";
         if (isPowerPlatformApiEnabled()) {
-            return "Configure & Add will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
+            return "Configure App will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
         }
 
-        return "Configure & Add will update reply URLs only. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
+        return "Configure App will update reply URLs only. Use Copy Script & Add to skip automatic configuration and save with a handoff script.";
     };
 
     const buildAdminHandOffScript = (validationMessage) => {
@@ -145,12 +137,18 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             );
         }
 
-        scriptLines.push('Write-Host "If the app registration is already configured, re-open PPTB and try Configure & Add again."');
+        scriptLines.push('Write-Host "If the app registration is already configured, re-open PPTB and try Configure App again."');
         return scriptLines.join("\\n");
     };
 
     const updateConfigureFooterState = () => {
         const isConfigureMode = shouldShowConfigureFooter();
+        if (configureButton instanceof HTMLButtonElement) {
+            configureButton.style.display = isConfigureMode ? "inline-flex" : "none";
+            if (!configureButton.disabled) {
+                configureButton.textContent = getConfigureButtonLabel();
+            }
+        }
         if (configureNote) {
             configureNote.style.display = isConfigureMode ? "block" : "none";
             configureNote.textContent = isConfigureMode ? getConfigureNoteText() : "";
@@ -164,6 +162,27 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         if (addButton instanceof HTMLButtonElement && !addButton.disabled) {
             addButton.textContent = getPrimaryActionLabel();
         }
+    };
+
+    const runConfigureAppRegistration = async () => {
+        const clientId = getCurrentClientId();
+        if (!clientId) {
+            return {
+                success: false,
+                message: "Client ID is required before Configure App can update app registration.",
+                script: buildAdminHandOffScript("Client ID is missing."),
+            };
+        }
+
+        if (!window.toolboxAPI?.connections?.configureAppRegistration) {
+            return {
+                success: false,
+                message: "App registration automation API is unavailable in this modal.",
+                script: buildAdminHandOffScript("App registration automation API is unavailable in this modal."),
+            };
+        }
+
+        return await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled());
     };
 
     const copyAdminHandOffScript = async (validationMessage) => {
@@ -197,31 +216,6 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         }
 
         return "";
-    };
-
-    const runConfigureAndSavePreflight = async () => {
-        if (!shouldShowConfigureFooter()) {
-            return { success: true };
-        }
-
-        const clientId = getCurrentClientId();
-        if (!clientId) {
-            return {
-                success: false,
-                message: "Client ID is required before Configure & Add can update app registration.",
-                script: buildAdminHandOffScript("Client ID is missing."),
-            };
-        }
-
-        if (!window.toolboxAPI?.connections?.configureAppRegistration) {
-            return {
-                success: false,
-                message: "App registration automation API is unavailable in this modal.",
-                script: buildAdminHandOffScript("App registration automation API is unavailable in this modal."),
-            };
-        }
-
-        return await window.toolboxAPI.connections.configureAppRegistration(clientId, isPowerPlatformApiEnabled());
     };
 
     const updateAuthVisibility = () => {
@@ -563,6 +557,36 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
         element?.addEventListener?.("change", updateConfigureFooterState);
     });
 
+    configureButton?.addEventListener("click", async () => {
+        if (!(configureButton instanceof HTMLButtonElement)) return;
+
+        setButtonState(configureButton, true, "Configuring...", getConfigureButtonLabel());
+        updateTestFeedback("");
+
+        try {
+            const configureResult = await runConfigureAppRegistration();
+            if (configureResult?.success) {
+                await window.toolboxAPI.utils.showNotification({
+                    title: "App Registration Configured",
+                    body: typeof configureResult.message === "string" && configureResult.message.trim().length > 0 ? configureResult.message : "The app registration was configured successfully.",
+                    type: "success",
+                });
+            } else {
+                const failureMessage = typeof configureResult?.message === "string" && configureResult.message.trim().length > 0 ? configureResult.message : "Failed to configure app registration.";
+                pendingConfigureSaveScript = typeof configureResult?.script === "string" && configureResult.script.trim().length > 0 ? configureResult.script : buildAdminHandOffScript(failureMessage);
+                await copyAdminHandOffScript(failureMessage);
+                updateTestFeedback({ message: failureMessage, type: "error" });
+            }
+        } catch (error) {
+            const failureMessage = (error instanceof Error && error.message) || "Failed to configure app registration.";
+            pendingConfigureSaveScript = buildAdminHandOffScript(failureMessage);
+            await copyAdminHandOffScript(failureMessage);
+            updateTestFeedback({ message: failureMessage, type: "error" });
+        } finally {
+            setButtonState(configureButton, false, "", getConfigureButtonLabel());
+        }
+    });
+
     // Browser type change listener
     browserTypeSelect?.addEventListener("change", () => {
         loadBrowserProfiles();
@@ -579,34 +603,8 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
 
     addButton?.addEventListener("click", async () => {
         const formData = collectFormData();
-        configureSaveInFlight = true;
-        pendingConfigureSaveScript = "";
-        setButtonState(addButton, true, "Configuring...", getPrimaryActionLabel());
+        setButtonState(addButton, true, "Adding...", getPrimaryActionLabel());
         setButtonState(copyScriptSaveButton, true, "Working...", getManualActionLabel());
-
-        try {
-            const configureResult = await runConfigureAndSavePreflight();
-            if (!configureResult?.success) {
-                const failureMessage = typeof configureResult?.message === "string" && configureResult.message.trim().length > 0 ? configureResult.message : "Failed to configure app registration.";
-                pendingConfigureSaveScript = typeof configureResult?.script === "string" && configureResult.script.trim().length > 0 ? configureResult.script : buildAdminHandOffScript(failureMessage);
-                await copyAdminHandOffScript(failureMessage);
-                updateTestFeedback({ message: failureMessage, type: "error" });
-                configureSaveInFlight = false;
-                setButtonState(addButton, false, "", getPrimaryActionLabel());
-                setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
-                return;
-            }
-        } catch (error) {
-            const failureMessage = (error instanceof Error && error.message) || "Failed to configure app registration.";
-            pendingConfigureSaveScript = buildAdminHandOffScript(failureMessage);
-            await copyAdminHandOffScript(failureMessage);
-            updateTestFeedback({ message: failureMessage, type: "error" });
-            configureSaveInFlight = false;
-            setButtonState(addButton, false, "", getPrimaryActionLabel());
-            setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
-            return;
-        }
-
         modalBridge.send(CHANNELS.submit, formData);
     });
 
@@ -638,7 +636,6 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
     modalBridge.onMessage?.((payload) => {
         if (!payload || typeof payload !== "object") return;
         if (payload.channel === CHANNELS.submitReady) {
-            configureSaveInFlight = false;
             pendingConfigureSaveScript = "";
             setButtonState(addButton, false, "", getPrimaryActionLabel());
             setButtonState(copyScriptSaveButton, false, "", getManualActionLabel());
@@ -647,11 +644,6 @@ export function getAddConnectionModalControllerScript(channels: AddConnectionMod
             setButtonState(testButton, false, "", "Test Connection");
         }
         if (payload.channel === CHANNELS.testFeedback) {
-            if (configureSaveInFlight && typeof payload.data === "string" && payload.data.trim().length > 0) {
-                pendingConfigureSaveScript = buildAdminHandOffScript(payload.data);
-                void copyAdminHandOffScript(payload.data);
-                configureSaveInFlight = false;
-            }
             updateTestFeedback(payload.data);
         }
     });
