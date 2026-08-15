@@ -253,6 +253,7 @@ export const AGENT_INVOCATION_CHANNELS = {
 // MCP server status/details channels
 export const MCP_SERVER_CHANNELS = {
     GET_DETAILS: "mcp-server:get-details",
+    GET_CLIENT_CONFIG_STATUSES: "mcp-server:get-client-config-statuses",
     GET_JOB_STATUS: "mcp-server:get-job-status",
     CLEAR_LOGS: "mcp-server:clear-logs",
     START: "mcp-server:start",

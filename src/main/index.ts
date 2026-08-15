@@ -490,6 +490,7 @@ class ToolBoxApp {
 
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CLEAR_LOGS);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
@@ -572,7 +573,22 @@ class ToolBoxApp {
 
         // Agent invocation logs (main UI only)
         ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
-            return readLogEntries();
+            const persistedLogs = readLogEntries();
+            const persistedCorrelationIds = new Set(persistedLogs.flatMap((entry) => (entry.correlationId ? [entry.correlationId] : [])));
+            const activeLogs = this.mcpServerManager
+                .getActiveJobs()
+                .filter((job) => !persistedCorrelationIds.has(job.jobId))
+                .map((job) => ({
+                    timestamp: job.createdAt,
+                    toolId: job.toolId,
+                    toolName: job.toolName,
+                    connectionId: null,
+                    prefillSummary: "",
+                    outcome: "in-progress" as const,
+                    correlationId: job.jobId,
+                }));
+
+            return [...activeLogs, ...persistedLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         });
 
         ipcMain.handle(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS, () => {
@@ -581,6 +597,10 @@ class ToolBoxApp {
 
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
             return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES, async () => {
+            return await this.mcpServerManager.getClientConfigStatuses();
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_JOB_STATUS, (_, jobId: string) => {

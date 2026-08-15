@@ -1,5 +1,5 @@
 import { logError } from "../../common/logger";
-import { ToolBoxEvent } from "../../common/types";
+import { McpClientConfigStatus, ToolBoxEvent } from "../../common/types";
 import {
     hideMcpInvocationDetailsModal,
     initializeMcpInvocationDetailsModalController,
@@ -125,9 +125,12 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     <div class="settings-vscode-item-control mcp-server-item-control">
                         <div class="mcp-client-connect-row">
                             <button id="connect-claude-desktop-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to Claude Desktop</button>
-                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
+                            <span id="claude-desktop-config-status" class="settings-vscode-item-description"></span>
                         </div>
-                        <div id="mcp-client-config-status" class="settings-vscode-item-description" style="margin-top: 6px; display: none;"></div>
+                        <div class="mcp-client-connect-row">
+                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
+                            <span id="vscode-config-status" class="settings-vscode-item-description"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -184,6 +187,8 @@ export function renderMCPServerContent(panel: HTMLElement): void {
  */
 function getOutcomeBadgeStyle(outcome: string): string {
     switch (outcome) {
+        case "in-progress":
+            return "background: #0078d4; color: white;";
         case "completed":
             return "background: #107c10; color: white;";
         case "no-result":
@@ -228,7 +233,12 @@ function wireMcpLiveUpdates(): void {
  */
 async function loadAndRenderLogs(): Promise<void> {
     try {
-        const [serverDetails, logs, userSettings] = await Promise.all([window.toolboxAPI.mcpServer.getDetails(), window.toolboxAPI.agentInvocation.getLogs(), window.toolboxAPI.getUserSettings()]);
+        const [serverDetails, clientConfigStatuses, logs, userSettings] = await Promise.all([
+            window.toolboxAPI.mcpServer.getDetails(),
+            window.toolboxAPI.mcpServer.getClientConfigStatuses(),
+            window.toolboxAPI.agentInvocation.getLogs(),
+            window.toolboxAPI.getUserSettings(),
+        ]);
         const container = document.getElementById("mcp-container");
         const emptyState = document.getElementById("mcp-empty");
         const table = document.getElementById("invocation-logs-table");
@@ -259,6 +269,7 @@ async function loadAndRenderLogs(): Promise<void> {
         wireCopyButton("copy-mcp-auth-header-value-btn", () => serverDetails.authHeaderValue, "MCP auth token copied");
         wireMcpServerToggleButton();
         wireKeepMcpServerRunningToggle(serverDetails.isRunning, Boolean(userSettings.keepMcpServerRunning));
+        updateClientConfigStatusUi(clientConfigStatuses);
         wireClientConfigButtons();
         wireClearLogsButton(clearLogsButton, clearLogsStatus);
         wireInvocationTableInteractions();
@@ -275,13 +286,7 @@ async function loadAndRenderLogs(): Promise<void> {
         table.style.display = "table";
 
         const jobStatuses = await Promise.all(
-            logs.map((log) => {
-                if (!log.correlationId) {
-                    return Promise.resolve(null);
-                }
-
-                return window.toolboxAPI.mcpServer.getJobStatus(log.correlationId).catch(() => null);
-            }),
+            logs.map((log) => window.toolboxAPI.mcpServer.getJobStatus(log.correlationId).catch(() => null)),
         );
 
         tbody.innerHTML = logs
@@ -298,11 +303,7 @@ async function loadAndRenderLogs(): Promise<void> {
                     ${log.error ? `<span style="margin-left: 6px; color: var(--error-color, #d13438); cursor: pointer;" title="${escapeHtml(log.error)}">⚠</span>` : ""}
                 </td>
                 <td style="padding: 8px; font-size: 13px;">
-                    ${
-                        log.correlationId
-                            ? `<button class="fluent-button fluent-button-secondary settings-vscode-btn mcp-invocation-details-btn" data-correlation-id="${escapeHtml(log.correlationId)}">Details</button>`
-                            : '<span style="color: var(--text-muted, rgba(0,0,0,0.4));">—</span>'
-                    }
+                    <button class="fluent-button fluent-button-secondary settings-vscode-btn mcp-invocation-details-btn" data-correlation-id="${escapeHtml(log.correlationId)}">Details</button>
                 </td>
             </tr>
         `;
@@ -471,9 +472,8 @@ function wireKeepMcpServerRunningToggle(isServerRunning: boolean, initialKeepRun
 function wireClientConfigButtons(): void {
     const claudeBtn = document.getElementById("connect-claude-desktop-btn") as HTMLButtonElement | null;
     const vscodeBtn = document.getElementById("connect-vscode-btn") as HTMLButtonElement | null;
-    const statusEl = document.getElementById("mcp-client-config-status") as HTMLDivElement | null;
 
-    if (!claudeBtn || !vscodeBtn || !statusEl) {
+    if (!claudeBtn || !vscodeBtn) {
         return;
     }
 
@@ -482,28 +482,31 @@ function wireClientConfigButtons(): void {
         vscodeBtn.disabled = !enabled;
     };
 
-    const showStatus = (message: string, isError: boolean): void => {
+    const showStatus = (target: "claude" | "vscode", message: string, isError: boolean): void => {
+        const statusEl = document.getElementById(target === "claude" ? "claude-desktop-config-status" : "vscode-config-status");
+        if (!statusEl) {
+            return;
+        }
         statusEl.textContent = message;
-        statusEl.style.display = "block";
         statusEl.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-muted, rgba(0,0,0,0.65))";
     };
 
     const writeConfig = async (target: "claude" | "vscode"): Promise<void> => {
         try {
             setButtonsEnabled(false);
-            showStatus(`Configuring ${target === "claude" ? "Claude Desktop" : "VSCode"}...`, false);
+            showStatus(target, "Updating config...", false);
 
             const result = target === "claude" ? await window.toolboxAPI.mcpServer.configureClaudeDesktop() : await window.toolboxAPI.mcpServer.configureVSCode();
 
-            showStatus(`Updated ${target === "claude" ? "Claude Desktop" : "VSCode"} config at ${result.filePath} (${result.os}).`, false);
+            updateClientConfigStatusUi(await window.toolboxAPI.mcpServer.getClientConfigStatuses());
             await window.toolboxAPI.utils.showNotification({
                 title: "MCP Config Updated",
-                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName}.`,
+                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName} at ${result.filePath}.`,
                 type: "success",
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            showStatus(`Failed to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}: ${message}`, true);
+            showStatus(target, `Config update failed: ${message}`, true);
             await window.toolboxAPI.utils.showNotification({
                 title: "MCP Config Failed",
                 body: `Unable to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}.`,
@@ -527,6 +530,33 @@ function wireClientConfigButtons(): void {
         vscodeBtn.addEventListener("click", () => {
             void writeConfig("vscode");
         });
+    }
+}
+
+function updateClientConfigStatusUi(statuses: McpClientConfigStatus[]): void {
+    for (const status of statuses) {
+        const isClaude = status.client === "claude-desktop";
+        const button = document.getElementById(isClaude ? "connect-claude-desktop-btn" : "connect-vscode-btn") as HTMLButtonElement | null;
+        const statusEl = document.getElementById(isClaude ? "claude-desktop-config-status" : "vscode-config-status");
+        if (!button || !statusEl) {
+            continue;
+        }
+
+        if (status.status === "connected") {
+            statusEl.textContent = "Connected";
+            statusEl.style.color = "#107c10";
+            button.textContent = `Reconnect ${isClaude ? "Claude Desktop" : "VSCode"}`;
+        } else if (status.status === "invalid") {
+            statusEl.textContent = "Config is wrong";
+            statusEl.style.color = "var(--error-color, #d13438)";
+            button.textContent = `Fix ${isClaude ? "Claude Desktop" : "VSCode"} config`;
+        } else {
+            statusEl.textContent = "Not configured";
+            statusEl.style.color = "var(--text-muted, rgba(0,0,0,0.65))";
+            button.textContent = `Connect to ${isClaude ? "Claude Desktop" : "VSCode"}`;
+        }
+
+        statusEl.title = status.filePath;
     }
 }
 

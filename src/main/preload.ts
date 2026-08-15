@@ -423,6 +423,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // MCP server details - Only for PPTB UI
     mcpServer: {
         getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
+        getClientConfigStatuses: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES),
         getJobStatus: (jobId: string) => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_JOB_STATUS, jobId),
         clearLogs: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CLEAR_LOGS),
         start: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.START),

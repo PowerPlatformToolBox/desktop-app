@@ -1,14 +1,98 @@
 /// <reference types="jest" />
 
 import { McpServerManager } from "../../../../src/main/mcp/mcpServer";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
+
+jest.mock("fs", () => ({
+    promises: {
+        readFile: jest.fn(),
+        mkdir: jest.fn(),
+        writeFile: jest.fn(),
+    },
+}));
+
+jest.mock("os", () => ({
+    __esModule: true,
+    default: {
+        homedir: jest.fn(),
+    },
+}));
+
+function createManager(): McpServerManager {
+    const settingsManager = {
+        getMcpAccessToken: jest.fn().mockReturnValue("expected-token"),
+    } as any;
+
+    return new McpServerManager(7339, "127.0.0.1", settingsManager, { on: jest.fn() } as any, { on: jest.fn() } as any);
+}
+
+describe("McpServerManager client configuration status", () => {
+    const mockedReadFile = fs.readFile as jest.MockedFunction<typeof fs.readFile>;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (os.homedir as jest.Mock).mockReturnValue("/test-home");
+    });
+
+    it("reports connected, not configured, and invalid client configs", async () => {
+        const manager = createManager();
+        const claudePath = path.join("/test-home", "Library", "Application Support", "Claude", "claude_desktop_config.json");
+        const vscodePath = path.join("/test-home", "Library", "Application Support", "Code", "User", "mcp.json");
+
+        mockedReadFile.mockImplementation(async (filePath) => {
+            if (filePath === claudePath) {
+                return JSON.stringify({
+                    mcpServers: {
+                        pptb: {
+                            command: "npx",
+                            args: ["-y", "mcp-remote", "http://127.0.0.1:7339/mcp", "--header", "X-MCP-Auth-Token: expected-token"],
+                        },
+                    },
+                });
+            }
+            if (filePath === vscodePath) {
+                return JSON.stringify({ servers: { pptb: { type: "http", url: "http://wrong/mcp" } } });
+            }
+            throw Object.assign(new Error("Not found"), { code: "ENOENT" });
+        });
+
+        await expect(manager.getClientConfigStatuses()).resolves.toEqual([
+            { client: "claude-desktop", status: "connected", filePath: claudePath },
+            { client: "vscode", status: "invalid", filePath: vscodePath },
+        ]);
+
+        mockedReadFile.mockImplementation(async (filePath) => {
+            if (filePath === vscodePath) {
+                return JSON.stringify({
+                    servers: {
+                        pptb: {
+                            headers: { "X-MCP-Auth-Token": "expected-token" },
+                            url: "http://127.0.0.1:7339/mcp",
+                            type: "http",
+                        },
+                    },
+                });
+            }
+            throw Object.assign(new Error("Not found"), { code: "ENOENT" });
+        });
+        await expect(manager.getClientConfigStatuses()).resolves.toEqual([
+            { client: "claude-desktop", status: "not-configured", filePath: claudePath },
+            { client: "vscode", status: "connected", filePath: vscodePath },
+        ]);
+
+        mockedReadFile.mockRejectedValue(Object.assign(new Error("Not found"), { code: "ENOENT" }));
+        await expect(manager.getClientConfigStatuses()).resolves.toEqual([
+            { client: "claude-desktop", status: "not-configured", filePath: claudePath },
+            { client: "vscode", status: "not-configured", filePath: vscodePath },
+        ]);
+    });
+});
 
 describe("McpServerManager headless auth resolution", () => {
     it("initiates interactive auth for a named connection when no reusable session exists", async () => {
-        const settingsManager = {
-            getMcpAccessToken: jest.fn().mockReturnValue("expected-token"),
-        } as any;
-
-        const manager = new McpServerManager(7339, "127.0.0.1", settingsManager, { on: jest.fn() } as any, { on: jest.fn() } as any);
+        const manager = createManager();
 
         const connection = {
             id: "conn-1",

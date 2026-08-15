@@ -2543,8 +2543,13 @@ body.dark-theme .settings-vscode-item:hover {
 
 .mcp-client-connect-row {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.mcp-client-connect-row + .mcp-client-connect-row {
+    margin-top: 8px;
 }
 
 .mcp-server-actions-row {

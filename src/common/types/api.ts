@@ -89,9 +89,9 @@ export interface AgentInvocationLogEntry {
     toolName: string;
     connectionId: string | null;
     prefillSummary: string;
-    outcome: "completed" | "no-result" | "rejected";
+    outcome: "in-progress" | "completed" | "no-result" | "rejected";
     invocationMode?: "one-way" | "two-way";
-    correlationId?: string;
+    correlationId: string;
     error?: string;
 }
 
@@ -150,11 +150,18 @@ export interface McpClientConfigWriteResult {
     serverName: string;
 }
 
+export interface McpClientConfigStatus {
+    client: "claude-desktop" | "vscode";
+    status: "connected" | "not-configured" | "invalid";
+    filePath: string;
+}
+
 /**
  * MCP server API namespace
  */
 export interface McpServerAPI {
     getDetails: () => Promise<McpServerDetails>;
+    getClientConfigStatuses: () => Promise<McpClientConfigStatus[]>;
     getJobStatus: (jobId: string) => Promise<HeadlessJobDetails | null>;
     clearLogs: () => Promise<void>;
     start: () => Promise<McpServerDetails>;

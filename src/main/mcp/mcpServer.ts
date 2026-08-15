@@ -5,8 +5,9 @@ import { promises as fs } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
+import { isDeepStrictEqual } from "util";
 import { logError, logInfo } from "../../common/logger";
-import { Connection, ToolManifest } from "../../common/types";
+import { Connection, McpClientConfigStatus, ToolManifest } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
@@ -344,34 +345,31 @@ export class McpServerManager {
         return this.headlessInvocationManager.getJob(jobId);
     }
 
+    getActiveJobs(): HeadlessJobRecord[] {
+        return this.headlessInvocationManager.getActiveJobs();
+    }
+
     clearLogs(): void {
         this.headlessInvocationManager.clearLogs();
+    }
+
+    async getClientConfigStatuses(): Promise<McpClientConfigStatus[]> {
+        return await Promise.all([this.getClientConfigStatus("claude-desktop"), this.getClientConfigStatus("vscode")]);
     }
 
     async configureClient(client: SupportedClient): Promise<McpClientConfigWriteResult> {
         const resolvedOs = this.resolveHostOS();
         const filePath = this.getClientConfigPath(client, resolvedOs);
-        const serverDetails = this.getServerDetails();
-        const vscodeServerEntry = {
-            type: "http",
-            url: `${serverDetails.address}/mcp`,
-            headers: {
-                [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
-            },
-        };
-        const claudeServerEntry = {
-            command: "npx",
-            args: ["-y", "mcp-remote", `${serverDetails.address}/mcp`, "--header", `${MCP_AUTH_HEADER_DISPLAY_NAME}: ${serverDetails.authHeaderValue}`],
-        };
+        const expectedEntry = this.getExpectedClientConfig(client);
 
         const root = await this.readJsonObject(filePath);
         if (client === "claude-desktop") {
             const mcpServers = isRecord(root.mcpServers) ? root.mcpServers : {};
-            mcpServers[MCP_SERVER_CONFIG_KEY] = claudeServerEntry;
+            mcpServers[MCP_SERVER_CONFIG_KEY] = expectedEntry;
             root.mcpServers = mcpServers;
         } else {
             const servers = isRecord(root.servers) ? root.servers : {};
-            servers[MCP_SERVER_CONFIG_KEY] = vscodeServerEntry;
+            servers[MCP_SERVER_CONFIG_KEY] = expectedEntry;
             root.servers = servers;
         }
 
@@ -390,6 +388,46 @@ export class McpServerManager {
             os: resolvedOs,
             filePath,
             serverName: MCP_SERVER_CONFIG_KEY,
+        };
+    }
+
+    private async getClientConfigStatus(client: SupportedClient): Promise<McpClientConfigStatus> {
+        const filePath = this.getClientConfigPath(client, this.resolveHostOS());
+
+        try {
+            const root = await this.readJsonObject(filePath);
+            const serverCollection = client === "claude-desktop" ? root.mcpServers : root.servers;
+            if (!isRecord(serverCollection) || !(MCP_SERVER_CONFIG_KEY in serverCollection)) {
+                return { client, status: "not-configured", filePath };
+            }
+
+            const actualEntry = serverCollection[MCP_SERVER_CONFIG_KEY];
+            const expectedEntry = this.getExpectedClientConfig(client);
+            return {
+                client,
+                status: isDeepStrictEqual(actualEntry, expectedEntry) ? "connected" : "invalid",
+                filePath,
+            };
+        } catch {
+            return { client, status: "invalid", filePath };
+        }
+    }
+
+    private getExpectedClientConfig(client: SupportedClient): Record<string, unknown> {
+        const serverDetails = this.getServerDetails();
+        if (client === "claude-desktop") {
+            return {
+                command: "npx",
+                args: ["-y", "mcp-remote", `${serverDetails.address}/mcp`, "--header", `${MCP_AUTH_HEADER_DISPLAY_NAME}: ${serverDetails.authHeaderValue}`],
+            };
+        }
+
+        return {
+            type: "http",
+            url: `${serverDetails.address}/mcp`,
+            headers: {
+                [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
+            },
         };
     }
 

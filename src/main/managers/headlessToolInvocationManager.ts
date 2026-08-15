@@ -93,6 +93,12 @@ export class HeadlessToolInvocationManager {
         return job ? { ...job } : null;
     }
 
+    public getActiveJobs(): HeadlessJobRecord[] {
+        return Array.from(this.jobs.values())
+            .filter((job) => job.status === "pending" || job.status === "in_progress")
+            .map((job) => ({ ...job }));
+    }
+
     public updateProgress(jobId: string, percent: number, message?: string): void {
         const job = this.jobs.get(jobId);
         if (!job || (job.status !== "pending" && job.status !== "in_progress")) {
