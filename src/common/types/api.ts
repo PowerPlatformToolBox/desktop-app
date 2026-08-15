@@ -7,7 +7,7 @@ import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, Native
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
-import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, ProxySettings, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
 
@@ -141,6 +141,7 @@ export interface TroubleshootingAPI {
     checkConnections: () => Promise<{ success: boolean; message?: string; connectionCount?: number }>;
     checkToolDownload: () => Promise<{ success: boolean; message?: string }>;
     checkInternetConnectivity: () => Promise<{ success: boolean; message?: string }>;
+    testProxyConnection: (settings?: ProxySettings) => Promise<{ success: boolean; message?: string }>;
 }
 
 /**

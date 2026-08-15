@@ -157,6 +157,7 @@ export const UTIL_CHANNELS = {
     CHECK_CONNECTIONS: "check-connections",
     CHECK_TOOL_DOWNLOAD: "check-tool-download",
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
+    TEST_PROXY_CONNECTION: "test-proxy-connection",
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
     RESTART_APP: "restart-app",

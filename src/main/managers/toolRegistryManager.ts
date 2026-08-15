@@ -12,6 +12,7 @@ import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, Comm
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
+import { ProxyManager } from "./proxyManager";
 
 /**
  * Supabase database types
@@ -152,6 +153,7 @@ export class ToolRegistryManager extends EventEmitter {
     private installIdManager: InstallIdManager | null = null;
     private azureBlobBaseUrl: string;
     private settingsManager: { getMarketplaceSources(): MarketplaceSource[] } | null = null;
+    private proxyManager?: ProxyManager;
 
     // Registry fetch de-duping + caching
     private registryFetchInFlight: Promise<ToolRegistryEntry[]> | null = null;
@@ -179,6 +181,7 @@ export class ToolRegistryManager extends EventEmitter {
         installIdManager?: InstallIdManager,
         azureBlobBaseUrl?: string,
         settingsManager?: { getMarketplaceSources(): MarketplaceSource[] },
+        proxyManager?: ProxyManager,
     ) {
         super();
         this.toolsDirectory = toolsDirectory;
@@ -186,6 +189,7 @@ export class ToolRegistryManager extends EventEmitter {
         this.installIdManager = installIdManager || null;
         this.azureBlobBaseUrl = azureBlobBaseUrl || AZURE_BLOB_BASE_URL;
         this.settingsManager = settingsManager || null;
+        this.proxyManager = proxyManager;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -198,7 +202,8 @@ export class ToolRegistryManager extends EventEmitter {
             this.useLocalFallback = true;
         } else {
             logInfo("[ToolRegistry] Initializing Supabase client");
-            this.supabase = createClient(url, key);
+            const proxyFetch = this.proxyManager?.createProxyAwareFetch();
+            this.supabase = proxyFetch ? createClient(url, key, { global: { fetch: proxyFetch } }) : createClient(url, key);
         }
 
         this.ensureToolsDirectory();
@@ -211,6 +216,18 @@ export class ToolRegistryManager extends EventEmitter {
         if (!fs.existsSync(this.toolsDirectory)) {
             fs.mkdirSync(this.toolsDirectory, { recursive: true });
         }
+    }
+
+    private getRequestOptions(targetUrl: string, timeoutMs?: number): http.RequestOptions {
+        const options: http.RequestOptions = {
+            agent: this.proxyManager?.getAgentForUrl(targetUrl),
+        };
+
+        if (typeof timeoutMs === "number") {
+            options.timeout = timeoutMs;
+        }
+
+        return options;
     }
 
     /**
@@ -303,7 +320,7 @@ export class ToolRegistryManager extends EventEmitter {
             const rawJson = await new Promise<string>((resolve, reject) => {
                 const protocol = registryUrl.startsWith("https") ? https : http;
                 protocol
-                    .get(registryUrl, (res) => {
+                    .get(registryUrl, this.getRequestOptions(registryUrl), (res) => {
                         if (res.statusCode !== 200) {
                             reject(new Error(`Marketplace registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
                             return;
@@ -485,7 +502,7 @@ export class ToolRegistryManager extends EventEmitter {
         const rawJson = await new Promise<string>((resolve, reject) => {
             const protocol = registryUrl.startsWith("https") ? https : http;
             protocol
-                .get(registryUrl, (res) => {
+                .get(registryUrl, this.getRequestOptions(registryUrl), (res) => {
                     if (res.statusCode !== 200) {
                         reject(new Error(`Azure Blob registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
                         return;
@@ -663,7 +680,7 @@ export class ToolRegistryManager extends EventEmitter {
             const protocol = tool.downloadUrl.startsWith("https") ? https : http;
 
             protocol
-                .get(tool.downloadUrl, (res) => {
+                .get(tool.downloadUrl, this.getRequestOptions(tool.downloadUrl), (res) => {
                     if (res.statusCode === 302 || res.statusCode === 301) {
                         // Handle redirects
                         const redirectUrl = res.headers.location;
@@ -671,7 +688,7 @@ export class ToolRegistryManager extends EventEmitter {
                             logInfo(`[ToolRegistry] Following redirect to ${redirectUrl}`);
                             const redirectProtocol = redirectUrl.startsWith("https") ? https : http;
                             redirectProtocol
-                                .get(redirectUrl, (redirectRes) => {
+                                .get(redirectUrl, this.getRequestOptions(redirectUrl), (redirectRes) => {
                                     this.handleDownloadResponse(redirectRes, downloadPath, toolPath, resolve, reject);
                                 })
                                 .on("error", reject);
@@ -1099,7 +1116,8 @@ export class ToolRegistryManager extends EventEmitter {
      * Update Supabase credentials (if needed)
      */
     updateSupabaseClient(url: string, key: string): void {
-        this.supabase = createClient(url, key);
+        const proxyFetch = this.proxyManager?.createProxyAwareFetch();
+        this.supabase = proxyFetch ? createClient(url, key, { global: { fetch: proxyFetch } }) : createClient(url, key);
         this.useLocalFallback = false;
         logInfo(`[ToolRegistry] Supabase client updated`);
     }
@@ -1354,7 +1372,7 @@ export class ToolRegistryManager extends EventEmitter {
 
             const rawJson = await new Promise<string>((resolve, reject) => {
                 https
-                    .get(url, { timeout: 10000 }, (res) => {
+                    .get(url, this.getRequestOptions(url, 10000), (res) => {
                         if (res.statusCode === 404) {
                             // Package not found on npm — no beta available
                             resolve("{}");

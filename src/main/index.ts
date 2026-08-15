@@ -42,6 +42,7 @@ import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
+import { applyProxyEnvironmentBootstrap, ProxyManager } from "./managers/proxyManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
@@ -56,6 +57,10 @@ import { readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 import { applyMainSentryConsent } from "./sentryRuntime";
+
+// Proxy environment variables must be set before any HTTP-capable manager is instantiated.
+// This bootstrap reads persisted settings and applies proxy env vars early in process startup.
+applyProxyEnvironmentBootstrap();
 
 // Constants
 const MENU_CREATION_DEBOUNCE_MS = 150; // Debounce delay for menu recreation during rapid tool switches
@@ -75,6 +80,7 @@ const isFaviconAllowedHost = (hostname: string): boolean => {
 class ToolBoxApp {
     private mainWindow: BrowserWindow | null = null;
     private settingsManager: SettingsManager;
+    private proxyManager: ProxyManager;
     private installIdManager: InstallIdManager;
     private connectionsManager: ConnectionsManager;
     private toolManager: ToolManager;
@@ -122,6 +128,7 @@ class ToolBoxApp {
 
         try {
             this.settingsManager = new SettingsManager();
+            this.proxyManager = new ProxyManager(this.settingsManager);
             this.installIdManager = new InstallIdManager(this.settingsManager);
             void applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
 
@@ -135,6 +142,7 @@ class ToolBoxApp {
                 this.installIdManager,
                 process.env.AZURE_BLOB_BASE_URL,
                 this.settingsManager,
+                this.proxyManager,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.protocolHandlerManager = new ProtocolHandlerManager();
@@ -147,6 +155,7 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.proxyManager.setCredentialPromptHandler((authInfo) => this.promptForProxyCredentials(authInfo.host || "proxy", authInfo.port));
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -184,6 +193,25 @@ class ToolBoxApp {
      * Set up event listeners
      */
     private setupEventListeners(): void {
+        app.on("login", (event, _webContents, _request, authInfo, callback) => {
+            if (!authInfo.isProxy) {
+                return;
+            }
+
+            event.preventDefault();
+            void this.proxyManager
+                .handleProxyAuthChallenge(authInfo, callback)
+                .then((handled) => {
+                    if (!handled) {
+                        callback("", "");
+                    }
+                })
+                .catch((error) => {
+                    logError(error instanceof Error ? error : new Error(String(error)));
+                    callback("", "");
+                });
+        });
+
         // Listen to tool manager events
         this.toolManager.on("tool:loaded", (tool) => {
             this.api.emitEvent(ToolBoxEvent.TOOL_LOADED, tool);
@@ -384,6 +412,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
         ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
+        ipcMain.removeHandler(UTIL_CHANNELS.TEST_PROXY_CONNECTION);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -508,6 +537,9 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
+            if (Object.prototype.hasOwnProperty.call(settings, "proxy")) {
+                this.proxyManager.applyProxyEnvironment();
+            }
             if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
                 await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
             }
@@ -520,6 +552,9 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
             this.settingsManager.setSetting(key, value);
+            if (key === "proxy") {
+                this.proxyManager.applyProxyEnvironment();
+            }
             if (key === "sentryTelemetryConsent") {
                 await applyMainSentryConsent(this.settingsManager.getSentryTelemetryConsent(), this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined);
             }
@@ -1270,6 +1305,10 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY, async () => {
             return await this.checkInternetConnectivity();
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.TEST_PROXY_CONNECTION, async (_, settings) => {
+            return await this.proxyManager.testConnection(settings);
         });
 
         // Event history handler
@@ -3074,6 +3113,111 @@ class ToolBoxApp {
         this.sendWhatsNewRequest("auto-update", currentVersion);
     }
 
+    private async promptForProxyCredentials(proxyHost: string, proxyPort?: number): Promise<{ username: string; password: string } | null> {
+        if (!this.modalWindowManager) {
+            return null;
+        }
+
+        const modalId = `proxy-auth-${Date.now()}`;
+        const submitChannel = `${modalId}:submit`;
+        const cancelChannel = `${modalId}:cancel`;
+        const escapedHost = proxyHost.replace(/[<>"'&]/g, "");
+        const escapedPort = typeof proxyPort === "number" ? String(proxyPort) : "";
+        const subtitle = escapedPort ? `${escapedHost}:${escapedPort}` : escapedHost;
+
+        const html = `
+<div class="modal-panel" style="padding: 16px;">
+    <div class="modal-header">
+        <div>
+            <p class="modal-eyebrow">Proxy Authentication</p>
+            <h3>Credentials Required</h3>
+        </div>
+        <button class="icon-button" id="proxy-auth-close-btn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="settings-vscode-item-description" style="margin: 0 0 12px 0;">A proxy server requested authentication for <strong>${subtitle}</strong>.</p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <input id="proxy-auth-username" type="text" class="fluent-input settings-vscode-input" placeholder="Username" autocomplete="username" />
+            <input id="proxy-auth-password" type="password" class="fluent-input settings-vscode-input" placeholder="Password" autocomplete="current-password" />
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" id="proxy-auth-cancel-btn" class="fluent-button fluent-button-secondary">Cancel</button>
+        <button type="button" id="proxy-auth-submit-btn" class="fluent-button fluent-button-primary">Sign In</button>
+    </div>
+</div>
+<script>
+(() => {
+    const bridge = window.modalBridge;
+    if (!bridge) return;
+    const submit = () => {
+        const username = (document.getElementById("proxy-auth-username")?.value || "").trim();
+        const password = document.getElementById("proxy-auth-password")?.value || "";
+        bridge.send(${JSON.stringify(submitChannel)}, { username, password });
+    };
+    const cancel = () => bridge.send(${JSON.stringify(cancelChannel)}, {});
+    document.getElementById("proxy-auth-submit-btn")?.addEventListener("click", submit);
+    document.getElementById("proxy-auth-cancel-btn")?.addEventListener("click", cancel);
+    document.getElementById("proxy-auth-close-btn")?.addEventListener("click", cancel);
+    document.getElementById("proxy-auth-password")?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") submit();
+    });
+})();
+</script>`;
+
+        return await new Promise((resolve) => {
+            let settled = false;
+            const timeout = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    ipcMain.removeListener(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+                    this.modalWindowManager?.hideModal();
+                    resolve(null);
+                }
+            }, 120000);
+
+            const finish = (value: { username: string; password: string } | null): void => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                ipcMain.removeListener(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+                this.modalWindowManager?.hideModal();
+                resolve(value);
+            };
+
+            const onModalMessage = (_event: unknown, payload: { channel?: string; data?: unknown }) => {
+                if (!payload || typeof payload.channel !== "string") {
+                    return;
+                }
+
+                if (payload.channel === cancelChannel) {
+                    finish(null);
+                    return;
+                }
+
+                if (payload.channel === submitChannel && payload.data && typeof payload.data === "object") {
+                    const data = payload.data as { username?: unknown; password?: unknown };
+                    const username = typeof data.username === "string" ? data.username.trim() : "";
+                    const password = typeof data.password === "string" ? data.password : "";
+                    if (!username || !password) {
+                        return;
+                    }
+                    finish({ username, password });
+                }
+            };
+
+            ipcMain.on(MODAL_WINDOW_CHANNELS.MESSAGE, onModalMessage);
+            this.modalWindowManager?.showModal({
+                id: modalId,
+                html,
+                width: 460,
+                height: 280,
+                resizable: false,
+                alwaysOnTop: true,
+            });
+        });
+    }
+
     /**
      * Check Supabase connectivity
      * Tests if the Supabase API is accessible
@@ -3143,33 +3287,7 @@ class ToolBoxApp {
      * Check baseline internet connectivity by reaching GitHub
      */
     private async checkInternetConnectivity(): Promise<{ success: boolean; message?: string }> {
-        const INTERNET_CHECK_URL = "https://api.github.com/zen";
-
-        try {
-            const response = await fetch(INTERNET_CHECK_URL, {
-                method: "GET",
-                headers: { "User-Agent": "PowerPlatformToolBox" },
-            });
-
-            if (response.ok) {
-                logInfo(`[Troubleshooting] Internet connectivity check passed: HTTP ${response.status}`);
-                return {
-                    success: true,
-                    message: "Internet connectivity verified via GitHub",
-                };
-            }
-            logWarn("[Troubleshooting] Internet connectivity check returned non-OK status");
-            return {
-                success: false,
-                message: `Internet connectivity check failed: HTTP ${response.status}`,
-            };
-        } catch (error) {
-            logError(error as Error);
-            return {
-                success: false,
-                message: error instanceof Error ? error.message : "Network error during internet connectivity check",
-            };
-        }
+        return this.proxyManager.testConnection();
     }
 
     /**
@@ -3196,7 +3314,12 @@ class ToolBoxApp {
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
                     const protocol = url.startsWith("https") ? https : http;
-                    const request = protocol.get(url, (res) => {
+                    const request = protocol.get(
+                        url,
+                        {
+                            agent: this.proxyManager.getAgentForUrl(url),
+                        },
+                        (res) => {
                         if ((res.statusCode === 302 || res.statusCode === 301) && res.headers.location) {
                             if (redirectDepth > 5) {
                                 reject(new Error("Too many redirects while downloading test tool"));
@@ -3226,7 +3349,8 @@ class ToolBoxApp {
                             }
                             reject(err);
                         });
-                    });
+                        },
+                    );
 
                     request.on("error", (err) => {
                         reject(new Error(`Network error: ${err.message}`));
@@ -3425,6 +3549,8 @@ class ToolBoxApp {
 
             await app.whenReady();
             logCheckpoint("Electron app ready");
+
+            await this.proxyManager.initialize();
 
             // Register protocol handler after app is ready
             this.browserviewProtocolManager.registerHandler();

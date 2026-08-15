@@ -29,6 +29,14 @@ export type DeprecatedToolsVisibility = "hide-all" | "show-all" | "show-installe
  * Tool display mode options
  */
 export type ToolDisplayMode = "standard" | "compact";
+export type ProxyMode = "auto" | "manual" | "none";
+
+export interface ProxySettings {
+    mode: ProxyMode;
+    manualProxyUrl?: string;
+    noProxyList?: string[];
+    caBundlePath?: string;
+}
 
 export const PREVIEW_FEATURE_IDS = {
     MCP_SERVER: "mcp-server",
@@ -146,4 +154,5 @@ export interface UserSettings {
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
     sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
+    proxy?: ProxySettings; // Node-side proxy settings for network calls in the main process
 }

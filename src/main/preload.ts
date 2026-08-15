@@ -14,7 +14,7 @@ import {
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
-import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate } from "../common/types";
+import type { EntityRelatedMetadataPath, EntityRelatedMetadataResponse, LastUsedToolUpdate, ProxySettings } from "../common/types";
 
 /**
  * Preload script that exposes safe APIs to the renderer process
@@ -197,6 +197,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         checkConnections: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_CONNECTIONS),
         checkToolDownload: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_TOOL_DOWNLOAD),
         checkInternetConnectivity: () => ipcRenderer.invoke(UTIL_CHANNELS.CHECK_INTERNET_CONNECTIVITY),
+        testProxyConnection: (settings?: ProxySettings) => ipcRenderer.invoke(UTIL_CHANNELS.TEST_PROXY_CONNECTION, settings),
     },
 
     // FileSystem namespace - filesystem operations

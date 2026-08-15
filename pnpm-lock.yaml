@@ -38,6 +38,12 @@ importers:
       electron-updater:
         specifier: ^6.6.2
         version: 6.7.3
+      http-proxy-agent:
+        specifier: ^5.0.0
+        version: 5.0.0
+      https-proxy-agent:
+        specifier: ^5.0.1
+        version: 5.0.1
       marked:
         specifier: 17.0.3
         version: 17.0.3

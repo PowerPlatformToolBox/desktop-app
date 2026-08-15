@@ -4,7 +4,7 @@
  */
 
 import { logError } from "../../common/logger";
-import { buildPreviewFeatureFlags, type MarketplaceSource } from "../../common/types";
+import { buildPreviewFeatureFlags, type MarketplaceSource, type ProxySettings } from "../../common/types";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -166,6 +166,68 @@ function collectMarketplaceSourcesFromSettingsPanel(): MarketplaceSource[] {
     return sources;
 }
 
+function normalizeProxyMode(value: string | undefined): ProxySettings["mode"] {
+    if (value === "manual" || value === "none") {
+        return value;
+    }
+    return "auto";
+}
+
+function parseNoProxyList(value: string): string[] {
+    return value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+}
+
+function formatNoProxyList(entries?: string[]): string {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return "";
+    }
+    return entries.join(", ");
+}
+
+function collectProxySettingsFromPanel(): ProxySettings {
+    const modeSelect = document.getElementById("sidebar-proxy-mode-select") as HTMLSelectElement | null;
+    const manualProxyInput = document.getElementById("sidebar-proxy-manual-url-input") as HTMLInputElement | null;
+    const noProxyInput = document.getElementById("sidebar-proxy-no-proxy-input") as HTMLInputElement | null;
+    const caBundlePathInput = document.getElementById("sidebar-proxy-ca-bundle-path-input") as HTMLInputElement | null;
+
+    return {
+        mode: normalizeProxyMode(modeSelect?.value),
+        manualProxyUrl: (manualProxyInput?.value || "").trim(),
+        noProxyList: parseNoProxyList(noProxyInput?.value || ""),
+        caBundlePath: (caBundlePathInput?.value || "").trim(),
+    };
+}
+
+function areProxySettingsEqual(left?: ProxySettings, right?: ProxySettings): boolean {
+    const normalizedLeft = {
+        mode: normalizeProxyMode(left?.mode),
+        manualProxyUrl: (left?.manualProxyUrl || "").trim(),
+        noProxyList: Array.isArray(left?.noProxyList) ? left.noProxyList.map((entry) => entry.trim()).filter((entry) => entry.length > 0) : [],
+        caBundlePath: (left?.caBundlePath || "").trim(),
+    };
+    const normalizedRight = {
+        mode: normalizeProxyMode(right?.mode),
+        manualProxyUrl: (right?.manualProxyUrl || "").trim(),
+        noProxyList: Array.isArray(right?.noProxyList) ? right.noProxyList.map((entry) => entry.trim()).filter((entry) => entry.length > 0) : [],
+        caBundlePath: (right?.caBundlePath || "").trim(),
+    };
+
+    return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
+}
+
+function updateProxyModeUi(): void {
+    const modeSelect = document.getElementById("sidebar-proxy-mode-select") as HTMLSelectElement | null;
+    const manualSettings = document.getElementById("sidebar-proxy-manual-settings") as HTMLElement | null;
+    if (!modeSelect || !manualSettings) {
+        return;
+    }
+
+    manualSettings.style.display = modeSelect.value === "manual" ? "block" : "none";
+}
+
 function shouldPromptRestartForMarketplaceSourceChanges(previousSources: MarketplaceSource[], nextSources: MarketplaceSource[]): boolean {
     const previousBuiltInEnabled = previousSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
     const nextBuiltInEnabled = nextSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
@@ -318,6 +380,10 @@ export async function loadSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const proxyModeSelect = document.getElementById("sidebar-proxy-mode-select") as HTMLSelectElement | null;
+    const proxyManualUrlInput = document.getElementById("sidebar-proxy-manual-url-input") as HTMLInputElement | null;
+    const proxyNoProxyInput = document.getElementById("sidebar-proxy-no-proxy-input") as HTMLInputElement | null;
+    const proxyCaBundlePathInput = document.getElementById("sidebar-proxy-ca-bundle-path-input") as HTMLInputElement | null;
     const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const marketplaceBuiltinCheck = document.getElementById("sidebar-marketplace-builtin-check") as HTMLInputElement | null;
     const marketplaceSourcesList = document.getElementById("marketplace-sources-list") as HTMLElement | null;
@@ -326,6 +392,12 @@ export async function loadSettings(): Promise<void> {
         const settings = await window.toolboxAPI.getUserSettings();
         const previewFeatures = normalizePreviewFeatureFlags(settings);
         const sentryTelemetryConsent = normalizeTelemetryConsent(settings.sentryTelemetryConsent);
+        const proxySettings: ProxySettings = {
+            mode: normalizeProxyMode(settings.proxy?.mode),
+            manualProxyUrl: settings.proxy?.manualProxyUrl || "",
+            noProxyList: settings.proxy?.noProxyList || [],
+            caBundlePath: settings.proxy?.caBundlePath || "",
+        };
 
         // Store original settings for change detection
         originalSettings = {
@@ -345,6 +417,7 @@ export async function loadSettings(): Promise<void> {
             previewFeatures,
             marketplaceSources: settings.marketplaceSources ?? [],
             sentryTelemetryConsent,
+            proxy: proxySettings,
         };
 
         themeSelect.value = settings.theme;
@@ -382,6 +455,19 @@ export async function loadSettings(): Promise<void> {
         if (sentryTelemetryConsentSelect) {
             sentryTelemetryConsentSelect.value = sentryTelemetryConsent ?? "";
         }
+        if (proxyModeSelect) {
+            proxyModeSelect.value = proxySettings.mode;
+        }
+        if (proxyManualUrlInput) {
+            proxyManualUrlInput.value = proxySettings.manualProxyUrl || "";
+        }
+        if (proxyNoProxyInput) {
+            proxyNoProxyInput.value = formatNoProxyList(proxySettings.noProxyList);
+        }
+        if (proxyCaBundlePathInput) {
+            proxyCaBundlePathInput.value = proxySettings.caBundlePath || "";
+        }
+        updateProxyModeUi();
         getPreviewFeatureDefinitions().forEach((feature) => {
             const checkbox = document.getElementById(getPreviewFeatureCheckboxId(feature.id)) as HTMLInputElement | null;
             if (checkbox) {
@@ -457,6 +543,7 @@ export async function saveSettings(): Promise<void> {
     const enablePreviewFeatures = Object.values(previewFeatures).some((enabled) => enabled === true);
     const marketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
     const sentryTelemetryConsent = normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value);
+    const proxy = collectProxySettingsFromPanel();
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -475,6 +562,7 @@ export async function saveSettings(): Promise<void> {
         previewFeatures,
         marketplaceSources,
         sentryTelemetryConsent,
+        proxy,
     };
 
     const requiresRestartForMarketplaceSources = shouldPromptRestartForMarketplaceSourceChanges(originalSettings.marketplaceSources ?? [], currentSettings.marketplaceSources);
@@ -529,6 +617,9 @@ export async function saveSettings(): Promise<void> {
     }
     if ((currentSettings.sentryTelemetryConsent ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) {
         changedSettings.sentryTelemetryConsent = currentSettings.sentryTelemetryConsent;
+    }
+    if (!areProxySettingsEqual(currentSettings.proxy, originalSettings.proxy)) {
+        changedSettings.proxy = currentSettings.proxy;
     }
 
     // Only save and emit event if something changed
@@ -601,6 +692,10 @@ function hasUnsavedChanges(): boolean {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const proxyModeSelect = document.getElementById("sidebar-proxy-mode-select") as HTMLSelectElement | null;
+    const proxyManualUrlInput = document.getElementById("sidebar-proxy-manual-url-input") as HTMLInputElement | null;
+    const proxyNoProxyInput = document.getElementById("sidebar-proxy-no-proxy-input") as HTMLInputElement | null;
+    const proxyCaBundlePathInput = document.getElementById("sidebar-proxy-ca-bundle-path-input") as HTMLInputElement | null;
 
     // If the DOM elements aren't present the settings panel isn't rendered — no unsaved changes
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) {
@@ -637,6 +732,11 @@ function hasUnsavedChanges(): boolean {
 
     const currentMarketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
     if (JSON.stringify(currentMarketplaceSources) !== JSON.stringify(originalSettings.marketplaceSources ?? [])) return true;
+
+    if (proxyModeSelect || proxyManualUrlInput || proxyNoProxyInput || proxyCaBundlePathInput) {
+        const currentProxy = collectProxySettingsFromPanel();
+        if (!areProxySettingsEqual(currentProxy, originalSettings.proxy)) return true;
+    }
 
     return false;
 }
@@ -824,6 +924,70 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
             </section>
 
+            <section id="settings-section-network-proxy" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Network / Proxy</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-proxy-mode-select">Proxy Mode</label>
+                        <p class="settings-vscode-item-description">Configure proxy usage for Node-side network operations in the main process.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <select id="sidebar-proxy-mode-select" class="fluent-select settings-vscode-select">
+                            <option value="auto">Auto-detect system proxy</option>
+                            <option value="manual">Manual proxy</option>
+                            <option value="none">No proxy</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="sidebar-proxy-manual-settings" style="display: none">
+                    <div class="settings-vscode-item">
+                        <div class="settings-vscode-item-info">
+                            <label class="settings-vscode-item-label" for="sidebar-proxy-manual-url-input">Manual Proxy URL</label>
+                            <p class="settings-vscode-item-description">Example: http://proxy.company.local:8080</p>
+                        </div>
+                        <div class="settings-vscode-item-control">
+                            <input type="text" id="sidebar-proxy-manual-url-input" class="fluent-input settings-vscode-input" placeholder="http://host:port" />
+                        </div>
+                    </div>
+
+                    <div class="settings-vscode-item">
+                        <div class="settings-vscode-item-info">
+                            <label class="settings-vscode-item-label" for="sidebar-proxy-no-proxy-input">No Proxy List</label>
+                            <p class="settings-vscode-item-description">Comma-separated hostnames to bypass proxy (example: localhost,127.0.0.1,.internal).</p>
+                        </div>
+                        <div class="settings-vscode-item-control">
+                            <input type="text" id="sidebar-proxy-no-proxy-input" class="fluent-input settings-vscode-input" placeholder="localhost,127.0.0.1,.internal" />
+                        </div>
+                    </div>
+
+                    <div class="settings-vscode-item">
+                        <div class="settings-vscode-item-info">
+                            <label class="settings-vscode-item-label" for="sidebar-proxy-ca-bundle-path-input">Custom CA Bundle</label>
+                            <p class="settings-vscode-item-description">Optional PEM bundle used by Node-side HTTPS calls when proxy interception certificates are required.</p>
+                        </div>
+                        <div class="settings-vscode-item-control">
+                            <div style="display: flex; gap: 8px; align-items: center">
+                                <input type="text" id="sidebar-proxy-ca-bundle-path-input" class="fluent-input settings-vscode-input" placeholder="/path/to/ca-bundle.pem" />
+                                <button id="sidebar-proxy-ca-bundle-select-btn" type="button" class="fluent-button fluent-button-secondary settings-vscode-btn">Browse</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Test Connection</span>
+                        <p class="settings-vscode-item-description">Run a lightweight request using the currently configured proxy settings.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <button id="sidebar-proxy-test-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Test Connection</button>
+                        <div id="sidebar-proxy-test-status" class="settings-vscode-item-description" style="display: none; margin-top: 6px"></div>
+                    </div>
+                </div>
+            </section>
+
             <section id="settings-section-updates" class="settings-vscode-section">
                 <h2 class="settings-vscode-section-title">Updates</h2>
 
@@ -920,6 +1084,52 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 .catch((err) => {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
+        });
+    }
+
+    const proxyModeSelect = panel.querySelector("#sidebar-proxy-mode-select") as HTMLSelectElement | null;
+    if (proxyModeSelect) {
+        proxyModeSelect.addEventListener("change", () => {
+            updateProxyModeUi();
+        });
+    }
+
+    const proxyCaBundleSelectBtn = panel.querySelector("#sidebar-proxy-ca-bundle-select-btn") as HTMLButtonElement | null;
+    const proxyCaBundlePathInput = panel.querySelector("#sidebar-proxy-ca-bundle-path-input") as HTMLInputElement | null;
+    if (proxyCaBundleSelectBtn && proxyCaBundlePathInput) {
+        proxyCaBundleSelectBtn.addEventListener("click", async () => {
+            const selectedPath = await window.toolboxAPI.fileSystem.selectPath({
+                type: "file",
+                title: "Select custom CA bundle",
+                buttonLabel: "Select",
+                filters: [
+                    { name: "Certificate files", extensions: ["pem", "crt", "cer"] },
+                    { name: "All files", extensions: ["*"] },
+                ],
+            });
+
+            if (selectedPath) {
+                proxyCaBundlePathInput.value = selectedPath;
+            }
+        });
+    }
+
+    const proxyTestButton = panel.querySelector("#sidebar-proxy-test-btn") as HTMLButtonElement | null;
+    const proxyTestStatus = panel.querySelector("#sidebar-proxy-test-status") as HTMLElement | null;
+    if (proxyTestButton && proxyTestStatus) {
+        proxyTestButton.addEventListener("click", async () => {
+            proxyTestButton.disabled = true;
+            proxyTestStatus.style.display = "block";
+            proxyTestStatus.textContent = "Testing connection...";
+
+            try {
+                const result = await window.toolboxAPI.troubleshooting.testProxyConnection(collectProxySettingsFromPanel());
+                proxyTestStatus.textContent = result.success ? `✅ ${result.message || "Connection successful"}` : `❌ ${result.message || "Connection failed"}`;
+            } catch (error) {
+                proxyTestStatus.textContent = `❌ ${error instanceof Error ? error.message : "Connection test failed"}`;
+            } finally {
+                proxyTestButton.disabled = false;
+            }
         });
     }
 
