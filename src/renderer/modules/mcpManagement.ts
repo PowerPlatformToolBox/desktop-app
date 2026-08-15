@@ -285,9 +285,7 @@ async function loadAndRenderLogs(): Promise<void> {
         emptyState.style.display = "none";
         table.style.display = "table";
 
-        const jobStatuses = await Promise.all(
-            logs.map((log) => window.toolboxAPI.mcpServer.getJobStatus(log.correlationId).catch(() => null)),
-        );
+        const jobStatuses = await Promise.all(logs.map((log) => window.toolboxAPI.mcpServer.getJobStatus(log.correlationId).catch(() => null)));
 
         tbody.innerHTML = logs
             .map((log, index) => {
