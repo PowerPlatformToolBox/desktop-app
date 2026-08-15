@@ -11,7 +11,6 @@ import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/to
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
-import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
@@ -70,19 +69,11 @@ export async function loadSidebarTools(): Promise<void> {
         const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
         const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
         const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
-        const mcpEnabledFilterRow = document.getElementById("tools-mcp-enabled-filter-row") as HTMLElement | null;
         const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
         const privateMarketplaceFilterRow = document.getElementById("tools-private-marketplace-filter-row") as HTMLElement | null;
-        const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
         const userSettings = await window.toolboxAPI.getUserSettings();
         const hasConfiguredPrivateMarketplace = (userSettings.marketplaceSources || []).some((source) => source.type === "private");
 
-        if (mcpEnabledFilterRow) {
-            mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
-        }
-        if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
-            mcpEnabledFilter.checked = false;
-        }
         if (privateMarketplaceFilterRow) {
             privateMarketplaceFilterRow.style.display = hasConfiguredPrivateMarketplace ? "" : "none";
         }
@@ -94,7 +85,7 @@ export async function loadSidebarTools(): Promise<void> {
         const selectedCategory = categoryFilter?.value || "";
         const selectedAuthor = authorFilter?.value || "";
         const showUpdateRequiredOnly = !!updateRequiredFilter?.checked;
-        const showMcpEnabledOnly = mcpPreviewUiEnabled && !!mcpEnabledFilter?.checked;
+        const showMcpEnabledOnly = !!mcpEnabledFilter?.checked;
         const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && !!privateMarketplaceFilter?.checked;
 
         // Update filter button indicator and one-click clear button visibility
@@ -287,10 +278,10 @@ export async function loadSidebarTools(): Promise<void> {
                 }</div>`;
                 const authorsDisplay = `by ${Array.isArray(tool.authors) && tool.authors.length ? tool.authors.join(", ") : ""}`;
                 const mcpBadgeHtml =
-                    mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true
+                    tool.mcpHeadlessEnabled === true
                         ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
                         : "";
-                const compactTagsClass = mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true ? "tool-item-top-tags has-mcp-badge" : "tool-item-top-tags";
+                const compactTagsClass = tool.mcpHeadlessEnabled === true ? "tool-item-top-tags has-mcp-badge" : "tool-item-top-tags";
 
                 // Helper: Generate updating overlay HTML
                 const updatingOverlayHtml = isUpdating

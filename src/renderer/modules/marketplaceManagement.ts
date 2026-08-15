@@ -11,7 +11,6 @@ import { formatRatingMarkup } from "../utils/rating";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
-import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -110,20 +109,12 @@ export async function loadMarketplace(): Promise<void> {
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
-    const mcpEnabledFilterRow = document.getElementById("marketplace-mcp-enabled-filter-row") as HTMLElement | null;
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
     const privateMarketplaceFilterRow = document.getElementById("marketplace-private-marketplace-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
-    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
     const userSettings = await window.toolboxAPI.getUserSettings();
     const hasConfiguredPrivateMarketplace = (userSettings.marketplaceSources || []).some((source) => source.type === "private");
 
-    if (mcpEnabledFilterRow) {
-        mcpEnabledFilterRow.style.display = mcpPreviewUiEnabled ? "" : "none";
-    }
-    if (!mcpPreviewUiEnabled && mcpEnabledFilter) {
-        mcpEnabledFilter.checked = false;
-    }
     if (privateMarketplaceFilterRow) {
         privateMarketplaceFilterRow.style.display = hasConfiguredPrivateMarketplace ? "" : "none";
     }
@@ -135,7 +126,7 @@ export async function loadMarketplace(): Promise<void> {
     const selectedCategory = categoryFilter?.value || "";
     const selectedAuthor = authorFilter?.value || "";
     const showNewOnly = newFilter?.checked || false;
-    const showMcpEnabledOnly = mcpPreviewUiEnabled && (mcpEnabledFilter?.checked || false);
+    const showMcpEnabledOnly = mcpEnabledFilter?.checked || false;
     const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && (privateMarketplaceFilter?.checked || false);
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
@@ -262,7 +253,7 @@ export async function loadMarketplace(): Promise<void> {
             const isInstalled = installedToolsMap.has(tool.id);
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
-            const mcpHeadlessEnabled = mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true;
+            const mcpHeadlessEnabled = tool.mcpHeadlessEnabled === true;
             const mcpBadgeHtml = mcpHeadlessEnabled
                 ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
                 : "";
@@ -367,7 +358,7 @@ export async function loadMarketplace(): Promise<void> {
                     const isInstalled = installedToolsMap.has(toolId);
                     const toolForDetail: ToolDetail = {
                         ...tool,
-                        mcpHeadlessEnabled: mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true,
+                        mcpHeadlessEnabled: tool.mcpHeadlessEnabled === true,
                     };
                     openToolDetail(toolForDetail, isInstalled);
                 }
@@ -551,10 +542,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (tool.downloads !== undefined) metaBadges.push(`${tool.downloads.toLocaleString()} downloads`);
     const categories = tool.categories?.length ? tool.categories.map((c) => escapeHtml(c)) : [];
     const isDarkTheme = document.body.classList.contains("dark-theme");
-    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
     const mcpTagMarkup =
-        mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true
+        tool.mcpHeadlessEnabled === true
             ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
             : "";
 

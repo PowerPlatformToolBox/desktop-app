@@ -68,6 +68,19 @@ function renderPreviewFeatureSettingsRows(): string {
         .join("");
 }
 
+function renderPreviewFeatureSettingsSection(): string {
+    if (getPreviewFeatureDefinitions().length === 0) {
+        return "";
+    }
+
+    return `
+        <section id="settings-section-preview" class="settings-vscode-section">
+            <h2 class="settings-vscode-section-title">Preview Features</h2>
+            ${renderPreviewFeatureSettingsRows()}
+        </section>
+    `;
+}
+
 function renderSentryTelemetrySettingsRow(): string {
     return `
         <div class="settings-vscode-item">
@@ -888,10 +901,7 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 ${renderSentryTelemetrySettingsRow()}
             </section>
 
-            <section id="settings-section-preview" class="settings-vscode-section">
-                <h2 class="settings-vscode-section-title">Preview Features</h2>
-                ${renderPreviewFeatureSettingsRows()}
-            </section>
+            ${renderPreviewFeatureSettingsSection()}
 
             <div class="settings-vscode-actions">
                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
