@@ -31,8 +31,18 @@ export function logWarn(message: string, data?: unknown): void {
  * Log an error message or Error object.
  */
 export function logError(messageOrError: string | Error, data?: unknown): void {
-    const message = messageOrError instanceof Error ? `${messageOrError.name}: ${messageOrError.message}` : messageOrError;
-    sentryLogError(message, data !== undefined ? { data } : undefined);
+    if (messageOrError instanceof Error) {
+        const extra: Record<string, unknown> = {};
+        if (messageOrError.stack !== undefined) {
+            extra.stack = messageOrError.stack;
+        }
+        if (data !== undefined) {
+            extra.data = data;
+        }
+        sentryLogError(`${messageOrError.name}: ${messageOrError.message}`, Object.keys(extra).length > 0 ? extra : undefined);
+    } else {
+        sentryLogError(messageOrError, data !== undefined ? { data } : undefined);
+    }
 }
 
 /**
