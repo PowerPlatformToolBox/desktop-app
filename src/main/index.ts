@@ -486,8 +486,6 @@ class ToolBoxApp {
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS);
-        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS);
-
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES);
