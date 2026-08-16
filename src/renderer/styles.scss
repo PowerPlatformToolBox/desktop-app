@@ -863,32 +863,52 @@ body.dark-theme .settings-section-card {
 }
 
 /* Consent Review */
-.consent-review-summary-card {
-    margin-bottom: 4px;
-}
-
-.consent-review-summary-badges {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.consent-review-count-badge {
-    display: inline-flex;
+.consent-review-summary {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 4px 10px;
-    background: rgba(0, 120, 212, 0.08);
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.15));
+}
+
+.consent-review-summary-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 0 20px;
+    border-right: 1px solid var(--border-color);
+}
+
+.consent-review-summary-stat:first-child {
+    padding-left: 0;
+}
+
+.consent-review-summary-stat:last-child {
+    border-right: 0;
+}
+
+.consent-review-summary-value {
     color: var(--text-color);
-    font-size: 11px;
+    font-size: 18px;
     font-weight: 600;
+    line-height: 1;
+}
+
+.consent-review-summary-label {
+    color: var(--text-secondary);
+    font-size: 12px;
 }
 
 .consent-review-card {
+    align-items: stretch;
+    gap: 32px;
+}
+
+.consent-review-card-main {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 4px;
 }
 
 .consent-review-card-header {
@@ -907,6 +927,7 @@ body.dark-theme .settings-section-card {
     font-size: 14px;
     font-weight: 600;
     color: var(--text-color);
+    line-height: 1.5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -916,6 +937,7 @@ body.dark-theme .settings-section-card {
     margin: 2px 0 0;
     font-size: 11px;
     color: var(--text-secondary);
+    line-height: 1.5;
     word-break: break-all;
 }
 
@@ -923,32 +945,47 @@ body.dark-theme .settings-section-card {
     margin: 0;
     font-size: 12px;
     color: var(--text-secondary);
+    line-height: 1.6;
 }
 
-.consent-status-badge {
+.consent-review-card-control {
+    width: 150px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.consent-status {
     display: inline-flex;
     align-items: center;
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 11px;
+    gap: 6px;
+    font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
 }
 
-.consent-status-badge.granted {
-    background: rgba(16, 124, 16, 0.14);
+.consent-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.consent-status.granted {
     color: #0f6f0f;
 }
 
-.consent-status-badge.revoked {
-    background: rgba(164, 38, 44, 0.14);
+.consent-status.revoked {
     color: #a4262c;
 }
 
 .consent-review-domains-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
+    gap: 8px;
 }
 
 .consent-review-domain-section {
@@ -1006,7 +1043,7 @@ body.dark-theme .settings-section-card {
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 16px 0;
+    padding: 12px 24px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -1014,27 +1051,20 @@ body.dark-theme .settings-section-card {
     flex: 1;
 }
 
-.consent-review-page-header h2 {
-    margin: 4px 0 6px;
-    font-size: 24px;
-    font-weight: 600;
-}
-
-.consent-review-page-header > p:last-child {
-    margin: 0;
+.consent-review-page-description {
+    margin: 12px 24px 0;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.5;
 }
 
 .consent-review-list {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding-top: 16px;
 }
 
 #consent-review-tab-scroll-area {
-    padding: 24px 32px 32px;
+    padding: 0;
     box-sizing: border-box;
 }
 
@@ -1042,13 +1072,18 @@ body.dark-theme .settings-section-card {
     border-bottom: none;
 }
 
-@media (max-width: 1280px) {
-    .consent-review-summary-badges {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
 @media (max-width: 800px) {
+    .consent-review-card {
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .consent-review-card-control {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+    }
+
     .consent-review-domains-grid {
         grid-template-columns: 1fr;
         gap: 12px;
@@ -1060,17 +1095,11 @@ body.dark-theme .settings-section-card {
     cursor: not-allowed;
 }
 
-body.dark-theme .consent-review-count-badge {
-    background: rgba(43, 136, 216, 0.2);
-}
-
-body.dark-theme .consent-status-badge.granted {
-    background: rgba(19, 161, 14, 0.2);
+body.dark-theme .consent-status.granted {
     color: #7ddc7a;
 }
 
-body.dark-theme .consent-status-badge.revoked {
-    background: rgba(209, 52, 56, 0.22);
+body.dark-theme .consent-status.revoked {
     color: #ffb3b8;
 }
 
