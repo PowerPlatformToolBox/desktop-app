@@ -102,10 +102,10 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     const getConfigureNoteText = () => {
         // const redirectNote = "Reply URLs to set: msal<client-id>://auth and http://localhost.";
         if (isPowerPlatformApiEnabled()) {
-            return "Configure App will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
+            return "Configure App will update reply URLs and add basic Power Platform API permissions. Use Copy Script & Update to skip automatic configuration and save with a handoff script.";
         }
 
-        return "Configure App will update reply URLs only. Use Copy Script & Save to skip automatic configuration and save with a handoff script.";
+        return "Configure App will update reply URLs only. Use Copy Script & Update to skip automatic configuration and save with a handoff script.";
     };
 
     const buildAdminHandOffScript = (validationMessage) => {
