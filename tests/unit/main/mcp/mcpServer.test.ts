@@ -28,6 +28,28 @@ function createManager(): McpServerManager {
     return new McpServerManager(7339, "127.0.0.1", settingsManager, { on: jest.fn() } as any, { on: jest.fn() } as any);
 }
 
+function getClientConfigPaths(): { claudePath: string; vscodePath: string } {
+    if (process.platform === "darwin") {
+        return {
+            claudePath: path.join("/test-home", "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+            vscodePath: path.join("/test-home", "Library", "Application Support", "Code", "User", "mcp.json"),
+        };
+    }
+
+    if (process.platform === "win32") {
+        const appDataDir = process.env.APPDATA || path.join("/test-home", "AppData", "Roaming");
+        return {
+            claudePath: path.join(appDataDir, "Claude", "claude_desktop_config.json"),
+            vscodePath: path.join(appDataDir, "Code", "User", "mcp.json"),
+        };
+    }
+
+    return {
+        claudePath: path.join("/test-home", ".config", "Claude", "claude_desktop_config.json"),
+        vscodePath: path.join("/test-home", ".config", "Code", "User", "mcp.json"),
+    };
+}
+
 describe("McpServerManager client configuration status", () => {
     const mockedReadFile = fs.readFile as jest.MockedFunction<typeof fs.readFile>;
 
@@ -38,8 +60,7 @@ describe("McpServerManager client configuration status", () => {
 
     it("reports connected, not configured, and invalid client configs", async () => {
         const manager = createManager();
-        const claudePath = path.join("/test-home", "Library", "Application Support", "Claude", "claude_desktop_config.json");
-        const vscodePath = path.join("/test-home", "Library", "Application Support", "Code", "User", "mcp.json");
+        const { claudePath, vscodePath } = getClientConfigPaths();
 
         mockedReadFile.mockImplementation(async (filePath) => {
             if (filePath === claudePath) {
