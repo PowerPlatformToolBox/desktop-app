@@ -1,6 +1,6 @@
 /**
  * CSP consent review module
- * Renders consent review in sidebar and in full-tab mode.
+ * Renders consent review in full-tab mode.
  */
 
 import { logError, logInfo } from "../../common/logger";
@@ -71,11 +71,20 @@ function buildConsentEntries(tools: Tool[], consentsByToolId: { [toolId: string]
         });
 }
 
-function createCountBadge(label: string, count: number): HTMLElement {
-    const badge = document.createElement("span");
-    badge.className = "consent-review-count-badge";
-    badge.textContent = `${label} ${count}`;
-    return badge;
+function createSummaryStat(label: string, count: number): HTMLElement {
+    const stat = document.createElement("div");
+    stat.className = "consent-review-summary-stat";
+
+    const value = document.createElement("span");
+    value.className = "consent-review-summary-value";
+    value.textContent = String(count);
+
+    const labelElement = document.createElement("span");
+    labelElement.className = "consent-review-summary-label";
+    labelElement.textContent = label;
+
+    stat.append(value, labelElement);
+    return stat;
 }
 
 function createDomainList(title: string, domains: string[]): HTMLElement {
@@ -153,24 +162,15 @@ function renderContext(context: ConsentReviewContext, entries: ConsentReviewEntr
 
     const filtered = getFilteredEntries(entries, context);
 
-    const summaryCard = document.createElement("section");
-    summaryCard.className = "settings-section-card consent-review-summary-card";
-    summaryCard.innerHTML = `
-        <div class="settings-section-header">
-            <p class="settings-section-eyebrow">Security</p>
-            <p class="settings-section-description">Review marketplace tool permissions and apply changes in one flow.</p>
-        </div>
-    `;
-
-    const summaryBody = document.createElement("div");
-    summaryBody.className = "consent-review-summary-badges";
+    const summary = document.createElement("section");
+    summary.className = "consent-review-summary";
+    summary.setAttribute("aria-label", "Consent summary");
     const grantedCount = entries.filter((entry) => entry.granted).length;
     const revokedCount = entries.length - grantedCount;
-    summaryBody.appendChild(createCountBadge("Total", entries.length));
-    summaryBody.appendChild(createCountBadge("Granted", grantedCount));
-    summaryBody.appendChild(createCountBadge("Revoked", revokedCount));
-    summaryCard.appendChild(summaryBody);
-    container.appendChild(summaryCard);
+    summary.appendChild(createSummaryStat("Tools", entries.length));
+    summary.appendChild(createSummaryStat("Granted", grantedCount));
+    summary.appendChild(createSummaryStat("Revoked", revokedCount));
+    container.appendChild(summary);
 
     if (filtered.length === 0) {
         const emptyCard = document.createElement("section");
@@ -185,7 +185,7 @@ function renderContext(context: ConsentReviewContext, entries: ConsentReviewEntr
 
     filtered.forEach((entry) => {
         const card = document.createElement("section");
-        card.className = "settings-section-card consent-review-card";
+        card.className = "settings-vscode-item consent-review-card";
 
         const statusClass = entry.granted ? "granted" : "revoked";
         const statusText = entry.granted ? "Granted" : "Revoked";
@@ -194,21 +194,25 @@ function renderContext(context: ConsentReviewContext, entries: ConsentReviewEntr
         const notConsentedDomains = getNotConsentedDomains(entry);
 
         card.innerHTML = `
-            <div class="consent-review-card-header">
-                <div class="consent-review-card-title-wrap">
-                    <p class="consent-review-card-title">${entry.toolName}</p>
-                    <p class="consent-review-card-subtitle">${contributorsText}</p>
+            <div class="consent-review-card-main">
+                <div class="consent-review-card-header">
+                    <div class="consent-review-card-title-wrap">
+                        <p class="consent-review-card-title">${entry.toolName}</p>
+                        <p class="consent-review-card-subtitle">${contributorsText}</p>
+                    </div>
                 </div>
-                <span class="consent-status-badge ${statusClass}">${statusText}</span>
+                ${entry.description ? `<p class="consent-review-card-description">${entry.description}</p>` : ""}
             </div>
-            ${entry.description ? `<p class="consent-review-card-description">${entry.description}</p>` : ""}
+            <div class="consent-review-card-control">
+                <span class="consent-status ${statusClass}"><span class="consent-status-dot" aria-hidden="true"></span>${statusText}</span>
+            </div>
         `;
 
         const domains = document.createElement("div");
         domains.className = "consent-review-domains-grid";
         domains.appendChild(createDomainList("Consented", consentedDomains));
         domains.appendChild(createDomainList("Not Consented", notConsentedDomains));
-        card.appendChild(domains);
+        card.querySelector(".consent-review-card-main")?.appendChild(domains);
 
         const actions = document.createElement("div");
         actions.className = "consent-review-card-actions";
@@ -218,7 +222,7 @@ function renderContext(context: ConsentReviewContext, entries: ConsentReviewEntr
         actionButton.textContent = "Make Changes";
         actionButton.setAttribute("data-tool-id", entry.toolId);
         actions.appendChild(actionButton);
-        card.appendChild(actions);
+        card.querySelector(".consent-review-card-control")?.appendChild(actions);
 
         container.appendChild(card);
     });
@@ -334,50 +338,16 @@ function attachContextEventHandlers(context: ConsentReviewContext): void {
     bindActionHandling(context);
 }
 
-function registerSidebarContext(): ConsentReviewContext | null {
-    const searchInput = document.getElementById("consents-search-input") as HTMLInputElement | null;
-    const statusFilter = document.getElementById("consents-status-filter") as HTMLSelectElement | null;
-    const listContainer = document.getElementById("sidebar-consent-review-container") as HTMLElement | null;
-
-    if (!searchInput || !statusFilter || !listContainer) {
-        return null;
-    }
-
-    const existing = contexts.get("sidebar");
-    if (existing) {
-        return existing;
-    }
-
-    const context: ConsentReviewContext = {
-        key: "sidebar",
-        searchInput,
-        statusFilter,
-        listContainer,
-    };
-    contexts.set("sidebar", context);
-    attachContextEventHandlers(context);
-
-    const openTabBtn = document.getElementById("sidebar-consents-open-tab-btn");
-    if (openTabBtn && openTabBtn.getAttribute("data-bound") !== "true") {
-        openTabBtn.setAttribute("data-bound", "true");
-        openTabBtn.addEventListener("click", () => {
-            openConsentReviewTab().catch((error) => {
-                logError(error instanceof Error ? error : new Error(String(error)));
-            });
-        });
-    }
-
-    return context;
-}
-
 function renderConsentTabContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
         <div class="settings-tab-content" id="consent-review-tab-scroll-area">
             <section class="settings-vscode-section" id="consent-review-section">
-                <h2 class="settings-vscode-section-title">Consent Review</h2>
-                <p class="settings-vscode-item-description" style="margin-bottom: 12px;">Review and update permissions for marketplace-installed tools.</p>
-                <div class="sidebar-search-bar consent-review-tab-toolbar">
+                <header class="consent-review-page-header">
+                    <h2 class="settings-vscode-section-title">Consent Review</h2>
+                    <p class="consent-review-page-description">Review and update permissions for marketplace-installed tools.</p>
+                </header>
+                <div class="consent-review-tab-toolbar">
                     <div class="sidebar-search-input-wrapper">
                         <input type="text" id="consent-tab-search-input" class="search-input" placeholder="Search tools..." />
                     </div>
@@ -390,7 +360,7 @@ function renderConsentTabContent(panel: HTMLElement): void {
                         <button id="consent-tab-refresh-btn" class="fluent-button fluent-button-secondary">Refresh</button>
                     </div>
                 </div>
-                <div id="consent-tab-list-container" class="settings-container-sidebar"></div>
+                <div id="consent-tab-list-container" class="consent-review-list"></div>
             </section>
         </div>
     `;
@@ -430,16 +400,4 @@ function renderConsentTabContent(panel: HTMLElement): void {
 export async function openConsentReviewTab(): Promise<void> {
     registerCloseGuard("consent-review", async () => true);
     await openLocalPageAsTab("consent-review", "Consent Review", renderConsentTabContent, "");
-}
-
-/**
- * Loads and renders all CSP consent records in the sidebar panel.
- */
-export async function loadSidebarConsentReview(): Promise<void> {
-    const context = registerSidebarContext();
-    if (!context) {
-        return;
-    }
-
-    await refreshContext(context);
 }
