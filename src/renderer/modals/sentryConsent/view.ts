@@ -87,7 +87,7 @@ export function getSentryConsentModalView(model: SentryConsentModalViewModel): {
         <p class="telemetry-consent-prefooter">
             You can change this preference at any time in
             <strong>Settings &rarr; Telemetry</strong>
-            <br>Full telemetry starts after the next app restart.
+            <br>Some telemetry (main process) starts after the next app restart.
             <br>Read our <a href="https://www.powerplatformtoolbox.com/policy/privacy" target="_blank">Privacy Policy</a>.
         </p>
     </div>
