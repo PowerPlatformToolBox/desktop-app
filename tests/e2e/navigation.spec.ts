@@ -118,32 +118,13 @@ test.describe("Navigation", () => {
         await expect(window.locator("#sidebar-connections-list").getByText(connectionName, { exact: true })).toBeVisible({ timeout: 10_000 });
     });
 
-    test("consent review sidebar is reachable and renders controls", async ({ window }) => {
-        const consentButton = window.locator('[data-sidebar="consents"]');
+    test("consent review opens directly in full view", async ({ window }) => {
+        const consentButton = window.locator("#consent-review-activity-btn");
         await expect(consentButton).toBeVisible({ timeout: 10_000 });
 
         await consentButton.click();
-        await expect(window.locator("#sidebar-consents.sidebar-content.active")).toBeVisible({ timeout: 10_000 });
-        await expect(window.locator("#consents-search-input")).toBeVisible({ timeout: 10_000 });
-        await expect(window.locator("#consents-status-filter")).toBeVisible({ timeout: 10_000 });
-        await expect(window.locator("#sidebar-consent-review-container")).toBeVisible({ timeout: 10_000 });
-
-        await expect
-            .poll(async () => {
-                return await window.locator("#sidebar-consent-review-container .consent-review-count-badge").count();
-            })
-            .toBeGreaterThan(0);
-    });
-
-    test("consent review full view opens from sidebar", async ({ window }) => {
-        const consentButton = window.locator('[data-sidebar="consents"]');
-        await consentButton.click();
-
-        const openFullViewButton = window.locator("#sidebar-consents-open-tab-btn");
-        await expect(openFullViewButton).toBeVisible({ timeout: 10_000 });
-        await openFullViewButton.click();
-
         await expect(window.locator("#consent-review-tab-scroll-area")).toBeVisible({ timeout: 10_000 });
+        await expect(window.locator("#sidebar-consents")).toHaveCount(0);
         await expect(window.locator("#consent-tab-search-input")).toBeVisible({ timeout: 10_000 });
         await expect(window.locator("#consent-tab-status-filter")).toBeVisible({ timeout: 10_000 });
         await expect(window.locator("#consent-tab-refresh-btn")).toBeVisible({ timeout: 10_000 });

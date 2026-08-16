@@ -26,6 +26,7 @@ import {
     openAddConnectionModal,
     updateFooterConnection,
 } from "./connectionManagement";
+import { openConsentReviewTab } from "./cspConsentReviewSidebarManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -265,6 +266,16 @@ function setupActivityBar(): void {
     if (settingsActivityBtn) {
         settingsActivityBtn.addEventListener("click", () => {
             openSettingsTab().catch((err) => {
+                logError(err instanceof Error ? err : new Error(String(err)));
+            });
+        });
+    }
+
+    // Consent review button opens a tab instead of a sidebar panel
+    const consentReviewActivityBtn = document.getElementById("consent-review-activity-btn");
+    if (consentReviewActivityBtn) {
+        consentReviewActivityBtn.addEventListener("click", () => {
+            openConsentReviewTab().catch((err) => {
                 logError(err instanceof Error ? err : new Error(String(err)));
             });
         });

@@ -1,6 +1,6 @@
 /**
  * CSP consent review module
- * Renders consent review in sidebar and in full-tab mode.
+ * Renders consent review in full-tab mode.
  */
 
 import { logError, logInfo } from "../../common/logger";
@@ -334,50 +334,17 @@ function attachContextEventHandlers(context: ConsentReviewContext): void {
     bindActionHandling(context);
 }
 
-function registerSidebarContext(): ConsentReviewContext | null {
-    const searchInput = document.getElementById("consents-search-input") as HTMLInputElement | null;
-    const statusFilter = document.getElementById("consents-status-filter") as HTMLSelectElement | null;
-    const listContainer = document.getElementById("sidebar-consent-review-container") as HTMLElement | null;
-
-    if (!searchInput || !statusFilter || !listContainer) {
-        return null;
-    }
-
-    const existing = contexts.get("sidebar");
-    if (existing) {
-        return existing;
-    }
-
-    const context: ConsentReviewContext = {
-        key: "sidebar",
-        searchInput,
-        statusFilter,
-        listContainer,
-    };
-    contexts.set("sidebar", context);
-    attachContextEventHandlers(context);
-
-    const openTabBtn = document.getElementById("sidebar-consents-open-tab-btn");
-    if (openTabBtn && openTabBtn.getAttribute("data-bound") !== "true") {
-        openTabBtn.setAttribute("data-bound", "true");
-        openTabBtn.addEventListener("click", () => {
-            openConsentReviewTab().catch((error) => {
-                logError(error instanceof Error ? error : new Error(String(error)));
-            });
-        });
-    }
-
-    return context;
-}
-
 function renderConsentTabContent(panel: HTMLElement): void {
     panel.className = "settings-tab-container";
     panel.innerHTML = `
         <div class="settings-tab-content" id="consent-review-tab-scroll-area">
             <section class="settings-vscode-section" id="consent-review-section">
-                <h2 class="settings-vscode-section-title">Consent Review</h2>
-                <p class="settings-vscode-item-description" style="margin-bottom: 12px;">Review and update permissions for marketplace-installed tools.</p>
-                <div class="sidebar-search-bar consent-review-tab-toolbar">
+                <header class="consent-review-page-header">
+                    <p class="settings-section-eyebrow">Security</p>
+                    <h2>Consent Review</h2>
+                    <p>Review and update permissions for marketplace-installed tools.</p>
+                </header>
+                <div class="consent-review-tab-toolbar">
                     <div class="sidebar-search-input-wrapper">
                         <input type="text" id="consent-tab-search-input" class="search-input" placeholder="Search tools..." />
                     </div>
@@ -390,7 +357,7 @@ function renderConsentTabContent(panel: HTMLElement): void {
                         <button id="consent-tab-refresh-btn" class="fluent-button fluent-button-secondary">Refresh</button>
                     </div>
                 </div>
-                <div id="consent-tab-list-container" class="settings-container-sidebar"></div>
+                <div id="consent-tab-list-container" class="consent-review-list"></div>
             </section>
         </div>
     `;
@@ -430,16 +397,4 @@ function renderConsentTabContent(panel: HTMLElement): void {
 export async function openConsentReviewTab(): Promise<void> {
     registerCloseGuard("consent-review", async () => true);
     await openLocalPageAsTab("consent-review", "Consent Review", renderConsentTabContent, "");
-}
-
-/**
- * Loads and renders all CSP consent records in the sidebar panel.
- */
-export async function loadSidebarConsentReview(): Promise<void> {
-    const context = registerSidebarContext();
-    if (!context) {
-        return;
-    }
-
-    await refreshContext(context);
 }

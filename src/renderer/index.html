@@ -43,7 +43,7 @@
                     <button class="activity-item" id="mcp-btn" title="MCP Server">
                         <img id="logs-icon" src="icons/dark/mcp.svg" alt="MCP Icon" class="activity-icon" />
                     </button>
-                    <button class="activity-item" data-sidebar="consents" title="Consent Review">
+                    <button class="activity-item" id="consent-review-activity-btn" title="Consent Review">
                         <img id="consent-icon" src="icons/dark/consent-shield.svg" alt="Consent Review Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" id="settings-activity-btn" title="Settings">
@@ -281,35 +281,6 @@
                         <div class="marketplace-tools-list-pptb" id="marketplace-tools-list">
                             <!-- Marketplace tools will be populated here -->
                         </div>
-                    </div>
-                </div>
-
-                <!-- Consent Review Sidebar -->
-                <div class="sidebar-content" id="sidebar-consents">
-                    <div class="sidebar-header">
-                        <h2 class="sidebar-title">CONSENT REVIEW</h2>
-                        <div class="sidebar-header-actions">
-                            <button id="sidebar-consents-open-tab-btn" class="fluent-button fluent-button-secondary" title="Open full view" aria-label="Open full view">
-                                <img id="consents-open-tab-icon" width="16" height="16" alt="" aria-hidden="true" />
-                                <span>Full View</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="sidebar-search-bar">
-                        <div class="sidebar-search-input-wrapper">
-                            <input type="text" id="consents-search-input" class="search-input" placeholder="Search tools..." />
-                            <button type="button" class="search-clear-btn" data-clear-target="consents-search-input" aria-label="Clear consent review search" title="Clear search">&times;</button>
-                        </div>
-                        <div class="filter-btn-group">
-                            <select id="consents-status-filter" class="filter-dropdown-select" aria-label="Filter consent status">
-                                <option value="all">All</option>
-                                <option value="granted">Granted</option>
-                                <option value="revoked">Revoked</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="sidebar-body">
-                        <div class="settings-container-sidebar" id="sidebar-consent-review-container"></div>
                     </div>
                 </div>
 
