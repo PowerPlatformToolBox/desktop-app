@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -26,7 +27,7 @@ export interface AgentInvocationLogEntry {
     prefillSummary: string;
     outcome: InvocationOutcome;
     invocationMode?: "one-way" | "two-way";
-    correlationId?: string;
+    correlationId: string;
     error?: string;
 }
 
@@ -84,17 +85,28 @@ export function readLogEntries(): AgentInvocationLogEntry[] {
     const logPath = getLogFilePath();
 
     try {
-        if (!fs.existsSync(logPath)) {
+        const candidatePaths = [logPath, ...Array.from({ length: MAX_BACKUP_COUNT }, (_, idx) => `${logPath}.${idx + 1}`)];
+        const existingPaths = candidatePaths.filter((candidatePath) => fs.existsSync(candidatePath));
+
+        if (existingPaths.length === 0) {
             return [];
         }
 
-        const content = fs.readFileSync(logPath, { encoding: "utf-8" });
-        const lines = content.split("\n").filter((line) => line.trim().length > 0);
+        const lines: string[] = [];
+        for (const existingPath of existingPaths) {
+            const content = fs.readFileSync(existingPath, { encoding: "utf-8" });
+            const parsedLines = content.split("\n").filter((line) => line.trim().length > 0);
+            lines.push(...parsedLines);
+        }
 
         return lines
             .map((line) => {
                 try {
-                    return JSON.parse(line) as AgentInvocationLogEntry;
+                    const entry = JSON.parse(line) as AgentInvocationLogEntry;
+                    return {
+                        ...entry,
+                        correlationId: entry.correlationId || `log-${createHash("sha256").update(line).digest("hex").slice(0, 16)}`,
+                    };
                 } catch {
                     return null;
                 }
@@ -225,8 +237,8 @@ export function logInvocation(params: {
         connectionId: params.connectionId ? REDACTED_VALUE : null,
         prefillSummary: getPrefillSummary(params.prefillData),
         outcome: params.outcome,
+        correlationId: params.correlationId ?? randomUUID(),
         ...(params.invocationMode ? { invocationMode: params.invocationMode } : {}),
-        ...(params.correlationId ? { correlationId: params.correlationId } : {}),
         ...(params.error ? { error: params.error } : {}),
     };
 

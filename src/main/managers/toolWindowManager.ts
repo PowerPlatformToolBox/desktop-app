@@ -113,6 +113,7 @@ export class ToolWindowManager {
     private showListener: () => void;
     private rendererInitializedListener: () => void;
     private onActiveToolChanged: ((activeToolId: string | null) => void) | null = null;
+    private onToolLaunched: ((instanceId: string, tool: Tool) => void | Promise<void>) | null = null;
 
     constructor(
         mainWindow: BrowserWindow,
@@ -502,6 +503,12 @@ export class ToolWindowManager {
                 primaryConnection: primaryConnectionDetails,
                 secondaryConnection: secondaryConnectionDetails,
             });
+
+            if (this.onToolLaunched) {
+                void Promise.resolve(this.onToolLaunched(instanceId, tool)).catch((error) => {
+                    logError("[ToolWindowManager] Tool launch callback failed", error);
+                });
+            }
 
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
@@ -1293,6 +1300,15 @@ export class ToolWindowManager {
         }
 
         this.onActiveToolChanged = callback ?? null;
+    }
+
+    setOnToolLaunched(callback: ((instanceId: string, tool: Tool) => void | Promise<void>) | null | undefined): void {
+        if (callback !== null && callback !== undefined && typeof callback !== "function") {
+            logWarn("[ToolWindowManager] setOnToolLaunched called with non-function callback");
+            return;
+        }
+
+        this.onToolLaunched = callback ?? null;
     }
 
     /**

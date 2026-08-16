@@ -5,8 +5,9 @@ import { promises as fs } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
+import { isDeepStrictEqual } from "util";
 import { logError, logInfo } from "../../common/logger";
-import { Connection } from "../../common/types";
+import { Connection, McpClientConfigStatus, ToolManifest } from "../../common/types";
 import { AuthManager } from "../managers/authManager";
 import { ConnectionsManager } from "../managers/connectionsManager";
 import { DataverseManager } from "../managers/dataverseManager";
@@ -18,7 +19,7 @@ import { ToolManager } from "../managers/toolsManager";
 import { ToolWindowManager } from "../managers/toolWindowManager";
 import { logInvocation } from "./agentInvocationLogger";
 import { AgentExecutionMode, AgentInvocationMode, AgentTool, getAgentInvokableTools, resolveToolId } from "./agentToolRegistry";
-import { createHeadlessLogger, invokeHeadlessTool } from "./headlessToolRuntime";
+import { invokeHeadlessTool } from "./headlessToolRuntime";
 import { JsonObjectSchema } from "./schemaConverter";
 
 const MCP_AUTH_HEADER = "x-mcp-auth-token";
@@ -290,6 +291,21 @@ export class McpServerManager {
             this.agentToolsCache = null;
             logInfo("[MCP] Agent tool list invalidated: tool uninstalled");
         });
+
+        this.toolManager.on("tool:loaded", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool loaded");
+        });
+
+        this.toolManager.on("tool:unloaded", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool unloaded");
+        });
+
+        this.toolManager.on("tool:update-completed", () => {
+            this.agentToolsCache = null;
+            logInfo("[MCP] Agent tool list invalidated: tool updated");
+        });
     }
 
     setToolWindowManager(twm: ToolWindowManager): void {
@@ -301,6 +317,10 @@ export class McpServerManager {
         this.authManager = authManager;
         this.dataverseManager = new DataverseManager(connectionsManager, authManager);
         this.powerPlatformManager = new PowerPlatformManager(connectionsManager, authManager);
+    }
+
+    setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
+        this.headlessInvocationManager.setJobChangeHandler(handler);
     }
 
     isRunning(): boolean {
@@ -321,30 +341,35 @@ export class McpServerManager {
         };
     }
 
+    getJobStatus(jobId: string): HeadlessJobRecord | null {
+        return this.headlessInvocationManager.getJob(jobId);
+    }
+
+    getActiveJobs(): HeadlessJobRecord[] {
+        return this.headlessInvocationManager.getActiveJobs();
+    }
+
+    clearLogs(): void {
+        this.headlessInvocationManager.clearLogs();
+    }
+
+    async getClientConfigStatuses(): Promise<McpClientConfigStatus[]> {
+        return await Promise.all([this.getClientConfigStatus("claude-desktop"), this.getClientConfigStatus("vscode")]);
+    }
+
     async configureClient(client: SupportedClient): Promise<McpClientConfigWriteResult> {
         const resolvedOs = this.resolveHostOS();
         const filePath = this.getClientConfigPath(client, resolvedOs);
-        const serverDetails = this.getServerDetails();
-        const vscodeServerEntry = {
-            type: "http",
-            url: `${serverDetails.address}/mcp`,
-            headers: {
-                [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
-            },
-        };
-        const claudeServerEntry = {
-            command: "npx",
-            args: ["-y", "mcp-remote", `${serverDetails.address}/mcp`, "--header", `${MCP_AUTH_HEADER_DISPLAY_NAME}: ${serverDetails.authHeaderValue}`],
-        };
+        const expectedEntry = this.getExpectedClientConfig(client);
 
         const root = await this.readJsonObject(filePath);
         if (client === "claude-desktop") {
             const mcpServers = isRecord(root.mcpServers) ? root.mcpServers : {};
-            mcpServers[MCP_SERVER_CONFIG_KEY] = claudeServerEntry;
+            mcpServers[MCP_SERVER_CONFIG_KEY] = expectedEntry;
             root.mcpServers = mcpServers;
         } else {
             const servers = isRecord(root.servers) ? root.servers : {};
-            servers[MCP_SERVER_CONFIG_KEY] = vscodeServerEntry;
+            servers[MCP_SERVER_CONFIG_KEY] = expectedEntry;
             root.servers = servers;
         }
 
@@ -363,6 +388,46 @@ export class McpServerManager {
             os: resolvedOs,
             filePath,
             serverName: MCP_SERVER_CONFIG_KEY,
+        };
+    }
+
+    private async getClientConfigStatus(client: SupportedClient): Promise<McpClientConfigStatus> {
+        const filePath = this.getClientConfigPath(client, this.resolveHostOS());
+
+        try {
+            const root = await this.readJsonObject(filePath);
+            const serverCollection = client === "claude-desktop" ? root.mcpServers : root.servers;
+            if (!isRecord(serverCollection) || !(MCP_SERVER_CONFIG_KEY in serverCollection)) {
+                return { client, status: "not-configured", filePath };
+            }
+
+            const actualEntry = serverCollection[MCP_SERVER_CONFIG_KEY];
+            const expectedEntry = this.getExpectedClientConfig(client);
+            return {
+                client,
+                status: isDeepStrictEqual(actualEntry, expectedEntry) ? "connected" : "invalid",
+                filePath,
+            };
+        } catch {
+            return { client, status: "invalid", filePath };
+        }
+    }
+
+    private getExpectedClientConfig(client: SupportedClient): Record<string, unknown> {
+        const serverDetails = this.getServerDetails();
+        if (client === "claude-desktop") {
+            return {
+                command: "npx",
+                args: ["-y", "mcp-remote", `${serverDetails.address}/mcp`, "--header", `${MCP_AUTH_HEADER_DISPLAY_NAME}: ${serverDetails.authHeaderValue}`],
+            };
+        }
+
+        return {
+            type: "http",
+            url: `${serverDetails.address}/mcp`,
+            headers: {
+                [MCP_AUTH_HEADER_DISPLAY_NAME]: serverDetails.authHeaderValue,
+            },
         };
     }
 
@@ -419,9 +484,55 @@ export class McpServerManager {
 
     private async getAgentTools(): Promise<AgentTool[]> {
         if (this.agentToolsCache === null) {
-            this.agentToolsCache = { tools: await getAgentInvokableTools(this.toolRegistryManager) };
+            this.agentToolsCache = {
+                tools: await getAgentInvokableTools(this.toolRegistryManager, {
+                    toolManager: this.toolManager,
+                }),
+            };
         }
         return this.agentToolsCache.tools;
+    }
+
+    private resolveExecutionManifest(toolId: string): ToolManifest | null {
+        const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+        if (installedManifest) {
+            return installedManifest;
+        }
+
+        const loadedTool = this.toolManager.getTool(toolId);
+        if (!loadedTool?.localPath) {
+            return null;
+        }
+
+        return {
+            id: loadedTool.id,
+            name: loadedTool.name,
+            version: loadedTool.version,
+            description: loadedTool.description,
+            installPath: loadedTool.localPath,
+            installedAt: new Date().toISOString(),
+            source: "local",
+            authors: loadedTool.authors,
+            icon: loadedTool.icon,
+            cspExceptions: loadedTool.cspExceptions,
+            categories: loadedTool.categories,
+            license: loadedTool.license,
+            downloads: loadedTool.downloads,
+            rating: loadedTool.rating,
+            mau: loadedTool.mau,
+            readme: loadedTool.readmeUrl,
+            features: loadedTool.features,
+            status: loadedTool.status,
+            repository: loadedTool.repository,
+            website: loadedTool.website,
+            minAPI: loadedTool.minAPI,
+            maxAPI: loadedTool.maxAPI,
+            mcpHeadlessEnabled: loadedTool.mcpHeadlessEnabled,
+            capabilities: loadedTool.capabilities,
+            marketplaceSourceId: loadedTool.marketplaceSourceId,
+            marketplaceSourceLabel: loadedTool.marketplaceSourceLabel,
+            marketplaceSourceType: loadedTool.marketplaceSourceType,
+        };
     }
 
     private inferMode(tool: AgentTool, payload: Record<string, unknown>, requestedMode: AgentInvocationMode | undefined): AgentInvocationMode {
@@ -566,7 +677,9 @@ export class McpServerManager {
                 } else if (connection.refreshToken) {
                     authResult = await this.authManager.refreshAccessToken(connection, connection.refreshToken);
                 } else {
-                    throw new Error(`Interactive connection '${connection.name}' has no reusable session. Reconnect this connection from UI first, then retry headless invocation.`);
+                    // An agent-specified connection name should be able to trigger a fresh interactive sign-in
+                    // when there is no reusable session saved for that headless invocation.
+                    authResult = await this.authManager.authenticateInteractive(connection);
                 }
                 break;
             case "connectionString":
@@ -815,10 +928,10 @@ export class McpServerManager {
             switch (executionMode) {
                 case "headless": {
                     const effectiveTimeoutMs = invocationMeta.timeoutMs ?? matchedTool.timeoutMs ?? DEFAULT_TWO_WAY_TIMEOUT_MS;
-                    const installedManifest = this.toolRegistryManager.getInstalledManifestSync(toolId);
+                    const executionManifest = this.resolveExecutionManifest(toolId);
                     let resolvedAuthContext: ResolvedHeadlessAuthContext;
 
-                    if (!installedManifest) {
+                    if (!executionManifest) {
                         const errorText = `Tool manifest not found for: ${toolId}`;
                         logInvocationWithMeta({
                             toolId,
@@ -854,8 +967,15 @@ export class McpServerManager {
                             toolName: displayName,
                             timeoutMs: effectiveTimeoutMs,
                             execute: async (jobId) => {
+                                const jobLogger = {
+                                    debug: (message: string) => this.headlessInvocationManager.appendLog(jobId, "debug", message),
+                                    info: (message: string) => this.headlessInvocationManager.appendLog(jobId, "info", message),
+                                    warn: (message: string) => this.headlessInvocationManager.appendLog(jobId, "warn", message),
+                                    error: (message: string) => this.headlessInvocationManager.appendLog(jobId, "error", message),
+                                };
+
                                 const result = await invokeHeadlessTool(
-                                    installedManifest,
+                                    executionManifest,
                                     prefillData,
                                     {
                                         toolId,
@@ -868,7 +988,7 @@ export class McpServerManager {
                                         updateProgress: (percent, message) => {
                                             this.headlessInvocationManager.updateProgress(jobId, percent, message);
                                         },
-                                        logger: createHeadlessLogger(toolId),
+                                        logger: jobLogger,
                                     },
                                     {
                                         settingsManager: this.settingsManager,

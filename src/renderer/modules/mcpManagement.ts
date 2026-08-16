@@ -1,5 +1,20 @@
 import { logError } from "../../common/logger";
+import { McpClientConfigStatus, ToolBoxEvent } from "../../common/types";
+import {
+    hideMcpInvocationDetailsModal,
+    initializeMcpInvocationDetailsModalController,
+    isMcpInvocationDetailsModalOpen,
+    setMcpInvocationDetailsModalContent,
+    showMcpInvocationDetailsModal,
+} from "../modals/mcpInvocationDetails/controller";
+import { getMcpInvocationDetailsContent, getMcpInvocationDetailsModalView } from "../modals/mcpInvocationDetails/view";
 import { openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
+
+const MCP_REFRESH_INTERVAL_MS = 2000;
+
+let mcpRefreshTimer: number | null = null;
+let mcpLiveUpdatesBound = false;
+let activeDetailsCorrelationId: string | null = null;
 
 /**
  * Render the MCP server content into a panel
@@ -31,6 +46,20 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                             <button id="mcp-server-toggle-btn" class="fluent-button fluent-button-primary settings-vscode-btn">Start MCP Server</button>
                             <span id="mcp-server-action-status" class="settings-vscode-item-description mcp-server-action-status"></span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item mcp-settings-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Startup Behavior</span>
+                        <p class="settings-vscode-item-description">Automatically keep MCP available by restarting it when tools are opened or reopened.</p>
+                    </div>
+                    <div class="settings-vscode-item-control mcp-server-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="mcp-keep-running-checkbox" class="settings-vscode-checkbox" />
+                            Keep MCP Server Running
+                        </label>
+                        <span id="mcp-keep-running-status" class="settings-vscode-item-description mcp-server-action-status"></span>
                     </div>
                 </div>
 
@@ -96,38 +125,61 @@ export function renderMCPServerContent(panel: HTMLElement): void {
                     <div class="settings-vscode-item-control mcp-server-item-control">
                         <div class="mcp-client-connect-row">
                             <button id="connect-claude-desktop-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to Claude Desktop</button>
-                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
+                            <span id="claude-desktop-config-status" class="settings-vscode-item-description"></span>
                         </div>
-                        <div id="mcp-client-config-status" class="settings-vscode-item-description" style="margin-top: 6px; display: none;"></div>
+                        <div class="mcp-client-connect-row">
+                            <button id="connect-vscode-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Connect to VSCode</button>
+                            <span id="vscode-config-status" class="settings-vscode-item-description"></span>
+                        </div>
                     </div>
                 </div>
 
-                <div id="mcp-container" class="invocation-logs-container">
+                <div class="settings-vscode-item mcp-settings-item-spaced">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Log Maintenance</span>
+                        <p class="settings-vscode-item-description">Clear the invocation history and captured tool logs for this MCP server.</p>
+                    </div>
+                    <div class="settings-vscode-item-control mcp-server-item-control">
+                        <div class="mcp-client-connect-row">
+                            <button id="mcp-clear-logs-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Clear Logs</button>
+                        </div>
+                        <div id="mcp-clear-logs-status" class="settings-vscode-item-description" style="margin-top: 6px; display: none;"></div>
+                    </div>
+                </div>
+
+                <div id="mcp-container" class="invocation-logs-container mcp-invocations-container">
+                    <h3 class="mcp-invocations-title">Invocations</h3>
                     <div class="empty-state" id="mcp-empty" style="display: none;">
                         <p>No agent invocations recorded yet.</p>
                         <p class="empty-state-hint">Invoke tools through the MCP server to see activity here.</p>
                     </div>
-<table class="invocation-logs-table" id="invocation-logs-table" style="width: 100%; border-collapse: collapse; display: none;">
+                    <table class="invocation-logs-table" id="invocation-logs-table" style="width: 100%; border-collapse: collapse; display: none;">
                          <thead>
                              <tr style="border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.1));">
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Timestamp</th>
                                  <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Tool Name</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Tool ID</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Mode</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Connection</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Prefill</th>
-                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));;">Outcome</th>
+                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Status</th>
+                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Outcome</th>
+                                 <th style="text-align: left; padding: 8px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-muted, rgba(0,0,0,0.6));">Actions</th>
                              </tr>
                          </thead>
                          <tbody id="invocation-logs-tbody"></tbody>
-                     </table>
+                    </table>
                 </div>
+
+                ${getMcpInvocationDetailsModalView()}
             </div>
         </div>
     `;
 
+    initializeMcpInvocationDetailsModalController(() => {
+        activeDetailsCorrelationId = null;
+    });
+
     // Load and render logs
+    wireMcpLiveUpdates();
     loadAndRenderLogs();
+    startMcpRefreshLoop();
 }
 
 /**
@@ -135,6 +187,8 @@ export function renderMCPServerContent(panel: HTMLElement): void {
  */
 function getOutcomeBadgeStyle(outcome: string): string {
     switch (outcome) {
+        case "in-progress":
+            return "background: #0078d4; color: white;";
         case "completed":
             return "background: #107c10; color: white;";
         case "no-result":
@@ -161,21 +215,43 @@ function updateMcpServerStatusUi(isRunning: boolean): void {
     }
 }
 
+function wireMcpLiveUpdates(): void {
+    if (mcpLiveUpdatesBound) {
+        return;
+    }
+
+    mcpLiveUpdatesBound = true;
+    window.toolboxAPI.events.on((_, payload) => {
+        if (payload && typeof payload === "object" && (payload as { event?: string }).event === ToolBoxEvent.MCP_HEADLESS_JOB_UPDATED) {
+            void loadAndRenderLogs();
+        }
+    });
+}
+
 /**
- * Load and render the logs
+ * Load and render the logs.
  */
 async function loadAndRenderLogs(): Promise<void> {
     try {
-        const [serverDetails, logs] = await Promise.all([window.toolboxAPI.mcpServer.getDetails(), window.toolboxAPI.agentInvocation.getLogs()]);
+        const [serverDetails, clientConfigStatuses, logs, userSettings] = await Promise.all([
+            window.toolboxAPI.mcpServer.getDetails(),
+            window.toolboxAPI.mcpServer.getClientConfigStatuses(),
+            window.toolboxAPI.agentInvocation.getLogs(),
+            window.toolboxAPI.getUserSettings(),
+        ]);
         const container = document.getElementById("mcp-container");
         const emptyState = document.getElementById("mcp-empty");
         const table = document.getElementById("invocation-logs-table");
         const tbody = document.getElementById("invocation-logs-tbody");
+        const clearLogsButton = document.getElementById("mcp-clear-logs-btn") as HTMLButtonElement | null;
+        const clearLogsStatus = document.getElementById("mcp-clear-logs-status") as HTMLDivElement | null;
         const addressInput = document.getElementById("mcp-server-address") as HTMLInputElement | null;
         const headerNameInput = document.getElementById("mcp-auth-header-name") as HTMLInputElement | null;
         const headerValueInput = document.getElementById("mcp-auth-header-value") as HTMLInputElement | null;
 
-        if (!container || !emptyState || !table || !tbody) return;
+        if (!container || !emptyState || !table || !tbody) {
+            return;
+        }
 
         if (addressInput) {
             addressInput.value = serverDetails.address;
@@ -192,35 +268,53 @@ async function loadAndRenderLogs(): Promise<void> {
         wireCopyButton("copy-mcp-auth-header-name-btn", () => serverDetails.authHeaderName, "MCP auth header name copied");
         wireCopyButton("copy-mcp-auth-header-value-btn", () => serverDetails.authHeaderValue, "MCP auth token copied");
         wireMcpServerToggleButton();
+        wireKeepMcpServerRunningToggle(serverDetails.isRunning, Boolean(userSettings.keepMcpServerRunning));
+        updateClientConfigStatusUi(clientConfigStatuses);
         wireClientConfigButtons();
+        wireClearLogsButton(clearLogsButton, clearLogsStatus);
+        wireInvocationTableInteractions();
 
         if (logs.length === 0) {
             emptyState.style.display = "block";
             table.style.display = "none";
+            tbody.innerHTML = "";
+            activeDetailsCorrelationId = null;
             return;
         }
 
         emptyState.style.display = "none";
         table.style.display = "table";
 
+        const jobStatuses = await Promise.all(logs.map((log) => window.toolboxAPI.mcpServer.getJobStatus(log.correlationId).catch(() => null)));
+
         tbody.innerHTML = logs
-            .map(
-                (log) => `
+            .map((log, index) => {
+                const job = jobStatuses[index];
+                const status = job?.status ?? (log.outcome === "completed" ? "completed" : log.outcome === "rejected" ? "failed" : "no-result");
+                return `
             <tr style="border-bottom: 1px solid var(--border-color-light, rgba(0,0,0,0.05));">
                 <td style="padding: 8px; font-size: 13px; white-space: nowrap;">${formatTimestamp(log.timestamp)}</td>
                 <td style="padding: 8px; font-size: 13px;">${escapeHtml(log.toolName)}</td>
-                <td style="padding: 8px; font-size: 13px; font-family: monospace;">${escapeHtml(log.toolId)}</td>
-                <td style="padding: 8px; font-size: 13px; text-transform: uppercase;">${log.invocationMode ? escapeHtml(log.invocationMode) : '<span style="color: var(--text-muted, rgba(0,0,0,0.4));">—</span>'}</td>
-                <td style="padding: 8px; font-size: 13px;">${log.connectionId ? escapeHtml(log.connectionId) : '<span style="color: var(--text-muted, rgba(0,0,0,0.4));">—</span>'}</td>
-                <td style="padding: 8px; font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(log.prefillSummary)}">${escapeHtml(log.prefillSummary)}</td>
+                <td style="padding: 8px; font-size: 13px; text-transform: uppercase;">${escapeHtml(status)}</td>
                 <td style="padding: 8px; font-size: 13px;">
                     <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; ${getOutcomeBadgeStyle(log.outcome)}">${escapeHtml(log.outcome)}</span>
                     ${log.error ? `<span style="margin-left: 6px; color: var(--error-color, #d13438); cursor: pointer;" title="${escapeHtml(log.error)}">⚠</span>` : ""}
                 </td>
+                <td style="padding: 8px; font-size: 13px;">
+                    <button class="fluent-button fluent-button-secondary settings-vscode-btn mcp-invocation-details-btn" data-correlation-id="${escapeHtml(log.correlationId)}">Details</button>
+                </td>
             </tr>
-        `,
-            )
+        `;
+            })
             .join("");
+
+        if (activeDetailsCorrelationId && !isMcpInvocationDetailsModalOpen()) {
+            const activeLog = logs.find((log) => log.correlationId === activeDetailsCorrelationId) ?? null;
+            if (activeLog) {
+                const activeJob = await window.toolboxAPI.mcpServer.getJobStatus(activeDetailsCorrelationId).catch(() => null);
+                setMcpInvocationDetailsModalContent(getMcpInvocationDetailsContent(activeLog, activeJob));
+            }
+        }
     } catch (error) {
         logError("Failed to load agent invocation logs", error);
         const container = document.getElementById("mcp-container");
@@ -230,12 +324,154 @@ async function loadAndRenderLogs(): Promise<void> {
     }
 }
 
+function wireInvocationTableInteractions(): void {
+    const tbody = document.getElementById("invocation-logs-tbody");
+    if (!tbody || tbody.dataset.bound === "true") {
+        return;
+    }
+
+    tbody.dataset.bound = "true";
+    tbody.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement | null;
+        const button = target?.closest(".mcp-invocation-details-btn") as HTMLButtonElement | null;
+        const correlationId = button?.dataset.correlationId;
+
+        if (!correlationId) {
+            return;
+        }
+
+        activeDetailsCorrelationId = correlationId;
+        void openInvocationDetailsModal(correlationId);
+    });
+}
+
+async function openInvocationDetailsModal(correlationId: string): Promise<void> {
+    await refreshInvocationDetailsModal(correlationId);
+    showMcpInvocationDetailsModal();
+}
+
+async function refreshInvocationDetailsModal(correlationId: string): Promise<void> {
+    const logs = await window.toolboxAPI.agentInvocation.getLogs();
+    const logEntry = logs.find((log) => log.correlationId === correlationId) ?? null;
+    const job = await window.toolboxAPI.mcpServer.getJobStatus(correlationId).catch(() => null);
+    setMcpInvocationDetailsModalContent(getMcpInvocationDetailsContent(logEntry, job));
+}
+
+function wireClearLogsButton(button: HTMLButtonElement | null, status: HTMLDivElement | null): void {
+    if (!button || !status || button.dataset.bound === "true") {
+        return;
+    }
+
+    button.dataset.bound = "true";
+    button.addEventListener("click", () => {
+        void (async () => {
+            if (!window.confirm("Clear all MCP invocation history and captured tool logs?")) {
+                return;
+            }
+
+            try {
+                button.disabled = true;
+                status.textContent = "Clearing logs...";
+                status.style.display = "block";
+                status.style.color = "var(--text-muted, rgba(0,0,0,0.65))";
+
+                await window.toolboxAPI.mcpServer.clearLogs();
+                hideMcpInvocationDetailsModal();
+                await loadAndRenderLogs();
+
+                status.textContent = "Logs cleared.";
+                await window.toolboxAPI.utils.showNotification({
+                    title: "MCP Logs Cleared",
+                    body: "Invocation history and tool logs were cleared.",
+                    type: "success",
+                });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                status.textContent = `Failed to clear logs: ${message}`;
+                status.style.color = "var(--error-color, #d13438)";
+                logError("Failed to clear MCP logs", error);
+            } finally {
+                button.disabled = false;
+            }
+        })();
+    });
+}
+
+function startMcpRefreshLoop(): void {
+    if (mcpRefreshTimer !== null) {
+        window.clearInterval(mcpRefreshTimer);
+    }
+
+    mcpRefreshTimer = window.setInterval(() => {
+        void loadAndRenderLogs();
+    }, MCP_REFRESH_INTERVAL_MS);
+}
+
+function wireKeepMcpServerRunningToggle(isServerRunning: boolean, initialKeepRunning: boolean): void {
+    const checkbox = document.getElementById("mcp-keep-running-checkbox") as HTMLInputElement | null;
+    const status = document.getElementById("mcp-keep-running-status") as HTMLSpanElement | null;
+
+    if (!checkbox || !status || checkbox.dataset.bound === "true") {
+        return;
+    }
+
+    const setStatus = (message: string, isError: boolean): void => {
+        status.textContent = message;
+        status.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-secondary, #8a8886)";
+    };
+
+    checkbox.checked = initialKeepRunning;
+    setStatus(initialKeepRunning ? "Enabled" : "Disabled", false);
+
+    checkbox.dataset.bound = "true";
+    checkbox.addEventListener("change", () => {
+        void (async () => {
+            const enabled = checkbox.checked;
+            checkbox.disabled = true;
+            setStatus("Saving...", false);
+
+            try {
+                await window.toolboxAPI.updateUserSettings({ keepMcpServerRunning: enabled });
+
+                if (enabled && !isServerRunning) {
+                    const details = await window.toolboxAPI.mcpServer.start();
+                    updateMcpServerStatusUi(details.isRunning);
+                    isServerRunning = details.isRunning;
+                    setStatus("Enabled. MCP server started.", false);
+                    await window.toolboxAPI.utils.showNotification({
+                        title: "MCP Keep Running Enabled",
+                        body: "MCP server started and will auto-start when tools are reopened.",
+                        type: "success",
+                    });
+                } else {
+                    setStatus(enabled ? "Enabled" : "Disabled", false);
+                    await window.toolboxAPI.utils.showNotification({
+                        title: enabled ? "MCP Keep Running Enabled" : "MCP Keep Running Disabled",
+                        body: enabled ? "MCP server will auto-start when tools are reopened." : "MCP server will not auto-start when tools are reopened.",
+                        type: "success",
+                    });
+                }
+            } catch (error) {
+                checkbox.checked = !enabled;
+                setStatus("Failed to update setting.", true);
+                logError("Failed to update MCP keep-running setting", error);
+                await window.toolboxAPI.utils.showNotification({
+                    title: "MCP Keep Running Update Failed",
+                    body: "Unable to update Keep MCP Server Running setting.",
+                    type: "error",
+                });
+            } finally {
+                checkbox.disabled = false;
+            }
+        })();
+    });
+}
+
 function wireClientConfigButtons(): void {
     const claudeBtn = document.getElementById("connect-claude-desktop-btn") as HTMLButtonElement | null;
     const vscodeBtn = document.getElementById("connect-vscode-btn") as HTMLButtonElement | null;
-    const statusEl = document.getElementById("mcp-client-config-status") as HTMLDivElement | null;
 
-    if (!claudeBtn || !vscodeBtn || !statusEl) {
+    if (!claudeBtn || !vscodeBtn) {
         return;
     }
 
@@ -244,28 +480,31 @@ function wireClientConfigButtons(): void {
         vscodeBtn.disabled = !enabled;
     };
 
-    const showStatus = (message: string, isError: boolean): void => {
+    const showStatus = (target: "claude" | "vscode", message: string, isError: boolean): void => {
+        const statusEl = document.getElementById(target === "claude" ? "claude-desktop-config-status" : "vscode-config-status");
+        if (!statusEl) {
+            return;
+        }
         statusEl.textContent = message;
-        statusEl.style.display = "block";
         statusEl.style.color = isError ? "var(--error-color, #d13438)" : "var(--text-muted, rgba(0,0,0,0.65))";
     };
 
     const writeConfig = async (target: "claude" | "vscode"): Promise<void> => {
         try {
             setButtonsEnabled(false);
-            showStatus(`Configuring ${target === "claude" ? "Claude Desktop" : "VSCode"}...`, false);
+            showStatus(target, "Updating config...", false);
 
             const result = target === "claude" ? await window.toolboxAPI.mcpServer.configureClaudeDesktop() : await window.toolboxAPI.mcpServer.configureVSCode();
 
-            showStatus(`Updated ${target === "claude" ? "Claude Desktop" : "VSCode"} config at ${result.filePath} (${result.os}).`, false);
+            updateClientConfigStatusUi(await window.toolboxAPI.mcpServer.getClientConfigStatuses());
             await window.toolboxAPI.utils.showNotification({
                 title: "MCP Config Updated",
-                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName}.`,
+                body: `${target === "claude" ? "Claude Desktop" : "VSCode"} is now configured for ${result.serverName} at ${result.filePath}.`,
                 type: "success",
             });
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            showStatus(`Failed to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}: ${message}`, true);
+            showStatus(target, `Config update failed: ${message}`, true);
             await window.toolboxAPI.utils.showNotification({
                 title: "MCP Config Failed",
                 body: `Unable to configure ${target === "claude" ? "Claude Desktop" : "VSCode"}.`,
@@ -289,6 +528,33 @@ function wireClientConfigButtons(): void {
         vscodeBtn.addEventListener("click", () => {
             void writeConfig("vscode");
         });
+    }
+}
+
+function updateClientConfigStatusUi(statuses: McpClientConfigStatus[]): void {
+    for (const status of statuses) {
+        const isClaude = status.client === "claude-desktop";
+        const button = document.getElementById(isClaude ? "connect-claude-desktop-btn" : "connect-vscode-btn") as HTMLButtonElement | null;
+        const statusEl = document.getElementById(isClaude ? "claude-desktop-config-status" : "vscode-config-status");
+        if (!button || !statusEl) {
+            continue;
+        }
+
+        if (status.status === "connected") {
+            statusEl.textContent = "Connected";
+            statusEl.style.color = "#107c10";
+            button.textContent = `Reconnect ${isClaude ? "Claude Desktop" : "VSCode"}`;
+        } else if (status.status === "invalid") {
+            statusEl.textContent = "Config is wrong";
+            statusEl.style.color = "var(--error-color, #d13438)";
+            button.textContent = `Fix ${isClaude ? "Claude Desktop" : "VSCode"} config`;
+        } else {
+            statusEl.textContent = "Not configured";
+            statusEl.style.color = "var(--text-muted, rgba(0,0,0,0.65))";
+            button.textContent = `Connect to ${isClaude ? "Claude Desktop" : "VSCode"}`;
+        }
+
+        statusEl.title = status.filePath;
     }
 }
 

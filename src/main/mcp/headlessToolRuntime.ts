@@ -27,7 +27,9 @@ export interface HeadlessInvokeContext {
     connectionName?: string;
     updateProgress: (percent: number, message?: string) => void;
     logger: {
+        debug: (message: string) => void;
         info: (message: string) => void;
+        warn: (message: string) => void;
         error: (message: string) => void;
     };
 }
@@ -204,7 +206,10 @@ function resolveCandidatePaths(manifest: ToolManifest): string[] {
         (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
     );
 
-    const resolved = candidates.map((candidate) => path.resolve(installPath, candidate)).filter((candidatePath) => fs.existsSync(candidatePath));
+    const supportedExtensions = new Set([".js", ".mjs", ".cjs"]);
+    const resolved = candidates
+        .map((candidate) => path.resolve(installPath, candidate))
+        .filter((candidatePath) => fs.existsSync(candidatePath) && supportedExtensions.has(path.extname(candidatePath).toLowerCase()));
 
     return [...new Set(resolved)];
 }

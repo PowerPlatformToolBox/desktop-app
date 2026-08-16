@@ -2543,8 +2543,13 @@ body.dark-theme .settings-vscode-item:hover {
 
 .mcp-client-connect-row {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.mcp-client-connect-row + .mcp-client-connect-row {
+    margin-top: 8px;
 }
 
 .mcp-server-actions-row {
@@ -6264,6 +6269,69 @@ body.dark-theme .global-search-item-badge.badge-settings {
     margin: 8px 0 16px;
     font-weight: normal;
     text-transform: none;
+}
+
+.mcp-invocations-container {
+    padding: 0 24px 20px;
+}
+
+.mcp-invocations-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #8a8886);
+    margin: 8px 0 10px;
+}
+
+.mcp-invocation-modal {
+    z-index: $z-modal;
+    padding: 24px;
+}
+
+.mcp-invocation-modal-content {
+    width: min(980px, 100%);
+    max-width: min(980px, 100%);
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.mcp-invocation-modal-header {
+    padding: 14px 16px;
+}
+
+.mcp-invocation-modal-body {
+    overflow: auto;
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+}
+
+.mcp-modal-section {
+    border: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.15));
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--bg-color);
+}
+
+.mcp-modal-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 6px;
+}
+
+.mcp-modal-section-description {
+    font-size: 12px;
+    color: var(--text-secondary, #8a8886);
+    margin: 0 0 8px;
+    line-height: 1.4;
+}
+
+.mcp-modal-section-content {
+    width: 100%;
 }
 
 /* ── Notification Bell Button ───────────────────────────────────────────── */
