@@ -164,6 +164,22 @@ export function getEditConnectionModalView(isDarkTheme: boolean): ModalViewTempl
         <p id="connection-configure-note" class="helper-text connection-modal-footer-note" style="display: none; margin: 0;"></p>
     </div>
 
+    <div id="pp-api-consent-overlay" class="inline-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="pp-api-consent-title">
+        <div class="inline-confirm-dialog">
+            <p class="inline-confirm-title" id="pp-api-consent-title">Enable Power Platform API</p>
+            <p class="inline-confirm-message">Power Platform API access requires admin-approved privileges and a properly configured Client ID.
+
+If required privileges are missing, tools may not work as expected.
+
+Select OK to Agree and continue.
+Select Cancel to keep this option disabled.</p>
+            <div class="inline-confirm-actions">
+                <button id="pp-api-consent-cancel" class="fluent-button fluent-button-secondary">Cancel</button>
+                <button id="pp-api-consent-ok" class="fluent-button fluent-button-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
 </div>`;
 
     return { styles, body };

@@ -783,5 +783,53 @@ export function getModalStyles(isDarkTheme: boolean): string {
         cursor: pointer;
         user-select: none;
     }
+
+    .inline-confirm-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: ${isDarkTheme ? "rgba(0, 0, 0, 0.65)" : "rgba(0, 0, 0, 0.45)"};
+        align-items: center;
+        justify-content: center;
+    }
+
+    .inline-confirm-overlay.visible {
+        display: flex;
+    }
+
+    .inline-confirm-dialog {
+        background: ${isDarkTheme ? "#2a2a2e" : "#ffffff"};
+        border: 1px solid ${isDarkTheme ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 420px;
+        width: 90%;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, ${isDarkTheme ? "0.6" : "0.2"});
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .inline-confirm-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+        color: ${isDarkTheme ? "#f3f3f3" : "#1f1f1f"};
+    }
+
+    .inline-confirm-message {
+        font-size: 13px;
+        line-height: 1.6;
+        color: ${isDarkTheme ? "rgba(255, 255, 255, 0.8)" : "rgba(0, 0, 0, 0.75)"};
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    .inline-confirm-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
 </style>`;
 }
