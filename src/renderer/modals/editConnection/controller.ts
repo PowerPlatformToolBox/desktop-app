@@ -263,9 +263,26 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     };
 
     const confirmPowerPlatformApiConsent = () => {
-        return window.confirm(
-            "Power Platform API access requires admin-approved privileges and a properly configured Client ID.\\n\\nIf required privileges are missing, tools may not work as expected.\\n\\nSelect OK to Agree and continue.\\nSelect Cancel to keep this option disabled.",
-        );
+        return new Promise((resolve) => {
+            const overlay = document.getElementById("pp-api-consent-overlay");
+            const okBtn = document.getElementById("pp-api-consent-ok");
+            const cancelBtn = document.getElementById("pp-api-consent-cancel");
+            if (!overlay || !okBtn || !cancelBtn) {
+                resolve(false);
+                return;
+            }
+            overlay.classList.add("visible");
+            const cleanup = (result) => {
+                overlay.classList.remove("visible");
+                okBtn.removeEventListener("click", onOk);
+                cancelBtn.removeEventListener("click", onCancel);
+                resolve(result);
+            };
+            const onOk = () => cleanup(true);
+            const onCancel = () => cleanup(false);
+            okBtn.addEventListener("click", onOk);
+            cancelBtn.addEventListener("click", onCancel);
+        });
     };
 
     const loadBrowserProfiles = async () => {
@@ -561,9 +578,9 @@ export function getEditConnectionModalControllerScript(channels: EditConnectionM
     authTypeSelect?.addEventListener("change", updateAuthVisibility);
     updateAuthVisibility();
 
-    ppApiCheckbox?.addEventListener("change", () => {
+    ppApiCheckbox?.addEventListener("change", async () => {
         if (ppApiCheckbox instanceof HTMLInputElement && ppApiCheckbox.checked) {
-            const agreed = confirmPowerPlatformApiConsent();
+            const agreed = await confirmPowerPlatformApiConsent();
             if (!agreed) {
                 ppApiCheckbox.checked = false;
             }
