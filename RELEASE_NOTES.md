@@ -1,4 +1,4 @@
-# Power Platform ToolBox v1.2.5
+# Power Platform ToolBox 1.2.5
 
 ## Highlights
 
