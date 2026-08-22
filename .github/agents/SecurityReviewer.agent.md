@@ -1,25 +1,7 @@
 ---
 name: Security Reviewer
 description: Reviews implementation for Electron security boundaries, secret handling, IPC/preload exposure, and compliance with repo constraints.
-tools:
-    [
-        vscode,
-        read,
-        agent,
-        edit,
-        search,
-        web,
-        azure-mcp/search,
-        "microsoftdocs/mcp/*",
-        "playwright/*",
-        github.vscode-pull-request-github/issue_fetch,
-        github.vscode-pull-request-github/suggest-fix,
-        github.vscode-pull-request-github/searchSyntax,
-        github.vscode-pull-request-github/doSearch,
-        github.vscode-pull-request-github/renderIssues,
-        github.vscode-pull-request-github/activePullRequest,
-        github.vscode-pull-request-github/openPullRequest,
-    ]
+tools: [vscode, read, agent, edit, search, web, azure-mcp/search, "microsoftdocs/mcp/*", "playwright/*"]
 target: vscode
 ---
 

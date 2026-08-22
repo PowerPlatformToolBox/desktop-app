@@ -1,41 +1,44 @@
-# Power Platform ToolBox 1.2.4
+# Power Platform ToolBox v1.2.5
 
 ## Highlights
 
-- Side-by-Side Tool View enables working with two tools in parallel in a single session.
-- Power Platform API integration expands available operations for tool and workflow development.
-- Notification Hub centralizes app and tool notifications with improved visibility and history.
-- MCP Server preview adds agentic AI-driven tool invocation support for attended and unattended scenarios.
-- Agent interoperability preview is available for clients such as Claude and GitHub Copilot integrations.
-- Tool execution flows include small UX and reliability improvements across common user paths.
+- Private Marketplace supports multiple sources, source filters, author details, and restart prompts when settings change.
+- CSP consent review shows current permissions, records approval history, and requests consent again when tools add permissions.
+- Headless MCP execution provides job status, invocation details, log clearing, and client configuration status.
+- MCP Server can remain running while tools open or reopen, supporting background headless workflows.
+- Installed tool details and context menus include repository links and clearer analytics rating values.
+- Connection setup adds a Configure App flow for Power Platform API app registrations.
+- Telemetry consent messaging explains collection and restart behavior more clearly.
 
 ## Fixes
 
-- Tool windows: improved layout and state handling in Side-by-Side view interactions.
-- Notifications: resolved edge cases with delivery timing and display consistency.
-- API surface: fixed issues in Power Platform API request/response handling paths.
-- MCP preview: improved stability for agent-triggered tool invocation sequences.
-- Connections: addressed minor reliability issues during repeated connection operations.
-- General UI: fixed several small behavior regressions and polish issues.
+- Connections: selecting an environment URL after enabling Power Platform API no longer loses focus to a native confirmation dialog.
+- Connections: app registration guidance and Copy Script messaging are clearer and more consistent.
+- Tools: CSP consent is recalculated correctly when required or optional domains change.
+- Analytics: download and MAU updates use atomic operations and preserve existing metrics when errors occur.
+- Logging: Error objects retain their original stack traces in structured logs.
+- Windows: release workflows generate and bundle `app-update.yml` metadata so auto-update artifacts are complete.
+- Build validation: package version checks use the correct `@pptb/types` and `@pptb/validate` paths.
 
 ## Developer & Build
 
-- Added preview MCP Server pathway for agentic AI tool invocation in attended/unattended modes.
-- Extended internal APIs and integration points to support new Power Platform API scenarios.
-- Updated notification and tool orchestration internals to support Hub and parallel tool workflows.
-- Included incremental build and maintenance updates for release packaging and developer workflows.
+- Added `@sentry/electron` telemetry for main and renderer processes with consent handling and PII scrubbing.
+- Added headless MCP job types, status events, log APIs, and runtime support for `toolboxAPI`, `dataverseAPI`, and `powerplatformAPI`.
+- Added CSP consent utilities, review management, re-consent tests, and MCP authentication tests.
+- Updated `@pptb/types` to `1.2.5` and `@pptb/validate` to `1.0.1`.
+- Improved stable and insider release workflows, Windows signing, auto-update metadata, and PR validation.
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-v1.2.4-Setup.exe
-- macOS: Power-Platform-ToolBox-v1.2.4.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-v1.2.4.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-v1.2.5-Setup.exe
+- macOS: Power-Platform-ToolBox-v1.2.5.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-v1.2.5.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed.
-- MCP Server agentic AI support is a preview feature and may evolve in upcoming releases.
+- MCP headless execution, private marketplace sources, and CSP consent management include new settings and preview workflow behavior.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.3...v1.2.4
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.4...v1.2.5
