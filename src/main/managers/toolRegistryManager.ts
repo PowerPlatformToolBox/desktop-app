@@ -973,6 +973,7 @@ export class ToolRegistryManager extends EventEmitter {
             features: manifestEntry.features,
             categories,
             license: manifestEntry.license,
+            
             status: manifestEntry.status,
             repository: manifestEntry.repository,
             website: manifestEntry.website,
@@ -984,6 +985,7 @@ export class ToolRegistryManager extends EventEmitter {
             minAPI: manifestEntry.minAPI,
             maxAPI: manifestEntry.maxAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
+            capabilities: manifestEntry.capabilities,
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
             marketplaceSourceType: manifestEntry.marketplaceSourceType,
