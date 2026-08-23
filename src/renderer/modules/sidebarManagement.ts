@@ -54,6 +54,7 @@ export function switchSidebar(sidebarId: string): void {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
             }
+
         }
         window.api?.send("sidebar-layout-changed");
         return;

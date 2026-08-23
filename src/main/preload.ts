@@ -146,8 +146,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // CSP consent management - Only for PPTB UI
     hasCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.HAS_CSP_CONSENT, toolId),
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) =>
-        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains),
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, toolId, requiredDomains, approvedOptionalDomains, seenOptionalDomains),
     revokeCspConsent: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, toolId),
     getCspConsents: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_CSP_CONSENTS),
 
@@ -185,6 +185,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         showModalWindow: (options: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SHOW_MODAL_WINDOW, options),
         closeModalWindow: () => ipcRenderer.invoke(UTIL_CHANNELS.CLOSE_MODAL_WINDOW),
         sendModalMessage: (payload: unknown) => ipcRenderer.invoke(UTIL_CHANNELS.SEND_MODAL_MESSAGE, payload),
+        restartApp: () => ipcRenderer.invoke(UTIL_CHANNELS.RESTART_APP),
     },
 
     // Troubleshooting namespace - organized like other features
@@ -416,11 +417,15 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     // Agent invocation logging - Only for PPTB UI
     agentInvocation: {
         getLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.GET_LOGS),
+        clearLogs: () => ipcRenderer.invoke(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS),
     },
 
     // MCP server details - Only for PPTB UI
     mcpServer: {
         getDetails: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_DETAILS),
+        getClientConfigStatuses: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES),
+        getJobStatus: (jobId: string) => ipcRenderer.invoke(MCP_SERVER_CHANNELS.GET_JOB_STATUS, jobId),
+        clearLogs: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CLEAR_LOGS),
         start: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.START),
         stop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.STOP),
         configureClaudeDesktop: () => ipcRenderer.invoke(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP),

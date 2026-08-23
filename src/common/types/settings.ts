@@ -36,6 +36,7 @@ export const PREVIEW_FEATURE_IDS = {
 
 export type PreviewFeatureId = (typeof PREVIEW_FEATURE_IDS)[keyof typeof PREVIEW_FEATURE_IDS];
 export type PreviewFeatureFlags = Partial<Record<PreviewFeatureId, boolean>>;
+export type TelemetryConsentChoice = "yes" | "no";
 
 export const PREVIEW_FEATURE_DEFAULTS: Record<PreviewFeatureId, boolean> = {
     [PREVIEW_FEATURE_IDS.MCP_SERVER]: false,
@@ -85,6 +86,15 @@ export interface LastUsedToolUpdate {
     lastUsedAt?: string;
 }
 
+export interface MarketplaceSource {
+    id: string;
+    type: "builtin" | "private";
+    label: string;
+    url: string;
+    enabled: boolean;
+    description?: string;
+}
+
 /**
  * Per-tool CSP consent record.
  * Stores whether consent was granted, and which required/optional domains were
@@ -94,6 +104,8 @@ export interface CspConsentRecord {
     allowed: boolean;
     required: string[];
     optional: string[];
+    /** All optional domains that were presented to the user at the time of consent (approved or declined). */
+    seenOptional: string[];
 }
 
 /**
@@ -119,6 +131,7 @@ export interface UserSettings {
     machineId?: string; // @deprecated - legacy machine identifier retained for migrations
     pendingWhatsNewVersion?: string | null; // Version whose What's New should be shown after restart (auto-update)
     restoreSessionOnStartup?: boolean; // Whether to reopen previously open tools on app start
+    keepMcpServerRunning?: boolean; // Keep MCP server running by auto-starting it when tools open/reopen
     // Sort preferences
     installedToolsSort?: InstalledToolsSortOption;
     connectionsSort?: ConnectionsSortOption;
@@ -132,4 +145,6 @@ export interface UserSettings {
     splitDividerRatio?: number; // Persisted position of the split-pane divider (0.15–0.85)
     enablePreviewFeatures?: boolean; // Show preview/experimental features in the UI
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
+    marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
+    sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
 }

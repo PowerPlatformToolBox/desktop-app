@@ -1,8 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import { logInfo } from "../../common/logger";
-import { ToolManifest } from "../../common/types";
+import { Tool, ToolManifest } from "../../common/types";
 import { ToolRegistryManager } from "../managers/toolRegistryManager";
+import { ToolManager } from "../managers/toolsManager";
 import { convertPPTBSchemaToJsonSchema, JsonObjectSchema } from "./schemaConverter";
 
 export type AgentInvocationMode = "one-way" | "two-way";
@@ -23,6 +24,14 @@ export interface AgentTool {
 
 export interface GetAgentInvokableToolsOptions {
     requireVerified?: boolean;
+    toolManager?: ToolManager;
+}
+
+interface AgentToolCandidate {
+    id: string;
+    name: string;
+    description: string;
+    pptbConfigPath: string;
 }
 
 const toolNameMap = new Map<string, string>(); // friendlyName → internalId
@@ -65,20 +74,55 @@ export async function getAgentInvokableTools(toolRegistryManager: ToolRegistryMa
     const installedTools: ToolManifest[] = await toolRegistryManager.getInstalledTools();
     logInfo(`[MCP] Loaded ${installedTools.length} installed tools`);
 
+    const candidates: AgentToolCandidate[] = installedTools.map((tool) => ({
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        pptbConfigPath: path.join(tool.installPath, "pptb.config.json"),
+    }));
+
+    const seenToolIds = new Set(candidates.map((candidate) => candidate.id));
+    if (options?.toolManager) {
+        const loadedTools: Tool[] = options.toolManager.getAllTools();
+        const localLoadedTools = loadedTools.filter((tool) => typeof tool.localPath === "string" && tool.localPath.length > 0);
+
+        for (const tool of localLoadedTools) {
+            if (seenToolIds.has(tool.id)) {
+                continue;
+            }
+
+            const localPath = tool.localPath;
+            if (!localPath) {
+                continue;
+            }
+
+            candidates.push({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                pptbConfigPath: path.join(localPath, "pptb.config.json"),
+            });
+            seenToolIds.add(tool.id);
+        }
+
+        if (localLoadedTools.length > 0) {
+            logInfo(`[MCP] Added ${localLoadedTools.length} locally loaded tools for MCP discovery`);
+        }
+    }
+
     const result: AgentTool[] = [];
 
-    for (const tool of installedTools) {
-        const pptbConfigPath = path.join(tool.installPath, "pptb.config.json");
+    for (const tool of candidates) {
         const friendlyName = tool.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"); // MCP tool names can't have spaces
         toolNameMap.set(friendlyName, tool.id);
 
-        if (!fs.existsSync(pptbConfigPath)) {
+        if (!fs.existsSync(tool.pptbConfigPath)) {
             continue;
         }
 
         let pptbConfig: Record<string, unknown>;
         try {
-            const raw = fs.readFileSync(pptbConfigPath, "utf-8");
+            const raw = fs.readFileSync(tool.pptbConfigPath, "utf-8");
             pptbConfig = JSON.parse(raw) as Record<string, unknown>;
         } catch {
             continue;

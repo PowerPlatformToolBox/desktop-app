@@ -159,6 +159,7 @@ export const UTIL_CHANNELS = {
     CHECK_INTERNET_CONNECTIVITY: "check-internet-connectivity",
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
+    RESTART_APP: "restart-app",
 } as const;
 
 // Filesystem-related IPC channels
@@ -246,11 +247,15 @@ export const PROTOCOL_CHANNELS = {
 // Agent Invocation Logging channels
 export const AGENT_INVOCATION_CHANNELS = {
     GET_LOGS: "agent-invocation:get-logs",
+    CLEAR_LOGS: "agent-invocation:clear-logs",
 } as const;
 
 // MCP server status/details channels
 export const MCP_SERVER_CHANNELS = {
     GET_DETAILS: "mcp-server:get-details",
+    GET_CLIENT_CONFIG_STATUSES: "mcp-server:get-client-config-statuses",
+    GET_JOB_STATUS: "mcp-server:get-job-status",
+    CLEAR_LOGS: "mcp-server:clear-logs",
     START: "mcp-server:start",
     STOP: "mcp-server:stop",
     CONFIGURE_CLAUDE_DESKTOP: "mcp-server:configure-claude-desktop",

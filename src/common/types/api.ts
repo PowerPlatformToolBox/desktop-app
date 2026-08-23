@@ -40,6 +40,7 @@ export interface UtilsAPI {
     showModalWindow: (options: ModalWindowOptions) => Promise<void>;
     closeModalWindow: () => Promise<void>;
     sendModalMessage: (payload: ModalWindowMessagePayload) => Promise<void>;
+    restartApp: () => Promise<void>;
 }
 
 /**
@@ -88,10 +89,40 @@ export interface AgentInvocationLogEntry {
     toolName: string;
     connectionId: string | null;
     prefillSummary: string;
-    outcome: "completed" | "no-result" | "rejected";
+    outcome: "in-progress" | "completed" | "no-result" | "rejected";
     invocationMode?: "one-way" | "two-way";
-    correlationId?: string;
+    correlationId: string;
     error?: string;
+}
+
+/**
+ * Log entry captured for a headless MCP job.
+ */
+export interface HeadlessJobLogEntry {
+    timestamp: string;
+    level: "debug" | "info" | "warn" | "error";
+    message: string;
+}
+
+/**
+ * Headless MCP job details shown in the renderer drill-down view.
+ */
+export interface HeadlessJobDetails {
+    jobId: string;
+    toolId: string;
+    toolName: string;
+    status: "pending" | "in_progress" | "completed" | "failed";
+    createdAt: string;
+    startedAt?: string;
+    completedAt?: string;
+    timeoutMs: number;
+    progress?: {
+        percent: number;
+        message?: string;
+    };
+    result?: Record<string, unknown>;
+    error?: string;
+    logs?: HeadlessJobLogEntry[];
 }
 
 /**
@@ -99,6 +130,7 @@ export interface AgentInvocationLogEntry {
  */
 export interface AgentInvocationAPI {
     getLogs: () => Promise<AgentInvocationLogEntry[]>;
+    clearLogs: () => Promise<void>;
 }
 
 /**
@@ -118,11 +150,20 @@ export interface McpClientConfigWriteResult {
     serverName: string;
 }
 
+export interface McpClientConfigStatus {
+    client: "claude-desktop" | "vscode";
+    status: "connected" | "not-configured" | "invalid";
+    filePath: string;
+}
+
 /**
  * MCP server API namespace
  */
 export interface McpServerAPI {
     getDetails: () => Promise<McpServerDetails>;
+    getClientConfigStatuses: () => Promise<McpClientConfigStatus[]>;
+    getJobStatus: (jobId: string) => Promise<HeadlessJobDetails | null>;
+    clearLogs: () => Promise<void>;
     start: () => Promise<McpServerDetails>;
     stop: () => Promise<McpServerDetails>;
     configureClaudeDesktop: () => Promise<McpClientConfigWriteResult>;
@@ -224,7 +265,7 @@ export interface ToolboxAPI {
 
     // CSP consent management
     hasCspConsent: (toolId: string) => Promise<boolean>;
-    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[]) => Promise<void>;
+    grantCspConsent: (toolId: string, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) => Promise<void>;
     revokeCspConsent: (toolId: string) => Promise<void>;
     getCspConsents: () => Promise<{ [toolId: string]: CspConsentRecord }>;
 

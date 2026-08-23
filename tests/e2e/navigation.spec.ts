@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import { expect, test } from "./fixtures";
 
 /**
@@ -11,6 +12,21 @@ import { expect, test } from "./fixtures";
  */
 
 test.describe("Navigation", () => {
+    async function findWindowWithVisibleSelector(windows: Page[], selector: string): Promise<Page | null> {
+        for (const page of windows) {
+            const locator = page.locator(selector);
+            const exists = (await locator.count()) > 0;
+            if (!exists) continue;
+
+            const isVisible = await locator
+                .first()
+                .isVisible()
+                .catch(() => false);
+            if (isVisible) return page;
+        }
+        return null;
+    }
+
     test("activity bar toggles sidebar collapse when active item is clicked", async ({ window }) => {
         const sidebar = window.locator("#sidebar");
         const toolsActivity = window.locator('[data-sidebar="tools"]');
@@ -75,14 +91,46 @@ test.describe("Navigation", () => {
         const addConnectionButton = window.locator("#sidebar-add-connection-btn");
         await expect(addConnectionButton).toBeVisible({ timeout: 10_000 });
 
-        const [modalWindow] = await Promise.all([electronApp.waitForEvent("window", { timeout: 10_000 }), addConnectionButton.click()]);
+        await addConnectionButton.click();
 
-        await modalWindow.waitForLoadState("domcontentloaded");
-        await expect(modalWindow.locator("#connection-name")).toBeVisible({ timeout: 10_000 });
-        await expect(modalWindow.locator("#connection-url")).toBeVisible({ timeout: 10_000 });
+        let modalWindow: Page | null = null;
+        await expect
+            .poll(
+                async () => {
+                    modalWindow = await findWindowWithVisibleSelector(electronApp.windows(), "#connection-name");
+                    return modalWindow !== null;
+                },
+                {
+                    timeout: 10_000,
+                },
+            )
+            .toBe(true);
 
-        await modalWindow.locator("#cancel-connection-btn").click();
+        await expect(modalWindow!.locator("#connection-name")).toBeVisible({ timeout: 10_000 });
+        await expect(modalWindow!.locator("#connection-url")).toBeVisible({ timeout: 10_000 });
+
+        const connectionName = `e2e-${Date.now()}`;
+        await modalWindow!.locator("#connection-name").fill(connectionName);
+        await modalWindow!.locator("#connection-url").fill("https://org.crm.dynamics.com");
+
+        await modalWindow!.locator("#confirm-connection-btn").click();
         await expect(window.locator("#modal-backdrop")).toBeHidden({ timeout: 10_000 });
+        await expect(window.locator("#sidebar-connections-list").getByText(connectionName, { exact: true })).toBeVisible({ timeout: 10_000 });
+    });
+
+    test("consent review opens directly in full view", async ({ window }) => {
+        const consentButton = window.locator("#consent-review-activity-btn");
+        await expect(consentButton).toBeVisible({ timeout: 10_000 });
+
+        await consentButton.click();
+        await expect(window.locator("#consent-review-tab-scroll-area")).toBeVisible({ timeout: 10_000 });
+        await expect(window.locator("#sidebar-consents")).toHaveCount(0);
+        await expect(window.locator("#consent-tab-search-input")).toBeVisible({ timeout: 10_000 });
+        await expect(window.locator("#consent-tab-status-filter")).toBeVisible({ timeout: 10_000 });
+        await expect(window.locator("#consent-tab-refresh-btn")).toBeVisible({ timeout: 10_000 });
+
+        await window.locator("#consent-tab-status-filter").selectOption("revoked");
+        await expect(window.locator("#consent-tab-status-filter")).toHaveValue("revoked");
     });
 
     test("global search opens with keyboard shortcut and closes with escape", async ({ window }) => {

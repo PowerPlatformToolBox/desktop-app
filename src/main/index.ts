@@ -52,8 +52,9 @@ import { ToolManager } from "./managers/toolsManager";
 import { ToolWindowManager } from "./managers/toolWindowManager";
 import { TrayManager } from "./managers/trayManager";
 import { VersionManager } from "./managers/versionManager";
-import { readLogEntries } from "./mcp/agentInvocationLogger";
+import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
+import { applyMainSentryConsent } from "./sentryRuntime";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -65,6 +66,11 @@ const FAVICON_ALLOWED_HOST_SUFFIXES = [".gstatic.com"];
 const FAVICON_MAX_BYTES = 65536; // 64 KB — more than enough for any favicon
 const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:", "mailto:"]);
 const OPEN_IN_CONNECTION_BROWSER_ALLOWED_PROTOCOLS = new Set<string>(["https:", "http:"]);
+
+function isExpectedAutoUpdateUnavailableError(errorMessage: string): boolean {
+    const normalized = errorMessage.toLowerCase();
+    return normalized.includes("only available in packaged releases") || normalized.includes("updater metadata is missing") || normalized.includes("only supported for the windows nsis");
+}
 
 const isFaviconAllowedHost = (hostname: string): boolean => {
     if (FAVICON_ALLOWED_HOSTS.has(hostname)) return true;
@@ -99,6 +105,7 @@ class ToolBoxApp {
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
     private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
+    private mcpAutoStartInProgress = false;
 
     /**
      * Resolve the application icon for the current release channel.
@@ -122,6 +129,10 @@ class ToolBoxApp {
         try {
             this.settingsManager = new SettingsManager();
             this.installIdManager = new InstallIdManager(this.settingsManager);
+            void applyMainSentryConsent(
+                this.settingsManager.getSentryTelemetryConsent(),
+                this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+            );
 
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
@@ -132,6 +143,7 @@ class ToolBoxApp {
                 process.env.SUPABASE_ANON_KEY,
                 this.installIdManager,
                 process.env.AZURE_BLOB_BASE_URL,
+                this.settingsManager,
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.protocolHandlerManager = new ProtocolHandlerManager();
@@ -144,6 +156,15 @@ class ToolBoxApp {
             this.toolFilesystemAccessManager = new ToolFileSystemAccessManager();
             this.mcpServerManager = new McpServerManager(7339, "127.0.0.1", this.settingsManager, this.toolManager.getRegistryManager(), this.toolManager);
             this.mcpServerManager.setConnectionAuthManagers(this.connectionsManager, this.authManager);
+            this.mcpServerManager.setJobChangeHandler((jobId) => {
+                if (this.mainWindow) {
+                    this.mainWindow.webContents.send(EVENT_CHANNELS.TOOLBOX_EVENT, {
+                        event: ToolBoxEvent.MCP_HEADLESS_JOB_UPDATED,
+                        data: { jobId },
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+            });
             this.trayManager = new TrayManager(
                 () => this.mainWindow,
                 () => this.createWindow(),
@@ -274,6 +295,11 @@ class ToolBoxApp {
         });
 
         this.autoUpdateManager.on("update-error", (error) => {
+            if (error?.message && isExpectedAutoUpdateUnavailableError(error.message)) {
+                logInfo(`[AutoUpdate] Suppressing expected update-unavailable notification: ${error.message}`);
+                return;
+            }
+
             this.api.showNotification({
                 title: "Update Error",
                 body: `Failed to check for updates: ${error.message}`,
@@ -380,6 +406,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.FETCH_FAVICON);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_EXTERNAL);
         ipcMain.removeHandler(UTIL_CHANNELS.OPEN_IN_CONNECTION_BROWSER);
+        ipcMain.removeHandler(UTIL_CHANNELS.RESTART_APP);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -458,9 +485,14 @@ class ToolBoxApp {
 
         // Agent invocation logging handlers
         ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.GET_LOGS);
-
+        ipcMain.removeHandler(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS);
         // MCP server handlers
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_DETAILS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CLEAR_LOGS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.GET_JOB_STATUS);
+        ipcMain.removeHandler(MCP_SERVER_CHANNELS.CLEAR_LOGS);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.START);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.STOP);
         ipcMain.removeHandler(MCP_SERVER_CHANNELS.CONFIGURE_CLAUDE_DESKTOP);
@@ -502,8 +534,14 @@ class ToolBoxApp {
             return this.settingsManager.getUserSettings();
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, (_, settings) => {
+        ipcMain.handle(SETTINGS_CHANNELS.UPDATE_USER_SETTINGS, async (_, settings) => {
             this.settingsManager.updateUserSettings(settings);
+            if (Object.prototype.hasOwnProperty.call(settings, "sentryTelemetryConsent")) {
+                await applyMainSentryConsent(
+                    this.settingsManager.getSentryTelemetryConsent(),
+                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                );
+            }
             this.api.emitEvent(ToolBoxEvent.SETTINGS_UPDATED, settings);
         });
 
@@ -511,8 +549,14 @@ class ToolBoxApp {
             return this.settingsManager.getSetting(key);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, (_, key, value) => {
+        ipcMain.handle(SETTINGS_CHANNELS.SET_SETTING, async (_, key, value) => {
             this.settingsManager.setSetting(key, value);
+            if (key === "sentryTelemetryConsent") {
+                await applyMainSentryConsent(
+                    this.settingsManager.getSentryTelemetryConsent(),
+                    this.settingsManager.getSentryTelemetryConsent() === "yes" ? this.installIdManager.getInstallId() : undefined,
+                );
+            }
         });
 
         // MCP access token handler
@@ -527,11 +571,43 @@ class ToolBoxApp {
 
         // Agent invocation logs (main UI only)
         ipcMain.handle(AGENT_INVOCATION_CHANNELS.GET_LOGS, () => {
-            return readLogEntries();
+            const persistedLogs = readLogEntries();
+            const persistedCorrelationIds = new Set(persistedLogs.flatMap((entry) => (entry.correlationId ? [entry.correlationId] : [])));
+            const activeLogs = this.mcpServerManager
+                .getActiveJobs()
+                .filter((job) => !persistedCorrelationIds.has(job.jobId))
+                .map((job) => ({
+                    timestamp: job.createdAt,
+                    toolId: job.toolId,
+                    toolName: job.toolName,
+                    connectionId: null,
+                    prefillSummary: "",
+                    outcome: "in-progress" as const,
+                    correlationId: job.jobId,
+                }));
+
+            return [...activeLogs, ...persistedLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        });
+
+        ipcMain.handle(AGENT_INVOCATION_CHANNELS.CLEAR_LOGS, () => {
+            clearLogEntries();
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.GET_DETAILS, () => {
             return this.mcpServerManager.getServerDetails();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_CLIENT_CONFIG_STATUSES, async () => {
+            return await this.mcpServerManager.getClientConfigStatuses();
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.GET_JOB_STATUS, (_, jobId: string) => {
+            return this.mcpServerManager.getJobStatus(jobId);
+        });
+
+        ipcMain.handle(MCP_SERVER_CHANNELS.CLEAR_LOGS, () => {
+            clearLogEntries();
+            this.mcpServerManager.clearLogs();
         });
 
         ipcMain.handle(MCP_SERVER_CHANNELS.START, async () => {
@@ -1084,8 +1160,8 @@ class ToolBoxApp {
             return this.settingsManager.hasCspConsent(toolId);
         });
 
-        ipcMain.handle(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, (_, toolId, requiredDomains?: string[], approvedOptionalDomains?: string[]) => {
-            this.settingsManager.grantCspConsent(toolId, requiredDomains, approvedOptionalDomains);
+        ipcMain.handle(SETTINGS_CHANNELS.GRANT_CSP_CONSENT, (_, toolId, requiredDomains?: string[], approvedOptionalDomains?: string[], seenOptionalDomains?: string[]) => {
+            this.settingsManager.grantCspConsent(toolId, requiredDomains, approvedOptionalDomains, seenOptionalDomains);
         });
 
         ipcMain.handle(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT, (_, toolId) => {
@@ -1207,6 +1283,12 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.SEND_MODAL_MESSAGE, (_, payload: ModalWindowMessagePayload) => {
             this.modalWindowManager?.sendMessageToModal(payload);
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.RESTART_APP, () => {
+            this.isQuitting = true;
+            app.relaunch();
+            app.quit();
         });
 
         // Clipboard handler
@@ -2924,6 +3006,9 @@ class ToolBoxApp {
         this.toolWindowManager.setOnActiveToolChanged(() => {
             this.debouncedCreateMenu();
         });
+        this.toolWindowManager.setOnToolLaunched(async () => {
+            await this.ensureMcpServerRunningForMode("tool-launch");
+        });
 
         // Initialize NotificationWindowManager for overlay notifications
         this.notificationWindowManager = new NotificationWindowManager(this.mainWindow, this.settingsManager);
@@ -2945,6 +3030,7 @@ class ToolBoxApp {
         // After the renderer is ready, auto-open What's New if an auto-update was installed.
         this.mainWindow.webContents.once("did-finish-load", () => {
             this.openWhatsNewIfPending();
+            void this.ensureMcpServerRunningForMode("startup");
         });
 
         // Open DevTools in development
@@ -2979,6 +3065,37 @@ class ToolBoxApp {
         if (this.shouldFocusAfterWindowCreation) {
             this.shouldFocusAfterWindowCreation = false;
             this.showAndFocusMainWindow();
+        }
+    }
+
+    private async ensureMcpServerRunningForMode(mode: "tool-launch" | "startup"): Promise<void> {
+        const keepMcpServerRunning = this.settingsManager.getSetting("keepMcpServerRunning");
+        if (!keepMcpServerRunning || this.mcpServerManager.isRunning() || this.mcpAutoStartInProgress) {
+            return;
+        }
+
+        this.mcpAutoStartInProgress = true;
+        try {
+            await this.mcpServerManager.start();
+            this.trayManager?.refreshContextMenu();
+            const body =
+                mode === "startup"
+                    ? "MCP server was automatically started at startup because Keep MCP Server Running is enabled."
+                    : "MCP server was automatically started because Keep MCP Server Running is enabled.";
+            this.api.showNotification({
+                title: "MCP Server Started",
+                body,
+                type: "success",
+            });
+        } catch (error) {
+            logError(`[MCP] Failed to auto-start server (${mode})`, error);
+            this.api.showNotification({
+                title: "MCP Server Auto-Start Failed",
+                body: mode === "startup" ? "Unable to automatically start MCP server at startup." : "Unable to automatically start MCP server after tool launch.",
+                type: "error",
+            });
+        } finally {
+            this.mcpAutoStartInProgress = false;
         }
     }
 

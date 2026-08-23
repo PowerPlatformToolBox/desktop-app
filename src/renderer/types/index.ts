@@ -2,7 +2,7 @@
  * Renderer-specific type definitions
  */
 
-import type { PreviewFeatureFlags } from "../../common/types";
+import type { MarketplaceSource, PreviewFeatureFlags, TelemetryConsentChoice } from "../../common/types";
 
 /**
  * Interface for an open tool instance
@@ -66,6 +66,8 @@ export interface SettingsState {
     environmentColorThickness?: number;
     enablePreviewFeatures?: boolean;
     previewFeatures?: PreviewFeatureFlags;
+    marketplaceSources?: MarketplaceSource[];
+    sentryTelemetryConsent?: TelemetryConsentChoice | null;
 }
 
 /**
@@ -108,4 +110,7 @@ export interface ToolDetail {
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     npmPackageName?: string; // npm package name used for pre-release version detection
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
+    marketplaceSourceId?: string;
+    marketplaceSourceLabel?: string;
+    marketplaceSourceType?: "builtin" | "private";
 }

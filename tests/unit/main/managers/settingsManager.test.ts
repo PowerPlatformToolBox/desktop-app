@@ -1,5 +1,7 @@
 /// <reference types="jest" />
 
+import { normalizeTelemetryConsent } from "../../../../src/common/telemetryConsent";
+import { MarketplaceSource } from "../../../../src/common/types";
 import { SettingsManager } from "../../../../src/main/managers/settingsManager";
 
 // electron-store is replaced by the manual mock at tests/__mocks__/electron-store.ts
@@ -21,6 +23,7 @@ describe("SettingsManager", () => {
             expect(settings.autoUpdate).toBe(true);
             expect(settings.installedTools).toEqual([]);
             expect(settings.favoriteTools).toEqual([]);
+            expect(settings.sentryTelemetryConsent).toBeNull();
         });
     });
 
@@ -44,6 +47,95 @@ describe("SettingsManager", () => {
         it("round-trips a setting value", () => {
             manager.setSetting("notificationDuration", 3000);
             expect(manager.getSetting("notificationDuration")).toBe(3000);
+        });
+    });
+
+    describe("Sentry telemetry consent", () => {
+        it("stores a yes consent choice", () => {
+            manager.setSentryTelemetryConsent("yes");
+            expect(manager.getSentryTelemetryConsent()).toBe("yes");
+        });
+
+        it("stores a no consent choice", () => {
+            manager.updateUserSettings({ sentryTelemetryConsent: "no" });
+            expect(manager.getSentryTelemetryConsent()).toBe("no");
+        });
+
+        it("clears an unset consent choice", () => {
+            manager.setSentryTelemetryConsent("yes");
+            manager.setSentryTelemetryConsent(null);
+            expect(manager.getSentryTelemetryConsent()).toBeNull();
+        });
+
+        it("normalizes invalid consent values to null", () => {
+            manager.setSetting("sentryTelemetryConsent", "invalid" as never);
+            expect(normalizeTelemetryConsent(manager.getUserSettings().sentryTelemetryConsent)).toBeNull();
+        });
+    });
+
+    describe("marketplace sources", () => {
+        it("includes a built-in marketplace source by default", () => {
+            const sources = manager.getMarketplaceSources();
+            expect(sources).toEqual(expect.arrayContaining([expect.objectContaining({ id: "builtin-pptb", type: "builtin", enabled: true })]));
+        });
+
+        it("keeps the built-in marketplace enabled when no private source exists", () => {
+            manager.setBuiltinMarketplaceEnabled(false);
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(true);
+        });
+
+        it("allows disabling the built-in marketplace when a private source exists", () => {
+            const privateSource: MarketplaceSource = {
+                id: "contoso-private",
+                type: "private",
+                label: "Contoso private marketplace",
+                url: "https://example.contoso.test/registry.json",
+                enabled: true,
+            };
+
+            manager.addMarketplaceSource(privateSource);
+            manager.setBuiltinMarketplaceEnabled(false);
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(false);
+        });
+
+        it("keeps the built-in marketplace enabled when no private source is available", () => {
+            const sources: MarketplaceSource[] = [
+                {
+                    id: "builtin-pptb",
+                    type: "builtin",
+                    label: "Power Platform ToolBox marketplace",
+                    url: "https://example.test/registry.json",
+                    enabled: false,
+                },
+            ];
+
+            manager.updateUserSettings({ marketplaceSources: sources });
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(true);
+        });
+
+        it("allows the built-in marketplace to stay disabled when a private source is enabled", () => {
+            const sources: MarketplaceSource[] = [
+                {
+                    id: "builtin-pptb",
+                    type: "builtin",
+                    label: "Power Platform ToolBox marketplace",
+                    url: "https://example.test/registry.json",
+                    enabled: false,
+                },
+                {
+                    id: "contoso-private",
+                    type: "private",
+                    label: "Contoso private marketplace",
+                    url: "https://example.contoso.test/registry.json",
+                    enabled: true,
+                },
+            ];
+
+            manager.updateUserSettings({ marketplaceSources: sources });
+
+            expect(manager.getMarketplaceSources().find((source) => source.id === "builtin-pptb")?.enabled).toBe(false);
         });
     });
 
@@ -131,6 +223,47 @@ describe("SettingsManager", () => {
             manager.grantCspConsent("tool-a");
             manager.revokeCspConsent("tool-a");
             expect(manager.hasCspConsent("tool-a")).toBe(false);
+        });
+
+        it("grantCspConsent stores seenOptional domains", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com", "analytics.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual(["cdn.example.com", "analytics.example.com"]);
+        });
+
+        it("grantCspConsent defaults seenOptional to empty array when omitted", () => {
+            manager.grantCspConsent("tool-a", ["api.example.com"], ["cdn.example.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-a"].seenOptional).toEqual([]);
+        });
+
+        it("getCspConsents includes seenOptional in returned record", () => {
+            manager.grantCspConsent("tool-b", [], ["opt1.com"], ["opt1.com", "opt2.com"]);
+            const consents = manager.getCspConsents();
+            expect(consents["tool-b"]).toMatchObject({
+                allowed: true,
+                required: [],
+                optional: ["opt1.com"],
+                seenOptional: ["opt1.com", "opt2.com"],
+            });
+        });
+
+        it("grantCspConsent overwrites stale removed domains when a tool update syncs the consent record", () => {
+            manager.grantCspConsent(
+                "tool-c",
+                ["api.example.com", "legacy-required.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+                ["cdn.example.com", "legacy-optional.example.com"],
+            );
+
+            manager.grantCspConsent("tool-c", ["api.example.com"], ["cdn.example.com"], ["cdn.example.com"]);
+
+            expect(manager.getCspConsents()["tool-c"]).toEqual({
+                allowed: true,
+                required: ["api.example.com"],
+                optional: ["cdn.example.com"],
+                seenOptional: ["cdn.example.com"],
+            });
         });
     });
 

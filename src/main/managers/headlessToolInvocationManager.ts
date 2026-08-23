@@ -2,6 +2,14 @@ import { randomUUID } from "crypto";
 
 export type HeadlessJobStatus = "pending" | "in_progress" | "completed" | "failed";
 
+export type HeadlessJobLogLevel = "debug" | "info" | "warn" | "error";
+
+export interface HeadlessJobLogEntry {
+    timestamp: string;
+    level: HeadlessJobLogLevel;
+    message: string;
+}
+
 export interface HeadlessJobRecord {
     jobId: string;
     toolId: string;
@@ -17,6 +25,7 @@ export interface HeadlessJobRecord {
     };
     result?: Record<string, unknown>;
     error?: string;
+    logs?: HeadlessJobLogEntry[];
 }
 
 interface StartJobOptions {
@@ -27,10 +36,12 @@ interface StartJobOptions {
 }
 
 const DEFAULT_CLEANUP_TTL_MS = 60 * 60 * 1000;
+const MAX_LOGS_PER_JOB = 200;
 
 export class HeadlessToolInvocationManager {
     private readonly jobs = new Map<string, HeadlessJobRecord>();
     private readonly cleanupTimer: NodeJS.Timeout;
+    private onJobChanged: ((jobId: string) => void) | null = null;
 
     constructor(private readonly completedJobTtlMs = DEFAULT_CLEANUP_TTL_MS) {
         this.cleanupTimer = setInterval(() => this.cleanupExpiredJobs(), 60_000);
@@ -39,6 +50,10 @@ export class HeadlessToolInvocationManager {
 
     public dispose(): void {
         clearInterval(this.cleanupTimer);
+    }
+
+    public setJobChangeHandler(handler: ((jobId: string) => void) | null): void {
+        this.onJobChanged = handler;
     }
 
     public async startJob(options: StartJobOptions): Promise<HeadlessJobRecord> {
@@ -56,9 +71,17 @@ export class HeadlessToolInvocationManager {
                 percent: 0,
                 message: "queued",
             },
+            logs: [
+                {
+                    timestamp: nowIso,
+                    level: "info",
+                    message: "queued",
+                },
+            ],
         };
 
         this.jobs.set(jobId, initialRecord);
+        this.notifyJobChanged(jobId);
 
         void this.runJob(jobId, options.execute, options.timeoutMs);
 
@@ -68,6 +91,12 @@ export class HeadlessToolInvocationManager {
     public getJob(jobId: string): HeadlessJobRecord | null {
         const job = this.jobs.get(jobId);
         return job ? { ...job } : null;
+    }
+
+    public getActiveJobs(): HeadlessJobRecord[] {
+        return Array.from(this.jobs.values())
+            .filter((job) => job.status === "pending" || job.status === "in_progress")
+            .map((job) => ({ ...job }));
     }
 
     public updateProgress(jobId: string, percent: number, message?: string): void {
@@ -82,6 +111,41 @@ export class HeadlessToolInvocationManager {
             ...(message ? { message } : {}),
         };
         this.jobs.set(jobId, job);
+        this.notifyJobChanged(jobId);
+    }
+
+    public appendLog(jobId: string, level: HeadlessJobLogLevel, message: string): void {
+        const job = this.jobs.get(jobId);
+        if (!job) {
+            return;
+        }
+
+        const logs = job.logs ?? [];
+        logs.push({
+            timestamp: new Date().toISOString(),
+            level,
+            message,
+        });
+
+        if (logs.length > MAX_LOGS_PER_JOB) {
+            logs.splice(0, logs.length - MAX_LOGS_PER_JOB);
+        }
+
+        job.logs = logs;
+        this.jobs.set(jobId, job);
+        this.notifyJobChanged(jobId);
+    }
+
+    public clearLogs(): void {
+        for (const [jobId, job] of this.jobs.entries()) {
+            if (!job.logs || job.logs.length === 0) {
+                continue;
+            }
+
+            job.logs = [];
+            this.jobs.set(jobId, job);
+            this.notifyJobChanged(jobId);
+        }
     }
 
     private async runJob(jobId: string, execute: (jobId: string) => Promise<Record<string, unknown>>, timeoutMs: number): Promise<void> {
@@ -97,6 +161,7 @@ export class HeadlessToolInvocationManager {
             message: "running",
         };
         this.jobs.set(jobId, existing);
+        this.appendLog(jobId, "info", "running");
 
         try {
             const result = await this.withTimeout(execute(jobId), timeoutMs);
@@ -113,6 +178,8 @@ export class HeadlessToolInvocationManager {
             };
             completed.result = result;
             this.jobs.set(jobId, completed);
+            this.appendLog(jobId, "info", "completed");
+            this.notifyJobChanged(jobId);
         } catch (error) {
             const failed = this.jobs.get(jobId);
             if (!failed) {
@@ -127,7 +194,13 @@ export class HeadlessToolInvocationManager {
             };
             failed.error = error instanceof Error ? error.message : String(error);
             this.jobs.set(jobId, failed);
+            this.appendLog(jobId, "error", failed.error);
+            this.notifyJobChanged(jobId);
         }
+    }
+
+    private notifyJobChanged(jobId: string): void {
+        this.onJobChanged?.(jobId);
     }
 
     private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

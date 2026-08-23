@@ -7,7 +7,6 @@ import { logError } from "../../common/logger";
 import type { LastUsedToolEntry } from "../../common/types";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
 import { filterMarketplaceByNew } from "./marketplaceManagement";
-import { isMcpPreviewUiEnabled } from "./previewFeatureManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool, LaunchToolOptions } from "./toolManagement";
 
@@ -368,7 +367,6 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
     container.innerHTML = "";
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
-    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
 
     tools.forEach((tool) => {
         // Create tool item
@@ -403,7 +401,7 @@ function renderToolsList(container: HTMLElement, tools: any[]): void {
         nameDiv.textContent = tool.name;
 
         nameRow.appendChild(nameDiv);
-        if (mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true) {
+        if (tool.mcpHeadlessEnabled === true) {
             const mcpBadge = document.createElement("span");
             mcpBadge.className = "quick-tool-mcp-badge";
             mcpBadge.setAttribute("title", "MCP headless enabled");
@@ -439,7 +437,6 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
     container.innerHTML = "";
     const isDarkTheme = document.body.classList.contains("dark-theme");
     const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
-    const mcpPreviewUiEnabled = isMcpPreviewUiEnabled();
 
     items.forEach(({ tool, entry }) => {
         const toolItem = document.createElement("div");
@@ -471,7 +468,7 @@ function renderRecentToolsList(container: HTMLElement, items: { tool: any; entry
         nameDiv.textContent = tool.name;
 
         nameRow.appendChild(nameDiv);
-        if (mcpPreviewUiEnabled && tool.mcpHeadlessEnabled === true) {
+        if (tool.mcpHeadlessEnabled === true) {
             const mcpBadge = document.createElement("span");
             mcpBadge.className = "quick-tool-mcp-badge";
             mcpBadge.setAttribute("title", "MCP headless enabled");

@@ -2,7 +2,6 @@
 agent: agent
 name: "CreateReleaseNotes"
 description: "Generate release notes for the latest changes in the codebase."
-model: GPT-5.2 (copilot)
 ---
 
 You are writing GitHub Release notes for Power Platform ToolBox.

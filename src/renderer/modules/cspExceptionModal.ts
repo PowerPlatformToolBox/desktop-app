@@ -5,17 +5,25 @@
 
 import type { ModalWindowClosedPayload, ModalWindowMessagePayload } from "../../common/types";
 import { getCspExceptionModalControllerScript } from "../modals/cspException/controller";
+import type { CspReconsentContext } from "../modals/cspException/view";
 import { getCspExceptionModalView } from "../modals/cspException/view";
 import { closeBrowserWindowModal, offBrowserWindowModalClosed, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 
 interface CspExceptionModalPromiseHandlers {
-    resolve: ((approvedOptionalDomains: string[] | null) => void) | null;
+    resolve: ((result: unknown) => void) | null;
     reject: ((error: Error) => void) | null;
+}
+
+export interface CspConsentManageResult {
+    action: "grant-all" | "revoke-all" | "make-changes";
+    approvedOptionalDomains: string[];
 }
 
 const CSP_EXCEPTION_MODAL_CHANNELS = {
     acceptConsent: "csp-exception:accept",
     declineConsent: "csp-exception:decline",
+    grantAllConsent: "csp-exception:grant-all",
+    revokeAllConsent: "csp-exception:revoke-all",
 } as const;
 
 const CSP_EXCEPTION_MODAL_DIMENSIONS = {
@@ -29,18 +37,26 @@ const cspExceptionModalPromiseHandlers: CspExceptionModalPromiseHandlers = {
     reject: null,
 };
 let cspExceptionModalClosedHandler: ((payload: ModalWindowClosedPayload) => void) | null = null;
+let currentModalMode: "consent" | "manage" = "consent";
+
+export type { CspReconsentContext };
 
 /**
  * Open the CSP exception consent modal.
  * Returns a promise that resolves with the list of approved optional domains if the user accepts,
  * or null if the user declines.
+ *
+ * @param tool - The tool requiring CSP consent
+ * @param reconsentContext - When provided, the modal will show a re-consent view that highlights
+ *   only the new permissions while showing previously approved ones as informational context.
  */
-export async function openCspExceptionModal(tool: any): Promise<string[] | null> {
+export async function openCspExceptionModal(tool: any, reconsentContext?: CspReconsentContext): Promise<string[] | null> {
+    currentModalMode = "consent";
     return new Promise((resolve, reject) => {
         initializeCspExceptionModalBridge();
 
         // Store resolve/reject handlers for later use
-        cspExceptionModalPromiseHandlers.resolve = resolve;
+        cspExceptionModalPromiseHandlers.resolve = resolve as (result: unknown) => void;
         cspExceptionModalPromiseHandlers.reject = reject;
 
         // Listen for modal close event to reject if not already resolved
@@ -56,7 +72,37 @@ export async function openCspExceptionModal(tool: any): Promise<string[] | null>
 
         showBrowserWindowModal({
             id: "csp-exception-browser-modal",
-            html: buildCspExceptionModalHtml(tool),
+            html: buildCspExceptionModalHtml(tool, "consent", reconsentContext),
+            width: CSP_EXCEPTION_MODAL_DIMENSIONS.width,
+            height: CSP_EXCEPTION_MODAL_DIMENSIONS.height,
+        }).catch(reject);
+    });
+}
+
+/**
+ * Open the CSP exception modal in consent-management mode.
+ * Returns the selected action and optional-domain selection, or null when cancelled.
+ */
+export async function openCspConsentManagementModal(tool: any, hasGrantedConsent: boolean, preselectedOptionalDomains: string[] = []): Promise<CspConsentManageResult | null> {
+    currentModalMode = "manage";
+    return new Promise((resolve, reject) => {
+        initializeCspExceptionModalBridge();
+
+        cspExceptionModalPromiseHandlers.resolve = resolve as (result: unknown) => void;
+        cspExceptionModalPromiseHandlers.reject = reject;
+
+        cspExceptionModalClosedHandler = (payload: ModalWindowClosedPayload) => {
+            if (cspExceptionModalPromiseHandlers.reject && payload?.id === "csp-exception-browser-modal") {
+                cspExceptionModalPromiseHandlers.reject(new Error("CSP consent dialog cancelled"));
+                cleanupModalHandlers();
+            }
+        };
+
+        onBrowserWindowModalClosed(cspExceptionModalClosedHandler);
+
+        showBrowserWindowModal({
+            id: "csp-exception-browser-modal",
+            html: buildCspExceptionModalHtml(tool, "manage", undefined, preselectedOptionalDomains, hasGrantedConsent),
             width: CSP_EXCEPTION_MODAL_DIMENSIONS.width,
             height: CSP_EXCEPTION_MODAL_DIMENSIONS.height,
         }).catch(reject);
@@ -87,6 +133,12 @@ function handleCspExceptionModalMessage(payload: ModalWindowMessagePayload): voi
         case CSP_EXCEPTION_MODAL_CHANNELS.declineConsent:
             handleCspConsentDeclined();
             break;
+        case CSP_EXCEPTION_MODAL_CHANNELS.grantAllConsent:
+            handleCspGrantAll(payload.data);
+            break;
+        case CSP_EXCEPTION_MODAL_CHANNELS.revokeAllConsent:
+            handleCspRevokeAll(payload.data);
+            break;
         default:
             break;
     }
@@ -102,14 +154,16 @@ function handleCspConsentAccepted(data: unknown): void {
         approvedOptionalDomains?: unknown[];
     }
     const consentData = data as CspConsentData;
-    const approvedOptionalDomains: string[] = Array.isArray(consentData?.approvedOptionalDomains)
-        ? consentData.approvedOptionalDomains.filter((d): d is string => typeof d === "string")
-        : [];
+    const approvedOptionalDomains: string[] = Array.isArray(consentData?.approvedOptionalDomains) ? consentData.approvedOptionalDomains.filter((d): d is string => typeof d === "string") : [];
 
     const resolveHandler = cspExceptionModalPromiseHandlers.resolve;
     cleanupModalHandlers();
     void closeBrowserWindowModal();
-    resolveHandler(approvedOptionalDomains);
+    if (currentModalMode === "manage") {
+        resolveHandler({ action: "make-changes", approvedOptionalDomains } as CspConsentManageResult);
+    } else {
+        resolveHandler(approvedOptionalDomains);
+    }
 }
 
 /**
@@ -124,10 +178,40 @@ function handleCspConsentDeclined(): void {
     resolveHandler(null);
 }
 
+function handleCspGrantAll(data: unknown): void {
+    if (!cspExceptionModalPromiseHandlers.resolve) return;
+
+    interface CspConsentData {
+        approvedOptionalDomains?: unknown[];
+    }
+    const consentData = data as CspConsentData;
+    const approvedOptionalDomains: string[] = Array.isArray(consentData?.approvedOptionalDomains) ? consentData.approvedOptionalDomains.filter((d): d is string => typeof d === "string") : [];
+
+    const resolveHandler = cspExceptionModalPromiseHandlers.resolve;
+    cleanupModalHandlers();
+    void closeBrowserWindowModal();
+    resolveHandler({ action: "grant-all", approvedOptionalDomains } as CspConsentManageResult);
+}
+
+function handleCspRevokeAll(data: unknown): void {
+    if (!cspExceptionModalPromiseHandlers.resolve) return;
+
+    interface CspConsentData {
+        approvedOptionalDomains?: unknown[];
+    }
+    const consentData = data as CspConsentData;
+    const approvedOptionalDomains: string[] = Array.isArray(consentData?.approvedOptionalDomains) ? consentData.approvedOptionalDomains.filter((d): d is string => typeof d === "string") : [];
+
+    const resolveHandler = cspExceptionModalPromiseHandlers.resolve;
+    cleanupModalHandlers();
+    void closeBrowserWindowModal();
+    resolveHandler({ action: "revoke-all", approvedOptionalDomains } as CspConsentManageResult);
+}
+
 /**
  * Build the CSP exception modal HTML
  */
-function buildCspExceptionModalHtml(tool: any): string {
+function buildCspExceptionModalHtml(tool: any, mode: "consent" | "manage", reconsentContext?: CspReconsentContext, preselectedOptionalDomains?: string[], hasGrantedConsent?: boolean): string {
     const isDarkTheme = document.body.classList.contains("dark-theme");
 
     const { styles, body } = getCspExceptionModalView({
@@ -135,8 +219,12 @@ function buildCspExceptionModalHtml(tool: any): string {
         authors: tool.authors || [],
         cspExceptions: tool.cspExceptions || {},
         isDarkTheme,
+        mode,
+        hasGrantedConsent,
+        preselectedOptionalDomains,
+        reconsentContext,
     });
-    const script = getCspExceptionModalControllerScript(CSP_EXCEPTION_MODAL_CHANNELS);
+    const script = getCspExceptionModalControllerScript(CSP_EXCEPTION_MODAL_CHANNELS, mode);
     return `${styles}\n${body}\n${script}`.trim();
 }
 
@@ -148,4 +236,5 @@ function cleanupModalHandlers(): void {
 
     cspExceptionModalPromiseHandlers.resolve = null;
     cspExceptionModalPromiseHandlers.reject = null;
+    currentModalMode = "consent";
 }

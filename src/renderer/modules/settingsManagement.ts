@@ -4,7 +4,8 @@
  */
 
 import { logError } from "../../common/logger";
-import { buildPreviewFeatureFlags } from "../../common/types";
+import { buildPreviewFeatureFlags, type MarketplaceSource } from "../../common/types";
+import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -15,7 +16,9 @@ import {
     MAX_COLOR_BORDER_THICKNESS,
     MIN_COLOR_BORDER_THICKNESS,
 } from "../constants";
+import { getModalStyles } from "../modals/sharedStyles";
 import type { SettingsState } from "../types/index";
+import { offBrowserWindowModalClosed, offBrowserWindowModalMessage, onBrowserWindowModalClosed, onBrowserWindowModalMessage, showBrowserWindowModal } from "./browserWindowModals";
 import { loadMarketplace } from "./marketplaceManagement";
 import { setDefaultNotificationDuration } from "./notifications";
 import {
@@ -25,12 +28,17 @@ import {
     getPreviewFeatureDefinitions,
     normalizePreviewFeatureFlags,
 } from "./previewFeatureManagement";
+import { applyRendererSentryConsent } from "./sentryRuntime";
 import { applyDebugMenuVisibility, applyTerminalFont, applyTheme } from "./themeManagement";
 import { applyAppearanceSettings, openLocalPageAsTab, registerCloseGuard } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 // Track original settings to detect changes
 let originalSettings: SettingsState = {};
+
+function escapeHtml(value: string): string {
+    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 function arePreviewFeatureFlagsEqual(left?: SettingsState["previewFeatures"], right?: SettingsState["previewFeatures"]): boolean {
     const normalizedLeft = buildPreviewFeatureFlags(left);
@@ -60,6 +68,251 @@ function renderPreviewFeatureSettingsRows(): string {
         .join("");
 }
 
+function renderPreviewFeatureSettingsSection(): string {
+    if (getPreviewFeatureDefinitions().length === 0) {
+        return "";
+    }
+
+    return `
+        <section id="settings-section-preview" class="settings-vscode-section">
+            <h2 class="settings-vscode-section-title">Preview Features</h2>
+            ${renderPreviewFeatureSettingsRows()}
+        </section>
+    `;
+}
+
+function renderSentryTelemetrySettingsRow(): string {
+    return `
+        <div class="settings-vscode-item">
+            <div class="settings-vscode-item-info">
+                <label class="settings-vscode-item-label" for="sidebar-sentry-telemetry-consent-select">Sentry Log Collection</label>
+                <p class="settings-vscode-item-description">Choose whether ToolBox may send your install ID, installed version, OS, CPU architecture, and warning/error logs to Sentry. No historical data is backfilled.</p>
+            </div>
+            <div class="settings-vscode-item-control">
+                <select id="sidebar-sentry-telemetry-consent-select" class="fluent-select settings-vscode-select">
+                    <option value="">Not decided (show prompt again)</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+        </div>
+    `;
+}
+
+function renderMarketplaceSourcesList(sources: MarketplaceSource[]): string {
+    const privateSources = sources.filter((source) => source.type !== "builtin");
+    if (privateSources.length === 0) {
+        return `
+            <div class="settings-vscode-item-description" style="margin-top: 8px;">
+                No private marketplace sources configured yet.
+            </div>
+        `;
+    }
+
+    return privateSources
+        .map((source) => {
+            const sourceId = source.id || `marketplace-${Math.random().toString(36).slice(2, 9)}`;
+            return `
+                <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(sourceId)}">
+                    <div class="settings-vscode-marketplace-source-fields">
+                        <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-label-input" data-field="label" value="${escapeHtml(source.label || "")}" placeholder="Display name" />
+                        <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-url-input" data-field="url" value="${escapeHtml(source.url || "")}" placeholder="https://.../registry.json" />
+                    </div>
+                    <div class="settings-vscode-marketplace-source-actions">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" class="settings-vscode-checkbox" data-field="enabled" ${source.enabled ? "checked" : ""} />
+                            <span>Enabled</span>
+                        </label>
+                        <button type="button" class="fluent-button fluent-button-secondary" data-action="remove-marketplace-source">Remove</button>
+                    </div>
+                </div>
+            `;
+        })
+        .join("");
+}
+
+function collectMarketplaceSourcesFromSettingsPanel(): MarketplaceSource[] {
+    const builtInCheckbox = document.getElementById("sidebar-marketplace-builtin-check") as HTMLInputElement | null;
+    const listContainer = document.getElementById("marketplace-sources-list") as HTMLElement | null;
+    const builtInTemplate = originalSettings.marketplaceSources?.find((source) => source.id === "builtin-pptb") ?? {
+        id: "builtin-pptb",
+        type: "builtin" as const,
+        label: "Power Platform ToolBox marketplace",
+        url: "",
+        enabled: true,
+        description: "Built-in public marketplace",
+    };
+
+    const sources: MarketplaceSource[] = [
+        {
+            ...builtInTemplate,
+            id: "builtin-pptb",
+            type: "builtin",
+            enabled: builtInCheckbox?.checked ?? builtInTemplate.enabled ?? true,
+        },
+    ];
+
+    if (!listContainer) {
+        return sources;
+    }
+
+    const sourceRows = Array.from(listContainer.querySelectorAll<HTMLElement>(".settings-vscode-marketplace-source-row"));
+    sourceRows.forEach((row) => {
+        const label = (row.querySelector<HTMLInputElement>("[data-field='label']")?.value || "").trim();
+        const url = (row.querySelector<HTMLInputElement>("[data-field='url']")?.value || "").trim();
+        const enabled = row.querySelector<HTMLInputElement>("[data-field='enabled']")?.checked ?? false;
+        const sourceId = row.getAttribute("data-source-id") || `marketplace-${sources.length + 1}`;
+
+        if (!label && !url) {
+            return;
+        }
+
+        sources.push({
+            id: sourceId,
+            type: "private",
+            label,
+            url,
+            enabled,
+        });
+    });
+
+    return sources;
+}
+
+function shouldPromptRestartForMarketplaceSourceChanges(previousSources: MarketplaceSource[], nextSources: MarketplaceSource[]): boolean {
+    const previousBuiltInEnabled = previousSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
+    const nextBuiltInEnabled = nextSources.find((source) => source.id === "builtin-pptb")?.enabled ?? true;
+
+    const builtInChanged = previousBuiltInEnabled !== nextBuiltInEnabled;
+
+    const normalizePrivateSources = (sources: MarketplaceSource[]) =>
+        sources
+            .filter((source) => source.type === "private")
+            .map((source) => ({
+                id: source.id,
+                label: source.label,
+                url: source.url,
+                enabled: source.enabled,
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id));
+
+    const privateSourcesChanged = JSON.stringify(normalizePrivateSources(previousSources)) !== JSON.stringify(normalizePrivateSources(nextSources));
+
+    return builtInChanged || privateSourcesChanged;
+}
+
+async function promptRestartForMarketplaceSourceChanges(): Promise<boolean> {
+    const modalId = "marketplace-source-restart-required";
+    const restartChannel = "settings:marketplace-restart-now";
+    const laterChannel = "settings:marketplace-restart-later";
+    const isDarkTheme = document.body.classList.contains("dark-theme");
+    const styles = `${getModalStyles(isDarkTheme)}
+<style>
+    .restart-required-hero {
+        border: 1px solid ${isDarkTheme ? "rgba(0, 180, 216, 0.35)" : "rgba(14, 99, 156, 0.25)"};
+        background: ${isDarkTheme ? "linear-gradient(135deg, rgba(0, 180, 216, 0.15) 0%, rgba(106, 0, 255, 0.18) 100%)" : "linear-gradient(135deg, rgba(14, 99, 156, 0.08) 0%, rgba(106, 0, 255, 0.1) 100%)"};
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+    }
+
+    .restart-required-hero-title {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .restart-required-hero-text {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: ${isDarkTheme ? "rgba(255,255,255,0.88)" : "rgba(31,31,31,0.88)"};
+    }
+
+    .restart-required-note {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: ${isDarkTheme ? "rgba(255,255,255,0.75)" : "rgba(31,31,31,0.72)"};
+    }
+</style>`;
+    const body = `
+<div class="modal-panel">
+    <div class="modal-header">
+        <div>
+            <p class="modal-eyebrow">Marketplace</p>
+            <h3>Restart Required</h3>
+        </div>
+        <button class="icon-button" id="marketplace-restart-close-btn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+        <div class="restart-required-hero">
+            <p class="restart-required-hero-title">Marketplace source changes were saved</p>
+            <p class="restart-required-hero-text">Restart Power Platform ToolBox to apply marketplace source updates.</p>
+        </div>
+        <p class="restart-required-note">Marketplace source was changed. These changes take effect after restarting the app.</p>
+    </div>
+    <div class="modal-footer">
+        <button type="button" id="marketplace-restart-later-btn" class="fluent-button fluent-button-secondary">Later</button>
+        <button type="button" id="marketplace-restart-now-btn" class="fluent-button fluent-button-primary">Restart Now</button>
+    </div>
+</div>`;
+    const script = `
+<script>
+(() => {
+    const bridge = window.modalBridge;
+    if (!bridge) return;
+
+    const restartNow = () => bridge.send(${JSON.stringify(restartChannel)});
+    const restartLater = () => bridge.send(${JSON.stringify(laterChannel)});
+
+    document.getElementById("marketplace-restart-now-btn")?.addEventListener("click", restartNow);
+    document.getElementById("marketplace-restart-later-btn")?.addEventListener("click", restartLater);
+    document.getElementById("marketplace-restart-close-btn")?.addEventListener("click", restartLater);
+})();
+</script>`;
+
+    const html = `${styles}\n${body}\n${script}`;
+
+    return await new Promise<boolean>((resolve) => {
+        let shouldRestart = false;
+
+        const onMessage = (payload: { channel: string }) => {
+            if (payload?.channel === restartChannel) {
+                shouldRestart = true;
+                void window.toolboxAPI.utils.closeModalWindow();
+                return;
+            }
+
+            if (payload?.channel === laterChannel) {
+                shouldRestart = false;
+                void window.toolboxAPI.utils.closeModalWindow();
+            }
+        };
+
+        const onClosed = () => {
+            offBrowserWindowModalMessage(onMessage);
+            offBrowserWindowModalClosed(onClosed);
+            resolve(shouldRestart);
+        };
+
+        onBrowserWindowModalMessage(onMessage);
+        onBrowserWindowModalClosed(onClosed);
+
+        showBrowserWindowModal({
+            id: modalId,
+            html,
+            width: 520,
+            height: 320,
+        }).catch((error) => {
+            offBrowserWindowModalMessage(onMessage);
+            offBrowserWindowModalClosed(onClosed);
+            logError(error instanceof Error ? error : new Error(String(error)));
+            resolve(false);
+        });
+    });
+}
+
 /**
  * Load settings into the settings UI panel
  */
@@ -78,10 +331,14 @@ export async function loadSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
+    const marketplaceBuiltinCheck = document.getElementById("sidebar-marketplace-builtin-check") as HTMLInputElement | null;
+    const marketplaceSourcesList = document.getElementById("marketplace-sources-list") as HTMLElement | null;
 
     if (themeSelect && autoUpdateCheck && showDebugMenuCheck && deprecatedToolsSelect && toolDisplayModeSelect && terminalFontSelect) {
         const settings = await window.toolboxAPI.getUserSettings();
         const previewFeatures = normalizePreviewFeatureFlags(settings);
+        const sentryTelemetryConsent = normalizeTelemetryConsent(settings.sentryTelemetryConsent);
 
         // Store original settings for change detection
         originalSettings = {
@@ -99,6 +356,8 @@ export async function loadSettings(): Promise<void> {
             environmentColorThickness: settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
             enablePreviewFeatures: Object.values(previewFeatures).some((enabled) => enabled === true),
             previewFeatures,
+            marketplaceSources: settings.marketplaceSources ?? [],
+            sentryTelemetryConsent,
         };
 
         themeSelect.value = settings.theme;
@@ -125,6 +384,16 @@ export async function loadSettings(): Promise<void> {
         }
         if (environmentColorThicknessInput) {
             environmentColorThicknessInput.value = String(settings.environmentColorThickness ?? DEFAULT_ENVIRONMENT_COLOR_THICKNESS);
+        }
+        if (marketplaceBuiltinCheck) {
+            const builtInSource = (settings.marketplaceSources ?? []).find((source) => source.id === "builtin-pptb");
+            marketplaceBuiltinCheck.checked = builtInSource?.enabled ?? true;
+        }
+        if (marketplaceSourcesList) {
+            marketplaceSourcesList.innerHTML = renderMarketplaceSourcesList(settings.marketplaceSources ?? []);
+        }
+        if (sentryTelemetryConsentSelect) {
+            sentryTelemetryConsentSelect.value = sentryTelemetryConsent ?? "";
         }
         getPreviewFeatureDefinitions().forEach((feature) => {
             const checkbox = document.getElementById(getPreviewFeatureCheckboxId(feature.id)) as HTMLInputElement | null;
@@ -177,6 +446,7 @@ export async function saveSettings(): Promise<void> {
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
     const categoryColorThicknessInput = document.getElementById("sidebar-category-color-thickness") as HTMLInputElement | null;
     const environmentColorThicknessInput = document.getElementById("sidebar-environment-color-thickness") as HTMLInputElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
 
     if (!themeSelect || !autoUpdateCheck || !showDebugMenuCheck || !deprecatedToolsSelect || !toolDisplayModeSelect || !terminalFontSelect) return;
 
@@ -198,6 +468,8 @@ export async function saveSettings(): Promise<void> {
         : DEFAULT_ENVIRONMENT_COLOR_THICKNESS;
     const previewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
     const enablePreviewFeatures = Object.values(previewFeatures).some((enabled) => enabled === true);
+    const marketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
+    const sentryTelemetryConsent = normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value);
 
     const currentSettings = {
         theme: themeSelect.value,
@@ -214,7 +486,11 @@ export async function saveSettings(): Promise<void> {
         environmentColorThickness,
         enablePreviewFeatures,
         previewFeatures,
+        marketplaceSources,
+        sentryTelemetryConsent,
     };
+
+    const requiresRestartForMarketplaceSources = shouldPromptRestartForMarketplaceSourceChanges(originalSettings.marketplaceSources ?? [], currentSettings.marketplaceSources);
 
     // Only include changed settings in the update
     const changedSettings: any = {};
@@ -261,6 +537,12 @@ export async function saveSettings(): Promise<void> {
     if (!arePreviewFeatureFlagsEqual(currentSettings.previewFeatures, originalSettings.previewFeatures ?? buildPreviewFeatureFlags())) {
         changedSettings.previewFeatures = currentSettings.previewFeatures;
     }
+    if (JSON.stringify(currentSettings.marketplaceSources) !== JSON.stringify(originalSettings.marketplaceSources ?? [])) {
+        changedSettings.marketplaceSources = currentSettings.marketplaceSources;
+    }
+    if ((currentSettings.sentryTelemetryConsent ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) {
+        changedSettings.sentryTelemetryConsent = currentSettings.sentryTelemetryConsent;
+    }
 
     // Only save and emit event if something changed
     if (Object.keys(changedSettings).length > 0) {
@@ -273,6 +555,7 @@ export async function saveSettings(): Promise<void> {
         applyPreviewFeaturesVisibility(currentSettings.previewFeatures);
         setDefaultNotificationDuration(currentSettings.notificationDuration);
         applyAppearanceSettings(currentSettings.showCategoryColor, currentSettings.showEnvironmentColor, currentSettings.categoryColorThickness, currentSettings.environmentColorThickness);
+        await applyRendererSentryConsent(currentSettings.sentryTelemetryConsent ?? null);
 
         // Reload tools list if deprecated tools visibility changed
         if (changedSettings.deprecatedToolsVisibility !== undefined) {
@@ -294,6 +577,13 @@ export async function saveSettings(): Promise<void> {
             body: "Your settings have been saved.",
             type: "success",
         });
+
+        if (changedSettings.marketplaceSources !== undefined && requiresRestartForMarketplaceSources) {
+            const shouldRestart = await promptRestartForMarketplaceSourceChanges();
+            if (shouldRestart) {
+                await window.toolboxAPI.utils.restartApp();
+            }
+        }
     }
     // If no changes, do nothing (no notification shown)
 }
@@ -318,6 +608,7 @@ function hasUnsavedChanges(): boolean {
     const terminalFontSelect = document.getElementById("sidebar-terminal-font-select") as any;
     const customFontInput = document.getElementById("sidebar-terminal-font-custom") as HTMLInputElement | null;
     const notificationDurationSelect = document.getElementById("sidebar-notification-duration-select") as HTMLSelectElement | null;
+    const sentryTelemetryConsentSelect = document.getElementById("sidebar-sentry-telemetry-consent-select") as HTMLSelectElement | null;
     const restoreSessionCheck = document.getElementById("sidebar-restore-session-check") as HTMLInputElement | null;
     const showCategoryColorCheck = document.getElementById("sidebar-show-category-color-check") as HTMLInputElement | null;
     const showEnvironmentColorCheck = document.getElementById("sidebar-show-environment-color-check") as HTMLInputElement | null;
@@ -341,6 +632,7 @@ function hasUnsavedChanges(): boolean {
     if (toolDisplayModeSelect.value !== (originalSettings.toolDisplayMode ?? "standard")) return true;
     if (terminalFont !== (originalSettings.terminalFont || DEFAULT_TERMINAL_FONT)) return true;
     if (notificationDurationSelect && Number(notificationDurationSelect.value) !== (originalSettings.notificationDuration ?? DEFAULT_NOTIFICATION_DURATION)) return true;
+    if ((normalizeTelemetryConsent(sentryTelemetryConsentSelect?.value) ?? null) !== (originalSettings.sentryTelemetryConsent ?? null)) return true;
     if (restoreSessionCheck && restoreSessionCheck.checked !== (originalSettings.restoreSessionOnStartup ?? true)) return true;
     if (showCategoryColorCheck && showCategoryColorCheck.checked !== (originalSettings.showCategoryColor ?? DEFAULT_SHOW_CATEGORY_COLOR)) return true;
     if (showEnvironmentColorCheck && showEnvironmentColorCheck.checked !== (originalSettings.showEnvironmentColor ?? DEFAULT_SHOW_ENVIRONMENT_COLOR)) return true;
@@ -355,6 +647,9 @@ function hasUnsavedChanges(): boolean {
 
     const currentPreviewFeatures = collectPreviewFeatureFlagsFromSettingsPanel();
     if (!arePreviewFeatureFlagsEqual(currentPreviewFeatures, originalSettings.previewFeatures ?? buildPreviewFeatureFlags())) return true;
+
+    const currentMarketplaceSources = collectMarketplaceSourcesFromSettingsPanel();
+    if (JSON.stringify(currentMarketplaceSources) !== JSON.stringify(originalSettings.marketplaceSources ?? [])) return true;
 
     return false;
 }
@@ -572,10 +867,41 @@ export function renderSettingsContent(panel: HTMLElement): void {
                 </div>
             </section>
 
-            <section id="settings-section-preview" class="settings-vscode-section">
-                <h2 class="settings-vscode-section-title">Preview Features</h2>
-                ${renderPreviewFeatureSettingsRows()}
+            <section id="settings-section-marketplace" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Marketplace</h2>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <label class="settings-vscode-item-label" for="sidebar-marketplace-builtin-check">Built-in public marketplace</label>
+                        <p class="settings-vscode-item-description">Enable the default ToolBox marketplace. It stays available when no private marketplace source is configured.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <label class="settings-vscode-checkbox-label">
+                            <input type="checkbox" id="sidebar-marketplace-builtin-check" class="settings-vscode-checkbox" />
+                            <span>Enable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-vscode-item">
+                    <div class="settings-vscode-item-info">
+                        <span class="settings-vscode-item-label">Private marketplace sources</span>
+                        <p class="settings-vscode-item-description">Add one or more private registries to supplement or override the built-in marketplace.</p>
+                    </div>
+                    <div class="settings-vscode-item-control">
+                        <button id="sidebar-add-marketplace-source-btn" class="fluent-button fluent-button-secondary settings-vscode-btn">Add private source</button>
+                    </div>
+                </div>
+
+                <div id="marketplace-sources-list"></div>
             </section>
+
+            <section id="settings-section-telemetry" class="settings-vscode-section">
+                <h2 class="settings-vscode-section-title">Telemetry</h2>
+                ${renderSentryTelemetrySettingsRow()}
+            </section>
+
+            ${renderPreviewFeatureSettingsSection()}
 
             <div class="settings-vscode-actions">
                 <button id="sidebar-save-settings-btn" class="fluent-button fluent-button-primary">Save Settings</button>
@@ -605,6 +931,47 @@ export function renderSettingsContent(panel: HTMLElement): void {
                     logError(err instanceof Error ? err : new Error(String(err)));
                 });
         });
+    }
+
+    // Wire up marketplace source add/remove actions
+    const addMarketplaceSourceBtn = panel.querySelector("#sidebar-add-marketplace-source-btn") as HTMLButtonElement | null;
+    const marketplaceSourcesList = panel.querySelector("#marketplace-sources-list") as HTMLElement | null;
+    if (addMarketplaceSourceBtn && marketplaceSourcesList) {
+        addMarketplaceSourceBtn.addEventListener("click", () => {
+            const nextSourceId = `marketplace-${Date.now()}`;
+            marketplaceSourcesList.insertAdjacentHTML(
+                "beforeend",
+                `
+                    <div class="settings-vscode-marketplace-source-row" data-source-id="${escapeHtml(nextSourceId)}">
+                        <div class="settings-vscode-marketplace-source-fields">
+                            <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-label-input" data-field="label" placeholder="Display name" />
+                            <input type="text" class="fluent-input settings-vscode-input settings-vscode-marketplace-source-url-input" data-field="url" placeholder="https://.../registry.json" />
+                        </div>
+                        <div class="settings-vscode-marketplace-source-actions">
+                            <label class="settings-vscode-checkbox-label">
+                                <input type="checkbox" class="settings-vscode-checkbox" data-field="enabled" checked />
+                                <span>Enabled</span>
+                            </label>
+                            <button type="button" class="fluent-button fluent-button-secondary" data-action="remove-marketplace-source">Remove</button>
+                        </div>
+                    </div>
+                `,
+            );
+        });
+
+        const list = marketplaceSourcesList as HTMLElement & { _pptbBound?: boolean };
+        if (!list._pptbBound) {
+            list._pptbBound = true;
+            list.addEventListener("click", (event) => {
+                const target = event.target as HTMLElement | null;
+                const removeButton = target?.closest("[data-action='remove-marketplace-source']") as HTMLButtonElement | null;
+                if (!removeButton) {
+                    return;
+                }
+
+                removeButton.closest(".settings-vscode-marketplace-source-row")?.remove();
+            });
+        }
     }
 
     // Wire up font help link

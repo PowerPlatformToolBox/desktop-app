@@ -5,4 +5,5 @@
 export * from "./clipboard";
 export * from "./feedback";
 export * from "./filesystem";
+export * from "./mockRegistry";
 export * from "./theme";

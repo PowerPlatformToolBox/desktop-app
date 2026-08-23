@@ -40,8 +40,11 @@
                     </button>
                 </nav>
                 <nav class="activity-bar-footer">
-                    <button class="activity-item" id="mcp-btn" title="MCP Server (Preview)">
+                    <button class="activity-item" id="mcp-btn" title="MCP Server">
                         <img id="logs-icon" src="icons/dark/mcp.svg" alt="MCP Icon" class="activity-icon" />
+                    </button>
+                    <button class="activity-item" id="consent-review-activity-btn" title="Consent Review">
+                        <img id="consent-icon" src="icons/dark/consent-shield.svg" alt="Consent Review Icon" class="activity-icon" />
                     </button>
                     <button class="activity-item" id="settings-activity-btn" title="Settings">
                         <img id="settings-icon" src="icons/dark/settings.svg" alt="Settings Icon" class="activity-icon" />
@@ -108,6 +111,10 @@
                             <label class="filter-checkbox-label" for="tools-update-required-filter">
                                 <input type="checkbox" id="tools-update-required-filter" class="filter-checkbox-input" />
                                 <span>Update Available</span>
+                            </label>
+                            <label class="filter-checkbox-label" for="tools-private-marketplace-filter" id="tools-private-marketplace-filter-row" style="display: none">
+                                <input type="checkbox" id="tools-private-marketplace-filter" class="filter-checkbox-input" />
+                                <span>Private Marketplace</span>
                             </label>
                             <label class="filter-checkbox-label" for="tools-mcp-enabled-filter" id="tools-mcp-enabled-filter-row">
                                 <input type="checkbox" id="tools-mcp-enabled-filter" class="filter-checkbox-input" />
@@ -259,6 +266,10 @@
                             <label class="filter-checkbox-label">
                                 <input type="checkbox" id="marketplace-new-filter" class="filter-checkbox-input" />
                                 <span>New (last 7 days)</span>
+                            </label>
+                            <label class="filter-checkbox-label" id="marketplace-private-marketplace-filter-row" style="display: none">
+                                <input type="checkbox" id="marketplace-private-marketplace-filter" class="filter-checkbox-input" />
+                                <span>Private Marketplace</span>
                             </label>
                             <label class="filter-checkbox-label" id="marketplace-mcp-enabled-filter-row">
                                 <input type="checkbox" id="marketplace-mcp-enabled-filter" class="filter-checkbox-input" />

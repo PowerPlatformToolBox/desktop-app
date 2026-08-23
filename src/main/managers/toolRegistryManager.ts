@@ -7,8 +7,10 @@ import * as https from "https";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, CspExceptions, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import { captureException } from "../../common/sentryHelper";
+import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
+import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
 
 /**
@@ -31,6 +33,10 @@ interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
+}
+
+function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
+    return typeof value === "number" ? value : undefined;
 }
 
 interface SupabaseCategoryRow {
@@ -80,6 +86,18 @@ interface SupabaseTool {
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
 }
 
+interface AzureBlobRegistryFile {
+    tools?: Array<
+        OfflineMockRegistryTool & {
+            downloadurl?: string;
+            readmeurl?: string;
+            website?: string;
+            published_at?: string;
+            authors?: string[] | string;
+        }
+    >;
+}
+
 /**
  * Supabase community_links table row
  */
@@ -123,40 +141,6 @@ const BUILT_IN_CAPABILITY_TAGS: CapabilityTagEntry[] = [
 ];
 
 /**
- * Local registry JSON file structure
- */
-interface LocalRegistryFile {
-    version?: string;
-    updatedAt?: string;
-    description?: string;
-    tools: LocalRegistryTool[];
-}
-
-interface LocalRegistryTool {
-    id: string;
-    name: string;
-    description: string;
-    authors?: string[];
-    version: string;
-    downloadUrl: string;
-    icon?: string;
-    checksum?: string;
-    size?: number;
-    publishedAt?: string;
-    tags?: string[];
-    readme?: string;
-    minToolboxVersion?: string;
-    repository?: string;
-    homepage?: string;
-    license?: string;
-    cspExceptions?: CspExceptions;
-    features?: Record<string, unknown>;
-    status?: string; // Tool lifecycle status: active, deprecated, archived
-    minAPI?: string; // Minimum ToolBox API version required
-    maxAPI?: string; // Maximum ToolBox API version tested
-}
-
-/**
  * Manages tool installation from a registry (marketplace)
  * Registry for discovering and managing tool installations
  */
@@ -165,9 +149,9 @@ export class ToolRegistryManager extends EventEmitter {
     private manifestPath: string;
     private supabase: SupabaseClient | null = null;
     private useLocalFallback: boolean = false;
-    private localRegistryPath: string;
     private installIdManager: InstallIdManager | null = null;
     private azureBlobBaseUrl: string;
+    private settingsManager: { getMarketplaceSources(): MarketplaceSource[] } | null = null;
 
     // Registry fetch de-duping + caching
     private registryFetchInFlight: Promise<ToolRegistryEntry[]> | null = null;
@@ -188,13 +172,20 @@ export class ToolRegistryManager extends EventEmitter {
     // Capability tags change rarely; use a longer TTL so the fetch happens at most once per session.
     private static readonly CAPABILITY_TAGS_CACHE_TTL_MS = 300_000; // 5 minutes
 
-    constructor(toolsDirectory: string, supabaseUrl?: string, supabaseKey?: string, installIdManager?: InstallIdManager, azureBlobBaseUrl?: string) {
+    constructor(
+        toolsDirectory: string,
+        supabaseUrl?: string,
+        supabaseKey?: string,
+        installIdManager?: InstallIdManager,
+        azureBlobBaseUrl?: string,
+        settingsManager?: { getMarketplaceSources(): MarketplaceSource[] },
+    ) {
         super();
         this.toolsDirectory = toolsDirectory;
         this.manifestPath = path.join(toolsDirectory, "manifest.json");
-        this.localRegistryPath = path.join(__dirname, "data", "registry.json");
         this.installIdManager = installIdManager || null;
         this.azureBlobBaseUrl = azureBlobBaseUrl || AZURE_BLOB_BASE_URL;
+        this.settingsManager = settingsManager || null;
 
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
@@ -239,18 +230,7 @@ export class ToolRegistryManager extends EventEmitter {
         }
 
         this.registryFetchInFlight = (async () => {
-            // Use remote/local fallback if Supabase is not configured
-            if (this.useLocalFallback) {
-                const tools = await this.fetchFallbackRegistry();
-                this.registryCache = {
-                    tools,
-                    fetchedAtMs: Date.now(),
-                    source: this.azureBlobBaseUrl ? "azureBlob" : "local",
-                };
-                return tools;
-            }
-
-            const tools = await this.fetchRegistryFromSupabase();
+            const tools = await this.fetchRegistryFromConfiguredSources();
             this.registryCache = {
                 tools,
                 fetchedAtMs: Date.now(),
@@ -263,6 +243,117 @@ export class ToolRegistryManager extends EventEmitter {
             return await this.registryFetchInFlight;
         } finally {
             this.registryFetchInFlight = null;
+        }
+    }
+
+    private async fetchRegistryFromConfiguredSources(): Promise<ToolRegistryEntry[]> {
+        const configuredSources = this.settingsManager?.getMarketplaceSources() ?? [];
+        const enabledSources = configuredSources.filter((source) => source.enabled);
+
+        if (enabledSources.length === 0) {
+            return [];
+        }
+
+        const mergedTools = new Map<string, ToolRegistryEntry>();
+
+        for (const source of enabledSources) {
+            const tools = source.type === "builtin" ? await this.fetchBuiltinRegistryForSource(source) : await this.fetchRegistryFromMarketplaceUrl(source);
+            tools.forEach((tool) => {
+                const existingTool = mergedTools.get(tool.id);
+                const shouldOverride = !existingTool || source.type === "private" || existingTool.marketplaceSourceType !== "private";
+                if (!shouldOverride) {
+                    return;
+                }
+
+                mergedTools.set(tool.id, {
+                    ...tool,
+                    marketplaceSourceId: source.id,
+                    marketplaceSourceLabel: source.label,
+                    marketplaceSourceType: source.type,
+                });
+            });
+        }
+
+        return Array.from(mergedTools.values());
+    }
+
+    private async fetchBuiltinRegistryForSource(_: MarketplaceSource): Promise<ToolRegistryEntry[]> {
+        if (this.useLocalFallback) {
+            return this.fetchFallbackRegistry();
+        }
+
+        try {
+            return await this.fetchRegistryFromSupabase();
+        } catch (error) {
+            logWarn(`[ToolRegistry] Built-in marketplace fetch failed, falling back to local/azure registry`, error);
+            return this.fetchFallbackRegistry();
+        }
+    }
+
+    private async fetchRegistryFromMarketplaceUrl(source: MarketplaceSource): Promise<ToolRegistryEntry[]> {
+        if (!source.url) {
+            logWarn(`[ToolRegistry] Marketplace source ${source.id} is missing a URL`);
+            return [];
+        }
+
+        try {
+            const registryUrl = source.url;
+            logInfo(`[ToolRegistry] Fetching registry from marketplace source ${source.id}: ${registryUrl}`);
+
+            const rawJson = await new Promise<string>((resolve, reject) => {
+                const protocol = registryUrl.startsWith("https") ? https : http;
+                protocol
+                    .get(registryUrl, (res) => {
+                        if (res.statusCode !== 200) {
+                            reject(new Error(`Marketplace registry request failed: HTTP ${res.statusCode} for ${registryUrl}`));
+                            return;
+                        }
+                        const chunks: Buffer[] = [];
+                        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+                        res.on("error", reject);
+                    })
+                    .on("error", reject);
+            });
+
+            let registryData: AzureBlobRegistryFile;
+            try {
+                registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
+            } catch (parseError) {
+                throw new Error(`Failed to parse registry JSON from ${registryUrl}: ${(parseError as Error).message}`);
+            }
+
+            if (!registryData.tools || registryData.tools.length === 0) {
+                logInfo(`[ToolRegistry] No tools found in marketplace source ${source.id}`);
+                return [];
+            }
+
+            return registryData.tools
+                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+                .map((tool) => ({
+                    id: tool.id,
+                    name: tool.name,
+                    description: tool.description,
+                    authors: this.normalizeAuthorList(tool.authors),
+                    version: tool.version,
+                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || "", registryUrl),
+                    checksum: tool.checksum,
+                    size: tool.size,
+                    publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
+                    repository: tool.repository,
+                    website: tool.homepage || tool.website,
+                    icon: tool.icon,
+                    cspExceptions: tool.cspExceptions,
+                    features: tool.features,
+                    license: tool.license,
+                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    marketplaceSourceId: source.id,
+                    marketplaceSourceLabel: source.label,
+                    marketplaceSourceType: source.type,
+                }));
+        } catch (error) {
+            logWarn(`[ToolRegistry] Failed to fetch marketplace source ${source.id}`, error);
+            return [];
         }
     }
 
@@ -322,9 +413,9 @@ export class ToolRegistryManager extends EventEmitter {
                 let mau: number | undefined;
                 if (tool.tool_analytics) {
                     const analytics = Array.isArray(tool.tool_analytics) ? tool.tool_analytics[0] : tool.tool_analytics;
-                    downloads = analytics?.downloads;
-                    rating = analytics?.rating;
-                    mau = analytics?.mau;
+                    downloads = getOptionalAnalyticsNumber(analytics?.downloads);
+                    rating = getOptionalAnalyticsNumber(analytics?.rating);
+                    mau = getOptionalAnalyticsNumber(analytics?.mau);
                 }
 
                 return {
@@ -407,9 +498,9 @@ export class ToolRegistryManager extends EventEmitter {
                 .on("error", reject);
         });
 
-        let registryData: LocalRegistryFile;
+        let registryData: AzureBlobRegistryFile;
         try {
-            registryData = JSON.parse(rawJson) as LocalRegistryFile;
+            registryData = JSON.parse(rawJson) as AzureBlobRegistryFile;
         } catch (parseError) {
             throw new Error(`Failed to parse Azure Blob registry.json from ${registryUrl}: ${(parseError as Error).message}`);
         }
@@ -425,14 +516,14 @@ export class ToolRegistryManager extends EventEmitter {
                 id: tool.id,
                 name: tool.name,
                 description: tool.description,
-                authors: tool.authors,
+                authors: this.normalizeAuthorList(tool.authors),
                 version: tool.version,
-                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl || tool.downloadurl || ""),
                 checksum: tool.checksum,
                 size: tool.size,
-                publishedAt: tool.publishedAt || new Date().toISOString(),
+                publishedAt: tool.publishedAt || tool.published_at || new Date().toISOString(),
                 repository: tool.repository,
-                website: tool.homepage,
+                website: tool.homepage || tool.website,
                 icon: tool.icon,
                 cspExceptions: tool.cspExceptions,
                 features: tool.features,
@@ -452,13 +543,21 @@ export class ToolRegistryManager extends EventEmitter {
      * Azure Blob Storage (e.g. "my-tool-1.0.0.tar.gz" → "<base>/packages/my-tool-1.0.0/my-tool-1.0.0.tar.gz").
      * Returns an empty string when the URL is relative but azureBlobBaseUrl is not configured.
      */
-    private resolveDownloadUrl(downloadUrl: string): string {
+    private resolveDownloadUrl(downloadUrl: string, baseUrl?: string): string {
         if (!downloadUrl) {
             logWarn("[ToolRegistry] Tool entry has no downloadUrl; tool cannot be installed from this registry source");
             return "";
         }
         if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
             return downloadUrl;
+        }
+
+        if (baseUrl) {
+            try {
+                return new URL(downloadUrl, baseUrl).toString();
+            } catch {
+                // Fall back to the existing behavior below if the URL cannot be resolved.
+            }
         }
         // Relative filename – resolve to <base>/packages/<folder>/<filename>
         // where <folder> = filename without the .tar.gz extension
@@ -478,45 +577,20 @@ export class ToolRegistryManager extends EventEmitter {
      */
     private async fetchLocalRegistry(): Promise<ToolRegistryEntry[]> {
         try {
-            logInfo(`[ToolRegistry] Fetching registry from local file: ${this.localRegistryPath}`);
+            const { tools: localTools, sourcePath } = loadOfflineMockRegistryTools();
 
-            if (!fs.existsSync(this.localRegistryPath)) {
-                logWarn(`[ToolRegistry] Local registry file not found at ${this.localRegistryPath}`);
+            if (sourcePath) {
+                logInfo(`[ToolRegistry] Fetching registry via mock utility from: ${sourcePath}`);
+            } else {
+                logWarn("[ToolRegistry] Offline mock registry source could not be resolved by utility");
+            }
+
+            if (!localTools.length) {
+                logInfo("[ToolRegistry] No tools available from utility-managed offline mock registry");
                 return [];
             }
 
-            const data = fs.readFileSync(this.localRegistryPath, "utf-8");
-            const registryData: LocalRegistryFile = JSON.parse(data);
-
-            if (!registryData.tools || registryData.tools.length === 0) {
-                logInfo(`[ToolRegistry] No tools found in local registry`);
-                return [];
-            }
-
-            const tools: ToolRegistryEntry[] = registryData.tools
-                .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
-                .map((tool) => ({
-                    id: tool.id,
-                    name: tool.name,
-                    description: tool.description,
-                    authors: tool.authors,
-                    version: tool.version,
-                    icon: tool.icon,
-                    downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
-                    checksum: tool.checksum,
-                    size: tool.size,
-                    publishedAt: tool.publishedAt || new Date().toISOString(),
-                    tags: tool.tags,
-                    readme: tool.readme,
-                    repository: tool.repository,
-                    website: tool.homepage,
-                    cspExceptions: tool.cspExceptions,
-                    features: tool.features,
-                    license: tool.license,
-                    status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
-                    minAPI: tool.minAPI,
-                    maxAPI: tool.maxAPI,
-                }));
+            const tools: ToolRegistryEntry[] = this.mapLocalRegistryTools(localTools);
 
             logInfo(`[ToolRegistry] Fetched ${tools.length} tools from local registry`);
             return tools;
@@ -524,6 +598,56 @@ export class ToolRegistryManager extends EventEmitter {
             logError("[ToolRegistry] Failed to fetch local registry", error);
             throw new Error(`Failed to fetch local registry: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Normalize local-registry rows into runtime tool entries.
+     */
+    private mapLocalRegistryTools(localTools: OfflineMockRegistryTool[]): ToolRegistryEntry[] {
+        return localTools
+            .filter((tool) => tool.status === "active" || tool.status === "deprecated" || !tool.status)
+            .map((tool) => ({
+                id: tool.id,
+                name: tool.name,
+                description: tool.description,
+                authors: this.normalizeAuthorList(tool.authors),
+                version: tool.version,
+                icon: tool.icon,
+                downloadUrl: this.resolveDownloadUrl(tool.downloadUrl),
+                checksum: tool.checksum,
+                size: tool.size,
+                publishedAt: tool.publishedAt || new Date().toISOString(),
+                tags: tool.tags,
+                readme: tool.readme,
+                repository: tool.repository,
+                website: tool.homepage,
+                cspExceptions: tool.cspExceptions,
+                features: tool.features,
+                license: tool.license,
+                status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                minAPI: tool.minAPI,
+                maxAPI: tool.maxAPI,
+            }));
+    }
+
+    /**
+     * Normalize legacy/malformed author values into a string array.
+     */
+    private normalizeAuthorList(authors: unknown): string[] | undefined {
+        if (Array.isArray(authors)) {
+            const normalized = authors.filter((a): a is string => typeof a === "string" && a.trim().length > 0);
+            return normalized.length ? normalized : undefined;
+        }
+
+        if (typeof authors === "string" && authors.trim().length > 0) {
+            const splitAuthors = authors
+                .split(",")
+                .map((a) => a.trim())
+                .filter((a) => a.length > 0);
+            return splitAuthors.length ? splitAuthors : [authors.trim()];
+        }
+
+        return undefined;
     }
 
     /**
@@ -747,6 +871,9 @@ export class ToolRegistryManager extends EventEmitter {
             maxAPI, // Maximum API version tested (from @pptb/types)
             mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
+            marketplaceSourceId: tool.marketplaceSourceId,
+            marketplaceSourceLabel: tool.marketplaceSourceLabel,
+            marketplaceSourceType: tool.marketplaceSourceType,
         };
 
         // Save to manifest file
@@ -819,7 +946,7 @@ export class ToolRegistryManager extends EventEmitter {
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
-        let authors: string[] | undefined = manifestEntry.authors;
+        let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
         const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
 
         if ((!authors || authors.length === 0) && legacyAuthor) {
@@ -857,6 +984,9 @@ export class ToolRegistryManager extends EventEmitter {
             minAPI: manifestEntry.minAPI,
             maxAPI: manifestEntry.maxAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
+            marketplaceSourceId: manifestEntry.marketplaceSourceId,
+            marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
+            marketplaceSourceType: manifestEntry.marketplaceSourceType,
         };
     }
 
@@ -881,7 +1011,11 @@ export class ToolRegistryManager extends EventEmitter {
             (data || []).forEach((row: any) => {
                 const analytics = Array.isArray(row.tool_analytics) ? row.tool_analytics[0] : row.tool_analytics;
                 if (analytics) {
-                    map.set(row.id as string, analytics as SupabaseAnalyticsRow);
+                    map.set(row.id as string, {
+                        downloads: getOptionalAnalyticsNumber(analytics.downloads),
+                        rating: getOptionalAnalyticsNumber(analytics.rating),
+                        mau: getOptionalAnalyticsNumber(analytics.mau),
+                    });
                 }
             });
         } catch (error) {
@@ -985,36 +1119,24 @@ export class ToolRegistryManager extends EventEmitter {
         try {
             logInfo(`[ToolRegistry] Tracking download for tool: ${toolId}`);
 
-            // Fetch current analytics
-            const { data: existingAnalytics, error: fetchError } = await this.supabase.from("tool_analytics").select("downloads").eq("tool_id", toolId).maybeSingle();
+            // Use the atomic DB-side RPC to avoid read-modify-write race conditions
+            // when multiple machines download the same tool concurrently.
+            const { error } = await this.supabase.rpc("increment_tool_downloads", { p_tool_id: toolId });
 
-            if (fetchError && fetchError.code !== "PGRST116") {
-                // PGRST116 is "no rows found" - that's okay
-                throw fetchError;
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
-            const currentDownloads = existingAnalytics?.downloads || 0;
-            const newDownloads = currentDownloads + 1;
-
-            // Upsert the analytics record
-            const { error: upsertError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    downloads: newDownloads,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
-
-            if (upsertError) {
-                throw upsertError;
-            }
-
-            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId} (total: ${newDownloads})`);
+            logInfo(`[ToolRegistry] Download tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool installation
             logError(`[ToolRegistry] Failed to track download for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolDownload" },
+                extra: { toolId },
+            });
         }
     }
 
@@ -1046,51 +1168,29 @@ export class ToolRegistryManager extends EventEmitter {
             const now = new Date();
             const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-            // Insert or update the usage record
-            // This table should have a unique constraint on (tool_id, install_id, year_month)
-            const { error: usageError } = await this.supabase.from("tool_usage_tracking").upsert(
-                {
-                    tool_id: toolId,
-                    install_id: installId,
-                    year_month: yearMonth,
-                    last_used_at: now.toISOString(),
-                },
-                {
-                    onConflict: "tool_id,install_id,year_month",
-                },
-            );
+            // Single atomic RPC: upserts the usage row, recounts MAU, and updates tool_analytics
+            // — all in one DB round-trip with no race conditions.
+            const { error } = await this.supabase.rpc("track_tool_usage", {
+                p_tool_id: toolId,
+                p_install_id: installId,
+                p_year_month: yearMonth,
+                p_last_used_at: now.toISOString(),
+            });
 
-            if (usageError) {
-                throw usageError;
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
             }
 
-            // Now update the aggregated MAU count in tool_analytics
-            // Count distinct machines for this tool in the current month
-            const { count, error: countError } = await this.supabase.from("tool_usage_tracking").select("*", { count: "exact", head: true }).eq("tool_id", toolId).eq("year_month", yearMonth);
-
-            if (countError) {
-                throw countError;
-            }
-
-            // Update the tool_analytics table with current month's MAU
-            const { error: analyticsError } = await this.supabase.from("tool_analytics").upsert(
-                {
-                    tool_id: toolId,
-                    mau: count || 0,
-                },
-                {
-                    onConflict: "tool_id",
-                },
-            );
-
-            if (analyticsError) {
-                throw analyticsError;
-            }
-
-            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId} (MAU: ${count})`);
+            logInfo(`[ToolRegistry] Usage tracked successfully for ${toolId}`);
         } catch (error) {
             // Log but don't throw - analytics failures shouldn't break tool functionality
             logError(`[ToolRegistry] Failed to track usage for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "trackToolUsage" },
+                extra: { toolId },
+            });
         }
     }
 
