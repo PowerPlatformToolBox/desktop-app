@@ -1,9 +1,9 @@
 import * as Sentry from "@sentry/electron/main";
 import { app } from "electron";
 import { logWarn } from "../common/logger";
-import type { TelemetryConsentChoice } from "../common/types";
 import { getSentryConfig, scrubSentryEvent } from "../common/sentry";
 import { hasSentryTelemetryConsent, initializeSentryHelper, setSentryMachineId, setSentryTelemetryConsent } from "../common/sentryHelper";
+import type { TelemetryConsentChoice } from "../common/types";
 
 let isMainSentryInitialized = false;
 
@@ -29,7 +29,7 @@ export async function applyMainSentryConsent(consent: TelemetryConsentChoice | n
                 environment: sentryConfig.environment,
                 release: sentryConfig.release,
                 tracesSampleRate: sentryConfig.tracesSampleRate,
-                enableLogs: sentryConfig.environment === "development",
+                enableLogs: sentryConfig.environment !== "production",
                 integrations: [
                     Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
                     Sentry.httpIntegration(),

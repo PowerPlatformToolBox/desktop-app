@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/electron/renderer";
-import type { TelemetryConsentChoice } from "../../common/types";
 import { getSentryConfig, scrubSentryEvent } from "../../common/sentry";
 import { hasSentryTelemetryConsent, initializeSentryHelper, resetSentryHelper, setSentryTelemetryConsent } from "../../common/sentryHelper";
+import type { TelemetryConsentChoice } from "../../common/types";
 
 let isRendererSentryInitialized = false;
 
@@ -40,12 +40,8 @@ export async function applyRendererSentryConsent(consent: TelemetryConsentChoice
             tracesSampleRate: sentryConfig.tracesSampleRate,
             replaysSessionSampleRate: sentryConfig.replaysSessionSampleRate,
             replaysOnErrorSampleRate: sentryConfig.replaysOnErrorSampleRate,
-            enableLogs: sentryConfig.environment === "development",
-            integrations: [
-                Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }),
-                Sentry.browserTracingIntegration({ enableLongTask: true }),
-                Sentry.contextLinesIntegration(),
-            ],
+            enableLogs: sentryConfig.environment !== "production",
+            integrations: [Sentry.captureConsoleIntegration({ levels: ["error", "warn"] }), Sentry.browserTracingIntegration({ enableLongTask: true }), Sentry.contextLinesIntegration()],
             beforeSend(event) {
                 if (!hasSentryTelemetryConsent()) {
                     return null;

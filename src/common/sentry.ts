@@ -16,6 +16,17 @@ export interface SentryConfig {
     replaysOnErrorSampleRate?: number;
 }
 
+export type SentryEnvironment = "production" | "development" | "local";
+
+export function getSentryEnvironment(isPackaged?: boolean): SentryEnvironment {
+    const isLocal = isPackaged === false || (isPackaged === undefined && process.env.NODE_ENV === "development");
+    if (isLocal) {
+        return "local";
+    }
+
+    return process.env.PPTB_CHANNEL === "insider" ? "development" : "production";
+}
+
 /**
  * Get Sentry configuration from environment
  * Returns null if Sentry DSN is not configured
@@ -28,10 +39,9 @@ export function getSentryConfig(): SentryConfig | null {
         return null;
     }
 
-    // Determine environment (production, development, etc.)
-    // In Electron main process, we check if app is packaged
-    // In renderer process, we check NODE_ENV
-    let environment: string;
+    // In Electron main process, app.isPackaged distinguishes local runs.
+    // The renderer falls back to NODE_ENV because electron.app is unavailable there.
+    let environment: SentryEnvironment;
     let release = "unknown";
 
     // Try to detect if we're in main process by checking for electron module availability
@@ -40,14 +50,14 @@ export function getSentryConfig(): SentryConfig | null {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { app } = require("electron");
         if (app && typeof app.isPackaged !== "undefined") {
-            environment = app.isPackaged ? "production" : "development";
+            environment = getSentryEnvironment(app.isPackaged);
             release = `powerplatform-toolbox@${app.getVersion()}`;
         } else {
-            environment = process.env.NODE_ENV || "development";
+            environment = getSentryEnvironment();
         }
     } catch {
         // Failed to access electron.app - likely in renderer process
-        environment = process.env.NODE_ENV || "development";
+        environment = getSentryEnvironment();
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const pkg = require("../../package.json");
