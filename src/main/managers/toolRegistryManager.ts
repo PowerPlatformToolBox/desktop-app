@@ -973,7 +973,6 @@ export class ToolRegistryManager extends EventEmitter {
             features: manifestEntry.features,
             categories,
             license: manifestEntry.license,
-            
             status: manifestEntry.status,
             repository: manifestEntry.repository,
             website: manifestEntry.website,

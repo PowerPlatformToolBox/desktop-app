@@ -466,7 +466,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
             }
 
             // Get the target tool manifest
-            const tool = await ipcInvoke(TOOL_CHANNELS.GET_TOOL, targetToolId);
+            const tool = await ipcInvoke(TOOL_CHANNELS.GET_TOOL, targetToolId, callerInstanceId);
             if (!tool) {
                 throw new Error(`Tool not found: ${targetToolId}`);
             }

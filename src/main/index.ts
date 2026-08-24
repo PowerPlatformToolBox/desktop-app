@@ -21,6 +21,7 @@ import {
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { captureException, captureMessage } from "../common/sentryHelper";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -1005,8 +1006,44 @@ class ToolBoxApp {
             return this.toolManager.getAllTools();
         });
 
-        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId) => {
-            return this.toolManager.getTool(toolId);
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId: string, invocationCallerInstanceId?: string) => {
+            try {
+                const tool = this.toolManager.getTool(toolId);
+                if (invocationCallerInstanceId) {
+                    const logContext = { callerInstanceId: invocationCallerInstanceId, targetToolId: toolId };
+                    if (tool) {
+                        logInfo("[ToolInvocation] Target tool resolved", logContext);
+                    } else {
+                        logWarn("[ToolInvocation] Target tool was not found", logContext);
+                        captureMessage("Inter-tool invocation target was not found", "warning", {
+                            tags: { operation: "resolveInvocationTarget", tool_id: toolId },
+                            extra: logContext,
+                        });
+                        this.api.showNotification({
+                            title: "Tool Not Found",
+                            body: `The tool with ID '${toolId}' was not found. It may have been uninstalled or is not available in the current environment.`,
+                            type: "warning",
+                        });
+                    }
+                }
+                return tool;
+            } catch (error) {
+                if (invocationCallerInstanceId) {
+                    const lookupError = error instanceof Error ? error : new Error(String(error));
+                    const logContext = { callerInstanceId: invocationCallerInstanceId, targetToolId: toolId };
+                    logError("[ToolInvocation] Target tool lookup failed", { ...logContext, error: lookupError.message });
+                    captureException(lookupError, {
+                        tags: { operation: "resolveInvocationTarget", tool_id: toolId },
+                        extra: logContext,
+                    });
+                    this.api.showNotification({
+                        title: "Tool Lookup Failed",
+                        body: `Failed to look up the tool with ID '${toolId}'.`,
+                        type: "error",
+                    });
+                }
+                throw error;
+            }
         });
 
         ipcMain.handle(TOOL_CHANNELS.LOAD_TOOL, async (_, packageName) => {

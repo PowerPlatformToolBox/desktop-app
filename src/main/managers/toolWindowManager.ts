@@ -2,6 +2,7 @@ import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { captureException } from "../../common/sentryHelper";
 import { LastUsedToolConnectionInfo, Tool } from "../../common/types";
 import { ToolBoxEvent } from "../../common/types/events";
 import { BrowserviewProtocolManager } from "./browserviewProtocolManager";
@@ -344,7 +345,13 @@ export class ToolWindowManager {
      */
     async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null, prefillData?: Record<string, unknown>): Promise<boolean> {
         try {
-            logInfo(`[ToolWindowManager] Launching tool instance: ${instanceId}`);
+            logInfo("[ToolWindowManager] Tool launch started", {
+                instanceId,
+                toolId: tool.id,
+                hasPrimaryConnection: primaryConnectionId !== null,
+                hasSecondaryConnection: secondaryConnectionId !== null,
+                hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+            });
 
             // Extract actual toolId from instanceId (format: toolId-timestamp-random)
             const toolId = instanceId.split("-").slice(0, -2).join("-");
@@ -514,6 +521,18 @@ export class ToolWindowManager {
             return true;
         } catch (error) {
             logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: {
+                    operation: "launchTool",
+                    tool_id: tool.id,
+                },
+                extra: {
+                    instanceId,
+                    hasPrimaryConnection: primaryConnectionId !== null,
+                    hasSecondaryConnection: secondaryConnectionId !== null,
+                    hasPrefillData: prefillData !== undefined && Object.keys(prefillData).length > 0,
+                },
+            });
 
             return false;
         }
@@ -550,12 +569,32 @@ export class ToolWindowManager {
         noReturn?: boolean,
         invocationContext?: InvocationContextMetadata,
     ): Promise<unknown> {
+        const invocationLogContext = {
+            callerInstanceId,
+            calleeInstanceId,
+            targetToolId: tool.id,
+            mode: noReturn ? "one-way" : "two-way",
+            source: invocationContext?.source ?? "tool",
+            correlationId: invocationContext?.correlationId,
+            hasPrimaryConnectionOverride: primaryConnectionId !== null,
+            hasSecondaryConnectionOverride: secondaryConnectionId !== null,
+            hasPrefillData: Object.keys(prefillData).length > 0,
+        };
+
+        logInfo("[ToolWindowManager] Inter-tool invocation requested", invocationLogContext);
+
         // One-at-a-time enforcement
         if (this.activeCallees.has(callerInstanceId)) {
-            throw new Error("A callee invocation is already in progress");
+            const error = new Error("A callee invocation is already in progress");
+            logError("[ToolWindowManager] Inter-tool invocation rejected", { ...invocationLogContext, error: error.message });
+            captureException(error, {
+                tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "validation" },
+                extra: invocationLogContext,
+            });
+            throw error;
         }
 
-        // FXS connection auto-inheritance: use caller's primary connection when none is specified
+        // Use caller's primary connection when none is specified
         let effectivePrimaryConnectionId = primaryConnectionId ?? this.toolConnectionInfo.get(callerInstanceId)?.primaryConnectionId ?? null;
 
         // Multi-connection: if the callee requires a secondary connection but none was provided,
@@ -568,11 +607,18 @@ export class ToolWindowManager {
             const isSecondaryRequired = multiConnectionMode === "required";
             const requestId = `invocation-conn-${callerInstanceId}-${Date.now()}`;
             try {
+                logInfo("[ToolWindowManager] Inter-tool invocation awaiting connection selection", invocationLogContext);
                 const connectionResult = await this.promptForInvocationConnections(requestId, tool.name, isSecondaryRequired, effectivePrimaryConnectionId);
                 effectivePrimaryConnectionId = connectionResult.primaryConnectionId;
                 effectiveSecondaryConnectionId = connectionResult.secondaryConnectionId;
             } catch (err) {
-                throw new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                const error = new Error(`Connection selection cancelled: ${err instanceof Error ? err.message : String(err)}`);
+                logError("[ToolWindowManager] Inter-tool invocation connection selection failed", { ...invocationLogContext, error: error.message });
+                captureException(error, {
+                    tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "connection_selection" },
+                    extra: invocationLogContext,
+                });
+                throw error;
             }
         }
 
@@ -587,15 +633,23 @@ export class ToolWindowManager {
                 invocationContext,
             });
             this.activeCallees.set(callerInstanceId, calleeInstanceId);
+            logInfo("[ToolWindowManager] Inter-tool invocation launching target", {
+                ...invocationLogContext,
+                hasEffectivePrimaryConnection: effectivePrimaryConnectionId !== null,
+                hasEffectiveSecondaryConnection: effectiveSecondaryConnectionId !== null,
+            });
 
             this.launchTool(calleeInstanceId, tool, effectivePrimaryConnectionId, effectiveSecondaryConnectionId, prefillData)
                 .then((launched) => {
                     if (!launched) {
                         this.pendingInvocations.delete(calleeInstanceId);
                         this.activeCallees.delete(callerInstanceId);
-                        reject(new Error(`Failed to launch tool instance ${calleeInstanceId}`));
+                        const error = new Error(`Failed to launch tool instance ${calleeInstanceId}`);
+                        logError("[ToolWindowManager] Inter-tool invocation target launch failed", { ...invocationLogContext, error: error.message });
+                        reject(error);
                         return;
                     }
+                    logInfo("[ToolWindowManager] Inter-tool invocation target launched", invocationLogContext);
                     // Notify the renderer to create a tab for the callee so it appears as a
                     // separate instance (its own tab) rather than replacing the caller's view.
                     this.mainWindow.webContents.send(TOOL_WINDOW_CHANNELS.CALLEE_TOOL_OPENED, {
@@ -609,7 +663,13 @@ export class ToolWindowManager {
                 .catch((error) => {
                     this.pendingInvocations.delete(calleeInstanceId);
                     this.activeCallees.delete(callerInstanceId);
-                    reject(error as Error);
+                    const launchError = error instanceof Error ? error : new Error(String(error));
+                    logError("[ToolWindowManager] Inter-tool invocation target launch rejected", { ...invocationLogContext, error: launchError.message });
+                    captureException(launchError, {
+                        tags: { operation: "launchToolWithContext", tool_id: tool.id, failure_stage: "target_launch" },
+                        extra: invocationLogContext,
+                    });
+                    reject(launchError);
                 });
         });
     }
