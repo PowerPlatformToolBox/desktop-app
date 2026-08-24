@@ -848,6 +848,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         const manifest: ToolManifest = {
             id: tool.id || packageJson.name,
+            packageName: packageJson.name,
             name: tool.name || packageJson.displayName || packageJson.name,
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
@@ -946,8 +947,35 @@ export class ToolRegistryManager extends EventEmitter {
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
+        let packageName = manifestEntry.packageName;
         let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
         const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
+
+        if (!packageName && typeof manifestEntry.installPath === "string") {
+            try {
+                const toolsRoot = fs.realpathSync(this.toolsDirectory);
+                const installPath = fs.realpathSync(manifestEntry.installPath);
+                const relativeInstallPath = path.relative(toolsRoot, installPath);
+                const isWithinToolsDirectory = relativeInstallPath !== "" && !relativeInstallPath.startsWith(`..${path.sep}`) && relativeInstallPath !== ".." && !path.isAbsolute(relativeInstallPath);
+
+                if (isWithinToolsDirectory) {
+                    const packageJsonPath = fs.realpathSync(path.join(installPath, "package.json"));
+                    const relativePackageJsonPath = path.relative(installPath, packageJsonPath);
+                    const isWithinInstallPath =
+                        relativePackageJsonPath !== "" && !relativePackageJsonPath.startsWith(`..${path.sep}`) && relativePackageJsonPath !== ".." && !path.isAbsolute(relativePackageJsonPath);
+                    const packageJsonStats = fs.statSync(packageJsonPath);
+
+                    if (isWithinInstallPath && packageJsonStats.isFile() && packageJsonStats.size <= 1_048_576) {
+                        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) as { name?: unknown };
+                        if (typeof packageJson.name === "string" && packageJson.name.length > 0) {
+                            packageName = packageJson.name;
+                        }
+                    }
+                }
+            } catch {
+                // Legacy manifests may reference packages that are no longer present.
+            }
+        }
 
         if ((!authors || authors.length === 0) && legacyAuthor) {
             if (typeof legacyAuthor === "string") {
@@ -959,6 +987,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         return {
             id: manifestEntry.id,
+            packageName,
             name: manifestEntry.name,
             version: manifestEntry.version,
             description: manifestEntry.description,

@@ -119,6 +119,7 @@ export interface ToolRegistryEntry {
  */
 export interface ToolManifest {
     id: string;
+    packageName?: string; // Canonical package.json name used for inter-tool invocation lookup
     name: string;
     version: string;
     description: string;

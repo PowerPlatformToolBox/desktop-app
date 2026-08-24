@@ -224,6 +224,10 @@ export class ToolWindowManager {
                 prefillData: Record<string, unknown>,
                 noReturn?: boolean,
             ) => {
+                if (this.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
+                }
+
                 return this.launchToolWithContext(callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn);
             },
         );

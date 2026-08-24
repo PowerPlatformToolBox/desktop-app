@@ -346,6 +346,7 @@ class ToolBoxApp {
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
@@ -1006,42 +1007,46 @@ class ToolBoxApp {
             return this.toolManager.getAllTools();
         });
 
-        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId: string, invocationCallerInstanceId?: string) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId: string) => {
+            return this.toolManager.getTool(toolId);
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET, (event, targetIdentifier: string, callerInstanceId: string) => {
             try {
-                const tool = this.toolManager.getTool(toolId);
-                if (invocationCallerInstanceId) {
-                    const logContext = { callerInstanceId: invocationCallerInstanceId, targetToolId: toolId };
-                    if (tool) {
-                        logInfo("[ToolInvocation] Target tool resolved", logContext);
-                    } else {
-                        logWarn("[ToolInvocation] Target tool was not found", logContext);
-                        captureMessage("Inter-tool invocation target was not found", "warning", {
-                            tags: { operation: "resolveInvocationTarget", tool_id: toolId },
-                            extra: logContext,
-                        });
-                        this.api.showNotification({
-                            title: "Tool Not Found",
-                            body: `The tool with ID '${toolId}' was not found. It may have been uninstalled or is not available in the current environment.`,
-                            type: "warning",
-                        });
-                    }
+                if (!this.toolWindowManager || this.toolWindowManager.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
                 }
-                return tool;
-            } catch (error) {
-                if (invocationCallerInstanceId) {
-                    const lookupError = error instanceof Error ? error : new Error(String(error));
-                    const logContext = { callerInstanceId: invocationCallerInstanceId, targetToolId: toolId };
-                    logError("[ToolInvocation] Target tool lookup failed", { ...logContext, error: lookupError.message });
-                    captureException(lookupError, {
-                        tags: { operation: "resolveInvocationTarget", tool_id: toolId },
+
+                const tool = this.toolManager.resolveInvocationTarget(targetIdentifier);
+                const logContext = { callerInstanceId, targetIdentifier, resolvedToolId: tool?.id };
+                if (tool) {
+                    logInfo("[ToolInvocation] Target tool resolved", logContext);
+                } else {
+                    logWarn("[ToolInvocation] Target tool was not found", logContext);
+                    captureMessage("Inter-tool invocation target was not found", "warning", {
+                        tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
                         extra: logContext,
                     });
                     this.api.showNotification({
-                        title: "Tool Lookup Failed",
-                        body: `Failed to look up the tool with ID '${toolId}'.`,
-                        type: "error",
+                        title: "Tool Not Found",
+                        body: "The requested tool is not installed or available.",
+                        type: "warning",
                     });
                 }
+                return tool;
+            } catch (error) {
+                const lookupError = error instanceof Error ? error : new Error(String(error));
+                const logContext = { callerInstanceId, targetIdentifier };
+                logError("[ToolInvocation] Target tool lookup failed", { ...logContext, error: lookupError.message });
+                captureException(lookupError, {
+                    tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
+                    extra: logContext,
+                });
+                this.api.showNotification({
+                    title: "Tool Lookup Failed",
+                    body: "Failed to resolve the requested tool.",
+                    type: "error",
+                });
                 throw error;
             }
         });
