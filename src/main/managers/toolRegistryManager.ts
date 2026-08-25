@@ -35,6 +35,14 @@ interface SupabaseAnalyticsRow {
     mau?: number; // Monthly Active Users
 }
 
+interface SupabaseMaturityRow {
+    status?: string;
+}
+
+export function getSupabaseMaturityStatus(relation: SupabaseMaturityRow | SupabaseMaturityRow[] | undefined): string | undefined {
+    return (Array.isArray(relation) ? relation[0] : relation)?.status;
+}
+
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
@@ -81,6 +89,7 @@ interface SupabaseTool {
     website?: string;
     min_api?: string; // Minimum ToolBox API version required
     max_api?: string; // Maximum ToolBox API version tested
+    tool_maturity?: SupabaseMaturityRow | SupabaseMaturityRow[];
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -190,9 +199,10 @@ export class ToolRegistryManager extends EventEmitter {
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
         const key = supabaseKey || SUPABASE_ANON_KEY;
+        const useTestRegistry = process.env.PPTB_TEST_MODE === "1" && !!process.env.PPTB_TEST_REGISTRY_PATH;
 
         // Validate Supabase credentials and create client
-        if (!url || !key || url === "" || key === "") {
+        if (useTestRegistry || !url || !key || url === "" || key === "") {
             logWarn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
             logWarn("[ToolRegistry] Falling back to local registry.json file.");
             this.useLocalFallback = true;
@@ -347,6 +357,7 @@ export class ToolRegistryManager extends EventEmitter {
                     features: tool.features,
                     license: tool.license,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    maturity: tool.maturity,
                     marketplaceSourceId: source.id,
                     marketplaceSourceLabel: source.label,
                     marketplaceSourceType: source.type,
@@ -385,6 +396,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "min_api",
                 "max_api",
                 // embedded relations
+                "tool_maturity(status)",
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
                 "tool_analytics(downloads,rating,mau)",
@@ -444,6 +456,7 @@ export class ToolRegistryManager extends EventEmitter {
                     minAPI: tool.min_api, // Include min API version from database
                     maxAPI: tool.max_api, // Include max API version from database
                     npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
+                    maturity: getSupabaseMaturityStatus(tool.tool_maturity),
                 } as ToolRegistryEntry;
             });
 
@@ -460,6 +473,10 @@ export class ToolRegistryManager extends EventEmitter {
      * Azure Blob is tried first (when configured), then the local registry.json.
      */
     private async fetchFallbackRegistry(): Promise<ToolRegistryEntry[]> {
+        if (process.env.PPTB_TEST_MODE === "1" && process.env.PPTB_TEST_REGISTRY_PATH) {
+            return this.fetchLocalRegistry();
+        }
+
         if (this.azureBlobBaseUrl) {
             try {
                 const tools = await this.fetchAzureBlobRegistry();
@@ -529,6 +546,7 @@ export class ToolRegistryManager extends EventEmitter {
                 features: tool.features,
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                maturity: tool.maturity,
             }));
 
         logInfo(`[ToolRegistry] Fetched ${tools.length} tools from Azure Blob registry`);
@@ -627,6 +645,7 @@ export class ToolRegistryManager extends EventEmitter {
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 minAPI: tool.minAPI,
                 maxAPI: tool.maxAPI,
+                maturity: tool.maturity,
             }));
     }
 
@@ -874,6 +893,7 @@ export class ToolRegistryManager extends EventEmitter {
             marketplaceSourceId: tool.marketplaceSourceId,
             marketplaceSourceLabel: tool.marketplaceSourceLabel,
             marketplaceSourceType: tool.marketplaceSourceType,
+            maturity: tool.maturity,
         };
 
         // Save to manifest file

@@ -137,8 +137,9 @@ class ToolBoxApp {
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
+            const testToolsDirectory = process.env.PPTB_TEST_MODE === "1" ? process.env.PPTB_TEST_TOOLS_DIRECTORY : undefined;
             this.toolManager = new ToolManager(
-                path.join(app.getPath("userData"), "tools"),
+                testToolsDirectory || path.join(app.getPath("userData"), "tools"),
                 process.env.SUPABASE_URL,
                 process.env.SUPABASE_ANON_KEY,
                 this.installIdManager,
