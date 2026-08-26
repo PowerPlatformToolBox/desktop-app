@@ -5,6 +5,7 @@ import { logError, logInfo } from "../../common/logger";
 import { normalizeCspExceptionSource } from "../../common/types";
 import { SettingsManager } from "./settingsManager";
 import { ToolManager } from "./toolsManager";
+import { resolveNpmPackageDirectoryName } from "../utilities/npmPackagePath";
 
 /**
  * BrowserviewProtocolManager
@@ -207,7 +208,7 @@ export class BrowserviewProtocolManager {
              * - "my-tool" => "my-tool"
              * - "@scope/my-tool" => "@scope/my-tool"
              */
-            const packageDirName = tool.npmPackageName.replace(/@?([^@]+)(?:@[\d.]+)?$/, "");
+            const packageDirName = resolveNpmPackageDirectoryName(tool.npmPackageName);
 
             // Npm-installed tool (debug mode)
             return path.join(this.toolsDir, "node_modules", packageDirName);
