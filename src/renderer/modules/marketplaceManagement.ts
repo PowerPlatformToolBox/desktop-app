@@ -11,6 +11,7 @@ import { formatRatingMarkup } from "../utils/rating";
 import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
+import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -66,6 +67,7 @@ export async function loadToolsLibrary(): Promise<void> {
                     marketplaceSourceId: tool.marketplaceSourceId,
                     marketplaceSourceLabel: tool.marketplaceSourceLabel,
                     marketplaceSourceType: tool.marketplaceSourceType,
+                    maturity: tool.maturity,
                 }) as ToolDetail,
         );
 
@@ -83,6 +85,8 @@ export async function loadToolsLibrary(): Promise<void> {
 export async function loadMarketplace(): Promise<void> {
     const marketplaceList = document.getElementById("marketplace-tools-list");
     if (!marketplaceList) return;
+
+    await loadToolsLibrary();
 
     // Check if toolLibrary is empty (failed to load from registry)
     if (!toolLibrary || toolLibrary.length === 0) {
@@ -109,6 +113,7 @@ export async function loadMarketplace(): Promise<void> {
     const authorFilter = document.getElementById("marketplace-author-filter") as HTMLSelectElement | null;
     const newFilter = document.getElementById("marketplace-new-filter") as HTMLInputElement | null;
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
     const privateMarketplaceFilterRow = document.getElementById("marketplace-private-marketplace-filter-row") as HTMLElement | null;
     const sortSelect = document.getElementById("marketplace-sort-select") as HTMLSelectElement | null;
@@ -127,11 +132,12 @@ export async function loadMarketplace(): Promise<void> {
     const selectedAuthor = authorFilter?.value || "";
     const showNewOnly = newFilter?.checked || false;
     const showMcpEnabledOnly = mcpEnabledFilter?.checked || false;
+    const showVerifiedOnly = verifiedOnlyFilter?.checked || false;
     const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && (privateMarketplaceFilter?.checked || false);
     const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
 
     // Update filter button indicator and one-click clear button visibility
-    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly);
+    const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly);
     const marketplaceFilterBtn = document.getElementById("marketplace-filter-btn");
     if (marketplaceFilterBtn) {
         marketplaceFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -187,6 +193,10 @@ export async function loadMarketplace(): Promise<void> {
             return false;
         }
 
+        if (showVerifiedOnly && !isVerifiedTool(t.maturity)) {
+            return false;
+        }
+
         if (showPrivateMarketplaceOnly && t.marketplaceSourceType !== "private") {
             return false;
         }
@@ -203,6 +213,9 @@ export async function loadMarketplace(): Promise<void> {
 
     // Sort tools based on selected option
     filteredTools = filteredTools.sort((a, b) => {
+        const maturityComparison = compareVerifiedFirst(a.maturity, b.maturity);
+        if (maturityComparison !== 0) return maturityComparison;
+
         switch (sortOption) {
             case "name-asc":
                 return a.name.localeCompare(b.name);
@@ -225,7 +238,7 @@ export async function loadMarketplace(): Promise<void> {
     // Show empty state if no tools match the search
     if (filteredTools.length === 0) {
         const hasSearchTerm = searchTerm.length > 0;
-        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly;
+        const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showNewOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly;
         const emptyMessage = hasSearchTerm ? "Try a different search term." : hasActiveFilters ? "No tools match the current filters." : "Check back later for new tools.";
         marketplaceList.innerHTML = `
             <div class="empty-state">
@@ -254,6 +267,8 @@ export async function loadMarketplace(): Promise<void> {
             const isDarkTheme = document.body.classList.contains("dark-theme");
             const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
             const mcpHeadlessEnabled = tool.mcpHeadlessEnabled === true;
+            const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
+            const verifiedClass = isVerifiedTool(tool.maturity) ? "verified" : "";
             const mcpBadgeHtml = mcpHeadlessEnabled
                 ? `<span class="tool-mcp-headless-badge" title="MCP headless enabled" aria-label="MCP headless enabled"><img src="${mcpIconPath}" alt="" aria-hidden="true" /><span>MCP</span></span>`
                 : "";
@@ -286,12 +301,12 @@ export async function loadMarketplace(): Promise<void> {
             if (displayMode === "compact") {
                 // Compact mode: icon, name, version, author only
                 return `
-        <div class="marketplace-item-pptb marketplace-item-compact ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb marketplace-item-compact ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
                     <div class="marketplace-item-name-pptb">
-                        ${tool.name}
+                        ${tool.name}${verifiedBadgeHtml}
                     </div>
                     <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
@@ -312,12 +327,12 @@ export async function loadMarketplace(): Promise<void> {
 
             // Standard mode: full details
             return `
-        <div class="marketplace-item-pptb ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
+        <div class="marketplace-item-pptb ${verifiedClass} ${isInstalled ? "installed" : ""} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""}" data-tool-id="${tool.id}">
             <div class="marketplace-item-header-pptb">
                 <span class="marketplace-item-icon-pptb">${toolIconHtml}</span>
                 <div class="marketplace-item-info-pptb">
                     <div class="marketplace-item-name-pptb">
-                        ${tool.name}
+                        ${tool.name}${verifiedBadgeHtml}
                     </div>
                     <div class="marketplace-item-version-pptb">v${tool.version}</div>
                 </div>
@@ -444,6 +459,13 @@ export async function loadMarketplace(): Promise<void> {
     if (mcpEnabledFilter && !(mcpEnabledFilter as any)._pptbBound) {
         (mcpEnabledFilter as any)._pptbBound = true;
         mcpEnabledFilter.addEventListener("change", () => {
+            loadMarketplace();
+        });
+    }
+
+    if (verifiedOnlyFilter && !(verifiedOnlyFilter as any)._pptbBound) {
+        (verifiedOnlyFilter as any)._pptbBound = true;
+        verifiedOnlyFilter.addEventListener("change", () => {
             loadMarketplace();
         });
     }
@@ -790,6 +812,11 @@ function clearMarketplaceFilters(): void {
         mcpEnabledFilter.checked = false;
     }
 
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
+    }
+
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;
     if (privateMarketplaceFilter) {
         privateMarketplaceFilter.checked = false;
@@ -826,6 +853,11 @@ export function clearMarketplaceDropdownFilters(): void {
     const mcpEnabledFilter = document.getElementById("marketplace-mcp-enabled-filter") as HTMLInputElement | null;
     if (mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
+    }
+
+    const verifiedOnlyFilter = document.getElementById("marketplace-verified-only-filter") as HTMLInputElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
     }
 
     const privateMarketplaceFilter = document.getElementById("marketplace-private-marketplace-filter") as HTMLInputElement | null;

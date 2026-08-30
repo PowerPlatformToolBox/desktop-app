@@ -113,4 +113,5 @@ export interface ToolDetail {
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }

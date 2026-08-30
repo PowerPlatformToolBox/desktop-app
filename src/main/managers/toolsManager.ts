@@ -95,6 +95,7 @@ export class ToolManager extends EventEmitter {
             marketplaceSourceId: manifest.marketplaceSourceId,
             marketplaceSourceLabel: manifest.marketplaceSourceLabel,
             marketplaceSourceType: manifest.marketplaceSourceType,
+            maturity: manifest.maturity,
         };
 
         const cached = this.analyticsCache.get(tool.id);
