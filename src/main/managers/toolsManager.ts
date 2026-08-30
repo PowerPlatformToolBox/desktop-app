@@ -237,6 +237,31 @@ export class ToolManager extends EventEmitter {
         return undefined;
     }
 
+    resolveInvocationTarget(targetIdentifier: string): Tool | undefined {
+        const toolById = this.getTool(targetIdentifier);
+        if (toolById) {
+            return toolById;
+        }
+
+        const matchingTools = new Map<string, Tool>();
+        this.tools.forEach((tool) => {
+            if (tool.npmPackageName === targetIdentifier) {
+                matchingTools.set(tool.id, tool);
+            }
+        });
+        this.registryManager.getInstalledToolsSync().forEach((manifest) => {
+            if (manifest.packageName === targetIdentifier && !matchingTools.has(manifest.id)) {
+                matchingTools.set(manifest.id, this.createToolFromInstalledManifest(manifest));
+            }
+        });
+
+        if (matchingTools.size > 1) {
+            throw new Error(`Multiple installed tools match package name: ${targetIdentifier}`);
+        }
+
+        return matchingTools.values().next().value;
+    }
+
     getInstalledManifestSync(toolId: string): ToolManifest | null {
         return this.registryManager.getInstalledManifestSync(toolId);
     }
@@ -728,7 +753,7 @@ export class ToolManager extends EventEmitter {
             description: packageJson.description || "Tool installed from npm",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
-            npmPackageName: packageName, // Store the npm package name for loading
+            npmPackageName: packageJson.name, // Store the canonical npm package name for loading and invocation lookup
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
@@ -957,6 +982,7 @@ export class ToolManager extends EventEmitter {
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
             localPath: localPath, // Store the local path for loading
+            npmPackageName: packageJson.name, // Store the canonical npm package name for invocation lookup
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
             repository: typeof packageJson.repository === "string" ? packageJson.repository : packageJson.repository?.url,
