@@ -288,7 +288,7 @@ export function getTroubleshootingModalView(model: TroubleshootingModalViewModel
                     </svg>
                 </div>
                 <div class="check-content">
-                    <p class="check-name">Tool Download from GitHub Releases</p>
+                    <p class="check-name">Tool Download from Azure Blob Storage package connectivity</p>
                     <p class="check-message" id="check-download-message">Ready to check</p>
                 </div>
             </div>

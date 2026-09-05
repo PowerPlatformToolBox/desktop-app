@@ -3317,15 +3317,21 @@ class ToolBoxApp {
     }
 
     /**
-     * Check tool download capability
-     * Tests downloading a tool package from Azure Blob Storage (when configured) or
-     * falls back to checking reachability of the registry endpoint.
+     * Check Azure Blob Storage connectivity for tool package downloads.
+     * Tool packages are hosted in Azure Blob Storage rather than GitHub Releases.
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
         const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
-        const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
-            ? `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`
-            : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/test/pptb-standard-sample-tool-download-test.tar.gz";
+
+        if (!azureBlobBaseUrl) {
+            logWarn("[Troubleshooting] Azure Blob Storage is not configured for package download checks");
+            return {
+                success: false,
+                message: "Azure Blob Storage is not configured for tool package connectivity checks.",
+            };
+        }
+
+        const TEST_TOOL_DOWNLOAD_URL = `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`;
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
         const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-download-test.tar.gz");
 
@@ -3334,8 +3340,7 @@ class ToolBoxApp {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
-            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
+            logInfo(`[Troubleshooting] Testing Azure Blob Storage package download: ${TEST_TOOL_DOWNLOAD_URL}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -3393,7 +3398,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully downloaded tool package from ${azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release"} (${fileSizeMB} MB)`,
+                message: `Successfully validated Azure Blob Storage package connectivity (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {
@@ -3401,13 +3406,13 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logWarn("[Troubleshooting] Failed to clean up download test artifacts");
+                logWarn("[Troubleshooting] Failed to clean up Azure Blob download test artifacts");
             }
 
             logError(error as Error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Unknown error during download test",
+                message: error instanceof Error ? error.message : "Unknown error during Azure Blob Storage connectivity test",
             };
         }
     }
