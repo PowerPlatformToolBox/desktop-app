@@ -70,7 +70,6 @@ export interface Tool {
     repository?: string;
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required
-    maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
@@ -107,7 +106,6 @@ export interface ToolRegistryEntry {
     repository?: string;
     website?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
     npmPackageName?: string; // npm package name used for pre-release version detection
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
@@ -142,7 +140,6 @@ export interface ToolManifest {
     publishedAt?: string;
     createdAt?: string;
     minAPI?: string; // Minimum ToolBox API version required (from features.minAPI)
-    maxAPI?: string; // Maximum ToolBox API version tested (from npm-shrinkwrap @pptb/types version)
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
     /** Invocation capability tags declared in pptb.config.json (e.g. ["entity-picker"]). */
     capabilities?: string[];

@@ -88,8 +88,7 @@ export class ToolManager extends EventEmitter {
             publishedAt: manifest.publishedAt,
             createdAt: manifest.createdAt,
             minAPI: manifest.minAPI,
-            maxAPI: manifest.maxAPI,
-            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            isSupported: VersionManager.isToolSupported(manifest.minAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
             marketplaceSourceId: manifest.marketplaceSourceId,
@@ -163,8 +162,7 @@ export class ToolManager extends EventEmitter {
             website: manifest.website,
             readmeUrl: manifest.readme,
             minAPI: manifest.minAPI,
-            maxAPI: manifest.maxAPI,
-            isSupported: VersionManager.isToolSupported(manifest.minAPI, manifest.maxAPI),
+            isSupported: VersionManager.isToolSupported(manifest.minAPI),
             mcpHeadlessEnabled: manifest.mcpHeadlessEnabled,
             capabilities: manifest.capabilities,
             marketplaceSourceId: manifest.marketplaceSourceId,
@@ -224,7 +222,7 @@ export class ToolManager extends EventEmitter {
         const tool = this.tools.get(toolId);
         if (tool) {
             // Always recompute isSupported in case ToolBox version changed
-            tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+            tool.isSupported = VersionManager.isToolSupported(tool.minAPI);
             return tool;
         }
 
@@ -253,7 +251,7 @@ export class ToolManager extends EventEmitter {
             const loaded = this.tools.get(manifest.id);
             if (loaded) {
                 // Always recompute isSupported in case ToolBox version changed
-                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI, loaded.maxAPI);
+                loaded.isSupported = VersionManager.isToolSupported(loaded.minAPI);
                 toolsById.set(manifest.id, loaded);
             } else {
                 toolsById.set(manifest.id, this.createToolFromInstalledManifest(manifest));
@@ -265,7 +263,7 @@ export class ToolManager extends EventEmitter {
         this.tools.forEach((tool, id) => {
             if (!toolsById.has(id)) {
                 // Recompute isSupported for these tools too
-                tool.isSupported = VersionManager.isToolSupported(tool.minAPI, tool.maxAPI);
+                tool.isSupported = VersionManager.isToolSupported(tool.minAPI);
                 toolsById.set(id, tool);
             }
         });
@@ -299,7 +297,7 @@ export class ToolManager extends EventEmitter {
         return registryTools.map((registryTool) => {
             const tool: Tool = {
                 ...registryTool,
-                isSupported: VersionManager.isToolSupported(registryTool.minAPI, registryTool.maxAPI),
+                isSupported: VersionManager.isToolSupported(registryTool.minAPI),
             };
             return tool;
         });

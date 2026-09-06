@@ -80,7 +80,6 @@ interface SupabaseTool {
     repository?: string;
     website?: string;
     min_api?: string; // Minimum ToolBox API version required
-    max_api?: string; // Maximum ToolBox API version tested
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -383,7 +382,6 @@ export class ToolRegistryManager extends EventEmitter {
                 "repository",
                 "website",
                 "min_api",
-                "max_api",
                 // embedded relations
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
@@ -442,7 +440,6 @@ export class ToolRegistryManager extends EventEmitter {
                     mau,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                     minAPI: tool.min_api, // Include min API version from database
-                    maxAPI: tool.max_api, // Include max API version from database
                     npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
                 } as ToolRegistryEntry;
             });
@@ -626,7 +623,6 @@ export class ToolRegistryManager extends EventEmitter {
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 minAPI: tool.minAPI,
-                maxAPI: tool.maxAPI,
             }));
     }
 
@@ -827,10 +823,9 @@ export class ToolRegistryManager extends EventEmitter {
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
         const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
-        const maxAPI: string | undefined = tool.maxAPI; // From Supabase tools table (max_api column)
 
         // Log if version info is missing (informational only, tools will still work as legacy)
-        if (!minAPI && !maxAPI) {
+        if (!minAPI) {
             logInfo(`[ToolRegistry] Tool ${toolId} does not have version information in registry. Tool will be treated as compatible with all versions (legacy behavior).`);
         }
 
@@ -868,7 +863,6 @@ export class ToolRegistryManager extends EventEmitter {
             createdAt: tool.createdAt,
             publishedAt: tool.publishedAt,
             minAPI, // Minimum API version required
-            maxAPI, // Maximum API version tested (from @pptb/types)
             mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
             marketplaceSourceId: tool.marketplaceSourceId,
@@ -982,7 +976,6 @@ export class ToolRegistryManager extends EventEmitter {
             publishedAt: manifestEntry.publishedAt,
             createdAt: manifestEntry.createdAt,
             minAPI: manifestEntry.minAPI,
-            maxAPI: manifestEntry.maxAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,

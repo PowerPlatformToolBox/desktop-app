@@ -106,7 +106,6 @@ export interface ToolDetail {
     website?: string;
     createdAt?: string; // ISO date string from created_at field
     minAPI?: string; // Minimum ToolBox API version required
-    maxAPI?: string; // Maximum ToolBox API version tested
     isSupported?: boolean; // Whether this tool is compatible with current ToolBox version
     npmPackageName?: string; // npm package name used for pre-release version detection
     mcpHeadlessEnabled?: boolean; // Whether this tool supports MCP headless execution
