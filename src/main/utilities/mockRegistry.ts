@@ -31,7 +31,6 @@ export interface OfflineMockRegistryTool {
     features?: Record<string, unknown>;
     status?: string;
     minAPI?: string;
-    maxAPI?: string;
     maturity?: string;
 }
 
