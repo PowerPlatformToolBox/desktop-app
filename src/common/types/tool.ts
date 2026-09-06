@@ -77,6 +77,7 @@ export interface Tool {
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**
@@ -110,6 +111,7 @@ export interface ToolRegistryEntry {
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**
@@ -117,6 +119,7 @@ export interface ToolRegistryEntry {
  */
 export interface ToolManifest {
     id: string;
+    packageName?: string; // Canonical package.json name used for inter-tool invocation lookup
     name: string;
     version: string;
     description: string;
@@ -146,6 +149,7 @@ export interface ToolManifest {
     marketplaceSourceId?: string;
     marketplaceSourceLabel?: string;
     marketplaceSourceType?: "builtin" | "private";
+    maturity?: string;
 }
 
 /**

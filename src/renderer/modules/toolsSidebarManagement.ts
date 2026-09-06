@@ -9,8 +9,9 @@ import { formatRatingMarkup } from "../utils/rating";
 import { normalizeRepositoryUrl } from "../utils/repositoryUrl";
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResolver";
+import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
-import { getToolLibrary, loadMarketplace, openToolDetail } from "./marketplaceManagement";
+import { getToolLibrary, loadMarketplace, loadToolsLibrary, openToolDetail } from "./marketplaceManagement";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
@@ -26,6 +27,7 @@ export async function loadSidebarTools(): Promise<void> {
     if (!toolsList) return;
 
     try {
+        await loadToolsLibrary();
         const tools = await window.toolboxAPI.getAllTools();
         const favoriteTools = await window.toolboxAPI.getFavoriteTools();
         const deprecatedToolsVisibility = (await window.toolboxAPI.getSetting("deprecatedToolsVisibility")) || "hide-all";
@@ -47,6 +49,7 @@ export async function loadSidebarTools(): Promise<void> {
         }
 
         // Enrich tools with update info and favorite status
+        const currentMaturityByToolId = new Map(getToolLibrary().map((tool) => [tool.id, tool.maturity]));
         const toolsWithUpdateInfo = await Promise.all(
             tools.map(async (tool: ToolDetail) => {
                 const updateInfo = await window.toolboxAPI.checkToolUpdates(tool.id);
@@ -58,6 +61,7 @@ export async function loadSidebarTools(): Promise<void> {
                     hasUpdate: updateInfo.hasUpdate,
                     isFavorite: favoriteTools.includes(tool.id),
                     isUpdating,
+                    maturity: currentMaturityByToolId.get(tool.id),
                 };
             }),
         );
@@ -69,6 +73,7 @@ export async function loadSidebarTools(): Promise<void> {
         const sortSelect = document.getElementById("tools-sort-select") as HTMLSelectElement | null;
         const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
         const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+        const verifiedOnlyFilter = document.getElementById("tools-verified-only-filter") as CheckboxElement | null;
         const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
         const privateMarketplaceFilterRow = document.getElementById("tools-private-marketplace-filter-row") as HTMLElement | null;
         const userSettings = await window.toolboxAPI.getUserSettings();
@@ -86,10 +91,11 @@ export async function loadSidebarTools(): Promise<void> {
         const selectedAuthor = authorFilter?.value || "";
         const showUpdateRequiredOnly = !!updateRequiredFilter?.checked;
         const showMcpEnabledOnly = !!mcpEnabledFilter?.checked;
+        const showVerifiedOnly = !!verifiedOnlyFilter?.checked;
         const showPrivateMarketplaceOnly = hasConfiguredPrivateMarketplace && !!privateMarketplaceFilter?.checked;
 
         // Update filter button indicator and one-click clear button visibility
-        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly);
+        const hasDropdownFilters = !!(selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly);
         const toolsFilterBtn = document.getElementById("tools-filter-btn");
         if (toolsFilterBtn) {
             toolsFilterBtn.classList.toggle("has-active-filters", hasDropdownFilters);
@@ -143,6 +149,10 @@ export async function loadSidebarTools(): Promise<void> {
                 return false;
             }
 
+            if (showVerifiedOnly && !isVerifiedTool(t.maturity)) {
+                return false;
+            }
+
             if (showPrivateMarketplaceOnly && t.marketplaceSourceType !== "private") {
                 return false;
             }
@@ -178,6 +188,8 @@ export async function loadSidebarTools(): Promise<void> {
                 case "downloads":
                     // Sort by downloads - higher is better
                     return (b.downloads || 0) - (a.downloads || 0);
+                case "maturity":
+                    return compareVerifiedFirst(a.maturity, b.maturity) || a.name.localeCompare(b.name);
                 default:
                     return a.name.localeCompare(b.name);
             }
@@ -186,7 +198,7 @@ export async function loadSidebarTools(): Promise<void> {
         // Empty state when no matches after filtering
         if (sortedTools.length === 0) {
             const hasSearchTerm = searchTerm.length > 0;
-            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showPrivateMarketplaceOnly;
+            const hasActiveFilters = hasSearchTerm || selectedCategory || selectedAuthor || showUpdateRequiredOnly || showMcpEnabledOnly || showVerifiedOnly || showPrivateMarketplaceOnly;
             const emptyMessage = hasSearchTerm ? `No installed tools match "${searchTerm}".` : hasActiveFilters ? "No tools match the current filters." : "Try a different search term.";
             toolsList.innerHTML = `
                 <div class="empty-state">
@@ -228,6 +240,8 @@ export async function loadSidebarTools(): Promise<void> {
             .map((tool: ToolDetail & { hasUpdate?: boolean; latestVersion?: string; isFavorite?: boolean; isUpdating?: boolean }) => {
                 const isDarkTheme = document.body.classList.contains("dark-theme");
                 const mcpIconPath = isDarkTheme ? "icons/dark/mcp.svg" : "icons/light/mcp.svg";
+                const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
+                const verifiedClass = isVerifiedTool(tool.maturity) ? "verified" : "";
 
                 // Icon handling using utility function
                 const defaultToolIcon = isDarkTheme ? "icons/dark/tool-default.svg" : "icons/light/tool-default.svg";
@@ -304,14 +318,14 @@ export async function loadSidebarTools(): Promise<void> {
                 if (displayMode === "compact") {
                     // Compact mode: icon, name, version, author only
                     return `
-                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
+                    <div class="tool-item-pptb tool-item-compact ${toolSourceClass} ${verifiedClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name}
+                                        ${tool.name}${verifiedBadgeHtml}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -343,14 +357,14 @@ export async function loadSidebarTools(): Promise<void> {
 
                 // Standard mode: full details
                 return `
-                    <div class="tool-item-pptb ${toolSourceClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
+                    <div class="tool-item-pptb ${toolSourceClass} ${verifiedClass} ${isDeprecated ? "deprecated" : ""} ${isUnsupported ? "unsupported" : ""} ${isUpdating ? "tool-item-updating" : ""}" data-tool-id="${tool.id}" ${updatingAriaAttrs}>
                         ${updatingOverlayHtml}
                         <div class="tool-item-header-pptb">
                             <div class="tool-item-header-left-pptb">
                                 <span class="tool-item-icon-pptb">${toolIconHtml}</span>
                                 <div class="tool-item-info-pptb">
                                     <div class="tool-item-name-pptb">
-                                        ${tool.name}
+                                        ${tool.name}${verifiedBadgeHtml}
                                     </div>
                                     <div class="tool-item-version-pptb">v${tool.version}</div>
                                 </div>
@@ -468,6 +482,7 @@ export async function loadSidebarTools(): Promise<void> {
     const authorFilter = document.getElementById("tools-author-filter") as HTMLSelectElement | null;
     const updateRequiredFilter = document.getElementById("tools-update-required-filter") as CheckboxElement | null;
     const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
+    const verifiedOnlyFilter = document.getElementById("tools-verified-only-filter") as CheckboxElement | null;
     const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
 
     if (searchInput && !(searchInput as any)._pptbBound) {
@@ -502,6 +517,13 @@ export async function loadSidebarTools(): Promise<void> {
     if (mcpEnabledFilter && !mcpEnabledFilter._pptbBound) {
         mcpEnabledFilter._pptbBound = true;
         mcpEnabledFilter.addEventListener("change", () => {
+            loadSidebarTools();
+        });
+    }
+
+    if (verifiedOnlyFilter && !verifiedOnlyFilter._pptbBound) {
+        verifiedOnlyFilter._pptbBound = true;
+        verifiedOnlyFilter.addEventListener("change", () => {
             loadSidebarTools();
         });
     }
@@ -837,6 +859,11 @@ function clearAllFilters(): void {
         mcpEnabledFilter.checked = false;
     }
 
+    const verifiedOnlyFilter = document.getElementById("tools-verified-only-filter") as CheckboxElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
+    }
+
     const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;
     if (privateMarketplaceFilter) {
         privateMarketplaceFilter.checked = false;
@@ -871,6 +898,11 @@ export function clearInstalledToolsDropdownFilters(): void {
     const mcpEnabledFilter = document.getElementById("tools-mcp-enabled-filter") as CheckboxElement | null;
     if (mcpEnabledFilter) {
         mcpEnabledFilter.checked = false;
+    }
+
+    const verifiedOnlyFilter = document.getElementById("tools-verified-only-filter") as CheckboxElement | null;
+    if (verifiedOnlyFilter) {
+        verifiedOnlyFilter.checked = false;
     }
 
     const privateMarketplaceFilter = document.getElementById("tools-private-marketplace-filter") as CheckboxElement | null;

@@ -1,0 +1,59 @@
+{
+    "version": "1.0.0",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
+    "description": "Deterministic maturity-model E2E registry",
+    "tools": [
+        {
+            "id": "alpha-unverified",
+            "name": "Alpha Unverified",
+            "description": "An explicitly unverified test tool.",
+            "authors": [
+                "PPTB Tests"
+            ],
+            "version": "1.0.0",
+            "downloadUrl": "https://example.test/alpha-unverified.tar.gz",
+            "publishedAt": "2026-01-01T00:00:00.000Z",
+            "status": "active",
+            "maturity": "unverified"
+        },
+        {
+            "id": "bravo-verified",
+            "name": "Bravo Verified",
+            "description": "A verified test tool.",
+            "authors": [
+                "PPTB Tests"
+            ],
+            "version": "1.0.0",
+            "downloadUrl": "https://example.test/bravo-verified.tar.gz",
+            "publishedAt": "2026-01-01T00:00:00.000Z",
+            "status": "active",
+            "maturity": "verified"
+        },
+        {
+            "id": "community-recommended",
+            "name": "Community Recommended",
+            "description": "A future maturity tier test tool.",
+            "authors": [
+                "PPTB Tests"
+            ],
+            "version": "1.0.0",
+            "downloadUrl": "https://example.test/community-recommended.tar.gz",
+            "publishedAt": "2026-01-01T00:00:00.000Z",
+            "status": "active",
+            "maturity": "community_recommended"
+        },
+        {
+            "id": "zulu-verified",
+            "name": "Zulu Verified",
+            "description": "A second verified test tool.",
+            "authors": [
+                "PPTB Tests"
+            ],
+            "version": "1.0.0",
+            "downloadUrl": "https://example.test/zulu-verified.tar.gz",
+            "publishedAt": "2026-01-01T00:00:00.000Z",
+            "status": "active",
+            "maturity": "verified"
+        }
+    ]
+}

@@ -21,6 +21,7 @@ import {
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { captureException, captureMessage } from "../common/sentryHelper";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -137,8 +138,9 @@ class ToolBoxApp {
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
+            const testToolsDirectory = process.env.PPTB_TEST_MODE === "1" ? process.env.PPTB_TEST_TOOLS_DIRECTORY : undefined;
             this.toolManager = new ToolManager(
-                path.join(app.getPath("userData"), "tools"),
+                testToolsDirectory || path.join(app.getPath("userData"), "tools"),
                 process.env.SUPABASE_URL,
                 process.env.SUPABASE_ANON_KEY,
                 this.installIdManager,
@@ -345,6 +347,7 @@ class ToolBoxApp {
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
@@ -1005,8 +1008,48 @@ class ToolBoxApp {
             return this.toolManager.getAllTools();
         });
 
-        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId: string) => {
             return this.toolManager.getTool(toolId);
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET, (event, targetIdentifier: string, callerInstanceId: string) => {
+            try {
+                if (!this.toolWindowManager || this.toolWindowManager.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
+                }
+
+                const tool = this.toolManager.resolveInvocationTarget(targetIdentifier);
+                const logContext = { callerInstanceId, targetIdentifier, resolvedToolId: tool?.id };
+                if (tool) {
+                    logInfo("[ToolInvocation] Target tool resolved", logContext);
+                } else {
+                    logWarn("[ToolInvocation] Target tool was not found", logContext);
+                    captureMessage("Inter-tool invocation target was not found", "warning", {
+                        tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
+                        extra: logContext,
+                    });
+                    this.api.showNotification({
+                        title: "Tool Not Found",
+                        body: "The requested tool is not installed or available.",
+                        type: "warning",
+                    });
+                }
+                return tool;
+            } catch (error) {
+                const lookupError = error instanceof Error ? error : new Error(String(error));
+                const logContext = { callerInstanceId, targetIdentifier };
+                logError("[ToolInvocation] Target tool lookup failed", { ...logContext, error: lookupError.message });
+                captureException(lookupError, {
+                    tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
+                    extra: logContext,
+                });
+                this.api.showNotification({
+                    title: "Tool Lookup Failed",
+                    body: "Failed to resolve the requested tool.",
+                    type: "error",
+                });
+                throw error;
+            }
         });
 
         ipcMain.handle(TOOL_CHANNELS.LOAD_TOOL, async (_, packageName) => {
@@ -3274,25 +3317,43 @@ class ToolBoxApp {
     }
 
     /**
-     * Check tool download capability
-     * Tests downloading a tool package from Azure Blob Storage (when configured) or
-     * falls back to checking reachability of the registry endpoint.
+     * Check tool package download connectivity by downloading the real Sample Standard
+     * Tool package from the registry's resolved download URL (Azure Blob Storage).
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
-        const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
-            ? `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`
-            : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/test/pptb-standard-sample-tool-download-test.tar.gz";
+        const SAMPLE_TOOL_ID = "pptb-standard-sample-tool";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
-        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-download-test.tar.gz");
+
+        let downloadUrl: string;
+        try {
+            const registryTools = await this.toolManager.getRegistryManager().fetchRegistry();
+            const sampleTool = registryTools.find((t) => t.id === SAMPLE_TOOL_ID) || registryTools[0];
+
+            if (!sampleTool || !sampleTool.downloadUrl) {
+                logWarn("[Troubleshooting] No registry tool with a resolvable downloadUrl was found");
+                return {
+                    success: false,
+                    message: "Unable to resolve a tool package download URL from the registry.",
+                };
+            }
+
+            downloadUrl = sampleTool.downloadUrl;
+        } catch (error) {
+            logError(error as Error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unable to fetch registry to resolve a tool package download URL",
+            };
+        }
+
+        const downloadPath = path.join(tempDir, `${SAMPLE_TOOL_ID}-download-test.tar.gz`);
 
         try {
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
-            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
+            logInfo(`[Troubleshooting] Testing tool package download: ${downloadUrl}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -3339,7 +3400,7 @@ class ToolBoxApp {
                     });
                 };
 
-                download(TEST_TOOL_DOWNLOAD_URL);
+                download(downloadUrl);
             });
 
             const stats = fs.statSync(downloadPath);
@@ -3350,7 +3411,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully downloaded tool package from ${azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release"} (${fileSizeMB} MB)`,
+                message: `Successfully downloaded tool package (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {
@@ -3358,13 +3419,13 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logWarn("[Troubleshooting] Failed to clean up download test artifacts");
+                logWarn("[Troubleshooting] Failed to clean up tool download test artifacts");
             }
 
             logError(error as Error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Unknown error during download test",
+                message: error instanceof Error ? error.message : "Unknown error during tool download test",
             };
         }
     }

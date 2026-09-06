@@ -43,7 +43,14 @@ const toolContextReady = new Promise<void>((resolve) => {
 ipcRenderer.on("toolbox:context", (event, context) => {
     // Merge new context with existing to preserve all fields
     toolContext = { ...toolContext, ...context };
-    logInfo("[ToolPreloadBridge] Received tool context update", context);
+    logInfo("[ToolPreloadBridge] Received tool context update", {
+        toolId: typeof context?.toolId === "string" ? context.toolId : undefined,
+        instanceId: typeof context?.instanceId === "string" ? context.instanceId : undefined,
+        hasCaller: typeof context?.callerInstanceId === "string",
+        hasPrefillData: context?.prefillData !== undefined,
+        hasPrimaryConnection: typeof context?.connectionId === "string",
+        hasSecondaryConnection: typeof context?.secondaryConnectionId === "string",
+    });
     // Resolve the promise so any pending API calls can proceed (only once)
     if (resolveToolContext) {
         resolveToolContext();
@@ -465,14 +472,14 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
                 throw new Error("Cannot launch a tool from an uninitialized tool context");
             }
 
-            // Get the target tool manifest
-            const tool = await ipcInvoke(TOOL_CHANNELS.GET_TOOL, targetToolId);
-            if (!tool) {
+            // Resolve the public package name to the target's internal runtime identity.
+            const tool = await ipcInvoke(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET, targetToolId, callerInstanceId);
+            if (!tool || typeof tool !== "object" || !("id" in tool) || typeof tool.id !== "string") {
                 throw new Error(`Tool not found: ${targetToolId}`);
             }
 
             // Generate a unique instanceId for the callee (mirrors the pattern used in the renderer)
-            const calleeInstanceId = `${targetToolId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const calleeInstanceId = `${tool.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
             const primaryConnectionId = options?.primaryConnectionId !== undefined ? options.primaryConnectionId : (toolContext?.connectionId ?? null); // FXS auto-inherit: use caller's active connection
             const secondaryConnectionId = options?.secondaryConnectionId !== undefined ? options.secondaryConnectionId : null;

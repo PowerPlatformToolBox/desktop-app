@@ -35,6 +35,14 @@ interface SupabaseAnalyticsRow {
     mau?: number; // Monthly Active Users
 }
 
+interface SupabaseMaturityRow {
+    status?: string;
+}
+
+export function getSupabaseMaturityStatus(relation: SupabaseMaturityRow | SupabaseMaturityRow[] | undefined): string | undefined {
+    return (Array.isArray(relation) ? relation[0] : relation)?.status;
+}
+
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
     return typeof value === "number" ? value : undefined;
 }
@@ -80,6 +88,7 @@ interface SupabaseTool {
     repository?: string;
     website?: string;
     min_api?: string; // Minimum ToolBox API version required
+    tool_maturity?: SupabaseMaturityRow | SupabaseMaturityRow[];
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -189,9 +198,10 @@ export class ToolRegistryManager extends EventEmitter {
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
         const key = supabaseKey || SUPABASE_ANON_KEY;
+        const useTestRegistry = process.env.PPTB_TEST_MODE === "1" && !!process.env.PPTB_TEST_REGISTRY_PATH;
 
         // Validate Supabase credentials and create client
-        if (!url || !key || url === "" || key === "") {
+        if (useTestRegistry || !url || !key || url === "" || key === "") {
             logWarn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
             logWarn("[ToolRegistry] Falling back to local registry.json file.");
             this.useLocalFallback = true;
@@ -346,6 +356,7 @@ export class ToolRegistryManager extends EventEmitter {
                     features: tool.features,
                     license: tool.license,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    maturity: tool.maturity,
                     marketplaceSourceId: source.id,
                     marketplaceSourceLabel: source.label,
                     marketplaceSourceType: source.type,
@@ -383,6 +394,7 @@ export class ToolRegistryManager extends EventEmitter {
                 "website",
                 "min_api",
                 // embedded relations
+                "tool_maturity(status)",
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
                 "tool_analytics(downloads,rating,mau)",
@@ -441,6 +453,7 @@ export class ToolRegistryManager extends EventEmitter {
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                     minAPI: tool.min_api, // Include min API version from database
                     npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
+                    maturity: getSupabaseMaturityStatus(tool.tool_maturity),
                 } as ToolRegistryEntry;
             });
 
@@ -457,6 +470,10 @@ export class ToolRegistryManager extends EventEmitter {
      * Azure Blob is tried first (when configured), then the local registry.json.
      */
     private async fetchFallbackRegistry(): Promise<ToolRegistryEntry[]> {
+        if (process.env.PPTB_TEST_MODE === "1" && process.env.PPTB_TEST_REGISTRY_PATH) {
+            return this.fetchLocalRegistry();
+        }
+
         if (this.azureBlobBaseUrl) {
             try {
                 const tools = await this.fetchAzureBlobRegistry();
@@ -526,6 +543,7 @@ export class ToolRegistryManager extends EventEmitter {
                 features: tool.features,
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                maturity: tool.maturity,
             }));
 
         logInfo(`[ToolRegistry] Fetched ${tools.length} tools from Azure Blob registry`);
@@ -623,6 +641,7 @@ export class ToolRegistryManager extends EventEmitter {
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 minAPI: tool.minAPI,
+                maturity: tool.maturity,
             }));
     }
 
@@ -843,6 +862,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         const manifest: ToolManifest = {
             id: tool.id || packageJson.name,
+            packageName: packageJson.name,
             name: tool.name || packageJson.displayName || packageJson.name,
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
@@ -868,6 +888,7 @@ export class ToolRegistryManager extends EventEmitter {
             marketplaceSourceId: tool.marketplaceSourceId,
             marketplaceSourceLabel: tool.marketplaceSourceLabel,
             marketplaceSourceType: tool.marketplaceSourceType,
+            maturity: tool.maturity,
         };
 
         // Save to manifest file
@@ -940,8 +961,35 @@ export class ToolRegistryManager extends EventEmitter {
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
+        let packageName = manifestEntry.packageName;
         let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
         const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
+
+        if (!packageName && typeof manifestEntry.installPath === "string") {
+            try {
+                const toolsRoot = fs.realpathSync(this.toolsDirectory);
+                const installPath = fs.realpathSync(manifestEntry.installPath);
+                const relativeInstallPath = path.relative(toolsRoot, installPath);
+                const isWithinToolsDirectory = relativeInstallPath !== "" && !relativeInstallPath.startsWith(`..${path.sep}`) && relativeInstallPath !== ".." && !path.isAbsolute(relativeInstallPath);
+
+                if (isWithinToolsDirectory) {
+                    const packageJsonPath = fs.realpathSync(path.join(installPath, "package.json"));
+                    const relativePackageJsonPath = path.relative(installPath, packageJsonPath);
+                    const isWithinInstallPath =
+                        relativePackageJsonPath !== "" && !relativePackageJsonPath.startsWith(`..${path.sep}`) && relativePackageJsonPath !== ".." && !path.isAbsolute(relativePackageJsonPath);
+                    const packageJsonStats = fs.statSync(packageJsonPath);
+
+                    if (isWithinInstallPath && packageJsonStats.isFile() && packageJsonStats.size <= 1_048_576) {
+                        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) as { name?: unknown };
+                        if (typeof packageJson.name === "string" && packageJson.name.length > 0) {
+                            packageName = packageJson.name;
+                        }
+                    }
+                }
+            } catch {
+                // Legacy manifests may reference packages that are no longer present.
+            }
+        }
 
         if ((!authors || authors.length === 0) && legacyAuthor) {
             if (typeof legacyAuthor === "string") {
@@ -953,6 +1001,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         return {
             id: manifestEntry.id,
+            packageName,
             name: manifestEntry.name,
             version: manifestEntry.version,
             description: manifestEntry.description,
@@ -977,6 +1026,7 @@ export class ToolRegistryManager extends EventEmitter {
             createdAt: manifestEntry.createdAt,
             minAPI: manifestEntry.minAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
+            capabilities: manifestEntry.capabilities,
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
             marketplaceSourceType: manifestEntry.marketplaceSourceType,

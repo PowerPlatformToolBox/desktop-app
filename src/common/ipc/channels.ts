@@ -63,6 +63,7 @@ export const CONNECTION_CHANNELS = {
 export const TOOL_CHANNELS = {
     GET_ALL_TOOLS: "get-all-tools",
     GET_TOOL: "get-tool",
+    RESOLVE_INVOCATION_TARGET: "resolve-invocation-target",
     LOAD_TOOL: "load-tool",
     UNLOAD_TOOL: "unload-tool",
     INSTALL_TOOL: "install-tool",
