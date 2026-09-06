@@ -3317,30 +3317,43 @@ class ToolBoxApp {
     }
 
     /**
-     * Check Azure Blob Storage connectivity for tool package downloads.
-     * Tool packages are hosted in Azure Blob Storage rather than GitHub Releases.
+     * Check tool package download connectivity by downloading the real Sample Standard
+     * Tool package from the registry's resolved download URL (Azure Blob Storage).
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
+        const SAMPLE_TOOL_ID = "pptb-standard-sample-tool";
+        const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
 
-        if (!azureBlobBaseUrl) {
-            logWarn("[Troubleshooting] Azure Blob Storage is not configured for package download checks");
+        let downloadUrl: string;
+        try {
+            const registryTools = await this.toolManager.getRegistryManager().fetchRegistry();
+            const sampleTool = registryTools.find((t) => t.id === SAMPLE_TOOL_ID) || registryTools[0];
+
+            if (!sampleTool || !sampleTool.downloadUrl) {
+                logWarn("[Troubleshooting] No registry tool with a resolvable downloadUrl was found");
+                return {
+                    success: false,
+                    message: "Unable to resolve a tool package download URL from the registry.",
+                };
+            }
+
+            downloadUrl = sampleTool.downloadUrl;
+        } catch (error) {
+            logError(error as Error);
             return {
                 success: false,
-                message: "Azure Blob Storage is not configured for tool package connectivity checks.",
+                message: error instanceof Error ? error.message : "Unable to fetch registry to resolve a tool package download URL",
             };
         }
 
-        const TEST_TOOL_DOWNLOAD_URL = `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`;
-        const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
-        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-download-test.tar.gz");
+        const downloadPath = path.join(tempDir, `${SAMPLE_TOOL_ID}-download-test.tar.gz`);
 
         try {
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            logInfo(`[Troubleshooting] Testing Azure Blob Storage package download: ${TEST_TOOL_DOWNLOAD_URL}`);
+            logInfo(`[Troubleshooting] Testing tool package download: ${downloadUrl}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -3387,7 +3400,7 @@ class ToolBoxApp {
                     });
                 };
 
-                download(TEST_TOOL_DOWNLOAD_URL);
+                download(downloadUrl);
             });
 
             const stats = fs.statSync(downloadPath);
@@ -3398,7 +3411,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully validated Azure Blob Storage package connectivity (${fileSizeMB} MB)`,
+                message: `Successfully downloaded tool package (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {
@@ -3406,13 +3419,13 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logWarn("[Troubleshooting] Failed to clean up Azure Blob download test artifacts");
+                logWarn("[Troubleshooting] Failed to clean up tool download test artifacts");
             }
 
             logError(error as Error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Unknown error during Azure Blob Storage connectivity test",
+                message: error instanceof Error ? error.message : "Unknown error during tool download test",
             };
         }
     }

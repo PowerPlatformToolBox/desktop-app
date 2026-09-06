@@ -161,7 +161,7 @@ export function getTroubleshootingModalControllerScript(config: TroubleshootingM
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "registry" });
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            setCheckStatus("check-download", "loading", "Testing Azure Blob Storage package connectivity...");
+            setCheckStatus("check-download", "loading", "Testing tool package download...");
             modalBridge.send(CONFIG.channels.runCheck, { checkType: "download" });
             await new Promise(resolve => setTimeout(resolve, 500));
 
