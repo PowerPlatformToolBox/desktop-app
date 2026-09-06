@@ -369,16 +369,51 @@ jobs:
                   fi
 
                   CERT_PATH="$RUNNER_TEMP/macos-signing-cert.p12"
+                  KEYCHAIN_PATH="$RUNNER_TEMP/pptb-signing.keychain-db"
+                  KEYCHAIN_PASSWORD="$(uuidgen)"
+                  echo "::add-mask::$KEYCHAIN_PASSWORD"
+
                   printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$CERT_PATH"
                   chmod 600 "$CERT_PATH"
 
+                  # Import into our own keychain (with retries) instead of letting electron-builder
+                  # manage a temp keychain: macOS 15 (Sequoia) runners intermittently fail electron-builder's
+                  # own `set-key-partition-list` call with "SecKeychainUnlock: The user name or passphrase
+                  # you entered is not correct" even when the certificate password is correct.
+                  security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+                  security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+                  security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+                  security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
+
+                  EXISTING_KEYCHAINS=$(security list-keychains -d user | sed 's/^ *"\(.*\)"$/\1/')
+                  security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING_KEYCHAINS
+                  security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+                  PARTITION_LIST_OK=false
+                  for attempt in 1 2 3 4 5; do
+                    if security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"; then
+                      PARTITION_LIST_OK=true
+                      break
+                    fi
+                    echo "set-key-partition-list attempt $attempt failed, retrying..."
+                    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+                    sleep 3
+                  done
+
+                  if [[ "$PARTITION_LIST_OK" != "true" ]]; then
+                    echo "Failed to authorize codesign access to the imported certificate after retries."
+                    exit 1
+                  fi
+
+                  # CSC_LINK/CSC_KEY_PASSWORD are intentionally not set: electron-builder auto-discovers
+                  # the "Developer ID Application" identity we just imported via CSC_IDENTITY_AUTO_DISCOVERY,
+                  # using the keychain search list configured above.
                   {
-                    echo "CSC_LINK=$CERT_PATH"
-                    echo "CSC_KEY_PASSWORD=$MACOS_CERT_PASSWORD"
                     echo "APPLE_ID=$APPLE_ID"
                     echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
                     echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
                     echo "MACOS_CERT_PATH=$CERT_PATH"
+                    echo "MACOS_KEYCHAIN_PATH=$KEYCHAIN_PATH"
                   } >> "$GITHUB_ENV"
 
             - name: Verify certificate details
@@ -472,6 +507,10 @@ jobs:
                   if [[ -n "${MACOS_CERT_PATH:-}" && -f "$MACOS_CERT_PATH" ]]; then
                     rm -f "$MACOS_CERT_PATH"
                     echo "Removed temporary macOS signing certificate."
+                  fi
+                  if [[ -n "${MACOS_KEYCHAIN_PATH:-}" ]]; then
+                    security delete-keychain "$MACOS_KEYCHAIN_PATH" 2>/dev/null || true
+                    echo "Removed temporary macOS signing keychain."
                   fi
 
             - name: Remove quarantine attributes (macOS)
