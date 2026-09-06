@@ -45,6 +45,7 @@ export async function loadSidebarTools(): Promise<void> {
 
             // Add event listener for the marketplace button
             attachMarketplaceNavigationButton("go-to-marketplace-btn", "");
+            updateUpdateAllToolsButton([]);
             return;
         }
 
@@ -65,6 +66,9 @@ export async function loadSidebarTools(): Promise<void> {
                 };
             }),
         );
+
+        // Show/enable the "Update all" header button whenever any installed tool has an update
+        updateUpdateAllToolsButton(toolsWithUpdateInfo);
 
         // Get filter and sort values
         const searchInput = document.getElementById("tools-search-input") as HTMLInputElement | null;
@@ -823,6 +827,90 @@ async function updateToolFromSidebar(toolId: string): Promise<void> {
             type: "error",
         });
         // Reload sidebar to remove updating state
+        await loadSidebarTools();
+    }
+}
+
+/**
+ * Show/hide and enable/disable the "Update all" sidebar header button based on
+ * whether any installed tool currently has an update available or is updating.
+ */
+function updateUpdateAllToolsButton(tools: Array<{ hasUpdate?: boolean; isUpdating?: boolean }>): void {
+    const updateAllBtn = document.getElementById("sidebar-update-all-tools-btn") as HTMLButtonElement | null;
+    if (!updateAllBtn) return;
+
+    const hasAnyUpdate = tools.some((t) => t.hasUpdate);
+    const isAnyUpdating = tools.some((t) => t.isUpdating);
+
+    updateAllBtn.style.display = hasAnyUpdate ? "flex" : "none";
+    updateAllBtn.disabled = isAnyUpdating;
+    updateAllBtn.title = isAnyUpdating ? "Updating tools..." : "Update all tools";
+}
+
+/**
+ * Update every installed tool that has an update available, one at a time
+ * (sequential to avoid concurrent writes to the tool manifest file).
+ */
+export async function updateAllToolsFromSidebar(): Promise<void> {
+    const updateAllBtn = document.getElementById("sidebar-update-all-tools-btn") as HTMLButtonElement | null;
+
+    try {
+        const tools = await window.toolboxAPI.getAllTools();
+        const updateChecks = await Promise.all(
+            tools.map(async (tool) => ({
+                tool,
+                updateInfo: await window.toolboxAPI.checkToolUpdates(tool.id),
+            })),
+        );
+        const toolsToUpdate = updateChecks.filter((entry) => entry.updateInfo.hasUpdate);
+
+        if (toolsToUpdate.length === 0) {
+            return;
+        }
+
+        if (updateAllBtn) {
+            updateAllBtn.disabled = true;
+            updateAllBtn.title = `Updating ${toolsToUpdate.length} tool(s)...`;
+        }
+
+        let succeeded = 0;
+        const failures: string[] = [];
+
+        for (const { tool } of toolsToUpdate) {
+            try {
+                await window.toolboxAPI.updateTool(tool.id);
+                succeeded++;
+            } catch (error) {
+                failures.push(tool.name || tool.id);
+                logError(`Failed to update tool ${tool.id}`, error);
+            }
+            // Refresh the sidebar after each tool so progress/spinners stay accurate
+            await loadSidebarTools();
+        }
+
+        if (failures.length === 0) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Tools Updated",
+                body: `${succeeded} tool${succeeded === 1 ? "" : "s"} updated successfully.`,
+                type: "success",
+            });
+        } else {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Update Completed with Errors",
+                body: `${succeeded} of ${toolsToUpdate.length} tool(s) updated. Failed: ${failures.join(", ")}.`,
+                type: succeeded > 0 ? "warning" : "error",
+            });
+        }
+
+        await loadMarketplace();
+    } catch (error) {
+        logError("Failed to update all tools", error);
+        await window.toolboxAPI.utils.showNotification({
+            title: "Update Failed",
+            body: `Failed to update tools: ${(error as Error).message}`,
+            type: "error",
+        });
+    } finally {
         await loadSidebarTools();
     }
 }

@@ -3933,6 +3933,11 @@ body.dark-theme .sidebar-icon-btn:hover {
     outline-offset: 2px;
 }
 
+.sidebar-icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .connection-item-top-tags {
     display: flex;
     gap: 6px;

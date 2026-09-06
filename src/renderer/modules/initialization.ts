@@ -4,8 +4,8 @@
  */
 
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -53,7 +53,7 @@ import {
     setupKeyboardShortcuts,
     showHomePage,
 } from "./toolManagement";
-import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
+import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -322,6 +322,16 @@ function setupToolbarButtons(): void {
  * Set up sidebar buttons
  */
 function setupSidebarButtons(): void {
+    // Sidebar update all tools button
+    const sidebarUpdateAllToolsBtn = document.getElementById("sidebar-update-all-tools-btn");
+    if (sidebarUpdateAllToolsBtn) {
+        sidebarUpdateAllToolsBtn.addEventListener("click", () => {
+            updateAllToolsFromSidebar().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
