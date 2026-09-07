@@ -1238,6 +1238,54 @@ export class ToolRegistryManager extends EventEmitter {
     }
 
     /**
+     * Submit (or update) this install's star rating/comment for a tool via the
+     * `submit_tool_rating` RPC, which upserts by install ID and recomputes the
+     * aggregate rating/count server-side. Unlike the silent analytics trackers
+     * above, failures are rethrown so the UI can show the user an error.
+     */
+    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        if (!this.supabase || this.useLocalFallback) {
+            throw new Error("Rating submission requires an online connection to the tool registry.");
+        }
+        if (!this.installIdManager) {
+            throw new Error("Install ID is unavailable; cannot submit rating.");
+        }
+
+        const installId = this.installIdManager.getInstallId();
+
+        try {
+            logInfo(`[ToolRegistry] Submitting rating for tool: ${toolId}`);
+
+            const { data, error } = await this.supabase.rpc("submit_tool_rating", {
+                p_tool_id: toolId,
+                p_install_id: installId,
+                p_rating: rating,
+                p_comment: comment ?? null,
+            });
+
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
+            }
+
+            const row = Array.isArray(data) ? data[0] : data;
+            logInfo(`[ToolRegistry] Rating submitted successfully for ${toolId}`);
+            return {
+                rating: getOptionalAnalyticsNumber(row?.rating),
+                ratingCount: getOptionalAnalyticsNumber(row?.rating_count),
+            };
+        } catch (error) {
+            logError(`[ToolRegistry] Failed to submit rating for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "submitToolRating" },
+                extra: { toolId },
+            });
+            throw error instanceof Error ? error : new Error(String(error));
+        }
+    }
+
+    /**
      * Fetch community resource links from the Supabase community_links table.
      * Returns null when Supabase is not configured or the query fails, so the caller
      * can fall back to bundled static data.

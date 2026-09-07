@@ -1,7 +1,17 @@
 import { randomBytes } from "crypto";
 import Store from "electron-store";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
-import { CspConsentRecord, LastUsedToolConnectionInfo, LastUsedToolEntry, LastUsedToolUpdate, MarketplaceSource, TelemetryConsentChoice, ToolSettings, UserSettings } from "../../common/types";
+import {
+    CspConsentRecord,
+    LastUsedToolConnectionInfo,
+    LastUsedToolEntry,
+    LastUsedToolUpdate,
+    MarketplaceSource,
+    MyToolRating,
+    TelemetryConsentChoice,
+    ToolSettings,
+    UserSettings,
+} from "../../common/types";
 import { buildPreviewFeatureFlags } from "../../common/types/settings";
 import { AZURE_BLOB_BASE_URL } from "../constants";
 
@@ -312,6 +322,23 @@ export class SettingsManager {
             this.addFavoriteTool(toolId);
             return true;
         }
+    }
+
+    /**
+     * Get this install's own previously submitted rating/comment for a tool, if any
+     */
+    getMyToolRating(toolId: string): MyToolRating | undefined {
+        const toolRatings = this.store.get("toolRatings") || {};
+        return toolRatings[toolId];
+    }
+
+    /**
+     * Persist this install's own rating/comment for a tool locally (for modal pre-fill)
+     */
+    setMyToolRating(toolId: string, rating: number, comment?: string): void {
+        const toolRatings = this.store.get("toolRatings") || {};
+        toolRatings[toolId] = comment ? { rating, comment } : { rating };
+        this.store.set("toolRatings", toolRatings);
     }
 
     /**

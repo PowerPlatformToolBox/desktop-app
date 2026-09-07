@@ -12,6 +12,7 @@ import { applyToolIconMasks, generateToolIconHtml } from "../utils/toolIconResol
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { getToolLibrary, loadMarketplace, loadToolsLibrary, openToolDetail } from "./marketplaceManagement";
+import { openRateToolModal } from "./rateToolModal";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
@@ -605,6 +606,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
 
     const favoriteIconPath = tool.isFavorite ? (isDarkTheme ? "icons/dark/star-filled.svg" : "icons/light/star-filled.svg") : isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
     const detailsIconPath = isDarkTheme ? "icons/dark/info_filled.svg" : "icons/light/info_filled.svg";
+    const rateIconPath = isDarkTheme ? "icons/dark/star.svg" : "icons/light/star.svg";
     const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
     const repositoryIconPath = isDarkTheme ? "icons/dark/marketplace.svg" : "icons/light/marketplace.svg";
@@ -635,6 +637,10 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
         <div class="context-menu-item" data-menu-action="details">
             <img src="${detailsIconPath}" class="context-menu-icon" alt="" />
             <span>See Details</span>
+        </div>
+        <div class="context-menu-item" data-menu-action="rate">
+            <img src="${rateIconPath}" class="context-menu-icon" alt="" />
+            <span>Rate this tool</span>
         </div>
         ${
             repositoryUrl
@@ -734,6 +740,15 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
 
         if (action === "details") {
             await openToolDetail(tool, true);
+            return;
+        }
+
+        if (action === "rate") {
+            const aggregate = await openRateToolModal({ id: tool.id, name: tool.name });
+            if (aggregate) {
+                await loadSidebarTools();
+                await loadMarketplace();
+            }
             return;
         }
 

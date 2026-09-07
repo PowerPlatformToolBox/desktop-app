@@ -9,7 +9,7 @@ import { Connection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
-import { CapabilityTagEntry, Tool, ToolContext, ToolSettings } from "./tool";
+import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
 
 /**
  * Connections API namespace
@@ -353,6 +353,10 @@ export interface ToolboxAPI {
     checkBetaPackage: (npmPackageName: string) => Promise<{ hasBeta: boolean; betaVersion?: string }>;
     /** Install the beta (pre-release) npm package for a registry tool and return the loaded Tool. */
     installPrereleaseToolFromNpm: (npmPackageName: string) => Promise<Tool>;
+    /** Submit (or update) this install's star rating/comment for a tool; returns the recomputed aggregate. */
+    submitToolRating: (toolId: string, rating: number, comment?: string) => Promise<ToolRatingAggregate>;
+    /** Get this install's previously submitted rating/comment for a tool, if any. */
+    getMyToolRating: (toolId: string) => Promise<MyToolRating | null>;
 
     // Split layout namespace
     splitLayout: SplitLayoutAPI;
