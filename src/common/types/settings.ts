@@ -4,6 +4,7 @@
 
 import { Theme } from "./common";
 import { Connection } from "./connection";
+import { MyToolRating } from "./tool";
 
 /**
  * Sort options for installed tools
@@ -147,4 +148,5 @@ export interface UserSettings {
     previewFeatures?: PreviewFeatureFlags; // Per-feature preview toggles keyed by preview feature ID
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
     sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
+    toolRatings?: { [toolId: string]: MyToolRating }; // This install's own submitted rating/comment per tool
 }

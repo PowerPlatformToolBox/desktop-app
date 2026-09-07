@@ -437,6 +437,13 @@ export class ToolManager extends EventEmitter {
         await this.registryManager.trackToolUsage(toolId);
     }
 
+    /**
+     * Submit (or update) this install's star rating/comment for a tool
+     */
+    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        return this.registryManager.submitToolRating(toolId, rating, comment);
+    }
+
     // ========================================================================
     // DEBUG MODE ONLY: Legacy npm-based installation for tool developers
     // ========================================================================

@@ -12,6 +12,7 @@ import { normalizeHttpsUrl, normalizeRepositoryUrl } from "../utils/repositoryUr
 import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/toolCompatibility";
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
+import { openRateToolModal } from "./rateToolModal";
 import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -578,8 +579,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const iconHtml = buildToolIconHtml(tool);
 
     const linkItems: string[] = [];
-    const reviewUrl = `https://www.powerplatformtoolbox.com/rate-tool?toolId=${encodeURIComponent(tool.id)}`;
-    linkItems.push(`<a id="tool-detail-review-link" class="tool-detail-tab-link" href="${escapeHtml(reviewUrl)}" data-url="${escapeHtml(reviewUrl)}">Leave a review</a>`);
+    linkItems.push(`<a id="tool-detail-rate-link" class="tool-detail-tab-link" href="#" role="button">Rate this tool</a>`);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository);
     if (repositoryUrl) {
         linkItems.push(`<a id="tool-detail-repo-link" class="tool-detail-tab-link" href="${escapeHtml(repositoryUrl)}" data-url="${escapeHtml(repositoryUrl)}">Repository</a>`);
@@ -604,7 +604,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                     <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}</h2>
                     <p class="tool-detail-tab-description">${escapeHtml(tool.description || "")}</p>
                     <p class="tool-detail-tab-authors">By ${escapeHtml(authorsDisplay)}</p>
-                    ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
+                    ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list" id="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                     <div class="tool-detail-tab-actions">
                         <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${isInstalled ? 'style="display:none"' : ""} ${unsupportedAttr}>Install</button>
                         <button id="tool-detail-prerelease-btn" class="fluent-button fluent-button-secondary" style="display:none">Install Pre-Release Version</button>
@@ -633,6 +633,26 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                 });
             }
         });
+    });
+
+    // Wire up "Rate this tool" link to open the in-app rating modal
+    const rateLink = panel.querySelector<HTMLAnchorElement>("#tool-detail-rate-link");
+    rateLink?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openRateToolModal({ id: tool.id, name: tool.name })
+            .then((aggregate) => {
+                if (!aggregate) return;
+                const metaList = panel.querySelector<HTMLElement>("#tool-detail-tab-meta-list");
+                if (metaList) {
+                    const updatedRatingsHtml = formatRatingMarkup(aggregate.rating, { suffix: " ⭐" });
+                    metaList.innerHTML = `${badgeMarkup}${updatedRatingsHtml}`;
+                }
+                void loadMarketplace();
+                void loadSidebarTools();
+            })
+            .catch((error) => {
+                logError("Failed to submit tool rating", error);
+            });
     });
 
     // Wire up install button

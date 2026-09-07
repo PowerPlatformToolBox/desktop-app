@@ -63,6 +63,7 @@ export interface Tool {
     license?: string;
     downloads?: number;
     rating?: number;
+    ratingCount?: number; // Number of ratings submitted for this tool
     mau?: number; // Monthly Active Users (unique machines per month)
     readmeUrl?: string;
     features?: ToolFeatures; // Tool features configuration
@@ -102,6 +103,7 @@ export interface ToolRegistryEntry {
     license?: string; // SPDX or license name
     downloads?: number; // analytics - total downloads
     rating?: number; // analytics - average rating
+    ratingCount?: number; // analytics - number of ratings submitted
     mau?: number; // analytics - Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
@@ -137,6 +139,7 @@ export interface ToolManifest {
     license?: string;
     downloads?: number;
     rating?: number;
+    ratingCount?: number; // Number of ratings submitted for this tool
     mau?: number; // Monthly Active Users (unique machines per month)
     features?: ToolFeatures; // Tool features configuration
     status?: "active" | "deprecated" | "archived"; // Tool lifecycle status
@@ -160,6 +163,22 @@ export interface ToolManifest {
  */
 export interface ToolSettings {
     [key: string]: unknown;
+}
+
+/**
+ * A user's own rating for a tool, cached locally so the rating modal can pre-fill it.
+ */
+export interface MyToolRating {
+    rating: number;
+    comment?: string;
+}
+
+/**
+ * Aggregate rating result returned after submitting a rating (recomputed server-side).
+ */
+export interface ToolRatingAggregate {
+    rating?: number;
+    ratingCount?: number;
 }
 
 /**

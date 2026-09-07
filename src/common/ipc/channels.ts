@@ -86,6 +86,10 @@ export const TOOL_CHANNELS = {
     CHECK_BETA_PACKAGE: "check-beta-package",
     /** Install the beta (pre-release) npm package for a registry tool. */
     INSTALL_PRERELEASE_TOOL: "install-prerelease-tool",
+    /** Submit (or update) an in-app star rating/comment for a tool, keyed by install ID. */
+    SUBMIT_TOOL_RATING: "submit-tool-rating",
+    /** Get the current install's previously submitted rating/comment for a tool, if any. */
+    GET_MY_TOOL_RATING: "get-my-tool-rating",
 } as const;
 
 // Tool Window-related IPC channels

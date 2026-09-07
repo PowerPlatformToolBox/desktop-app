@@ -1118,6 +1118,22 @@ class ToolBoxApp {
             return tool;
         });
 
+        // Submit (or update) this install's star rating/comment for a tool
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+            if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+                throw new Error("Rating must be an integer between 1 and 5");
+            }
+            const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
+            return aggregate;
+        });
+
+        // Get this install's previously submitted rating/comment for a tool, if any
+        ipcMain.handle(TOOL_CHANNELS.GET_MY_TOOL_RATING, (_, toolId: string) => {
+            return this.settingsManager.getMyToolRating(toolId) ?? null;
+        });
+
         // Debug mode only - npm-based installation for tool developers
         ipcMain.handle(TOOL_CHANNELS.INSTALL_TOOL, async (_, packageName) => {
             await this.toolManager.installToolForDebug(packageName);
