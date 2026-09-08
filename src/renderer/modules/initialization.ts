@@ -4,8 +4,8 @@
  */
 
 import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
-import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
+import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
     DEFAULT_ENVIRONMENT_COLOR_THICKNESS,
@@ -34,6 +34,7 @@ import { openAgentInvocationLogsTab } from "./mcpManagement";
 import { closeModal, openModal } from "./modalManagement";
 import { initNotificationHistoryPanel, setDefaultNotificationDuration, showPPTBNotification } from "./notifications";
 import { applyPreviewFeaturesVisibility, normalizePreviewFeatureFlags } from "./previewFeatureManagement";
+import { openReportConcernModal } from "./reportConcernModal";
 import { openSentryConsentModal } from "./sentryConsentModal";
 import { applyRendererSentryConsent } from "./sentryRuntime";
 import { openSettingsTab } from "./settingsManagement";
@@ -636,6 +637,16 @@ function setupApplicationEventListeners(): void {
         const currentTheme = await window.toolboxAPI.utils.getCurrentTheme();
         const isDarkTheme = currentTheme === "dark";
         await openTroubleshootingModal(isDarkTheme);
+    });
+
+    // Report a Concern modal listener (triggered from the app menu for the active tool)
+    window.api.on("open-report-concern-modal", async (...args: unknown[]) => {
+        // The IPC event sends (event, data), so data is the second argument
+        const info = args[1] as { toolId: string; toolName: string; toolVersion: string } | undefined;
+        if (!info?.toolId || info.toolId === "none") return;
+        await openReportConcernModal({ id: info.toolId, name: info.toolName, version: info.toolVersion === "unknown" ? undefined : info.toolVersion }, "app-menu").catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
+        });
     });
 
     // About dialog listener

@@ -2794,6 +2794,14 @@ body.dark-theme .settings-vscode-item:hover {
     text-decoration: underline;
 }
 
+.tool-detail-tab-link-warning {
+    color: #c4314b;
+}
+
+.dark-theme .tool-detail-tab-link-warning {
+    color: #f1707b;
+}
+
 .tool-detail-tab-body {
     flex: 1;
     display: flex;

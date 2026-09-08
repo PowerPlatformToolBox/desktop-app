@@ -4,7 +4,17 @@ import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo, logWarn } from "../../common/logger";
-import { CapabilityTagEntry, CommunityLinksCollection, CspExceptions, MarketplaceSource, Tool, ToolFeatures, ToolManifest } from "../../common/types";
+import {
+    CapabilityTagEntry,
+    CommunityLinksCollection,
+    CspExceptions,
+    MarketplaceSource,
+    Tool,
+    ToolConcernReportResult,
+    ToolConcernReportSubmission,
+    ToolFeatures,
+    ToolManifest,
+} from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
 import { VersionManager } from "./versionManager";
@@ -440,6 +450,13 @@ export class ToolManager extends EventEmitter {
      */
     async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
         return this.registryManager.submitToolRating(toolId, rating, comment);
+    }
+
+    /**
+     * Submit a "Report a Concern" for a tool
+     */
+    async submitConcernReport(report: ToolConcernReportSubmission): Promise<ToolConcernReportResult> {
+        return this.registryManager.submitConcernReport(report);
     }
 
     // ========================================================================

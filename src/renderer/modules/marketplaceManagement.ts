@@ -13,6 +13,7 @@ import { getUnsupportedBadgeTitle, getUnsupportedRequirement } from "../utils/to
 import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/toolIconResolver";
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { openRateToolModal } from "./rateToolModal";
+import { openReportConcernModal } from "./reportConcernModal";
 import { openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
@@ -587,6 +588,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     if (websiteUrl) {
         linkItems.push(`<a id="tool-detail-website-link" class="tool-detail-tab-link" href="${escapeHtml(websiteUrl)}" data-url="${escapeHtml(websiteUrl)}">Website</a>`);
     }
+    linkItems.push(`<a id="tool-detail-report-link" class="tool-detail-tab-link tool-detail-tab-link-warning" href="#" role="button">Report a concern</a>`);
     const linksMarkup = linkItems.length ? `<div class="tool-detail-tab-links">${linkItems.join('<span aria-hidden="true"> • </span>')}</div>` : "";
 
     const readmePlaceholder = tool.readmeUrl ? "Loading README..." : "README is not available for this tool.";
@@ -652,6 +654,15 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
             .catch((error) => {
                 logError("Failed to submit tool rating", error);
             });
+    });
+
+    // Wire up "Report a concern" link to open the report modal
+    const reportLink = panel.querySelector<HTMLAnchorElement>("#tool-detail-report-link");
+    reportLink?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openReportConcernModal({ id: tool.id, name: tool.name, version: tool.version, maturity: tool.maturity }, "tool-detail").catch((error) => {
+            logError("Failed to open report concern modal", error);
+        });
     });
 
     // Wire up install button

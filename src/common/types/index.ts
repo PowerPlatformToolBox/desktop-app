@@ -29,3 +29,6 @@ export * from "./api";
 
 // Community Links / Community Resources types
 export * from "./communityLinks";
+
+// Tool concern report ("Report a Concern") types
+export * from "./toolReport";

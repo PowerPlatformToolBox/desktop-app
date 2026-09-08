@@ -342,6 +342,24 @@ export class SettingsManager {
     }
 
     /**
+     * Check whether this install has already submitted a concern report for a tool (local dedupe only)
+     */
+    hasReportedToolConcern(toolId: string): boolean {
+        const reportedIds = this.store.get("reportedToolConcernIds") || [];
+        return reportedIds.includes(toolId);
+    }
+
+    /**
+     * Record that this install has submitted a concern report for a tool
+     */
+    addReportedToolConcern(toolId: string): void {
+        const reportedIds = this.store.get("reportedToolConcernIds") || [];
+        if (!reportedIds.includes(toolId)) {
+            this.store.set("reportedToolConcernIds", [...reportedIds, toolId]);
+        }
+    }
+
+    /**
      * Check if CSP consent has been granted for a tool
      */
     hasCspConsent(toolId: string): boolean {
