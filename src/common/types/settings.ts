@@ -149,4 +149,5 @@ export interface UserSettings {
     marketplaceSources?: MarketplaceSource[]; // Marketplace sources configured for the app
     sentryTelemetryConsent?: TelemetryConsentChoice | null; // User consent choice for Sentry warning/error telemetry
     toolRatings?: { [toolId: string]: MyToolRating }; // This install's own submitted rating/comment per tool
+    reportedToolConcernIds?: string[]; // Tool IDs this install has already submitted a concern report for (local dedupe)
 }

@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { app } from "electron";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -8,7 +9,17 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { captureException } from "../../common/sentryHelper";
-import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import {
+    CapabilityTagEntry,
+    CommunityLinksCollection,
+    CommunityLinksGroup,
+    CommunityLinksItem,
+    MarketplaceSource,
+    ToolConcernReportResult,
+    ToolConcernReportSubmission,
+    ToolManifest,
+    ToolRegistryEntry,
+} from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
@@ -1282,6 +1293,50 @@ export class ToolRegistryManager extends EventEmitter {
                 extra: { toolId },
             });
             throw error instanceof Error ? error : new Error(String(error));
+        }
+    }
+
+    /**
+     * Submit a user "Report a Concern" for a tool (spam, unsafe code, community-values violations, etc.).
+     * The anon Supabase key only has INSERT rights on this table (no SELECT/UPDATE/DELETE), so reports
+     * cannot be read back or tampered with by the client once submitted.
+     */
+    async submitConcernReport(report: ToolConcernReportSubmission): Promise<ToolConcernReportResult> {
+        if (!this.supabase || this.useLocalFallback) {
+            return { success: false, error: "Reporting requires an online connection to the tool registry." };
+        }
+
+        const installId = this.installIdManager?.getInstallId() ?? "unknown";
+
+        try {
+            logInfo(`[ToolRegistry] Submitting concern report for tool: ${report.toolId}`);
+
+            const { error } = await this.supabase.from("tool_concern_reports").insert({
+                tool_id: report.toolId,
+                tool_name: report.toolName,
+                tool_version: report.toolVersion ?? null,
+                reason: report.reason,
+                description: report.description ?? null,
+                email: report.email ?? null,
+                source: report.source,
+                maturity: report.maturity ?? null,
+                install_id: installId,
+                app_version: app.getVersion(),
+            });
+
+            if (error) {
+                throw new Error(error.message ?? JSON.stringify(error));
+            }
+
+            logInfo(`[ToolRegistry] Concern report submitted successfully for ${report.toolId}`);
+            return { success: true };
+        } catch (error) {
+            logError(`[ToolRegistry] Failed to submit concern report for ${report.toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "submitConcernReport" },
+                extra: { toolId: report.toolId },
+            });
+            return { success: false, error: error instanceof Error ? error.message : "Failed to submit report" };
         }
     }
 

@@ -92,6 +92,12 @@ export const TOOL_CHANNELS = {
     GET_MY_TOOL_RATING: "get-my-tool-rating",
 } as const;
 
+// Tool concern report ("Report a Concern") IPC channels
+export const TOOL_REPORT_CHANNELS = {
+    SUBMIT_CONCERN: "tool-report:submit-concern",
+    HAS_REPORTED_CONCERN: "tool-report:has-reported-concern",
+} as const;
+
 // Tool Window-related IPC channels
 export const TOOL_WINDOW_CHANNELS = {
     LAUNCH: "tool-window:launch",

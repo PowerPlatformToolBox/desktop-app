@@ -17,6 +17,7 @@ import {
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
+    TOOL_REPORT_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
@@ -32,6 +33,7 @@ import {
     ModalWindowOptions,
     NativeContextMenuRequest,
     ToolBoxEvent,
+    ToolConcernReportSubmission,
 } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
@@ -424,6 +426,10 @@ class ToolBoxApp {
 
         // Modal window internal channels
         ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
+
+        // Tool concern report handlers
+        ipcMain.removeHandler(TOOL_REPORT_CHANNELS.SUBMIT_CONCERN);
+        ipcMain.removeHandler(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN);
 
         // Terminal handlers
         ipcMain.removeHandler(TERMINAL_CHANNELS.CREATE_TERMINAL);
@@ -1132,6 +1138,20 @@ class ToolBoxApp {
         // Get this install's previously submitted rating/comment for a tool, if any
         ipcMain.handle(TOOL_CHANNELS.GET_MY_TOOL_RATING, (_, toolId: string) => {
             return this.settingsManager.getMyToolRating(toolId) ?? null;
+        });
+
+        // Submit a "Report a Concern" for a tool (spam, unsafe code, community-values violations, etc.)
+        ipcMain.handle(TOOL_REPORT_CHANNELS.SUBMIT_CONCERN, async (_, report: ToolConcernReportSubmission) => {
+            const result = await this.toolManager.submitConcernReport(report);
+            if (result.success) {
+                this.settingsManager.addReportedToolConcern(report.toolId);
+            }
+            return result;
+        });
+
+        // Check whether this install has already reported a concern for a tool
+        ipcMain.handle(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN, (_, toolId: string) => {
+            return this.settingsManager.hasReportedToolConcern(toolId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -2819,6 +2839,22 @@ class ToolBoxApp {
                                               await shell.openExternal("https://discord.gg/efwAu9sXyJ");
                                           }
                                       }
+                                  },
+                              },
+                              {
+                                  label: "Report a Concern",
+                                  click: async () => {
+                                      const activeToolInfo = this.getActiveToolInfo();
+                                      if (!this.mainWindow || activeToolInfo.toolId === "none") {
+                                          await dialog.showMessageBox(this.mainWindow!, {
+                                              type: "info",
+                                              title: "Report a Concern",
+                                              message: "No tool is currently open to report.",
+                                              buttons: ["OK"],
+                                          });
+                                          return;
+                                      }
+                                      this.mainWindow.webContents.send("open-report-concern-modal", activeToolInfo);
                                   },
                               },
                               {

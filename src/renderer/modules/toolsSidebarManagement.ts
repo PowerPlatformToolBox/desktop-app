@@ -13,6 +13,7 @@ import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../ut
 import { getToolSourceIconHtml } from "../utils/toolSourceIcon";
 import { getToolLibrary, loadMarketplace, loadToolsLibrary, openToolDetail } from "./marketplaceManagement";
 import { openRateToolModal } from "./rateToolModal";
+import { openReportConcernModal } from "./reportConcernModal";
 import { switchSidebar } from "./sidebarManagement";
 import { launchTool } from "./toolManagement";
 
@@ -610,6 +611,7 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
     const updateIconPath = isDarkTheme ? "icons/dark/update.svg" : "icons/light/update.svg";
     const uninstallIconPath = isDarkTheme ? "icons/dark/trash.svg" : "icons/light/trash.svg";
     const repositoryIconPath = isDarkTheme ? "icons/dark/marketplace.svg" : "icons/light/marketplace.svg";
+    const reportIconPath = isDarkTheme ? "icons/dark/report.svg" : "icons/light/report.svg";
     const libraryTool = getToolLibrary().find((libraryEntry) => libraryEntry.id === tool.id);
     const repositoryUrl = normalizeRepositoryUrl(tool.repository || libraryTool?.repository);
 
@@ -653,6 +655,10 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
         <div class="context-menu-item" data-menu-action="uninstall">
             <img src="${uninstallIconPath}" class="context-menu-icon" alt="" />
             <span>Uninstall</span>
+        </div>
+        <div class="context-menu-item" data-menu-action="report-concern">
+            <img src="${reportIconPath}" class="context-menu-icon" alt="" />
+            <span>Report a Concern</span>
         </div>
     `;
 
@@ -764,6 +770,11 @@ function showToolContextMenu(tool: ToolDetail & { isFavorite?: boolean; hasUpdat
 
         if (action === "uninstall") {
             await uninstallToolFromSidebar(tool.id);
+            return;
+        }
+
+        if (action === "report-concern") {
+            await openReportConcernModal({ id: tool.id, name: tool.name, version: tool.version, maturity: tool.maturity }, "sidebar-menu");
             return;
         }
     });
