@@ -780,7 +780,8 @@ async function loadToolReadme(panel: HTMLElement, readmeUrl: string | undefined,
         if (!detailPanel || detailPanel.getAttribute("data-tab-id") !== tabId) return;
 
         // Render remote markdown safely (raw HTML blocks are escaped in the shared renderer).
-        readmeContainer.innerHTML = renderMarkdownToSafeHtml(markdown);
+        // readmeUrl is passed as the base for resolving repo-relative image paths in the README.
+        readmeContainer.innerHTML = renderMarkdownToSafeHtml(markdown, readmeUrl);
         wireExternalLinks(readmeContainer, (href) => window.toolboxAPI.openExternal(href));
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
