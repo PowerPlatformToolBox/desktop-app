@@ -9,7 +9,7 @@
 /** @typedef {{ name: string; url?: string }} Contributor */
 /** @typedef {{ "connect-src"?: string[]; "script-src"?: string[]; "style-src"?: string[]; "img-src"?: string[]; "font-src"?: string[]; "frame-src"?: string[]; "media-src"?: string[] }} CspExceptions */
 /** @typedef {{ repository?: string; website?: string; funding?: string; readmeUrl?: string }} Configurations */
-/** @typedef {{ multiConnection?: "required" | "optional" | "none"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
+/** @typedef {{ multiConnection?: "required" | "optional" | "none"; connectionRequirement?: "required" | "optional"; minAPI?: string; enabledForPowerPlatformAPI?: boolean }} Features */
 /**
  * @typedef {{
  *   name: string;
@@ -60,6 +60,9 @@ const APPROVED_LICENSES = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", 
 
 // Valid multiConnection values
 const VALID_MULTI_CONNECTION_VALUES = ["required", "optional", "none"];
+
+// Valid connectionRequirement values
+const VALID_CONNECTION_REQUIREMENT_VALUES = ["required", "optional"];
 
 // Semver regex for minAPI validation
 const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$/;
@@ -312,9 +315,9 @@ async function validatePackageJson(packageJson, options = {}) {
         const features = packageJson.features;
 
         if (features === null || typeof features !== "object" || Array.isArray(features)) {
-            errors.push("features must be a non-array object with optional 'multiConnection', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
+            errors.push("features must be a non-array object with optional 'multiConnection', 'connectionRequirement', 'minAPI', and 'enabledForPowerPlatformAPI' properties");
         } else {
-            const VALID_FEATURE_KEYS = ["multiConnection", "minAPI", "enabledForPowerPlatformAPI"];
+            const VALID_FEATURE_KEYS = ["multiConnection", "connectionRequirement", "minAPI", "enabledForPowerPlatformAPI"];
             const featureKeys = Object.keys(features);
             const invalidKeys = featureKeys.filter((key) => !VALID_FEATURE_KEYS.includes(key));
 
@@ -326,6 +329,10 @@ async function validatePackageJson(packageJson, options = {}) {
                 errors.push("features.multiConnection is required when features object is provided");
             } else if (!VALID_MULTI_CONNECTION_VALUES.includes(features.multiConnection)) {
                 errors.push(`features.multiConnection must be one of: ${VALID_MULTI_CONNECTION_VALUES.join(", ")}`);
+            }
+
+            if (features.connectionRequirement !== undefined && !VALID_CONNECTION_REQUIREMENT_VALUES.includes(features.connectionRequirement)) {
+                errors.push(`features.connectionRequirement must be one of: ${VALID_CONNECTION_REQUIREMENT_VALUES.join(", ")}`);
             }
 
             if (features.minAPI !== undefined) {
@@ -467,7 +474,7 @@ function validatePPTBConfig(config) {
                 } else {
                     agents.modes.forEach((mode, idx) => {
                         if (mode !== "one-way" && mode !== "two-way") {
-                            errors.push(`agents.modes[${idx}] must be either \"one-way\" or \"two-way\"`);
+                            errors.push(`agents.modes[${idx}] must be either "one-way" or "two-way"`);
                         }
                     });
                 }

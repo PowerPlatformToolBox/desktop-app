@@ -377,6 +377,9 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
         // Determine multi-connection mode
         const multiConnectionMode = tool.features?.multiConnection || "none";
+        // Tools declaring "optional" never block launch on connection selection; the user can
+        // attach connection(s) later via "Change Connection" on the tab context menu.
+        const connectionRequirement = tool.features?.connectionRequirement || "required";
 
         const resolveConnectionId = async (connectionId: string | null): Promise<string | null> => {
             if (!connectionId) {
@@ -403,7 +406,11 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             secondaryConnectionId = await resolveConnectionId(secondaryConnectionId);
         }
 
-        if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
+        if (connectionRequirement === "optional") {
+            // Connectionless-capable tool: launch immediately with whatever connection(s) were
+            // already resolved (possibly none). No blocking modal is shown.
+            logInfo("Tool does not require a connection to launch; skipping connection selection.", { primaryConnectionId, secondaryConnectionId });
+        } else if (multiConnectionMode === "required" || multiConnectionMode === "optional") {
             // Tool supports multi-connection - show multi-connection modal
             const isSecondaryRequired = multiConnectionMode === "required";
             logInfo(

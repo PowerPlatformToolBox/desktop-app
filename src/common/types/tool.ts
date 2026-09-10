@@ -30,6 +30,12 @@ export interface ToolFeatures {
      */
     multiConnection?: "required" | "optional" | "none";
     /**
+     * Whether a connection is mandatory before the tool can be opened
+     * - "required": A connection (per `multiConnection`) must be selected before launch (default behavior)
+     * - "optional": The tool opens immediately with no connection; the user can attach one later via "Change Connection"
+     */
+    connectionRequirement?: "required" | "optional";
+    /**
      * Minimum ToolBox API version required by this tool
      * Tool developers should specify this in their package.json
      * @example "1.0.12"

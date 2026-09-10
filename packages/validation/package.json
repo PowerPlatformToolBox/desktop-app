@@ -1,6 +1,6 @@
 {
   "name": "@pptb/validate",
-  "version": "1.0.1",
+  "version": "1.0.2-beta.0",
   "description": "Validation utilities for Power Platform ToolBox tool packages",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
