@@ -1,4 +1,4 @@
-import { BrowserView, BrowserWindow, ipcMain, shell } from "electron";
+import { BrowserView, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as path from "path";
 import { EVENT_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logError, logInfo, logWarn } from "../../common/logger";
@@ -98,6 +98,7 @@ export class ToolWindowManager {
      * from pendingInvocations, which already stores callerInstanceId per callee entry.
      */
     private activeCallees: Map<string, string> = new Map();
+    private preventCloseTools: Set<string> = new Set();
     // NOTE: Despite the name, this stores the active tool *instanceId* (not the toolId).
     // The property name is retained for backward compatibility; prefer `instanceId` terminology elsewhere.
     private activeToolId: string | null = null;
@@ -193,6 +194,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.HIDE_ALL);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
     }
 
     /**
@@ -277,6 +280,24 @@ export class ToolWindowManager {
         // Close a tool
         ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, instanceId: string) => {
             return this.closeTool(instanceId);
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.add(instanceId);
+            return true;
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE, async (event) => {
+            const instanceId = this.getInstanceIdByWebContents(event.sender.id);
+            if (!instanceId) {
+                return false;
+            }
+
+            this.preventCloseTools.delete(instanceId);
+            return true;
         });
 
         // Get active instance ID (activeToolId variable now stores instanceId values)
@@ -851,11 +872,28 @@ export class ToolWindowManager {
      * Close a tool (destroy its BrowserView)
      * @param instanceId The instance identifier to close
      */
-    async closeTool(instanceId: string): Promise<boolean> {
+    async closeTool(instanceId: string, options?: { force?: boolean }): Promise<boolean> {
         try {
             const toolView = this.toolViews.get(instanceId);
             if (!toolView) {
                 return false;
+            }
+
+            if (!options?.force && this.preventCloseTools.has(instanceId)) {
+                const toolName = this.toolInstanceNames.get(instanceId) ?? "this tool";
+                const response = dialog.showMessageBoxSync(this.mainWindow, {
+                    type: "warning",
+                    title: "Tool closure blocked",
+                    message: `${toolName} is preventing closure.`,
+                    detail: "This tool requested PreventClose. Close anyway?",
+                    buttons: ["Cancel", "Ignore & Close"],
+                    defaultId: 0,
+                    cancelId: 0,
+                    noLink: true,
+                });
+                if (response !== 1) {
+                    return false;
+                }
             }
 
             // If this is the active tool instance, clear it from window
@@ -875,6 +913,7 @@ export class ToolWindowManager {
             this.toolViews.delete(instanceId);
             this.toolConnectionInfo.delete(instanceId);
             this.toolInstanceNames.delete(instanceId);
+            this.preventCloseTools.delete(instanceId);
 
             // If the tool was launched by another tool (inter-tool invocation) and it closes
             // without calling returnData, resolve the caller's Promise with null so the caller
@@ -1174,6 +1213,7 @@ export class ToolWindowManager {
 
         this.toolViews.clear();
         this.toolConnectionInfo.clear();
+        this.preventCloseTools.clear();
         logInfo("[ToolWindowManager] All stale tool views closed and state reset.");
     }
 
@@ -1279,6 +1319,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
 
         if (this.boundsResponseListener) ipcMain.removeListener("get-tool-panel-bounds-response", this.boundsResponseListener);
         if (this.terminalVisibilityListener) ipcMain.removeListener("terminal-visibility-changed", this.terminalVisibilityListener);
@@ -1303,6 +1345,37 @@ export class ToolWindowManager {
         }
 
         this.closeAllToolViews();
+    }
+
+    hasPreventCloseTools(): boolean {
+        return this.preventCloseTools.size > 0;
+    }
+
+    confirmAppCloseIfPrevented(parentWindow?: BrowserWindow): boolean {
+        if (!this.hasPreventCloseTools()) {
+            return true;
+        }
+
+        const toolNames = Array.from(this.preventCloseTools)
+            .map((instanceId) => this.toolInstanceNames.get(instanceId))
+            .filter((name): name is string => Boolean(name));
+        const response = dialog.showMessageBoxSync(parentWindow ?? this.mainWindow, {
+            type: "warning",
+            title: "App closure blocked",
+            message: "One or more tools are preventing app closure.",
+            detail: `${toolNames.length > 0 ? `Tools: ${toolNames.join(", ")}.\n\n` : ""}Close anyway?`,
+            buttons: ["Cancel", "Ignore & Close"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+
+        if (response === 1) {
+            this.preventCloseTools.clear();
+            return true;
+        }
+
+        return false;
     }
 
     /**

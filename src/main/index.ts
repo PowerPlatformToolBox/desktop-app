@@ -3138,6 +3138,11 @@ class ToolBoxApp {
                 return;
             }
 
+            if (this.toolWindowManager && !this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                event.preventDefault();
+                return;
+            }
+
             if (!this.mcpServerManager.isRunning()) {
                 // No MCP background workload: closing the window should terminate app.
                 this.isQuitting = true;
@@ -3717,7 +3722,11 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", async () => {
+            app.on("before-quit", async (event) => {
+                if (!this.isQuitting && this.toolWindowManager && !this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                    event.preventDefault();
+                    return;
+                }
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
