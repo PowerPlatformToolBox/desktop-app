@@ -3728,14 +3728,18 @@ class ToolBoxApp {
             });
 
             app.on("before-quit", async (event) => {
-                if (this.toolWindowManager?.hasPreventCloseTools() && !this.hasConfirmedPreventCloseForQuit) {
+                const hasConfirmedPreventCloseForQuit = this.hasConfirmedPreventCloseForQuit;
+                // Consume this one-time confirmation token so any future quit attempt
+                // in this app session requires a fresh confirmation.
+                this.hasConfirmedPreventCloseForQuit = false;
+
+                if (this.toolWindowManager?.hasPreventCloseTools() && !hasConfirmedPreventCloseForQuit) {
                     if (!this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
                         event.preventDefault();
                         this.isQuitting = false;
                         return;
                     }
                 }
-                this.hasConfirmedPreventCloseForQuit = true;
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
