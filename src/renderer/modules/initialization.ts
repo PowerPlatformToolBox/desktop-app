@@ -54,7 +54,7 @@ import {
     setupKeyboardShortcuts,
     showHomePage,
 } from "./toolManagement";
-import { clearInstalledToolsDropdownFilters, loadSidebarTools } from "./toolsSidebarManagement";
+import { clearInstalledToolsDropdownFilters, loadSidebarTools, updateAllToolsFromSidebar } from "./toolsSidebarManagement";
 
 /**
  * Initialize the application
@@ -323,6 +323,16 @@ function setupToolbarButtons(): void {
  * Set up sidebar buttons
  */
 function setupSidebarButtons(): void {
+    // Sidebar update all tools button
+    const sidebarUpdateAllToolsBtn = document.getElementById("sidebar-update-all-tools-btn");
+    if (sidebarUpdateAllToolsBtn) {
+        sidebarUpdateAllToolsBtn.addEventListener("click", () => {
+            updateAllToolsFromSidebar().catch((error) => {
+                logError(error instanceof Error ? error : new Error(String(error)));
+            });
+        });
+    }
+
     // Sidebar add connection button
     const sidebarAddConnectionBtn = document.getElementById("sidebar-add-connection-btn");
     if (sidebarAddConnectionBtn) {
