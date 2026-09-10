@@ -1,5 +1,5 @@
-import { marked } from "marked";
 import GithubSlugger from "github-slugger";
+import { marked } from "marked";
 import { escapeHtml } from "./toolIconResolver";
 
 function isAllowedLink(href: string): boolean {
