@@ -3144,19 +3144,18 @@ class ToolBoxApp {
                 event.preventDefault();
                 return;
             }
-            if (hasPreventCloseTools) {
-                this.hasConfirmedPreventCloseForQuit = true;
-            }
 
             if (!this.mcpServerManager.isRunning()) {
                 // No MCP background workload: closing the window should terminate app.
+                if (hasPreventCloseTools) {
+                    this.hasConfirmedPreventCloseForQuit = true;
+                }
                 this.isQuitting = true;
                 return;
             }
 
             event.preventDefault();
             this.mainWindow?.hide();
-            this.hasConfirmedPreventCloseForQuit = false;
         });
 
         this.mainWindow.on("closed", () => {
