@@ -436,6 +436,16 @@ declare namespace ToolBoxAPI {
          * @internal Used internally by the framework
          */
         getToolContext: () => Promise<ToolContext>;
+        /**
+         * Mark this tool instance as preventing closure.
+         * While active, closing this tool tab or quitting PPTB shows a warning dialog
+         * with an "Ignore & Close" override.
+         */
+        preventClose: () => Promise<boolean>;
+        /**
+         * Clear a previously set prevent-close state for this tool instance.
+         */
+        releasePreventClose: () => Promise<boolean>;
     }
 
     /**

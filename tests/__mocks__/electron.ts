@@ -44,6 +44,8 @@ export class BrowserWindow {
         send: jest.fn(),
         on: jest.fn(),
         executeJavaScript: jest.fn(() => Promise.resolve()),
+        getZoomFactor: jest.fn(() => 1),
+        isDestroyed: jest.fn(() => false),
     };
     on = jest.fn();
     once = jest.fn();
@@ -56,6 +58,10 @@ export class BrowserWindow {
     addBrowserView = jest.fn();
     removeBrowserView = jest.fn();
     getBrowserViews = jest.fn(() => [] as BrowserView[]);
+    setBrowserView = jest.fn();
+    getBrowserView = jest.fn(() => null);
+    getContentBounds = jest.fn(() => ({ width: 1200, height: 800 }));
+    isVisible = jest.fn(() => true);
     static getAllWindows = jest.fn(() => []);
     static fromWebContents = jest.fn(() => null);
 }
@@ -94,6 +100,7 @@ export const dialog = {
     showOpenDialog: jest.fn(() => Promise.resolve({ canceled: true, filePaths: [] })),
     showSaveDialog: jest.fn(() => Promise.resolve({ canceled: true })),
     showMessageBox: jest.fn(() => Promise.resolve({ response: 0 })),
+    showMessageBoxSync: jest.fn(() => 0),
 };
 
 // ---------------------------------------------------------------------------
@@ -144,6 +151,7 @@ export class BrowserView {
         executeJavaScript: jest.fn(() => Promise.resolve()),
         setWindowOpenHandler: jest.fn(),
         isDestroyed: jest.fn(() => false),
+        destroy: jest.fn(),
     };
     setBounds = jest.fn();
     setAutoResize = jest.fn();

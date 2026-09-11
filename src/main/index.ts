@@ -107,6 +107,7 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+    private hasConfirmedPreventCloseForQuit = false;
     private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
     private mcpAutoStartInProgress = false;
 
@@ -3138,8 +3139,17 @@ class ToolBoxApp {
                 return;
             }
 
+            const hasPreventCloseTools = this.toolWindowManager?.hasPreventCloseTools() ?? false;
+            if (hasPreventCloseTools && this.toolWindowManager && !this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                event.preventDefault();
+                return;
+            }
+
             if (!this.mcpServerManager.isRunning()) {
                 // No MCP background workload: closing the window should terminate app.
+                if (hasPreventCloseTools) {
+                    this.hasConfirmedPreventCloseForQuit = true;
+                }
                 this.isQuitting = true;
                 return;
             }
@@ -3717,7 +3727,19 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", async () => {
+            app.on("before-quit", async (event) => {
+                const hasConfirmedPreventCloseForQuit = this.hasConfirmedPreventCloseForQuit;
+                // Consume this one-time confirmation token so any future quit attempt
+                // in this app session requires a fresh confirmation.
+                this.hasConfirmedPreventCloseForQuit = false;
+
+                if (this.toolWindowManager?.hasPreventCloseTools() && !hasConfirmedPreventCloseForQuit) {
+                    if (!this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                        event.preventDefault();
+                        this.isQuitting = false;
+                        return;
+                    }
+                }
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting

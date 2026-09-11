@@ -226,6 +226,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         await withTimeout(toolContextReady, TOOL_CONTEXT_TIMEOUT_MS, TOOL_CONTEXT_TIMEOUT_ERROR);
         return toolContext;
     },
+    preventClose: () => ipcInvoke(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE),
+    releasePreventClose: () => ipcInvoke(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE),
 
     // Connections API
     connections: {

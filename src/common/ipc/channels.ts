@@ -137,6 +137,8 @@ export const TOOL_WINDOW_CHANNELS = {
      * the callee's tab and switches back to the caller tool.
      */
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
+    PREVENT_CLOSE: "tool-window:prevent-close",
+    RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
 } as const;
 
 // Terminal-related IPC channels

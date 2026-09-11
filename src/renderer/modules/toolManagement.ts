@@ -970,6 +970,15 @@ export async function closeTool(instanceId: string): Promise<void> {
         return;
     }
 
+    if (!openTool.isDetailTab) {
+        // Real tool: close the tool window via IPC first.
+        // If main process blocks closure (PreventClose + user cancel), keep UI tab open.
+        const closed = await window.toolboxAPI.closeToolWindow(instanceId);
+        if (!closed) {
+            return;
+        }
+    }
+
     // Remove tab
     const tab = document.getElementById(`tool-tab-${instanceId}`);
     if (tab) {
@@ -994,12 +1003,6 @@ export async function closeTool(instanceId: string): Promise<void> {
                 toolPanelContent.style.display = "";
             }
         }
-    } else {
-        // Real tool: close the tool window via IPC
-        // The ToolWindowManager will destroy the BrowserView
-        window.toolboxAPI.closeToolWindow(instanceId).catch((error: any) => {
-            logError(error instanceof Error ? error : new Error(String(error)));
-        });
     }
 
     // Remove from open tools
