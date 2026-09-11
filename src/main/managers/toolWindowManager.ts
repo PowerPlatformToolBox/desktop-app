@@ -624,8 +624,11 @@ export class ToolWindowManager {
 
         // Multi-connection: if the callee requires a secondary connection but none was provided,
         // ask the main renderer to show the multi-connection selector before launching the tool.
+        // Tools declaring features.connectionRequirement === "optional" never block on connection
+        // selection, so they skip this prompt even if they support multi-connection.
+        const connectionRequirement = tool.features?.connectionRequirement ?? "required";
         const multiConnectionMode = tool.features?.multiConnection ?? "none";
-        const needsSecondary = multiConnectionMode === "required" || multiConnectionMode === "optional";
+        const needsSecondary = connectionRequirement === "required" && (multiConnectionMode === "required" || multiConnectionMode === "optional");
         let effectiveSecondaryConnectionId = secondaryConnectionId;
 
         if (needsSecondary && !effectiveSecondaryConnectionId) {
