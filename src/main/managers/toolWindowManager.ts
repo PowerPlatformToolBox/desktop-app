@@ -888,7 +888,7 @@ export class ToolWindowManager {
                     type: "warning",
                     title: "Tool closure blocked",
                     message: `${toolName} is preventing closure.`,
-                    detail: "This tool requested PreventClose. Close anyway?",
+                    detail: "This tool needs to complete an operation. Are you sure you want to close it?",
                     buttons: ["Cancel", "Ignore & Close"],
                     defaultId: 0,
                     cancelId: 0,
