@@ -3,7 +3,7 @@
  * Main entry point that sets up all event listeners and initializes the application
  */
 
-import { TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
+import { APP_CHANNELS, TOOL_WINDOW_CHANNELS } from "../../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../../common/logger";
 import { normalizeTelemetryConsent, shouldPromptForTelemetryConsent } from "../../common/telemetryConsent";
 import {
@@ -27,6 +27,7 @@ import {
     updateFooterConnection,
 } from "./connectionManagement";
 import { openConsentReviewTab } from "./cspConsentReviewSidebarManagement";
+import { enqueueDebugToolLaunchRequest } from "./debugToolLaunch";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -194,6 +195,11 @@ export async function initializeApplication(): Promise<void> {
         setupTokenExpiryCheck();
 
         logCheckpoint("Renderer initialization completed successfully");
+
+        // Signal the main process that every IPC listener is registered. Anything queued
+        // before this point (CLI --debug-tool, pptb:// deep links) is flushed now. Must be
+        // the last statement of the try block, and is deliberately not sent on failure.
+        window.api.send(APP_CHANNELS.RENDERER_READY);
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
         // Show error to user using a proper error modal
@@ -685,6 +691,13 @@ function setupApplicationEventListeners(): void {
     // Protocol deep link handler
     window.toolboxAPI.onProtocolInstallToolRequest((params: { toolId: string; toolName: string }) => {
         handleProtocolInstallToolRequest(params).catch((error) => {
+            logError(error instanceof Error ? error : new Error(String(error)));
+        });
+    });
+
+    // CLI --debug-tool handler (cold launch and second instance)
+    window.toolboxAPI.onDebugToolLaunchRequest((request) => {
+        enqueueDebugToolLaunchRequest(request).catch((error) => {
             logError(error instanceof Error ? error : new Error(String(error)));
         });
     });

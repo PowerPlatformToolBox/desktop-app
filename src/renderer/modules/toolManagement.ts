@@ -5,6 +5,7 @@
 
 import { logError, logInfo, logWarn } from "../../common/logger";
 import type { Connection } from "../../common/types/connection";
+import type { Tool } from "../../common/types/tool";
 import { getCspConsentDelta, getNormalizedCspDomains } from "../../common/utils/cspConsent";
 import {
     DEFAULT_CATEGORY_COLOR_THICKNESS,
@@ -27,12 +28,17 @@ const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
 
 export interface LaunchToolOptions {
     source?: string;
+    toolOverride?: Tool;
     primaryConnectionId?: string | null;
     secondaryConnectionId?: string | null;
     /** Prefill data to pass to the tool on launch (inter-tool launch context). */
     prefillData?: Record<string, unknown>;
     /** The instanceId of the tool initiating this launch (for inter-tool return data). */
     callerInstanceId?: string;
+    /** Final authorization check after connection/CSP selection and before BrowserView creation. */
+    beforeLaunch?: (connections: { primaryConnectionId: string | null; secondaryConnectionId: string | null }) => Promise<boolean>;
+    /** Final replacement check after BrowserView creation but before renderer state is committed. */
+    afterWindowLaunch?: (instanceId: string) => Promise<boolean>;
 }
 
 // Tool state - now keyed by instanceId instead of toolId to support multiple instances
@@ -338,7 +344,7 @@ export function updateToolbarButtonVisibility(): void {
 /**
  * Launch a tool by ID
  */
-export async function launchTool(toolId: string, options?: LaunchToolOptions): Promise<void> {
+export async function launchTool(toolId: string, options?: LaunchToolOptions): Promise<string | null> {
     try {
         logInfo("Launching tool:", { toolId });
 
@@ -346,14 +352,14 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         const instanceId = generateInstanceId(toolId);
         logInfo("Generated instance ID:", { instanceId });
         // Load the tool first to check if it requires multi-connection
-        const tool = await window.toolboxAPI.getTool(toolId);
+        const tool = options?.toolOverride ?? (await window.toolboxAPI.getTool(toolId));
         if (!tool) {
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Launch Failed",
                 body: `Tool ${toolId} not found`,
                 type: "error",
             });
-            return;
+            return null;
         }
 
         // Check if tool is supported by current ToolBox version
@@ -372,7 +378,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                 body: getUnsupportedToolMessage(tool.name, unsupportedRequirement),
                 type: "warning",
             });
-            return;
+            return null;
         }
 
         // Determine multi-connection mode
@@ -441,7 +447,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                         body: errorMessage,
                         type: "info",
                     });
-                    return;
+                    return null;
                 }
             }
         } else {
@@ -463,8 +469,15 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                         body: "A connection is required to use this tool. Please connect to an environment to continue.",
                         type: "info",
                     });
-                    return;
+                    return null;
                 }
+            }
+        }
+
+        if (options?.beforeLaunch) {
+            const authorized = await options.beforeLaunch({ primaryConnectionId, secondaryConnectionId });
+            if (!authorized) {
+                return null;
             }
         }
 
@@ -490,7 +503,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                         body: `You declined the security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
                         type: "warning",
                     });
-                    return;
+                    return null;
                 }
 
                 const normalizedDomains = getNormalizedCspDomains(tool.cspExceptions);
@@ -525,7 +538,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                             body: `You declined the new security permissions for ${tool.name}. The tool cannot be loaded without these permissions.`,
                             type: "warning",
                         });
-                        return;
+                        return null;
                     }
 
                     const updatedRequired = currentRequired;
@@ -587,7 +600,12 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     body: `Failed to launch ${tool.name}`,
                     type: "error",
                 });
-                return;
+                return null;
+            }
+
+            if (options?.afterWindowLaunch && !(await options.afterWindowLaunch(instanceId))) {
+                await window.toolboxAPI.closeToolWindow(instanceId).catch(() => false);
+                return null;
             }
         }
 
@@ -621,6 +639,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         saveSession();
 
         logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
+        return instanceId;
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));
         window.toolboxAPI.utils.showNotification({
@@ -628,6 +647,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
             body: `Failed to launch tool: ${error}`,
             type: "error",
         });
+        return null;
     }
 }
 
@@ -949,19 +969,19 @@ export async function switchToTool(instanceId: string): Promise<void> {
 /**
  * Close a tool
  */
-export async function closeTool(instanceId: string): Promise<void> {
+export async function closeTool(instanceId: string, options?: { force?: boolean }): Promise<void> {
     const openTool = openTools.get(instanceId);
     if (!openTool) return;
 
     // Run close guard if registered for this tab
     const guard = closeGuards.get(instanceId);
-    if (guard) {
+    if (guard && !options?.force) {
         const canClose = await guard();
         if (!canClose) return;
     }
 
     // Check if tab is pinned (only for real tool instances, not detail tabs)
-    if (!openTool.isDetailTab && openTool.isPinned) {
+    if (!openTool.isDetailTab && openTool.isPinned && !options?.force) {
         window.toolboxAPI.utils.showNotification({
             title: "Cannot Close Pinned Tab",
             body: "Unpin the tab before closing it",
@@ -973,7 +993,7 @@ export async function closeTool(instanceId: string): Promise<void> {
     if (!openTool.isDetailTab) {
         // Real tool: close the tool window via IPC first.
         // If main process blocks closure (PreventClose + user cancel), keep UI tab open.
-        const closed = await window.toolboxAPI.closeToolWindow(instanceId);
+        const closed = options?.force ? await window.toolboxAPI.forceCloseToolWindow(instanceId) : await window.toolboxAPI.closeToolWindow(instanceId);
         if (!closed) {
             return;
         }
@@ -1036,6 +1056,64 @@ export async function closeTool(instanceId: string): Promise<void> {
             activeToolId = null;
         }
     }
+}
+
+export async function closeToolsAtomically(instanceIds: string[]): Promise<boolean> {
+    const uniqueInstanceIds = [...new Set(instanceIds)];
+    const toolsToClose = uniqueInstanceIds.map((instanceId) => openTools.get(instanceId));
+    if (toolsToClose.some((openTool) => !openTool || openTool.isDetailTab)) {
+        return false;
+    }
+
+    for (const instanceId of uniqueInstanceIds) {
+        const guard = closeGuards.get(instanceId);
+        if (guard && !(await guard())) {
+            return false;
+        }
+
+        if (openTools.get(instanceId)?.isPinned) {
+            await window.toolboxAPI.utils.showNotification({
+                title: "Cannot Close Pinned Tab",
+                body: "Unpin the tab before closing it",
+                type: "warning",
+            });
+            return false;
+        }
+    }
+
+    if (!(await window.toolboxAPI.closeToolWindows(uniqueInstanceIds))) {
+        return false;
+    }
+
+    const activeToolWasClosed = activeToolId !== null && uniqueInstanceIds.includes(activeToolId);
+    for (const instanceId of uniqueInstanceIds) {
+        document.getElementById(`tool-tab-${instanceId}`)?.remove();
+        closeGuards.delete(instanceId);
+        openTools.delete(instanceId);
+    }
+
+    updateToolbarButtonVisibility();
+    updateTabScrollButtons();
+    saveSession();
+
+    if (activeToolWasClosed) {
+        if (openTools.size > 0) {
+            const lastInstanceId = Array.from(openTools.keys())[openTools.size - 1];
+            await switchToTool(lastInstanceId);
+        } else {
+            const toolPanel = document.getElementById("tool-panel");
+            const homeView = document.getElementById("home-view");
+            if (toolPanel) {
+                toolPanel.style.display = "none";
+            }
+            if (homeView) {
+                homeView.style.display = "block";
+            }
+            activeToolId = null;
+        }
+    }
+
+    return true;
 }
 
 /**

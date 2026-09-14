@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     ) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT, callerInstanceId, calleeInstanceId, tool, primaryConnectionId, secondaryConnectionId, prefillData, noReturn),
     switchToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SWITCH, instanceId),
     closeToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE, instanceId),
+    forceCloseToolWindow: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FORCE_CLOSE, instanceId),
+    closeToolWindows: (instanceIds: string[]) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.CLOSE_MANY, instanceIds),
     hideToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.HIDE_ALL),
     getActiveToolWindow: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_ACTIVE),
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
@@ -125,7 +127,9 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     toggleFavoriteTool: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.TOGGLE_FAVORITE_TOOL, toolId),
 
     // Local tool development (DEBUG MODE)
-    loadLocalTool: (localPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.LOAD_LOCAL_TOOL, localPath),
+    loadLocalTool: (localPath: string, expectedIdentity?: unknown, provisional?: boolean) => ipcRenderer.invoke(TOOL_CHANNELS.LOAD_LOCAL_TOOL, localPath, expectedIdentity, provisional),
+    commitLocalTool: (toolId: string, expectedIdentity: unknown) => ipcRenderer.invoke(TOOL_CHANNELS.COMMIT_LOCAL_TOOL, toolId, expectedIdentity),
+    removeLocalTool: (toolId: string, expectedIdentity: unknown) => ipcRenderer.invoke(TOOL_CHANNELS.REMOVE_LOCAL_TOOL, toolId, expectedIdentity),
     getLocalToolWebviewHtml: (localPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML, localPath),
     openDirectoryPicker: () => ipcRenderer.invoke(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER),
 
@@ -305,6 +309,23 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => {
         ipcRenderer.on(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, (_, params) => callback(params));
     },
+
+    // CLI --debug-tool launch request
+    onDebugToolLaunchRequest: (callback: (request: { localPath: string; connection: string | null; openDevTools: boolean }) => void) => {
+        ipcRenderer.on(EVENT_CHANNELS.DEBUG_TOOL_LAUNCH_REQUEST, (_, request) => callback(request));
+    },
+
+    // Local tool trust list (CLI --debug-tool)
+    peekLocalToolIdentity: (localPath: string) => ipcRenderer.invoke(TOOL_CHANNELS.PEEK_LOCAL_TOOL_IDENTITY, localPath),
+    getTrustedDebugToolPaths: () => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TRUSTED_DEBUG_TOOL_PATHS),
+    isDebugToolPathTrusted: (localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.IS_DEBUG_TOOL_PATH_TRUSTED, localPath, packageName, primaryConnectionId, secondaryConnectionId),
+    trustDebugToolPath: (localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) =>
+        ipcRenderer.invoke(SETTINGS_CHANNELS.TRUST_DEBUG_TOOL_PATH, localPath, packageName, primaryConnectionId, secondaryConnectionId),
+    revokeDebugToolPathTrust: (localPath: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.REVOKE_DEBUG_TOOL_PATH_TRUST, localPath),
+
+    // Tool DevTools
+    openToolDevTools: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.OPEN_DEVTOOLS, instanceId),
 
     // About dialog event
     onShowAbout: (
