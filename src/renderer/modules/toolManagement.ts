@@ -593,6 +593,7 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
                     }
                 });
         } else {
+            const previouslyActiveToolId = activeToolId;
             const launched = await window.toolboxAPI.launchToolWindow(instanceId, tool, primaryConnectionId, secondaryConnectionId);
             if (!launched) {
                 window.toolboxAPI.utils.showNotification({
@@ -605,6 +606,9 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
 
             if (options?.afterWindowLaunch && !(await options.afterWindowLaunch(instanceId))) {
                 await window.toolboxAPI.closeToolWindow(instanceId).catch(() => false);
+                if (previouslyActiveToolId && openTools.has(previouslyActiveToolId)) {
+                    await switchToTool(previouslyActiveToolId);
+                }
                 return null;
             }
         }
@@ -641,7 +645,8 @@ export async function launchTool(toolId: string, options?: LaunchToolOptions): P
         logInfo("Tool launched successfully:", { toolName: tool.name, instanceNumber: instanceNumber });
         return instanceId;
     } catch (error) {
-        logError(error instanceof Error ? error : new Error(String(error)));
+        const safeErrorName = error instanceof Error ? error.name : typeof error;
+        logError("Tool launch failed", { errorName: safeErrorName });
         window.toolboxAPI.utils.showNotification({
             title: "Tool Launch Error",
             body: `Failed to launch tool: ${error}`,

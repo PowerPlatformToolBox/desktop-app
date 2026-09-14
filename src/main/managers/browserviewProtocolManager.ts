@@ -68,7 +68,9 @@ export class BrowserviewProtocolManager {
         try {
             // Parse the URL: pptb-webview://toolId/path/to/file
             const requestUrl = new URL(request.url);
-            const toolId = requestUrl.hostname;
+            // URL.hostname normalizes the authority to lowercase, but local tool
+            // IDs may retain casing from their package names.
+            const toolId = request.url.match(/^pptb-webview:\/\/([^/?#]+)/i)?.[1] ?? requestUrl.hostname;
             const filePath = decodeURIComponent(requestUrl.pathname.replace(/^\/+/, "")) || "index.html";
 
             logInfo(`[pptb-webview] Asset request for tool: ${toolId}`);

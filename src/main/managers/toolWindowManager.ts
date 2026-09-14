@@ -426,7 +426,8 @@ export class ToolWindowManager {
             // Register event handlers BEFORE loading the tool URL so they are active
             // from the very first navigation onward.
 
-            const toolOrigin = new URL(toolUrl).origin;
+            const toolUrlParts = new URL(toolUrl);
+            const toolOriginKey = `${toolUrlParts.protocol}//${toolUrlParts.host}`;
             const guardTopLevelNavigation = (event: Electron.Event, url: string): void => {
                 if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
                     event.preventDefault();
@@ -439,7 +440,10 @@ export class ToolWindowManager {
                 }
 
                 try {
-                    if (new URL(url).origin !== toolOrigin) {
+                    const navigationUrlParts = new URL(url);
+                    const navigationOriginKey = `${navigationUrlParts.protocol}//${navigationUrlParts.host}`;
+
+                    if (navigationOriginKey !== toolOriginKey) {
                         event.preventDefault();
                         logWarn("[ToolWindowManager] Blocked cross-origin top-level navigation", { toolId });
                     }
