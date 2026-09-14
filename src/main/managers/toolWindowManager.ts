@@ -289,7 +289,10 @@ export class ToolWindowManager {
             }
             return this.closeTool(instanceId, { force: true });
         });
-        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE_MANY, async (_event, instanceIds: string[]) => {
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE_MANY, async (event, instanceIds: string[]) => {
+            if (event.sender.id !== this.mainWindow.webContents.id || event.senderFrame !== this.mainWindow.webContents.mainFrame) {
+                throw new Error("Unauthorized tool-window close request");
+            }
             return this.closeToolsAtomically(instanceIds);
         });
         ipcMain.handle(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE, async (event) => {
