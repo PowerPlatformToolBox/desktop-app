@@ -81,7 +81,84 @@ describe("ToolManager invocation target resolution", () => {
         const target = manager.resolveInvocationTarget("@contoso/local-caller-target");
 
         expect(target).toBe(localTool);
-        expect(target?.id).toBe("local-contoso-local-caller-target");
+        expect(target?.id).toMatch(/^local-contoso-local-caller-target-[a-f0-9]{12}$/);
+    });
+
+    it("assigns different IDs to local folders with the same package name", async () => {
+        const firstPath = path.join(toolsDirectory, "first-local-source");
+        const secondPath = path.join(toolsDirectory, "second-local-source");
+        writeToolPackage(firstPath, "shared-package-name");
+        writeToolPackage(secondPath, "shared-package-name");
+        const manager = new ToolManager(toolsDirectory);
+
+        const firstTool = await manager.loadLocalTool(firstPath);
+        const secondTool = await manager.loadLocalTool(secondPath);
+
+        expect(firstTool.id).not.toBe(secondTool.id);
+        expect(manager.getAllTools()).toEqual(expect.arrayContaining([firstTool, secondTool]));
+    });
+
+    it("changes the local ID when exact package identity changes", () => {
+        const localPath = path.join(toolsDirectory, "local-source");
+        writeToolPackage(localPath, "@scope/tool");
+        const manager = new ToolManager(toolsDirectory);
+        const scopedIdentity = manager.readLocalToolIdentity(localPath);
+
+        fs.writeFileSync(path.join(localPath, "package.json"), JSON.stringify({ name: "scope-tool", version: "1.0.0" }));
+        const unscopedIdentity = manager.readLocalToolIdentity(localPath);
+
+        expect(scopedIdentity?.id).not.toBe(unscopedIdentity?.id);
+    });
+
+    it("rejects a local tool whose dist junction escapes the tool directory", async () => {
+        const localPath = path.join(toolsDirectory, "local-source");
+        const externalDistPath = path.join(toolsDirectory, "external-dist");
+        fs.mkdirSync(localPath, { recursive: true });
+        fs.mkdirSync(externalDistPath, { recursive: true });
+        fs.writeFileSync(path.join(localPath, "package.json"), JSON.stringify({ name: "junction-tool", version: "1.0.0" }));
+        fs.writeFileSync(path.join(externalDistPath, "index.html"), "<!doctype html><html></html>");
+        fs.symlinkSync(externalDistPath, path.join(localPath, "dist"), "junction");
+
+        const manager = new ToolManager(toolsDirectory);
+        const identity = manager.readLocalToolIdentity(localPath);
+
+        expect(identity).toBeNull();
+        await expect(manager.loadLocalTool(localPath)).rejects.toThrow("inside its canonical directory");
+    });
+
+    it("removes a provisional local registration only for its exact identity", async () => {
+        const localPath = path.join(toolsDirectory, "local-source");
+        writeToolPackage(localPath, "provisional-tool");
+        const manager = new ToolManager(toolsDirectory);
+        const identity = manager.readLocalToolIdentity(localPath);
+        expect(identity).not.toBeNull();
+        const tool = await manager.loadLocalTool(localPath, identity!);
+
+        expect(manager.removeLocalTool(tool.id, { ...identity!, name: "other-tool" })).toBe(false);
+        expect(manager.getAllTools()).toContain(tool);
+        expect(manager.removeLocalTool(tool.id, identity!)).toBe(true);
+        expect(manager.getAllTools()).not.toContain(tool);
+    });
+
+    it("keeps a staged local tool private until exact-identity commit", async () => {
+        const localPath = path.join(toolsDirectory, "local-source");
+        writeToolPackage(localPath, "staged-tool");
+        const manager = new ToolManager(toolsDirectory);
+        const identity = manager.readLocalToolIdentity(localPath);
+        expect(identity).not.toBeNull();
+        const loadedListener = jest.fn();
+        manager.on("tool:loaded", loadedListener);
+
+        const tool = await manager.loadLocalTool(localPath, identity!, true);
+
+        expect(manager.getAllTools()).not.toContain(tool);
+        expect(manager.getTool(tool.id)).toBeUndefined();
+        expect(manager.getToolForWebview(tool.id)).toBe(tool);
+        expect(loadedListener).not.toHaveBeenCalled();
+        expect(manager.commitLocalTool(tool.id, { ...identity!, name: "other-tool" })).toBe(false);
+        expect(manager.commitLocalTool(tool.id, identity!)).toBe(true);
+        expect(manager.getAllTools()).toContain(tool);
+        expect(loadedListener).toHaveBeenCalledWith(tool);
     });
 
     it("rejects ambiguous package-name matches", async () => {

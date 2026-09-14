@@ -18,6 +18,7 @@ import {
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
     TOOL_REPORT_CHANNELS,
+    TOOL_WINDOW_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
@@ -41,11 +42,13 @@ import { BrowserManager } from "./managers/browserManager";
 import { BrowserviewProtocolManager } from "./managers/browserviewProtocolManager";
 import { ConnectionsManager } from "./managers/connectionsManager";
 import { DataverseManager } from "./managers/dataverseManager";
+import { DebugToolLaunchManager } from "./managers/debugToolLaunchManager";
 import { InstallIdManager } from "./managers/installIdManager";
 import { ModalWindowManager } from "./managers/modalWindowManager";
 import { NotificationHistoryWindowManager, NotificationWindowManager } from "./managers/notificationWindowManager";
 import { PowerPlatformManager } from "./managers/powerplatformManager";
 import { ProtocolHandlerManager } from "./managers/protocolHandlerManager";
+import { RendererReadyGate } from "./managers/rendererReadyGate";
 import { SettingsManager } from "./managers/settingsManager";
 import { SplitLayoutManager } from "./managers/splitLayoutManager";
 import { TerminalManager } from "./managers/terminalManager";
@@ -58,6 +61,7 @@ import { VersionManager } from "./managers/versionManager";
 import { clearLogEntries, readLogEntries } from "./mcp/agentInvocationLogger";
 import { McpServerManager } from "./mcp/mcpServer";
 import { applyMainSentryConsent } from "./sentryRuntime";
+import { describePath, parseLaunchArgs } from "./launchArgs";
 import { ActiveToolInfo, buildToolBoxFeedbackUrl, buildToolFeedbackUrl, getEnvironmentDiagnostics, resolveActiveToolInfo } from "./utilities";
 
 // Constants
@@ -88,6 +92,8 @@ class ToolBoxApp {
     private toolManager: ToolManager;
     private browserviewProtocolManager: BrowserviewProtocolManager;
     private protocolHandlerManager: ProtocolHandlerManager;
+    private rendererReadyGate: RendererReadyGate;
+    private debugToolLaunchManager: DebugToolLaunchManager;
     private toolWindowManager: ToolWindowManager | null = null;
     private splitLayoutManager: SplitLayoutManager | null = null;
     private notificationWindowManager: NotificationWindowManager | null = null;
@@ -152,6 +158,8 @@ class ToolBoxApp {
             );
             this.browserviewProtocolManager = new BrowserviewProtocolManager(this.toolManager, this.settingsManager);
             this.protocolHandlerManager = new ProtocolHandlerManager();
+            this.rendererReadyGate = new RendererReadyGate();
+            this.debugToolLaunchManager = new DebugToolLaunchManager();
             this.autoUpdateManager = new AutoUpdateManager();
             this.browserManager = new BrowserManager();
             this.authManager = new AuthManager(this.browserManager);
@@ -363,6 +371,9 @@ class ToolBoxApp {
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNINSTALL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_LOCAL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.PEEK_LOCAL_TOOL_IDENTITY);
+        ipcMain.removeHandler(TOOL_CHANNELS.COMMIT_LOCAL_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.REMOVE_LOCAL_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML);
         ipcMain.removeHandler(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL_WEBVIEW_HTML);
@@ -381,6 +392,13 @@ class ToolBoxApp {
         ipcMain.removeHandler(SETTINGS_CHANNELS.GRANT_CSP_CONSENT);
         ipcMain.removeHandler(SETTINGS_CHANNELS.REVOKE_CSP_CONSENT);
         ipcMain.removeHandler(SETTINGS_CHANNELS.GET_CSP_CONSENTS);
+
+        // CLI --debug-tool trust list handlers
+        ipcMain.removeHandler(SETTINGS_CHANNELS.GET_TRUSTED_DEBUG_TOOL_PATHS);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.IS_DEBUG_TOOL_PATH_TRUSTED);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.TRUST_DEBUG_TOOL_PATH);
+        ipcMain.removeHandler(SETTINGS_CHANNELS.REVOKE_DEBUG_TOOL_PATH_TRUST);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.OPEN_DEVTOOLS);
 
         // Tool-Connection mapping handlers
         ipcMain.removeHandler(SETTINGS_CHANNELS.SET_TOOL_CONNECTION);
@@ -532,6 +550,12 @@ class ToolBoxApp {
         }
 
         return parsedUrl;
+    }
+
+    private assertMainRendererSender(event: Electron.IpcMainInvokeEvent): void {
+        if (!this.mainWindow || event.sender.id !== this.mainWindow.webContents.id || event.senderFrame !== this.mainWindow.webContents.mainFrame) {
+            throw new Error("Unauthorized IPC sender");
+        }
     }
 
     private setupIpcHandlers(): void {
@@ -1171,13 +1195,30 @@ class ToolBoxApp {
         });
 
         // Local tool development - load tool from local directory
-        ipcMain.handle(TOOL_CHANNELS.LOAD_LOCAL_TOOL, async (_, localPath) => {
-            const tool = await this.toolManager.loadLocalTool(localPath);
+        ipcMain.handle(TOOL_CHANNELS.LOAD_LOCAL_TOOL, async (event, localPath, expectedIdentity, provisional) => {
+            this.assertMainRendererSender(event);
+            const tool = await this.toolManager.loadLocalTool(localPath, expectedIdentity, provisional === true);
             return tool;
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.COMMIT_LOCAL_TOOL, (event, toolId, expectedIdentity) => {
+            this.assertMainRendererSender(event);
+            return this.toolManager.commitLocalTool(toolId, expectedIdentity);
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.REMOVE_LOCAL_TOOL, (event, toolId, expectedIdentity) => {
+            this.assertMainRendererSender(event);
+            return this.toolManager.removeLocalTool(toolId, expectedIdentity);
         });
 
         ipcMain.handle(TOOL_CHANNELS.GET_LOCAL_TOOL_WEBVIEW_HTML, (_, localPath) => {
             return this.toolManager.getLocalToolWebviewHtml(localPath);
+        });
+
+        // Trust prompt support: read a candidate tool's identity without registering it.
+        ipcMain.handle(TOOL_CHANNELS.PEEK_LOCAL_TOOL_IDENTITY, (event, localPath: string) => {
+            this.assertMainRendererSender(event);
+            return this.toolManager.readLocalToolIdentity(localPath);
         });
 
         ipcMain.handle(TOOL_CHANNELS.OPEN_DIRECTORY_PICKER, async () => {
@@ -1250,6 +1291,31 @@ class ToolBoxApp {
 
         ipcMain.handle(SETTINGS_CHANNELS.GET_CSP_CONSENTS, () => {
             return this.settingsManager.getCspConsents();
+        });
+
+        // CLI --debug-tool trust list handlers
+        ipcMain.handle(SETTINGS_CHANNELS.GET_TRUSTED_DEBUG_TOOL_PATHS, () => {
+            return this.settingsManager.getTrustedDebugToolPaths();
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.IS_DEBUG_TOOL_PATH_TRUSTED, (event, localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) => {
+            this.assertMainRendererSender(event);
+            return this.settingsManager.isDebugToolPathTrusted(localPath, packageName, primaryConnectionId, secondaryConnectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.TRUST_DEBUG_TOOL_PATH, (event, localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) => {
+            this.assertMainRendererSender(event);
+            this.settingsManager.trustDebugToolPath(localPath, packageName, primaryConnectionId, secondaryConnectionId);
+        });
+
+        ipcMain.handle(SETTINGS_CHANNELS.REVOKE_DEBUG_TOOL_PATH_TRUST, (event, localPath: string) => {
+            this.assertMainRendererSender(event);
+            this.settingsManager.revokeDebugToolPathTrust(localPath);
+        });
+
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.OPEN_DEVTOOLS, (event, instanceId: string) => {
+            this.assertMainRendererSender(event);
+            return this.toolWindowManager?.openDevToolsForInstance(instanceId) ?? false;
         });
 
         // Tool-Connection mapping handlers
@@ -3058,6 +3124,17 @@ class ToolBoxApp {
     }
 
     /**
+     * Fan out a second instance's forwarded command line to every consumer.
+     * `workingDirectory` is the *calling* process's CWD — using it (rather than
+     * process.cwd()) is what makes `--debug-tool .` resolve correctly on this path.
+     */
+    public handleSecondInstanceCommandLine(commandLine: string[], workingDirectory: string): void {
+        this.handleSecondInstanceLaunch();
+        this.protocolHandlerManager.handleSecondInstanceCommandLine(commandLine);
+        this.debugToolLaunchManager.handleRequest(parseLaunchArgs(commandLine, workingDirectory || process.cwd()));
+    }
+
+    /**
      * Register custom pptb-webview protocol for loading tool content
      * This provides isolation and CSP control for tool execution
      */
@@ -3116,6 +3193,9 @@ class ToolBoxApp {
 
         // Set the main window for auto-updater
         this.autoUpdateManager.setMainWindow(this.mainWindow);
+
+        // Track load lifecycle so a renderer reload re-arms the readiness gate.
+        this.rendererReadyGate.attachWindow(this.mainWindow);
 
         // Create the application menu
         this.createMenu();
@@ -3647,6 +3727,11 @@ class ToolBoxApp {
             // MUST be called before app.whenReady() so no deep link is missed.
             this.protocolHandlerManager.initialize();
 
+            // Capture a --debug-tool request from the cold-launch command line, and register
+            // the renderer-ready listener. Both must happen before app.whenReady().
+            this.rendererReadyGate.initialize(ipcMain);
+            this.debugToolLaunchManager.initialize(parseLaunchArgs(process.argv, process.cwd()));
+
             await app.whenReady();
             logCheckpoint("Electron app ready");
 
@@ -3661,34 +3746,38 @@ class ToolBoxApp {
             logCheckpoint("Tray icon created");
 
             // Set up deep link protocol handler callback after the main window exists.
-            // The callback defers IPC delivery until the renderer has finished loading so
-            // that protocol URLs captured during startup (buffered in pendingUrls) are
-            // reliably delivered even on a cold launch via pptb://.
+            // Delivery is gated on the renderer-ready signal: the renderer registers its
+            // listeners at the END of initializeApplication(), long after did-finish-load,
+            // so anything sent earlier would be silently dropped.
             this.protocolHandlerManager.setupProtocolHandler(async (action, params) => {
                 logInfo(`[ProtocolHandler] Received ${action} request for tool: ${params.toolId}`);
 
                 // Bring app window to focus
                 this.showAndFocusMainWindow();
 
-                // Deliver the IPC event to the renderer.  If the renderer is still
-                // loading (e.g. cold launch via protocol URL), defer until it finishes.
-                if (this.mainWindow) {
-                    const webContents = this.mainWindow.webContents;
-                    const deliver = (): void => {
-                        if (!webContents.isDestroyed()) {
-                            webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
-                                toolId: params.toolId,
-                                toolName: params.toolName,
-                            });
-                        }
-                    };
-
-                    if (webContents.isLoading()) {
-                        webContents.once("did-finish-load", deliver);
-                    } else {
-                        deliver();
+                this.rendererReadyGate.runWhenReady(() => {
+                    const webContents = this.mainWindow?.webContents;
+                    if (webContents && !webContents.isDestroyed()) {
+                        webContents.send(EVENT_CHANNELS.PROTOCOL_INSTALL_TOOL_REQUEST, {
+                            toolId: params.toolId,
+                            toolName: params.toolName,
+                        });
                     }
-                }
+                });
+            });
+
+            // Set up the --debug-tool handler. Same readiness gate as above.
+            this.debugToolLaunchManager.setupHandler((request) => {
+                logInfo(`[DebugToolLaunch] Mount requested for ${describePath(request.localPath)}`);
+
+                this.showAndFocusMainWindow();
+
+                this.rendererReadyGate.runLatestWhenReady("debug-tool-launch", () => {
+                    const webContents = this.mainWindow?.webContents;
+                    if (webContents && !webContents.isDestroyed()) {
+                        webContents.send(EVENT_CHANNELS.DEBUG_TOOL_LAUNCH_REQUEST, request);
+                    }
+                });
             });
 
             // Load all installed tools from registry
@@ -3773,8 +3862,8 @@ if (!gotSingleInstanceLock) {
 } else {
     const toolboxApp = new ToolBoxApp();
 
-    app.on("second-instance", () => {
-        toolboxApp.handleSecondInstanceLaunch();
+    app.on("second-instance", (_event, commandLine, workingDirectory) => {
+        toolboxApp.handleSecondInstanceCommandLine(commandLine, workingDirectory);
     });
 
     // Create and initialize the application

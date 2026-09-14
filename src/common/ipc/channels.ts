@@ -38,6 +38,20 @@ export const SETTINGS_CHANNELS = {
     GET_LAST_USED_TOOLS: "get-last-used-tools",
     CLEAR_LAST_USED_TOOLS: "clear-last-used-tools",
     GET_MCP_ACCESS_TOKEN: "get-mcp-access-token",
+    GET_TRUSTED_DEBUG_TOOL_PATHS: "get-trusted-debug-tool-paths",
+    IS_DEBUG_TOOL_PATH_TRUSTED: "is-debug-tool-path-trusted",
+    TRUST_DEBUG_TOOL_PATH: "trust-debug-tool-path",
+    REVOKE_DEBUG_TOOL_PATH_TRUST: "revoke-debug-tool-path-trust",
+} as const;
+
+// Application lifecycle IPC channels (renderer -> main)
+export const APP_CHANNELS = {
+    /**
+     * Emitted by the renderer as the last step of `initializeApplication()`, once every
+     * IPC listener is registered. Main-process pushes that would otherwise be dropped
+     * must be gated on this signal rather than on `did-finish-load`.
+     */
+    RENDERER_READY: "app:renderer-ready",
 } as const;
 
 // Connection-related IPC channels
@@ -72,6 +86,10 @@ export const TOOL_CHANNELS = {
     GET_TOOL_CONTEXT: "get-tool-context",
     GET_TOOL_WEBVIEW_URL: "get-tool-webview-url",
     LOAD_LOCAL_TOOL: "load-local-tool",
+    COMMIT_LOCAL_TOOL: "commit-local-tool",
+    REMOVE_LOCAL_TOOL: "remove-local-tool",
+    /** Read a candidate local tool's package.json identity without registering it (trust prompt). */
+    PEEK_LOCAL_TOOL_IDENTITY: "peek-local-tool-identity",
     GET_LOCAL_TOOL_WEBVIEW_HTML: "get-local-tool-webview-html",
     OPEN_DIRECTORY_PICKER: "open-directory-picker",
     FETCH_REGISTRY_TOOLS: "fetch-registry-tools",
@@ -104,6 +122,8 @@ export const TOOL_WINDOW_CHANNELS = {
     LAUNCH_WITH_CONTEXT: "tool-window:launch-with-context",
     SWITCH: "tool-window:switch",
     CLOSE: "tool-window:close",
+    FORCE_CLOSE: "tool-window:force-close",
+    CLOSE_MANY: "tool-window:close-many",
     GET_ACTIVE: "tool-window:get-active",
     GET_OPEN_TOOLS: "tool-window:get-open-tools",
     UPDATE_TOOL_CONNECTION: "tool-window:update-tool-connection",
@@ -139,6 +159,8 @@ export const TOOL_WINDOW_CHANNELS = {
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
     PREVENT_CLOSE: "tool-window:prevent-close",
     RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
+    /** Open detached DevTools for a specific tool instance's BrowserView. */
+    OPEN_DEVTOOLS: "tool-window:open-devtools",
 } as const;
 
 // Terminal-related IPC channels
@@ -296,6 +318,7 @@ export const EVENT_CHANNELS = {
     TOOL_UPDATE_STARTED: "tool:update-started",
     TOOL_UPDATE_COMPLETED: "tool:update-completed",
     PROTOCOL_INSTALL_TOOL_REQUEST: "protocol:install-tool-request",
+    DEBUG_TOOL_LAUNCH_REQUEST: "debug:tool-launch-request",
     SHOW_ABOUT: "show-about",
 } as const;
 

@@ -1,9 +1,11 @@
 import { spawn } from "child_process";
+import { createHash } from "crypto";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import { pathToFileURL } from "url";
 import { logError, logInfo, logWarn } from "../../common/logger";
+import { describePath } from "../launchArgs";
 import {
     CapabilityTagEntry,
     CommunityLinksCollection,
@@ -14,6 +16,7 @@ import {
     ToolConcernReportSubmission,
     ToolFeatures,
     ToolManifest,
+    LocalToolIdentity,
 } from "../../common/types";
 import { InstallIdManager } from "./installIdManager";
 import { ToolRegistryManager } from "./toolRegistryManager";
@@ -43,6 +46,7 @@ interface ToolPackageJson {
  */
 export class ToolManager extends EventEmitter {
     private tools: Map<string, Tool> = new Map();
+    private provisionalLocalTools: Map<string, Tool> = new Map();
     private toolsDirectory: string;
     private registryManager: ToolRegistryManager;
     private analyticsCache: Map<string, { downloads?: number; rating?: number; mau?: number }> = new Map();
@@ -224,6 +228,45 @@ export class ToolManager extends EventEmitter {
             //this.tools.delete(toolId);
             this.emit("tool:unloaded", tool);
         }
+    }
+
+    removeLocalTool(toolId: string, expectedIdentity: LocalToolIdentity): boolean {
+        const tool = this.provisionalLocalTools.get(toolId) ?? this.tools.get(toolId);
+        if (
+            !expectedIdentity ||
+            typeof expectedIdentity.id !== "string" ||
+            typeof expectedIdentity.resolvedPath !== "string" ||
+            typeof expectedIdentity.name !== "string" ||
+            !tool?.localPath ||
+            tool.id !== expectedIdentity.id ||
+            tool.localPath !== expectedIdentity.resolvedPath ||
+            tool.npmPackageName !== expectedIdentity.name
+        ) {
+            return false;
+        }
+
+        const wasCommitted = this.tools.delete(toolId);
+        this.provisionalLocalTools.delete(toolId);
+        if (wasCommitted) {
+            this.emit("tool:unloaded", tool);
+        }
+        return true;
+    }
+
+    commitLocalTool(toolId: string, expectedIdentity: LocalToolIdentity): boolean {
+        const tool = this.provisionalLocalTools.get(toolId);
+        if (!tool || tool.id !== expectedIdentity.id || tool.localPath !== expectedIdentity.resolvedPath || tool.npmPackageName !== expectedIdentity.name) {
+            return false;
+        }
+
+        this.provisionalLocalTools.delete(toolId);
+        this.tools.set(toolId, tool);
+        this.emit("tool:loaded", tool);
+        return true;
+    }
+
+    getToolForWebview(toolId: string): Tool | undefined {
+        return this.provisionalLocalTools.get(toolId) ?? this.getTool(toolId);
     }
 
     /**
@@ -861,34 +904,60 @@ export class ToolManager extends EventEmitter {
         }
     }
 
-    /**
-     * Validate that a local path is safe to use (no path traversal)
-     */
-    private isPathSafe(localPath: string): boolean {
-        // Resolve to absolute path
-        const resolvedPath = path.resolve(localPath);
-
-        // Ensure path is absolute after resolution
-        if (!path.isAbsolute(resolvedPath)) {
-            return false;
-        }
-
-        // Check if path contains null bytes (security check)
-        if (resolvedPath.includes("\0")) {
-            return false;
-        }
-
-        // Don't allow loading from system directories
-        const systemDirs = this.getSystemDirectories();
-        const lowerPath = resolvedPath.toLowerCase();
-
-        for (const sysDir of systemDirs) {
-            if (lowerPath.startsWith(sysDir.toLowerCase())) {
-                return false;
+    private canonicalizeSafeLocalPath(localPath: string): string | null {
+        try {
+            if (typeof localPath !== "string" || localPath.includes("\0")) {
+                return null;
             }
+
+            const canonicalPath = fs.realpathSync.native(path.resolve(localPath));
+            if (!path.isAbsolute(canonicalPath)) {
+                return null;
+            }
+
+            const isProtected = this.getSystemDirectories().some((systemDirectory) => {
+                const relativePath = path.relative(systemDirectory, canonicalPath);
+                return relativePath === "" || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== "..");
+            });
+
+            return isProtected ? null : canonicalPath;
+        } catch {
+            return null;
+        }
+    }
+
+    private getLocalToolId(packageName: string, canonicalPath: string): string {
+        const sanitizedPackageName = packageName.replace(/@/g, "").replace(/\//g, "-");
+        const identityHash = createHash("sha256")
+            .update(JSON.stringify([canonicalPath, packageName]))
+            .digest("hex")
+            .slice(0, 12);
+        return `local-${sanitizedPackageName}-${identityHash}`;
+    }
+
+    private canonicalizeContainedPath(canonicalRoot: string, candidatePath: string): string | null {
+        try {
+            const canonicalCandidate = fs.realpathSync.native(candidatePath);
+            const relativePath = path.relative(canonicalRoot, canonicalCandidate);
+            return relativePath === "" || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== ".." && !path.isAbsolute(relativePath)) ? canonicalCandidate : null;
+        } catch {
+            return null;
+        }
+    }
+
+    private getValidatedLocalToolPaths(canonicalPath: string): { packageJsonPath: string; distPath: string; indexHtmlPath: string } | null {
+        const packageJsonPath = this.canonicalizeContainedPath(canonicalPath, path.join(canonicalPath, "package.json"));
+        const distPath = this.canonicalizeContainedPath(canonicalPath, path.join(canonicalPath, "dist"));
+        if (!packageJsonPath || !distPath) {
+            return null;
         }
 
-        return true;
+        const indexHtmlPath = this.canonicalizeContainedPath(distPath, path.join(distPath, "index.html"));
+        if (!indexHtmlPath || !fs.statSync(packageJsonPath).isFile() || !fs.statSync(distPath).isDirectory() || !fs.statSync(indexHtmlPath).isFile()) {
+            return null;
+        }
+
+        return { packageJsonPath, distPath, indexHtmlPath };
     }
 
     /**
@@ -900,42 +969,72 @@ export class ToolManager extends EventEmitter {
     }
 
     /**
+     * Read the identity of a candidate local tool directory without registering it.
+     *
+     * Used to populate the CLI trust prompt, which must be answered *before* the tool
+     * is mounted. Only parses package.json — nothing in the directory is executed.
+     */
+    readLocalToolIdentity(localPath: string): { id: string; resolvedPath: string; name: string; displayName: string; version: string } | null {
+        try {
+            const canonicalPath = this.canonicalizeSafeLocalPath(localPath);
+            if (!canonicalPath) {
+                return null;
+            }
+
+            const validatedPaths = this.getValidatedLocalToolPaths(canonicalPath);
+            if (!validatedPaths) {
+                return null;
+            }
+
+            const packageJson = JSON.parse(fs.readFileSync(validatedPaths.packageJsonPath, "utf-8")) as ToolPackageJson;
+            if (!packageJson?.name || typeof packageJson.name !== "string") {
+                return null;
+            }
+
+            return {
+                id: this.getLocalToolId(packageJson.name, canonicalPath),
+                resolvedPath: canonicalPath,
+                name: packageJson.name,
+                displayName: typeof packageJson.displayName === "string" && packageJson.displayName.length > 0 ? packageJson.displayName : packageJson.name,
+                version: typeof packageJson.version === "string" && packageJson.version.length > 0 ? packageJson.version : "0.0.0",
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    /**
      * Load a tool from a local directory (DEBUG MODE ONLY - for tool developers)
      * This allows developers to test their tools without publishing to npm
      * @param localPath - Absolute path to the tool directory
      */
-    async loadLocalTool(localPath: string): Promise<Tool> {
-        logInfo(`[ToolManager] [DEBUG] Loading local tool from: ${localPath}`);
+    async loadLocalTool(localPath: string, expectedIdentity?: LocalToolIdentity, provisional = false): Promise<Tool> {
+        logInfo(`[ToolManager] [DEBUG] Loading local tool from ${describePath(localPath)}`);
 
-        // Validate path safety
-        if (!this.isPathSafe(localPath)) {
-            throw new Error(`Unsafe path detected: ${localPath}\n\nPaths with '..' or system directories are not allowed for security reasons.`);
-        }
-
-        // Verify the path exists
-        if (!fs.existsSync(localPath)) {
-            throw new Error(`Local tool path does not exist: ${localPath}`);
+        const canonicalPath = this.canonicalizeSafeLocalPath(localPath);
+        if (!canonicalPath) {
+            throw new Error("The local tool path does not exist or resolves inside a protected system directory.");
         }
 
         // Check if it's a directory
-        const stats = fs.statSync(localPath);
+        const stats = fs.statSync(canonicalPath);
         if (!stats.isDirectory()) {
-            throw new Error(`Path is not a directory: ${localPath}`);
+            throw new Error("The local tool path is not a directory.");
         }
 
         // Look for package.json
-        const packageJsonPath = path.join(localPath, "package.json");
-        if (!fs.existsSync(packageJsonPath)) {
-            throw new Error(`No package.json found in: ${localPath}`);
+        const validatedPaths = this.getValidatedLocalToolPaths(canonicalPath);
+        if (!validatedPaths) {
+            throw new Error("The local tool must contain package.json and dist/index.html inside its canonical directory.");
         }
 
         // Read and parse package.json
         let packageJson: ToolPackageJson;
         try {
-            const packageJsonContent = fs.readFileSync(packageJsonPath, "utf-8");
+            const packageJsonContent = fs.readFileSync(validatedPaths.packageJsonPath, "utf-8");
             packageJson = JSON.parse(packageJsonContent) as ToolPackageJson;
-        } catch (error) {
-            throw new Error(`Failed to read or parse package.json: ${(error as Error).message}`);
+        } catch {
+            throw new Error("Failed to read or parse the local tool package.json.");
         }
 
         // Verify required fields
@@ -943,28 +1042,21 @@ export class ToolManager extends EventEmitter {
             throw new Error("package.json missing required field: name");
         }
 
-        // Check for dist directory and index.html
-        const distPath = path.join(localPath, "dist");
-        const indexHtmlPath = path.join(distPath, "index.html");
-
-        if (!fs.existsSync(indexHtmlPath)) {
-            throw new Error(
-                `No dist/index.html found in: ${localPath}\n\nPlease build your tool first (e.g., npm run build).\n\nThe tool should have a dist/ directory with an index.html entry point.`,
-            );
+        const toolId = this.getLocalToolId(packageJson.name, canonicalPath);
+        if (expectedIdentity && (canonicalPath !== expectedIdentity.resolvedPath || packageJson.name !== expectedIdentity.name || toolId !== expectedIdentity.id)) {
+            throw new Error("The local tool identity changed after it was inspected. Run the command again to review the new identity.");
         }
-
-        // Exact behavior: remove all '@', replace all '/' with '-'
-        const sanitizedToolId = packageJson.name.replace(/@/g, "").replace(/\//g, "-");
-
-        // Create a tool object with local path metadata
-        const toolId = `local-${sanitizedToolId}`;
 
         // Read optional pptb.config.json for invocation capabilities
         let capabilities: string[] | undefined;
         let mcpHeadlessEnabled = false;
-        const pptbConfigPath = path.join(localPath, "pptb.config.json");
-        if (fs.existsSync(pptbConfigPath)) {
+        const requestedPptbConfigPath = path.join(canonicalPath, "pptb.config.json");
+        if (fs.existsSync(requestedPptbConfigPath)) {
             try {
+                const pptbConfigPath = this.canonicalizeContainedPath(canonicalPath, requestedPptbConfigPath);
+                if (!pptbConfigPath || !fs.statSync(pptbConfigPath).isFile()) {
+                    throw new Error("pptb.config.json resolves outside the local tool directory");
+                }
                 const pptbConfig = JSON.parse(fs.readFileSync(pptbConfigPath, "utf-8"));
                 const caps = pptbConfig?.invocation?.capabilities;
                 if (Array.isArray(caps) && caps.length > 0) {
@@ -981,8 +1073,8 @@ export class ToolManager extends EventEmitter {
 
                     mcpHeadlessEnabled = invokable && (supportsHeadlessFlag || supportsHeadlessExecutionMode);
                 }
-            } catch (err) {
-                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, err);
+            } catch (error) {
+                logWarn(`[ToolRegistry] Could not read pptb.config.json for ${toolId}`, { error: error instanceof Error ? error.name : "unknown" });
             }
         }
 
@@ -1003,7 +1095,7 @@ export class ToolManager extends EventEmitter {
             description: packageJson.description || "Local development tool",
             authors: typeof packageJson.author === "string" ? [packageJson.author] : undefined,
             icon: packageJson.icon,
-            localPath: localPath, // Store the local path for loading
+            localPath: canonicalPath, // Store the canonical local path for loading
             npmPackageName: packageJson.name, // Store the canonical npm package name for invocation lookup
             cspExceptions: packageJson.cspExceptions, // Load CSP exceptions from package.json
             features: packageJson.features, // Load features from package.json (e.g., multi-connection)
@@ -1014,8 +1106,12 @@ export class ToolManager extends EventEmitter {
             capabilities, // Invocation capability tags from pptb.config.json
         };
 
-        this.tools.set(toolId, tool);
-        this.emit("tool:loaded", tool);
+        if (provisional) {
+            this.provisionalLocalTools.set(toolId, tool);
+        } else {
+            this.tools.set(toolId, tool);
+            this.emit("tool:loaded", tool);
+        }
 
         logInfo(`[ToolManager] [DEBUG] Local tool loaded: ${tool.name} (${toolId})`);
         return tool;
@@ -1026,22 +1122,22 @@ export class ToolManager extends EventEmitter {
      * @param localPath - Absolute path to the tool directory
      */
     getLocalToolWebviewHtml(localPath: string): string | undefined {
-        // Validate path safety before loading
-        if (!this.isPathSafe(localPath)) {
-            logError(`[ToolManager] Unsafe local path rejected: ${localPath}`);
+        const canonicalPath = this.canonicalizeSafeLocalPath(localPath);
+        if (!canonicalPath) {
+            logError(new Error(`[ToolManager] Unsafe local path rejected: ${describePath(localPath)}`));
             return undefined;
         }
 
-        const distPath = path.join(localPath, "dist");
-        const distHtmlPath = path.join(distPath, "index.html");
+        const validatedPaths = this.getValidatedLocalToolPaths(canonicalPath);
+        const distHtmlPath = validatedPaths?.indexHtmlPath;
 
-        if (fs.existsSync(distHtmlPath)) {
+        if (distHtmlPath && fs.existsSync(distHtmlPath)) {
             let html = fs.readFileSync(distHtmlPath, "utf-8");
 
             // Convert relative CSS paths to absolute file:// URLs
             html = html.replace(/<link\s+([^>]*)href=["']([^"']+\.css)["']([^>]*)>/gi, (match, before, cssFile, after) => {
-                const cssPath = path.join(distPath, cssFile);
-                if (fs.existsSync(cssPath)) {
+                const cssPath = this.canonicalizeContainedPath(validatedPaths.distPath, path.join(validatedPaths.distPath, cssFile));
+                if (cssPath && fs.statSync(cssPath).isFile()) {
                     const absolutePath = this.pathToFileUrl(cssPath);
                     return `<link ${before}href="${absolutePath}"${after}>`;
                 }
@@ -1050,8 +1146,8 @@ export class ToolManager extends EventEmitter {
 
             // Convert relative JavaScript paths to absolute file:// URLs
             html = html.replace(/<script\s+([^>]*)src=["']([^"']+\.js)["']([^>]*)><\/script>/gi, (match, before, jsFile, after) => {
-                const jsPath = path.join(distPath, jsFile);
-                if (fs.existsSync(jsPath)) {
+                const jsPath = this.canonicalizeContainedPath(validatedPaths.distPath, path.join(validatedPaths.distPath, jsFile));
+                if (jsPath && fs.statSync(jsPath).isFile()) {
                     const absolutePath = this.pathToFileUrl(jsPath);
                     return `<script ${before}src="${absolutePath}"${after}></script>`;
                 }

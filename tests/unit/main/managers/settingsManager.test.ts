@@ -1,5 +1,8 @@
 /// <reference types="jest" />
 
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { normalizeTelemetryConsent } from "../../../../src/common/telemetryConsent";
 import { MarketplaceSource } from "../../../../src/common/types";
 import { SettingsManager } from "../../../../src/main/managers/settingsManager";
@@ -264,6 +267,85 @@ describe("SettingsManager", () => {
                 optional: ["cdn.example.com"],
                 seenOptional: ["cdn.example.com"],
             });
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // Trusted debug tool paths (CLI --debug-tool)
+    // -----------------------------------------------------------------------
+    describe("trusted debug tool paths", () => {
+        let rootPath: string;
+        let toolPath: string;
+        let otherPath: string;
+
+        beforeEach(() => {
+            rootPath = fs.mkdtempSync(path.join(os.tmpdir(), "pptb-settings-trust-"));
+            toolPath = path.join(rootPath, "my-tool");
+            otherPath = path.join(rootPath, "other-tool");
+            fs.mkdirSync(toolPath);
+            fs.mkdirSync(otherPath);
+            fs.writeFileSync(path.join(toolPath, "package.json"), JSON.stringify({ name: "my-tool" }));
+            fs.writeFileSync(path.join(otherPath, "package.json"), JSON.stringify({ name: "other-tool" }));
+        });
+
+        afterEach(() => {
+            fs.rmSync(rootPath, { recursive: true, force: true });
+        });
+
+        it("returns an empty list before anything is trusted", () => {
+            expect(manager.getTrustedDebugToolPaths()).toEqual([]);
+        });
+
+        it("isDebugToolPathTrusted returns false for an untrusted folder", () => {
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", null, null)).toBe(false);
+        });
+
+        it("trustDebugToolPath records the grant and reports it as trusted", () => {
+            manager.trustDebugToolPath(toolPath, "my-tool", null, null);
+
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", null, null)).toBe(true);
+            expect(manager.getTrustedDebugToolPaths()).toEqual([expect.objectContaining({ resolvedPath: fs.realpathSync.native(toolPath), packageName: "my-tool" })]);
+            expect(manager.getTrustedDebugToolPaths()[0].grantedAt).toEqual(expect.any(String));
+        });
+
+        it("re-prompts when the package name at a trusted path has changed", () => {
+            manager.trustDebugToolPath(toolPath, "my-tool", null, null);
+            fs.writeFileSync(path.join(toolPath, "package.json"), JSON.stringify({ name: "renamed-tool" }));
+            expect(manager.isDebugToolPathTrusted(toolPath, "renamed-tool", null, null)).toBe(false);
+        });
+
+        it("does not leak trust between two folders sharing a package name", () => {
+            fs.writeFileSync(path.join(otherPath, "package.json"), JSON.stringify({ name: "my-tool" }));
+            manager.trustDebugToolPath(toolPath, "my-tool", null, null);
+            expect(manager.isDebugToolPathTrusted(otherPath, "my-tool", null, null)).toBe(false);
+        });
+
+        it("replaces a previous grant for the same path instead of duplicating it", () => {
+            manager.trustDebugToolPath(toolPath, "my-tool", null, null);
+            fs.writeFileSync(path.join(toolPath, "package.json"), JSON.stringify({ name: "renamed-tool" }));
+            manager.trustDebugToolPath(toolPath, "renamed-tool", null, null);
+
+            expect(manager.getTrustedDebugToolPaths()).toHaveLength(1);
+            expect(manager.isDebugToolPathTrusted(toolPath, "renamed-tool", null, null)).toBe(true);
+        });
+
+        it("requires a separate grant for each connection", () => {
+            manager.trustDebugToolPath(toolPath, "my-tool", "connection-a", "connection-b");
+
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", "connection-a", "connection-b")).toBe(true);
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", "connection-a", "connection-c")).toBe(false);
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", "connection-a", null)).toBe(false);
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", null, null)).toBe(false);
+        });
+
+        it("revokeDebugToolPathTrust removes only the named folder", () => {
+            manager.trustDebugToolPath(toolPath, "my-tool", null, null);
+            manager.trustDebugToolPath(otherPath, "other-tool", null, null);
+
+            manager.revokeDebugToolPathTrust(toolPath);
+
+            expect(manager.isDebugToolPathTrusted(toolPath, "my-tool", null, null)).toBe(false);
+            expect(manager.isDebugToolPathTrusted(otherPath, "other-tool", null, null)).toBe(true);
         });
     });
 

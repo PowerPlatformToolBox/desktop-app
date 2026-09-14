@@ -188,6 +188,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FORCE_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE_MANY);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
@@ -281,6 +283,18 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE, async (event, instanceId: string) => {
             return this.closeTool(instanceId);
         });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.FORCE_CLOSE, async (event, instanceId: string) => {
+            if (event.sender.id !== this.mainWindow.webContents.id || event.senderFrame !== this.mainWindow.webContents.mainFrame) {
+                throw new Error("Unauthorized tool-window rollback request");
+            }
+            return this.closeTool(instanceId, { force: true });
+        });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.CLOSE_MANY, async (event, instanceIds: string[]) => {
+            if (event.sender.id !== this.mainWindow.webContents.id || event.senderFrame !== this.mainWindow.webContents.mainFrame) {
+                throw new Error("Unauthorized tool-window close request");
+            }
+            return this.closeToolsAtomically(instanceIds);
+        });
         ipcMain.handle(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE, async (event) => {
             const instanceId = this.getInstanceIdByWebContents(event.sender.id);
             if (!instanceId) {
@@ -369,6 +383,7 @@ export class ToolWindowManager {
      * @param secondaryConnectionId Secondary connection ID for multi-connection tools (optional)
      */
     async launchTool(instanceId: string, tool: Tool, primaryConnectionId: string | null, secondaryConnectionId: string | null = null, prefillData?: Record<string, unknown>): Promise<boolean> {
+        let toolView: BrowserView | null = null;
         try {
             logInfo("[ToolWindowManager] Tool launch started", {
                 instanceId,
@@ -388,7 +403,7 @@ export class ToolWindowManager {
             }
 
             // Create BrowserView for the tool
-            const toolView = new BrowserView({
+            toolView = new BrowserView({
                 webPreferences: {
                     preload: path.join(__dirname, "toolPreloadBridge.js"),
                     contextIsolation: true,
@@ -411,10 +426,9 @@ export class ToolWindowManager {
             // Register event handlers BEFORE loading the tool URL so they are active
             // from the very first navigation onward.
 
-            // Intercept mailto: navigation attempts from the tool.
-            // Electron BrowserViews do not open mailto: links automatically; we must handle them here.
-            // Only open the link if the user has previously granted mailto consent for this tool.
-            toolView.webContents.on("will-navigate", (event, url) => {
+            const toolUrlParts = new URL(toolUrl);
+            const toolOriginKey = `${toolUrlParts.protocol}//${toolUrlParts.host}`;
+            const guardTopLevelNavigation = (event: Electron.Event, url: string): void => {
                 if (url.length >= 7 && url.slice(0, 7).toLowerCase() === "mailto:") {
                     event.preventDefault();
                     if (this.toolHasMailtoConsent(toolId)) {
@@ -422,8 +436,25 @@ export class ToolWindowManager {
                     } else {
                         logWarn("[ToolWindowManager] Blocked mailto: navigation — tool has no mailto consent", { toolId });
                     }
+                    return;
                 }
-            });
+
+                try {
+                    const navigationUrlParts = new URL(url);
+                    const navigationOriginKey = `${navigationUrlParts.protocol}//${navigationUrlParts.host}`;
+
+                    if (navigationOriginKey !== toolOriginKey) {
+                        event.preventDefault();
+                        logWarn("[ToolWindowManager] Blocked cross-origin top-level navigation", { toolId });
+                    }
+                } catch {
+                    event.preventDefault();
+                    logWarn("[ToolWindowManager] Blocked invalid top-level navigation", { toolId });
+                }
+            };
+
+            toolView.webContents.on("will-navigate", guardTopLevelNavigation);
+            toolView.webContents.on("will-redirect", guardTopLevelNavigation);
 
             // Deny all new-window requests from tools.
             // Handle mailto: links with a consent check (similar to the will-navigate handler above,
@@ -545,6 +576,36 @@ export class ToolWindowManager {
             logInfo(`[ToolWindowManager] Tool instance launched successfully: ${instanceId}`);
             return true;
         } catch (error) {
+            let cleanedUp = false;
+            if (this.toolViews.has(instanceId)) {
+                cleanedUp = await this.closeTool(instanceId, { force: true });
+            }
+            if (!cleanedUp && toolView?.webContents && !toolView.webContents.isDestroyed()) {
+                // @ts-expect-error - destroy method exists but might not be in types
+                toolView.webContents.destroy();
+            }
+            if (!cleanedUp) {
+                if (this.activeToolId === instanceId) {
+                    this.mainWindow.setBrowserView(null);
+                    this.activeToolId = null;
+                    this.invokeActiveToolChangedCallback();
+                }
+                this.toolViews.delete(instanceId);
+                this.toolConnectionInfo.delete(instanceId);
+                this.toolInstanceNames.delete(instanceId);
+                this.preventCloseTools.delete(instanceId);
+                const pending = this.pendingInvocations.get(instanceId);
+                if (pending) {
+                    this.pendingInvocations.delete(instanceId);
+                    this.activeCallees.delete(pending.callerInstanceId);
+                    if (!pending.resolved) {
+                        pending.resolve(null);
+                    }
+                }
+                this.terminalManager.closeToolInstanceTerminals(instanceId);
+                this.toolFilesystemAccessManager.revokeAllAccess(instanceId);
+                this.splitLayoutManager?.handleToolClosed(instanceId);
+            }
             logError(`[ToolWindowManager] Error launching tool instance ${instanceId}`, error);
             captureException(error instanceof Error ? error : new Error(String(error)), {
                 tags: {
@@ -962,6 +1023,41 @@ export class ToolWindowManager {
         }
     }
 
+    async closeToolsAtomically(instanceIds: string[]): Promise<boolean> {
+        const uniqueInstanceIds = [...new Set(instanceIds)];
+        if (uniqueInstanceIds.some((instanceId) => !this.toolViews.has(instanceId))) {
+            return false;
+        }
+
+        for (const instanceId of uniqueInstanceIds) {
+            if (!this.preventCloseTools.has(instanceId)) {
+                continue;
+            }
+
+            const toolName = this.toolInstanceNames.get(instanceId) ?? "this tool";
+            const response = dialog.showMessageBoxSync(this.mainWindow, {
+                type: "warning",
+                title: "Tool closure blocked",
+                message: `${toolName} is preventing closure.`,
+                detail: "This tool needs to complete an operation. Are you sure you want to close it?",
+                buttons: ["Cancel", "Ignore & Close"],
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true,
+            });
+            if (response !== 1) {
+                return false;
+            }
+        }
+
+        for (const instanceId of uniqueInstanceIds) {
+            if (!(await this.closeTool(instanceId, { force: true }))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Get the primary connectionId for a tool instance by its WebContents
      * This is used by IPC handlers to determine which connection to use
@@ -1317,6 +1413,8 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.LAUNCH_WITH_CONTEXT);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SWITCH);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FORCE_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.CLOSE_MANY);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_ACTIVE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION);
@@ -1408,23 +1506,31 @@ export class ToolWindowManager {
      * Returns true if DevTools were opened, false if no active tool
      */
     openDevToolsForActiveTool(): boolean {
-        if (!this.activeToolId) {
-            logWarn("[ToolWindowManager] No active tool to open DevTools for");
+        return this.openDevToolsForInstance(this.activeToolId);
+    }
+
+    /**
+     * Open DevTools for a specific tool instance's BrowserView.
+     * Returns true if DevTools were opened, false if the instance has no live view.
+     */
+    openDevToolsForInstance(instanceId: string | null): boolean {
+        if (!instanceId) {
+            logWarn("[ToolWindowManager] No tool instance to open DevTools for");
             return false;
         }
 
-        const toolView = this.toolViews.get(this.activeToolId);
+        const toolView = this.toolViews.get(instanceId);
         if (!toolView || !toolView.webContents || toolView.webContents.isDestroyed()) {
-            logWarn(`[ToolWindowManager] Tool view not found or destroyed: ${this.activeToolId}`);
+            logWarn(`[ToolWindowManager] Tool view not found or destroyed: ${instanceId}`);
             return false;
         }
 
         try {
             toolView.webContents.openDevTools({ mode: "detach" });
-            logInfo(`[ToolWindowManager] Opened DevTools for tool: ${this.activeToolId}`);
+            logInfo(`[ToolWindowManager] Opened DevTools for tool: ${instanceId}`);
             return true;
         } catch (error) {
-            logError(`[ToolWindowManager] Error opening DevTools for tool ${this.activeToolId}`, error);
+            logError(`[ToolWindowManager] Error opening DevTools for tool ${instanceId}`, error);
             return false;
         }
     }

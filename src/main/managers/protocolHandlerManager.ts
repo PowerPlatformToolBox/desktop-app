@@ -116,15 +116,9 @@ export class ProtocolHandlerManager {
             this.bufferOrHandle(url);
         });
 
-        // Windows/Linux: a second instance forwards its command line here.
-        app.on("second-instance", (_event, commandLine) => {
-            logInfo("[ProtocolHandler] Second instance detected, processing command line");
-            const url = commandLine.find((arg) => arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
-            if (url) {
-                logInfo(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
-                this.bufferOrHandle(url);
-            }
-        });
+        // Windows/Linux: a second instance forwards its command line via
+        // ToolBoxApp's single consolidated `second-instance` listener, which calls
+        // handleSecondInstanceCommandLine().
 
         // Windows/Linux first launch via protocol URL: the URL is in process.argv.
         if (process.platform === "win32" || process.platform === "linux") {
@@ -161,6 +155,26 @@ export class ProtocolHandlerManager {
         }
 
         logInfo("[ProtocolHandler] Protocol handler callback registered");
+    }
+
+    /**
+     * Process the command line forwarded by a second instance (Windows/Linux).
+     * Invoked by ToolBoxApp's single consolidated `second-instance` listener; the
+     * `protocolEnabled` early-out stays here so dev and Insider builds keep their
+     * current "no protocol handling at all" behaviour.
+     */
+    handleSecondInstanceCommandLine(commandLine: readonly string[]): void {
+        if (!this.protocolEnabled) {
+            return;
+        }
+
+        const url = commandLine.find((arg) => typeof arg === "string" && arg.startsWith(`${ProtocolHandlerManager.PROTOCOL_SCHEME}://`));
+        if (!url) {
+            return;
+        }
+
+        logInfo(`[ProtocolHandler] Processing protocol URL from second instance: ${url}`);
+        this.bufferOrHandle(url);
     }
 
     /**

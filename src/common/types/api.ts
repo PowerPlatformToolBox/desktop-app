@@ -7,9 +7,34 @@ import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, Native
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
 import { DataverseExecuteRequest } from "./dataverse";
-import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
+import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, TrustedDebugToolPath, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
+
+/**
+ * A request to mount and open a local tool directory, originating from the
+ * `--debug-tool` command-line flag (cold launch or second instance).
+ */
+export interface DebugToolLaunchRequest {
+    /** Absolute, resolved path of the tool directory to mount. */
+    localPath: string;
+    /** Connection id or name from `--debug-tool-connection`, or null. */
+    connection: string | null;
+    /** True when `--devtools` was supplied. */
+    openDevTools: boolean;
+}
+
+/**
+ * Identity read from a candidate local tool's package.json, used to populate the
+ * CLI trust prompt before anything is mounted.
+ */
+export interface LocalToolIdentity {
+    id: string;
+    resolvedPath: string;
+    name: string;
+    displayName: string;
+    version: string;
+}
 
 /**
  * Connections API namespace
@@ -285,6 +310,8 @@ export interface ToolboxAPI {
     ) => Promise<unknown>;
     switchToolWindow: (toolId: string) => Promise<boolean>;
     closeToolWindow: (toolId: string) => Promise<boolean>;
+    forceCloseToolWindow: (instanceId: string) => Promise<boolean>;
+    closeToolWindows: (instanceIds: string[]) => Promise<boolean>;
     hideToolWindows: () => Promise<boolean>;
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
@@ -339,9 +366,19 @@ export interface ToolboxAPI {
     clearLastUsedTools: () => Promise<void>;
 
     // Local tool development (DEBUG MODE)
-    loadLocalTool: (localPath: string) => Promise<Tool>;
+    loadLocalTool: (localPath: string, expectedIdentity?: LocalToolIdentity, provisional?: boolean) => Promise<Tool>;
+    commitLocalTool: (toolId: string, expectedIdentity: LocalToolIdentity) => Promise<boolean>;
+    removeLocalTool: (toolId: string, expectedIdentity: LocalToolIdentity) => Promise<boolean>;
     getLocalToolWebviewHtml: (localPath: string) => Promise<string | null>;
     openDirectoryPicker: () => Promise<string | null>;
+    /** Read a candidate local tool's package.json identity without registering it. */
+    peekLocalToolIdentity: (localPath: string) => Promise<LocalToolIdentity | null>;
+
+    // CLI --debug-tool trust list
+    getTrustedDebugToolPaths: () => Promise<TrustedDebugToolPath[]>;
+    isDebugToolPathTrusted: (localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) => Promise<boolean>;
+    trustDebugToolPath: (localPath: string, packageName: string, primaryConnectionId: string | null, secondaryConnectionId: string | null) => Promise<void>;
+    revokeDebugToolPathTrust: (localPath: string) => Promise<void>;
 
     // Registry-based tools
     fetchRegistryTools: () => Promise<Tool[]>;
@@ -408,6 +445,12 @@ export interface ToolboxAPI {
 
     // Protocol deep link events
     onProtocolInstallToolRequest: (callback: (params: { toolId: string; toolName: string }) => void) => void;
+
+    // CLI --debug-tool launch request (main -> renderer)
+    onDebugToolLaunchRequest: (callback: (request: DebugToolLaunchRequest) => void) => void;
+
+    /** Open detached DevTools for a specific tool instance's BrowserView. */
+    openToolDevTools: (instanceId: string) => Promise<boolean>;
 
     // About dialog event
     onShowAbout: (

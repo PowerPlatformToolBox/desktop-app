@@ -110,6 +110,22 @@ export interface CspConsentRecord {
 }
 
 /**
+ * A folder the user has explicitly trusted for `--debug-tool` CLI mounting.
+ * Trust is keyed on the resolved absolute path, not on the derived tool id, so
+ * two directories that share a package name cannot inherit each other's grant.
+ */
+export interface TrustedDebugToolPath {
+    /** Absolute, resolved path of the trusted tool directory. */
+    resolvedPath: string;
+    /** The `name` field of the package.json at that path when trust was granted. */
+    packageName: string;
+    /** Exact primary/secondary connection tuples this folder is authorized to receive. */
+    connectionAuthorizations?: string[];
+    /** ISO timestamp of when trust was granted. */
+    grantedAt: string;
+}
+
+/**
  * User settings for the ToolBox application
  */
 export interface UserSettings {
@@ -126,6 +142,7 @@ export interface UserSettings {
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
     cspConsents: { [toolId: string]: CspConsentRecord }; // CSP consent records per tool
+    trustedDebugToolPaths?: TrustedDebugToolPath[]; // Folders trusted for CLI --debug-tool mounting
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics

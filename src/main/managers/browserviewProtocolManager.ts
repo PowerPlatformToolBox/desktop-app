@@ -67,14 +67,16 @@ export class BrowserviewProtocolManager {
     private handleProtocolRequest(request: Electron.ProtocolRequest, callback: (response: Buffer | Electron.ProtocolResponse) => void): void {
         try {
             // Parse the URL: pptb-webview://toolId/path/to/file
-            const url = request.url.replace("pptb-webview://", "");
-            const [toolId, ...pathParts] = url.split("/");
-            const filePath = pathParts.join("/") || "index.html";
+            const requestUrl = new URL(request.url);
+            // URL.hostname normalizes the authority to lowercase, but local tool
+            // IDs may retain casing from their package names.
+            const toolId = request.url.match(/^pptb-webview:\/\/([^/?#]+)/i)?.[1] ?? requestUrl.hostname;
+            const filePath = decodeURIComponent(requestUrl.pathname.replace(/^\/+/, "")) || "index.html";
 
-            logInfo(`[pptb-webview] Request: ${filePath} for tool: ${toolId}`);
+            logInfo(`[pptb-webview] Asset request for tool: ${toolId}`);
 
             // Get the tool
-            const tool = this.toolManager.getAllTools().find((t) => t.id === toolId);
+            const tool = this.toolManager.getToolForWebview(toolId);
 
             if (!tool) {
                 logError(`[pptb-webview] Tool not found: ${toolId}`);
@@ -90,19 +92,9 @@ export class BrowserviewProtocolManager {
                 return;
             }
 
-            // Build the full file path
-            const fullPath = path.join(toolBaseDir, "dist", filePath);
-
-            // Security: Ensure the path is within the tool's directory
-            if (!this.isPathSafe(fullPath, toolBaseDir)) {
-                logError(`[pptb-webview] Path traversal attempt blocked: ${fullPath}`);
-                callback({ error: -6 });
-                return;
-            }
-
-            // Check if file exists
-            if (!fs.existsSync(fullPath)) {
-                logError(`[pptb-webview] File not found: ${fullPath}`);
+            const fullPath = this.resolveSafePath(path.join(toolBaseDir, "dist", filePath), toolBaseDir);
+            if (!fullPath) {
+                logError(new Error(`[pptb-webview] Unsafe or missing asset blocked for tool: ${toolId}`));
                 callback({ error: -6 });
                 return;
             }
@@ -135,7 +127,7 @@ export class BrowserviewProtocolManager {
                         htmlContent = `${cspMetaTag}\n${htmlContent}`;
                     }
 
-                    logInfo(`[pptb-webview] Injected CSP meta tag into HTML: ${fullPath}`);
+                    logInfo(`[pptb-webview] Injected CSP meta tag for tool: ${toolId}`);
                     logInfo(`[pptb-webview] CSP: ${cspString}`);
 
                     // Return the modified HTML content with proper MIME type
@@ -145,21 +137,21 @@ export class BrowserviewProtocolManager {
                     });
                     return;
                 } catch (error) {
-                    logError("[pptb-webview] Error injecting CSP/bridge", error);
+                    logError(new Error("[pptb-webview] Error injecting CSP/bridge"), { error: error instanceof Error ? error.name : "unknown", toolId });
                     callback({ error: -2 }); // FAILED
                     return;
                 }
             }
 
             // Read and serve the file
-            logInfo(`[pptb-webview] Serving: ${fullPath}`);
+            logInfo(`[pptb-webview] Serving asset for tool: ${toolId}`);
             const content = fs.readFileSync(fullPath);
             callback({
                 mimeType,
                 data: content,
             });
         } catch (error) {
-            logError("[pptb-webview] Error handling protocol request", error);
+            logError(new Error("[pptb-webview] Error handling protocol request"), { error: error instanceof Error ? error.name : "unknown" });
             callback({ error: -2 }); // FAILED
         }
     }
@@ -222,10 +214,20 @@ export class BrowserviewProtocolManager {
      * Security check: Ensure the requested path is within the tool's directory
      * Prevents path traversal attacks (e.g., ../../etc/passwd)
      */
-    private isPathSafe(requestedPath: string, toolBaseDir: string): boolean {
-        const normalizedPath = path.normalize(requestedPath);
-        const normalizedBase = path.normalize(path.join(toolBaseDir, "dist"));
-        return normalizedPath.startsWith(normalizedBase);
+    private resolveSafePath(requestedPath: string, toolBaseDir: string): string | null {
+        try {
+            const canonicalToolBase = fs.realpathSync.native(toolBaseDir);
+            const canonicalBase = fs.realpathSync.native(path.join(canonicalToolBase, "dist"));
+            const distRelativePath = path.relative(canonicalToolBase, canonicalBase);
+            if (distRelativePath === ".." || distRelativePath.startsWith(`..${path.sep}`) || path.isAbsolute(distRelativePath)) {
+                return null;
+            }
+            const canonicalPath = fs.realpathSync.native(requestedPath);
+            const relativePath = path.relative(canonicalBase, canonicalPath);
+            return relativePath === "" || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== ".." && !path.isAbsolute(relativePath)) ? canonicalPath : null;
+        } catch {
+            return null;
+        }
     }
 
     /**
