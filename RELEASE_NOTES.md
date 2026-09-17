@@ -1,44 +1,43 @@
-# Power Platform ToolBox 1.2.5
+# Power Platform ToolBox v1.2.6
 
 ## Highlights
 
-- Private Marketplace supports multiple sources, source filters, author details, and restart prompts when settings change.
-- CSP consent review shows current permissions, records approval history, and requests consent again when tools add permissions.
-- Headless MCP execution provides job status, invocation details, log clearing, and client configuration status.
-- MCP Server can remain running while tools open or reopen, supporting background headless workflows.
-- Installed tool details and context menus include repository links and clearer analytics rating values.
-- Connection setup adds a Configure App flow for Power Platform API app registrations.
-- Telemetry consent messaging explains collection and restart behavior more clearly.
+- Verified tools display maturity badges and can be filtered to the top of Marketplace and Installed lists.
+- Tool ratings are now available in the desktop app so users can see community feedback before installing or launching a tool.
+- User concern reporting lets people flag a tool that appears unsafe, spammy, or inappropriate from app and tool flows.
+- Connectionless-capable tools can launch without a blocking connection prompt when a connection is optional.
+- Installed tools now show a direct Launch action and clearer status styling for faster access.
+- Tool update management includes a bulk Update all action for installed tools.
+- Per-tool close protection can require an override prompt before a tool closes the app.
 
 ## Fixes
 
-- Connections: selecting an environment URL after enabling Power Platform API no longer loses focus to a native confirmation dialog.
-- Connections: app registration guidance and Copy Script messaging are clearer and more consistent.
-- Tools: CSP consent is recalculated correctly when required or optional domains change.
-- Analytics: download and MAU updates use atomic operations and preserve existing metrics when errors occur.
-- Logging: Error objects retain their original stack traces in structured logs.
-- Windows: release workflows generate and bundle `app-update.yml` metadata so auto-update artifacts are complete.
-- Build validation: package version checks use the correct `@pptb/types` and `@pptb/validate` paths.
+- Fixed close and release prompts to respect per-tool PreventClose settings without blocking valid shutdown paths.
+- Improved connection handling so optional-connection tools do not force a connection modal before launch.
+- Fixed tool maturity ordering and filters so Verified tools appear first and are easy to find in app views.
+- Corrected app flows for rating and concern reporting so submissions and local tracking behave consistently.
+- Improved release and package download messaging, including macOS and Windows signing/update reliability.
 
 ## Developer & Build
 
-- Added `@sentry/electron` telemetry for main and renderer processes with consent handling and PII scrubbing.
-- Added headless MCP job types, status events, log APIs, and runtime support for `toolboxAPI`, `dataverseAPI`, and `powerplatformAPI`.
-- Added CSP consent utilities, review management, re-consent tests, and MCP authentication tests.
-- Updated `@pptb/types` to `1.2.5` and `@pptb/validate` to `1.0.1`.
-- Improved stable and insider release workflows, Windows signing, auto-update metadata, and PR validation.
+- Added tool maturity metadata, Verified badge rendering, and Verified-only filtering in the desktop app.
+- Added in-app tool rating submission and retrieval with install-local persistence and aggregate display.
+- Added support for reporting tool concerns with backend submission, source tracking, and duplicate prevention.
+- Added connectionless tool support so tool manifests can declare launch without a required connection.
+- Updated release workflows and packaging metadata for Windows/macOS artifact generation and update integrity.
+- Added homepage sponsor support and refreshed installed-tool UI styling for the current app layout.
 
 ## Install
 
-- Windows: Power-Platform-ToolBox-v1.2.5-Setup.exe
-- macOS: Power-Platform-ToolBox-v1.2.5.dmg (drag to Applications)
-- Linux: Power-Platform-ToolBox-v1.2.5.AppImage (chmod +x, then run)
+- Windows: Power-Platform-ToolBox-v1.2.6-Setup.exe
+- macOS: Power-Platform-ToolBox-v1.2.6.dmg (drag to Applications)
+- Linux: Power-Platform-ToolBox-v1.2.6.AppImage (chmod +x, then run)
 
 ## Notes
 
 - No manual migration needed.
-- MCP headless execution, private marketplace sources, and CSP consent management include new settings and preview workflow behavior.
+- Existing tools continue to work without changes; tools that do not advertise maturity or ratings simply appear as unverified or unrated.
 
 ## Full Changelog
 
-https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.4...v1.2.5
+https://github.com/PowerPlatformToolBox/desktop-app/compare/v1.2.5...v1.2.6
