@@ -14,7 +14,7 @@ import { applyToolIconMasks, escapeHtml, generateToolIconHtml } from "../utils/t
 import { compareVerifiedFirst, isVerifiedTool, renderVerifiedBadge } from "../utils/toolMaturity";
 import { openRateToolModal } from "./rateToolModal";
 import { openReportConcernModal } from "./reportConcernModal";
-import { openLocalPageAsTab } from "./toolManagement";
+import { launchTool, openLocalPageAsTab } from "./toolManagement";
 import { loadSidebarTools } from "./toolsSidebarManagement";
 
 interface InstalledTool {
@@ -575,6 +575,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     const tagsMarkup = `${mcpTagMarkup}${categoryTagsMarkup}`;
     const badgeMarkup = metaBadges.map((badge) => `<span>${escapeHtml(badge)}</span>`).join("");
     const ratingsHtml = formatRatingMarkup(tool.rating, { suffix: " ⭐" });
+    const verifiedBadgeHtml = renderVerifiedBadge(tool.maturity, isDarkTheme);
 
     const iconHtml = buildToolIconHtml(tool);
 
@@ -602,14 +603,14 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                 </div>
                 <div class="tool-detail-tab-meta">
                     ${tagsMarkup ? `<div class="tool-detail-tab-tags">${tagsMarkup}</div>` : ""}
-                    <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}</h2>
+                    <h2 class="tool-detail-tab-name">${escapeHtml(tool.name)}${verifiedBadgeHtml}<span id="tool-detail-installed-badge" class="marketplace-item-installed-icon tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'} aria-label="Installed" title="Installed">✓</span></h2>
                     <p class="tool-detail-tab-description">${escapeHtml(tool.description || "")}</p>
                     <p class="tool-detail-tab-authors">By ${escapeHtml(authorsDisplay)}</p>
                     ${badgeMarkup || ratingsHtml ? `<div class="tool-detail-tab-meta-list" id="tool-detail-tab-meta-list">${badgeMarkup}${ratingsHtml}</div>` : ""}
                     <div class="tool-detail-tab-actions">
                         <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${isInstalled ? 'style="display:none"' : ""} ${unsupportedAttr}>Install</button>
+                        <button id="tool-detail-launch-btn" class="fluent-button fluent-button-primary" ${isInstalled ? "" : 'style="display:none"'}>Launch</button>
                         <button id="tool-detail-prerelease-btn" class="fluent-button fluent-button-secondary" style="display:none">Install Pre-Release Version</button>
-                        <span id="tool-detail-installed-badge" class="tool-detail-tab-installed-badge" ${isInstalled ? "" : 'style="display:none"'}>✓ Installed</span>
                     </div>
                     ${linksMarkup}
                 </div>
@@ -667,8 +668,12 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
 
     // Wire up install button
     const installBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-install-btn");
+    const launchBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-launch-btn");
     const prereleaseBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
     const installedBadge = panel.querySelector<HTMLElement>("#tool-detail-installed-badge");
+    launchBtn?.addEventListener("click", () => {
+        void launchTool(tool.id);
+    });
     installBtn?.addEventListener("click", async () => {
         if (!installBtn || installBtn.disabled) return;
         installBtn.disabled = true;
@@ -676,6 +681,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         try {
             await window.toolboxAPI.installToolFromRegistry(tool.id);
             installBtn.style.display = "none";
+            if (launchBtn) launchBtn.style.display = "inline-flex";
             if (prereleaseBtn) prereleaseBtn.style.display = "none";
             if (installedBadge) installedBadge.style.display = "inline-flex";
             window.toolboxAPI.utils.showNotification({
@@ -705,6 +711,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         try {
             await window.toolboxAPI.installPrereleaseToolFromNpm(tool.npmPackageName);
             if (installBtn) installBtn.style.display = "none";
+            if (launchBtn) launchBtn.style.display = "inline-flex";
             prereleaseBtn.style.display = "none";
             if (installedBadge) installedBadge.style.display = "inline-flex";
             window.toolboxAPI.utils.showNotification({

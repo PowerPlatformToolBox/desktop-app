@@ -2765,12 +2765,10 @@ body.dark-theme .settings-vscode-item:hover {
 }
 
 .tool-detail-tab-installed-badge {
-    border: 1px solid rgba(16, 124, 16, 0.35);
-    background: #107c10;
-    color: white;
-    padding: 5px 14px;
-    border-radius: 4px;
-    font-size: 13px;
+    margin-left: 5px;
+    vertical-align: middle;
+    color: #107c10;
+    font-size: 14px;
     display: inline-flex;
     align-items: center;
 }
