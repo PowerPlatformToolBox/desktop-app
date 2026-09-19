@@ -35,7 +35,7 @@ marked.use({
         // Assigns GitHub-compatible heading ids so README table-of-contents links resolve to a target.
         heading({ tokens, depth }): string {
             const html = this.parser.parseInline(tokens);
-            const plainText = tokens.map((token) => ("raw" in token ? token.raw : "")).join("");
+            const plainText = tokens.map((token) => ("text" in token ? token.text : "raw" in token ? token.raw : "")).join("");
             const slug = headingSlugger.slug(plainText);
             return `<h${depth} id="${escapeHtml(slug)}">${html}</h${depth}>\n`;
         },
