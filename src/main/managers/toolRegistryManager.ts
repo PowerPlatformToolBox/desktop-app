@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { app } from "electron";
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import { createWriteStream } from "fs";
@@ -8,7 +9,17 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 import { logError, logInfo, logWarn } from "../../common/logger";
 import { captureException } from "../../common/sentryHelper";
-import { CapabilityTagEntry, CommunityLinksCollection, CommunityLinksGroup, CommunityLinksItem, MarketplaceSource, ToolManifest, ToolRegistryEntry } from "../../common/types";
+import {
+    CapabilityTagEntry,
+    CommunityLinksCollection,
+    CommunityLinksGroup,
+    CommunityLinksItem,
+    MarketplaceSource,
+    ToolConcernReportResult,
+    ToolConcernReportSubmission,
+    ToolManifest,
+    ToolRegistryEntry,
+} from "../../common/types";
 import { AZURE_BLOB_BASE_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../constants";
 import { loadOfflineMockRegistryTools, OfflineMockRegistryTool } from "../utilities/mockRegistry";
 import { InstallIdManager } from "./installIdManager";
@@ -33,6 +44,14 @@ interface SupabaseAnalyticsRow {
     downloads?: number;
     rating?: number;
     mau?: number; // Monthly Active Users
+}
+
+interface SupabaseMaturityRow {
+    status?: string;
+}
+
+export function getSupabaseMaturityStatus(relation: SupabaseMaturityRow | SupabaseMaturityRow[] | undefined): string | undefined {
+    return (Array.isArray(relation) ? relation[0] : relation)?.status;
 }
 
 function getOptionalAnalyticsNumber(value: number | null | undefined): number | undefined {
@@ -80,7 +99,7 @@ interface SupabaseTool {
     repository?: string;
     website?: string;
     min_api?: string; // Minimum ToolBox API version required
-    max_api?: string; // Maximum ToolBox API version tested
+    tool_maturity?: SupabaseMaturityRow | SupabaseMaturityRow[];
     tool_categories?: SupabaseCategoryRow[];
     tool_contributors?: SupabaseContributorRow[];
     tool_analytics?: SupabaseAnalyticsRow | SupabaseAnalyticsRow[]; // sometimes array depending on RLS / joins
@@ -190,9 +209,10 @@ export class ToolRegistryManager extends EventEmitter {
         // Initialize Supabase client
         const url = supabaseUrl || SUPABASE_URL;
         const key = supabaseKey || SUPABASE_ANON_KEY;
+        const useTestRegistry = process.env.PPTB_TEST_MODE === "1" && !!process.env.PPTB_TEST_REGISTRY_PATH;
 
         // Validate Supabase credentials and create client
-        if (!url || !key || url === "" || key === "") {
+        if (useTestRegistry || !url || !key || url === "" || key === "") {
             logWarn("[ToolRegistry] Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
             logWarn("[ToolRegistry] Falling back to local registry.json file.");
             this.useLocalFallback = true;
@@ -347,6 +367,7 @@ export class ToolRegistryManager extends EventEmitter {
                     features: tool.features,
                     license: tool.license,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                    maturity: tool.maturity,
                     marketplaceSourceId: source.id,
                     marketplaceSourceLabel: source.label,
                     marketplaceSourceType: source.type,
@@ -383,8 +404,8 @@ export class ToolRegistryManager extends EventEmitter {
                 "repository",
                 "website",
                 "min_api",
-                "max_api",
                 // embedded relations
+                "tool_maturity(status)",
                 "tool_categories(categories(name))",
                 "tool_contributors(contributors(name,profile_url))",
                 "tool_analytics(downloads,rating,mau)",
@@ -442,8 +463,8 @@ export class ToolRegistryManager extends EventEmitter {
                     mau,
                     status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                     minAPI: tool.min_api, // Include min API version from database
-                    maxAPI: tool.max_api, // Include max API version from database
                     npmPackageName: tool.packagename || undefined, // npm package name for pre-release detection
+                    maturity: getSupabaseMaturityStatus(tool.tool_maturity),
                 } as ToolRegistryEntry;
             });
 
@@ -460,6 +481,10 @@ export class ToolRegistryManager extends EventEmitter {
      * Azure Blob is tried first (when configured), then the local registry.json.
      */
     private async fetchFallbackRegistry(): Promise<ToolRegistryEntry[]> {
+        if (process.env.PPTB_TEST_MODE === "1" && process.env.PPTB_TEST_REGISTRY_PATH) {
+            return this.fetchLocalRegistry();
+        }
+
         if (this.azureBlobBaseUrl) {
             try {
                 const tools = await this.fetchAzureBlobRegistry();
@@ -529,6 +554,7 @@ export class ToolRegistryManager extends EventEmitter {
                 features: tool.features,
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
+                maturity: tool.maturity,
             }));
 
         logInfo(`[ToolRegistry] Fetched ${tools.length} tools from Azure Blob registry`);
@@ -626,7 +652,7 @@ export class ToolRegistryManager extends EventEmitter {
                 license: tool.license,
                 status: (tool.status as "active" | "deprecated" | "archived" | undefined) || "active",
                 minAPI: tool.minAPI,
-                maxAPI: tool.maxAPI,
+                maturity: tool.maturity,
             }));
     }
 
@@ -827,10 +853,9 @@ export class ToolRegistryManager extends EventEmitter {
         // Extract version information from registry (Supabase)
         // These are pre-processed during tool intake and stored in the database
         const minAPI: string | undefined = tool.minAPI; // From Supabase tools table (min_api column)
-        const maxAPI: string | undefined = tool.maxAPI; // From Supabase tools table (max_api column)
 
         // Log if version info is missing (informational only, tools will still work as legacy)
-        if (!minAPI && !maxAPI) {
+        if (!minAPI) {
             logInfo(`[ToolRegistry] Tool ${toolId} does not have version information in registry. Tool will be treated as compatible with all versions (legacy behavior).`);
         }
 
@@ -848,6 +873,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         const manifest: ToolManifest = {
             id: tool.id || packageJson.name,
+            packageName: packageJson.name,
             name: tool.name || packageJson.displayName || packageJson.name,
             version: tool.version || packageJson.version,
             description: tool.description || packageJson.description,
@@ -868,12 +894,12 @@ export class ToolRegistryManager extends EventEmitter {
             createdAt: tool.createdAt,
             publishedAt: tool.publishedAt,
             minAPI, // Minimum API version required
-            maxAPI, // Maximum API version tested (from @pptb/types)
             mcpHeadlessEnabled,
             capabilities, // Invocation capability tags from pptb.config.json
             marketplaceSourceId: tool.marketplaceSourceId,
             marketplaceSourceLabel: tool.marketplaceSourceLabel,
             marketplaceSourceType: tool.marketplaceSourceType,
+            maturity: tool.maturity,
         };
 
         // Save to manifest file
@@ -946,8 +972,35 @@ export class ToolRegistryManager extends EventEmitter {
     private normalizeManifestEntry(entry: Record<string, unknown>): ToolManifest {
         const manifestEntry = entry as unknown as ToolManifest & { tags?: string[]; author?: string | { name?: string } };
         const categories = (manifestEntry.categories as string[] | undefined) ?? (manifestEntry as unknown as { tags?: string[] }).tags ?? [];
+        let packageName = manifestEntry.packageName;
         let authors: string[] | undefined = this.normalizeAuthorList((manifestEntry as unknown as { authors?: unknown }).authors);
         const legacyAuthor = (manifestEntry as unknown as { author?: string | { name?: string } }).author;
+
+        if (!packageName && typeof manifestEntry.installPath === "string") {
+            try {
+                const toolsRoot = fs.realpathSync(this.toolsDirectory);
+                const installPath = fs.realpathSync(manifestEntry.installPath);
+                const relativeInstallPath = path.relative(toolsRoot, installPath);
+                const isWithinToolsDirectory = relativeInstallPath !== "" && !relativeInstallPath.startsWith(`..${path.sep}`) && relativeInstallPath !== ".." && !path.isAbsolute(relativeInstallPath);
+
+                if (isWithinToolsDirectory) {
+                    const packageJsonPath = fs.realpathSync(path.join(installPath, "package.json"));
+                    const relativePackageJsonPath = path.relative(installPath, packageJsonPath);
+                    const isWithinInstallPath =
+                        relativePackageJsonPath !== "" && !relativePackageJsonPath.startsWith(`..${path.sep}`) && relativePackageJsonPath !== ".." && !path.isAbsolute(relativePackageJsonPath);
+                    const packageJsonStats = fs.statSync(packageJsonPath);
+
+                    if (isWithinInstallPath && packageJsonStats.isFile() && packageJsonStats.size <= 1_048_576) {
+                        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) as { name?: unknown };
+                        if (typeof packageJson.name === "string" && packageJson.name.length > 0) {
+                            packageName = packageJson.name;
+                        }
+                    }
+                }
+            } catch {
+                // Legacy manifests may reference packages that are no longer present.
+            }
+        }
 
         if ((!authors || authors.length === 0) && legacyAuthor) {
             if (typeof legacyAuthor === "string") {
@@ -959,6 +1012,7 @@ export class ToolRegistryManager extends EventEmitter {
 
         return {
             id: manifestEntry.id,
+            packageName,
             name: manifestEntry.name,
             version: manifestEntry.version,
             description: manifestEntry.description,
@@ -982,8 +1036,8 @@ export class ToolRegistryManager extends EventEmitter {
             publishedAt: manifestEntry.publishedAt,
             createdAt: manifestEntry.createdAt,
             minAPI: manifestEntry.minAPI,
-            maxAPI: manifestEntry.maxAPI,
             mcpHeadlessEnabled: manifestEntry.mcpHeadlessEnabled,
+            capabilities: manifestEntry.capabilities,
             marketplaceSourceId: manifestEntry.marketplaceSourceId,
             marketplaceSourceLabel: manifestEntry.marketplaceSourceLabel,
             marketplaceSourceType: manifestEntry.marketplaceSourceType,
@@ -1191,6 +1245,98 @@ export class ToolRegistryManager extends EventEmitter {
                 tags: { operation: "trackToolUsage" },
                 extra: { toolId },
             });
+        }
+    }
+
+    /**
+     * Submit (or update) this install's star rating/comment for a tool via the
+     * `submit_tool_rating` RPC, which upserts by install ID and recomputes the
+     * aggregate rating/count server-side. Unlike the silent analytics trackers
+     * above, failures are rethrown so the UI can show the user an error.
+     */
+    async submitToolRating(toolId: string, rating: number, comment?: string): Promise<{ rating?: number; ratingCount?: number }> {
+        if (!this.supabase || this.useLocalFallback) {
+            throw new Error("Rating submission requires an online connection to the tool registry.");
+        }
+        if (!this.installIdManager) {
+            throw new Error("Install ID is unavailable; cannot submit rating.");
+        }
+
+        const installId = this.installIdManager.getInstallId();
+
+        try {
+            logInfo(`[ToolRegistry] Submitting rating for tool: ${toolId}`);
+
+            const { data, error } = await this.supabase.rpc("submit_tool_rating", {
+                p_tool_id: toolId,
+                p_install_id: installId,
+                p_rating: rating,
+                p_comment: comment ?? null,
+            });
+
+            if (error) {
+                // Supabase errors are plain objects, not Error instances — convert so the message
+                // is always visible in logs and Sentry instead of appearing as "[object Object]".
+                throw new Error(error.message ?? JSON.stringify(error));
+            }
+
+            const row = Array.isArray(data) ? data[0] : data;
+            logInfo(`[ToolRegistry] Rating submitted successfully for ${toolId}`);
+            return {
+                rating: getOptionalAnalyticsNumber(row?.rating),
+                ratingCount: getOptionalAnalyticsNumber(row?.rating_count),
+            };
+        } catch (error) {
+            logError(`[ToolRegistry] Failed to submit rating for ${toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "submitToolRating" },
+                extra: { toolId },
+            });
+            throw error instanceof Error ? error : new Error(String(error));
+        }
+    }
+
+    /**
+     * Submit a user "Report a Concern" for a tool (spam, unsafe code, community-values violations, etc.).
+     * The anon Supabase key only has INSERT rights on this table (no SELECT/UPDATE/DELETE), so reports
+     * cannot be read back or tampered with by the client once submitted.
+     */
+    async submitConcernReport(report: ToolConcernReportSubmission): Promise<ToolConcernReportResult> {
+        if (!this.supabase || this.useLocalFallback) {
+            return { success: false, error: "Reporting requires an online connection to the tool registry." };
+        }
+
+        const installId = this.installIdManager?.getInstallId() ?? "unknown";
+
+        try {
+            logInfo(`[ToolRegistry] Submitting concern report for tool: ${report.toolId}`);
+
+            const { error } = await this.supabase.from("tool_concern_reports").insert({
+                tool_id: report.toolId,
+                tool_name: report.toolName,
+                tool_version: report.toolVersion ?? null,
+                reason: report.reason,
+                description: report.description ?? null,
+                email: report.email ?? null,
+                source: report.source,
+                maturity: report.maturity ?? null,
+                install_id: installId,
+                app_version: app.getVersion(),
+            });
+
+            if (error) {
+                throw new Error(error.message ?? JSON.stringify(error));
+            }
+
+            logInfo(`[ToolRegistry] Concern report submitted successfully for ${report.toolId}`);
+            return { success: true };
+        } catch (error) {
+            logError(`[ToolRegistry] Failed to submit concern report for ${report.toolId}`, error);
+            captureException(error instanceof Error ? error : new Error(String(error)), {
+                tags: { operation: "submitConcernReport" },
+                extra: { toolId: report.toolId },
+            });
+            return { success: false, error: error instanceof Error ? error.message : "Failed to submit report" };
         }
     }
 

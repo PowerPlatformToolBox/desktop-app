@@ -526,7 +526,6 @@ export class McpServerManager {
             repository: loadedTool.repository,
             website: loadedTool.website,
             minAPI: loadedTool.minAPI,
-            maxAPI: loadedTool.maxAPI,
             mcpHeadlessEnabled: loadedTool.mcpHeadlessEnabled,
             capabilities: loadedTool.capabilities,
             marketplaceSourceId: loadedTool.marketplaceSourceId,

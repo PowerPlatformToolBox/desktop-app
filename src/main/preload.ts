@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     isToolUpdating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.IS_TOOL_UPDATING, toolId),
     checkBetaPackage: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.CHECK_BETA_PACKAGE, npmPackageName),
     installPrereleaseToolFromNpm: (npmPackageName: string) => ipcRenderer.invoke(TOOL_CHANNELS.INSTALL_PRERELEASE_TOOL, npmPackageName),
+    submitToolRating: (toolId: string, rating: number, comment?: string) => ipcRenderer.invoke(TOOL_CHANNELS.SUBMIT_TOOL_RATING, toolId, rating, comment),
+    getMyToolRating: (toolId: string) => ipcRenderer.invoke(TOOL_CHANNELS.GET_MY_TOOL_RATING, toolId),
 
     // Tool Settings - Only for PPTB UI
     getToolSettings: (toolId: string) => ipcRenderer.invoke(SETTINGS_CHANNELS.GET_TOOL_SETTINGS, toolId),

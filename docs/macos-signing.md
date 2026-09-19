@@ -12,14 +12,14 @@ The stable release and nightly insider workflows now sign and notarize the macOS
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password created under Apple ID security settings.                                                               |
 | `APPLE_TEAM_ID`               | Ten-character Team ID for the Apple Developer account.                                                                        |
 
-Add these secrets at either the repository or organization level before triggering the `Stable Release` or `Insider Pre-Release` workflows. Each workflow decodes the certificate into the runner's temp directory and injects the credentials via environment variables consumed by Electron Builder and the notarization hook.
+Add these secrets at either the repository or organization level before triggering the `Stable Release` or `Insider Pre-Release` workflows. Each workflow decodes the certificate into the runner's temp directory, imports it into a dedicated keychain it creates itself, and exports the Apple notarization credentials as environment variables.
 
 ## How the pipeline signs macOS artifacts
 
 1. `buildScripts/electron-builder-mac.json` enables the Hardened Runtime and entitlements while leaving notarization to the GitHub Actions workflow.
 2. `buildScripts/entitlements.mac.plist` contains the minimal entitlements needed for the Electron runtime.
-3. The workflow runs `Prepare macOS signing certificate` before packaging to decode the `.p12`, export `CSC_LINK`/`CSC_KEY_PASSWORD`, and clean the temporary file afterward.
-4. Electron Builder signs the `.app`, `.zip`, and `.dmg` outputs with the Developer ID certificate using the exported environment variables.
+3. The workflow runs `Prepare macOS signing certificate` before packaging to decode the `.p12`, create a dedicated keychain (`pptb-signing.keychain-db`), import the certificate into it, add it to the user keychain search list/default keychain, and authorize `codesign`/`productbuild` access via `security set-key-partition-list` (retried a few times to work around a macOS Sequoia runner flake — see Troubleshooting). `CSC_LINK`/`CSC_KEY_PASSWORD` are intentionally **not** set.
+4. Electron Builder auto-discovers the imported "Developer ID Application" identity via `CSC_IDENTITY_AUTO_DISCOVERY` (already `true` in the `Package application` step) and signs the `.app`, `.zip`, and `.dmg` outputs with it.
 5. Immediately after packaging, the workflow runs `node buildScripts/notarize.js submit` (a thin wrapper around `xcrun notarytool submit --no-wait`) to send the request asynchronously and writes `build/notarization-info.json` so later jobs know the submission ID.
 6. A dedicated `mac-notarization` job downloads the macOS artifacts, runs `node buildScripts/notarize.js wait --timeout-hours=12 --interval-minutes=5` to poll Apple's API (with automatic retries for transient network failures), staples every `.dmg`/`.pkg`/`.zip`, and re-uploads the artifacts before the release is published. The release remains in **draft** state until this job succeeds, so unstapled builds never reach end users.
 
@@ -44,5 +44,6 @@ The history command should show the latest upload as `Accepted`.
 ## Troubleshooting
 
 - If the workflow fails before packaging, confirm the secrets exist and contain no line breaks or surrounding quotes.
+- If `Prepare macOS signing certificate` fails with `security: SecKeychainUnlock: The user name or passphrase you entered is not correct.` on the `set-key-partition-list` command (not on `import` or `unlock-keychain`), this is **not** a bad password — `security import` succeeding right before it proves the certificate password is correct. It's a known macOS Sequoia (`darwin` 24/25, i.e. macOS 15) runner flake where `set-key-partition-list` intermittently rejects the keychain password. The workflow already retries this call a few times before failing; if it still fails after retries, simply rerun the job.
 - If `buildScripts/notarize.js wait` exits after the 12-hour timeout, check the submission in `xcrun notarytool history`, then rerun the `mac-notarization` job to resume polling. The release will remain in draft mode until the job succeeds.
 - To rotate credentials, upload the new `.p12` and passwords to the same secrets; no source changes are required.

@@ -1,6 +1,6 @@
 {
   "name": "@pptb/validate",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Validation utilities for Power Platform ToolBox tool packages",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -51,6 +51,6 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "tar": "^7.5.16"
+    "tar": "^7.5.21"
   }
 }

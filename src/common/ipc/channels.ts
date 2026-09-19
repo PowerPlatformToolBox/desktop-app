@@ -63,6 +63,7 @@ export const CONNECTION_CHANNELS = {
 export const TOOL_CHANNELS = {
     GET_ALL_TOOLS: "get-all-tools",
     GET_TOOL: "get-tool",
+    RESOLVE_INVOCATION_TARGET: "resolve-invocation-target",
     LOAD_TOOL: "load-tool",
     UNLOAD_TOOL: "unload-tool",
     INSTALL_TOOL: "install-tool",
@@ -85,6 +86,16 @@ export const TOOL_CHANNELS = {
     CHECK_BETA_PACKAGE: "check-beta-package",
     /** Install the beta (pre-release) npm package for a registry tool. */
     INSTALL_PRERELEASE_TOOL: "install-prerelease-tool",
+    /** Submit (or update) an in-app star rating/comment for a tool, keyed by install ID. */
+    SUBMIT_TOOL_RATING: "submit-tool-rating",
+    /** Get the current install's previously submitted rating/comment for a tool, if any. */
+    GET_MY_TOOL_RATING: "get-my-tool-rating",
+} as const;
+
+// Tool concern report ("Report a Concern") IPC channels
+export const TOOL_REPORT_CHANNELS = {
+    SUBMIT_CONCERN: "tool-report:submit-concern",
+    HAS_REPORTED_CONCERN: "tool-report:has-reported-concern",
 } as const;
 
 // Tool Window-related IPC channels
@@ -126,6 +137,8 @@ export const TOOL_WINDOW_CHANNELS = {
      * the callee's tab and switches back to the caller tool.
      */
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
+    PREVENT_CLOSE: "tool-window:prevent-close",
+    RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
 } as const;
 
 // Terminal-related IPC channels

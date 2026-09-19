@@ -31,7 +31,7 @@ export interface OfflineMockRegistryTool {
     features?: Record<string, unknown>;
     status?: string;
     minAPI?: string;
-    maxAPI?: string;
+    maturity?: string;
 }
 
 export interface OfflineMockRegistryLoadResult {
@@ -40,7 +40,9 @@ export interface OfflineMockRegistryLoadResult {
 }
 
 function resolveOfflineMockRegistryPath(): string | null {
+    const testRegistryPath = process.env.PPTB_TEST_MODE === "1" ? process.env.PPTB_TEST_REGISTRY_PATH : undefined;
     const candidatePaths = [
+        ...(testRegistryPath ? [testRegistryPath] : []),
         // Bundled layout: dist/main/data/registry.json (most common runtime path)
         path.join(__dirname, "..", "data", "registry.json"),
         // Defensive fallback for alternate build layouts

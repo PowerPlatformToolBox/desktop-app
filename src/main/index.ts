@@ -17,10 +17,12 @@ import {
     SETTINGS_CHANNELS,
     TERMINAL_CHANNELS,
     TOOL_CHANNELS,
+    TOOL_REPORT_CHANNELS,
     UPDATE_CHANNELS,
     UTIL_CHANNELS,
 } from "../common/ipc/channels";
 import { logCheckpoint, logError, logInfo, logWarn } from "../common/logger";
+import { captureException, captureMessage } from "../common/sentryHelper";
 import {
     AttributeMetadataType,
     EntityRelatedMetadataPath,
@@ -31,6 +33,7 @@ import {
     ModalWindowOptions,
     NativeContextMenuRequest,
     ToolBoxEvent,
+    ToolConcernReportSubmission,
 } from "../common/types";
 import { AuthManager } from "./managers/authManager";
 import { AutoUpdateManager } from "./managers/autoUpdateManager";
@@ -104,6 +107,7 @@ class ToolBoxApp {
     private notifiedExpiredTokens: Set<string> = new Set(); // Track notified expired tokens
     private menuCreationTimeout: NodeJS.Timeout | null = null; // Debounce timer for menu recreation
     private isQuitting = false; // True once the user explicitly quits (e.g. tray "Quit" or Cmd+Q)
+    private hasConfirmedPreventCloseForQuit = false;
     private shouldFocusAfterWindowCreation = false; // Tracks a relaunch request before main window exists
     private mcpAutoStartInProgress = false;
 
@@ -137,8 +141,9 @@ class ToolBoxApp {
             this.connectionsManager = new ConnectionsManager();
             this.api = new ToolBoxUtilityManager();
             // Pass Supabase credentials and Azure Blob base URL from environment variables
+            const testToolsDirectory = process.env.PPTB_TEST_MODE === "1" ? process.env.PPTB_TEST_TOOLS_DIRECTORY : undefined;
             this.toolManager = new ToolManager(
-                path.join(app.getPath("userData"), "tools"),
+                testToolsDirectory || path.join(app.getPath("userData"), "tools"),
                 process.env.SUPABASE_URL,
                 process.env.SUPABASE_ANON_KEY,
                 this.installIdManager,
@@ -345,6 +350,7 @@ class ToolBoxApp {
         // Tool handlers
         ipcMain.removeHandler(TOOL_CHANNELS.GET_ALL_TOOLS);
         ipcMain.removeHandler(TOOL_CHANNELS.GET_TOOL);
+        ipcMain.removeHandler(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET);
         ipcMain.removeHandler(TOOL_CHANNELS.LOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.UNLOAD_TOOL);
         ipcMain.removeHandler(TOOL_CHANNELS.INSTALL_TOOL_FROM_REGISTRY);
@@ -421,6 +427,10 @@ class ToolBoxApp {
 
         // Modal window internal channels
         ipcMain.removeHandler(MODAL_WINDOW_CHANNELS.CLOSE);
+
+        // Tool concern report handlers
+        ipcMain.removeHandler(TOOL_REPORT_CHANNELS.SUBMIT_CONCERN);
+        ipcMain.removeHandler(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN);
 
         // Terminal handlers
         ipcMain.removeHandler(TERMINAL_CHANNELS.CREATE_TERMINAL);
@@ -1005,8 +1015,48 @@ class ToolBoxApp {
             return this.toolManager.getAllTools();
         });
 
-        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId) => {
+        ipcMain.handle(TOOL_CHANNELS.GET_TOOL, (_, toolId: string) => {
             return this.toolManager.getTool(toolId);
+        });
+
+        ipcMain.handle(TOOL_CHANNELS.RESOLVE_INVOCATION_TARGET, (event, targetIdentifier: string, callerInstanceId: string) => {
+            try {
+                if (!this.toolWindowManager || this.toolWindowManager.getInstanceIdByWebContents(event.sender.id) !== callerInstanceId) {
+                    throw new Error("Invocation caller does not match the sending tool instance");
+                }
+
+                const tool = this.toolManager.resolveInvocationTarget(targetIdentifier);
+                const logContext = { callerInstanceId, targetIdentifier, resolvedToolId: tool?.id };
+                if (tool) {
+                    logInfo("[ToolInvocation] Target tool resolved", logContext);
+                } else {
+                    logWarn("[ToolInvocation] Target tool was not found", logContext);
+                    captureMessage("Inter-tool invocation target was not found", "warning", {
+                        tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
+                        extra: logContext,
+                    });
+                    this.api.showNotification({
+                        title: "Tool Not Found",
+                        body: "The requested tool is not installed or available.",
+                        type: "warning",
+                    });
+                }
+                return tool;
+            } catch (error) {
+                const lookupError = error instanceof Error ? error : new Error(String(error));
+                const logContext = { callerInstanceId, targetIdentifier };
+                logError("[ToolInvocation] Target tool lookup failed", { ...logContext, error: lookupError.message });
+                captureException(lookupError, {
+                    tags: { operation: "resolveInvocationTarget", failure_stage: "target_resolution" },
+                    extra: logContext,
+                });
+                this.api.showNotification({
+                    title: "Tool Lookup Failed",
+                    body: "Failed to resolve the requested tool.",
+                    type: "error",
+                });
+                throw error;
+            }
         });
 
         ipcMain.handle(TOOL_CHANNELS.LOAD_TOOL, async (_, packageName) => {
@@ -1073,6 +1123,36 @@ class ToolBoxApp {
             const tool = await this.toolManager.installPrereleaseToolFromNpm(npmPackageName);
             this.settingsManager.addInstalledTool(tool.id);
             return tool;
+        });
+
+        // Submit (or update) this install's star rating/comment for a tool
+        ipcMain.handle(TOOL_CHANNELS.SUBMIT_TOOL_RATING, async (_, toolId: string, rating: number, comment?: string) => {
+            if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+                throw new Error("Rating must be an integer between 1 and 5");
+            }
+            const trimmedComment = typeof comment === "string" ? comment.trim().slice(0, 500) : undefined;
+            const aggregate = await this.toolManager.submitToolRating(toolId, rating, trimmedComment || undefined);
+            this.settingsManager.setMyToolRating(toolId, rating, trimmedComment || undefined);
+            return aggregate;
+        });
+
+        // Get this install's previously submitted rating/comment for a tool, if any
+        ipcMain.handle(TOOL_CHANNELS.GET_MY_TOOL_RATING, (_, toolId: string) => {
+            return this.settingsManager.getMyToolRating(toolId) ?? null;
+        });
+
+        // Submit a "Report a Concern" for a tool (spam, unsafe code, community-values violations, etc.)
+        ipcMain.handle(TOOL_REPORT_CHANNELS.SUBMIT_CONCERN, async (_, report: ToolConcernReportSubmission) => {
+            const result = await this.toolManager.submitConcernReport(report);
+            if (result.success) {
+                this.settingsManager.addReportedToolConcern(report.toolId);
+            }
+            return result;
+        });
+
+        // Check whether this install has already reported a concern for a tool
+        ipcMain.handle(TOOL_REPORT_CHANNELS.HAS_REPORTED_CONCERN, (_, toolId: string) => {
+            return this.settingsManager.hasReportedToolConcern(toolId);
         });
 
         // Debug mode only - npm-based installation for tool developers
@@ -2763,6 +2843,22 @@ class ToolBoxApp {
                                   },
                               },
                               {
+                                  label: "Report a Concern",
+                                  click: async () => {
+                                      const activeToolInfo = this.getActiveToolInfo();
+                                      if (!this.mainWindow || activeToolInfo.toolId === "none") {
+                                          await dialog.showMessageBox(this.mainWindow!, {
+                                              type: "info",
+                                              title: "Report a Concern",
+                                              message: "No tool is currently open to report.",
+                                              buttons: ["OK"],
+                                          });
+                                          return;
+                                      }
+                                      this.mainWindow.webContents.send("open-report-concern-modal", activeToolInfo);
+                                  },
+                              },
+                              {
                                   label: "Toggle Tool DevTools",
                                   accelerator: isMac ? "Alt+Command+T" : "Ctrl+Shift+T",
                                   click: () => {
@@ -3043,8 +3139,17 @@ class ToolBoxApp {
                 return;
             }
 
+            const hasPreventCloseTools = this.toolWindowManager?.hasPreventCloseTools() ?? false;
+            if (hasPreventCloseTools && this.toolWindowManager && !this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                event.preventDefault();
+                return;
+            }
+
             if (!this.mcpServerManager.isRunning()) {
                 // No MCP background workload: closing the window should terminate app.
+                if (hasPreventCloseTools) {
+                    this.hasConfirmedPreventCloseForQuit = true;
+                }
                 this.isQuitting = true;
                 return;
             }
@@ -3274,25 +3379,43 @@ class ToolBoxApp {
     }
 
     /**
-     * Check tool download capability
-     * Tests downloading a tool package from Azure Blob Storage (when configured) or
-     * falls back to checking reachability of the registry endpoint.
+     * Check tool package download connectivity by downloading the real Sample Standard
+     * Tool package from the registry's resolved download URL (Azure Blob Storage).
      */
     private async checkToolDownload(): Promise<{ success: boolean; message?: string }> {
-        const azureBlobBaseUrl = process.env.AZURE_BLOB_BASE_URL || "";
-        const TEST_TOOL_DOWNLOAD_URL = azureBlobBaseUrl
-            ? `${azureBlobBaseUrl.replace(/\/$/, "")}/test/pptb-standard-sample-tool-download-test.tar.gz`
-            : "https://github.com/PowerPlatformToolBox/pptb-web/releases/download/test/pptb-standard-sample-tool-download-test.tar.gz";
+        const SAMPLE_TOOL_ID = "pptb-standard-sample-tool";
         const tempDir = path.join(app.getPath("temp"), "pptb-download-test");
-        const downloadPath = path.join(tempDir, "pptb-standard-sample-tool-download-test.tar.gz");
+
+        let downloadUrl: string;
+        try {
+            const registryTools = await this.toolManager.getRegistryManager().fetchRegistry();
+            const sampleTool = registryTools.find((t) => t.id === SAMPLE_TOOL_ID) || registryTools[0];
+
+            if (!sampleTool || !sampleTool.downloadUrl) {
+                logWarn("[Troubleshooting] No registry tool with a resolvable downloadUrl was found");
+                return {
+                    success: false,
+                    message: "Unable to resolve a tool package download URL from the registry.",
+                };
+            }
+
+            downloadUrl = sampleTool.downloadUrl;
+        } catch (error) {
+            logError(error as Error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : "Unable to fetch registry to resolve a tool package download URL",
+            };
+        }
+
+        const downloadPath = path.join(tempDir, `${SAMPLE_TOOL_ID}-download-test.tar.gz`);
 
         try {
             if (!fs.existsSync(tempDir)) {
                 fs.mkdirSync(tempDir, { recursive: true });
             }
 
-            const downloadSource = azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release";
-            logInfo(`[Troubleshooting] Testing download from ${downloadSource}: ${TEST_TOOL_DOWNLOAD_URL}`);
+            logInfo(`[Troubleshooting] Testing tool package download: ${downloadUrl}`);
 
             await new Promise<void>((resolve, reject) => {
                 const download = (url: string, redirectDepth = 0) => {
@@ -3339,7 +3462,7 @@ class ToolBoxApp {
                     });
                 };
 
-                download(TEST_TOOL_DOWNLOAD_URL);
+                download(downloadUrl);
             });
 
             const stats = fs.statSync(downloadPath);
@@ -3350,7 +3473,7 @@ class ToolBoxApp {
 
             return {
                 success: true,
-                message: `Successfully downloaded tool package from ${azureBlobBaseUrl ? "Azure Blob Storage" : "GitHub release"} (${fileSizeMB} MB)`,
+                message: `Successfully downloaded tool package (${fileSizeMB} MB)`,
             };
         } catch (error) {
             try {
@@ -3358,13 +3481,13 @@ class ToolBoxApp {
                     fs.rmSync(tempDir, { recursive: true, force: true });
                 }
             } catch (cleanupError) {
-                logWarn("[Troubleshooting] Failed to clean up download test artifacts");
+                logWarn("[Troubleshooting] Failed to clean up tool download test artifacts");
             }
 
             logError(error as Error);
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Unknown error during download test",
+                message: error instanceof Error ? error.message : "Unknown error during tool download test",
             };
         }
     }
@@ -3604,7 +3727,19 @@ class ToolBoxApp {
                 }
             });
 
-            app.on("before-quit", async () => {
+            app.on("before-quit", async (event) => {
+                const hasConfirmedPreventCloseForQuit = this.hasConfirmedPreventCloseForQuit;
+                // Consume this one-time confirmation token so any future quit attempt
+                // in this app session requires a fresh confirmation.
+                this.hasConfirmedPreventCloseForQuit = false;
+
+                if (this.toolWindowManager?.hasPreventCloseTools() && !hasConfirmedPreventCloseForQuit) {
+                    if (!this.toolWindowManager.confirmAppCloseIfPrevented(this.mainWindow ?? undefined)) {
+                        event.preventDefault();
+                        this.isQuitting = false;
+                        return;
+                    }
+                }
                 this.isQuitting = true;
                 logCheckpoint("Application shutting down");
                 // Clean up tray icon before quitting
