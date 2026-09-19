@@ -14,6 +14,7 @@ import {
     DEFAULT_SHOW_ENVIRONMENT_COLOR,
     DEFAULT_TERMINAL_FONT,
 } from "../constants";
+import { markRendererInitialized } from "../utils/initializationState";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
 import {
@@ -193,6 +194,7 @@ export async function initializeApplication(): Promise<void> {
         // Set up periodic token expiry checking for active tool connections
         setupTokenExpiryCheck();
 
+        markRendererInitialized();
         logCheckpoint("Renderer initialization completed successfully");
     } catch (error) {
         logError(error instanceof Error ? error : new Error(String(error)));

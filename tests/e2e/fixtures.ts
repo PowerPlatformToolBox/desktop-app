@@ -123,18 +123,24 @@ async function resolveMainWindow(electronApp: ElectronApplication): Promise<Page
     return fallback;
 }
 
+async function waitForRendererInitialization(window: Page): Promise<void> {
+    await expect(window.locator("body[data-pptb-initialized='true']")).toBeVisible({ timeout: 30_000 });
+}
+
 export const test = base.extend<AppFixtures>({
     maturityData: [false, { option: true }],
 
     // Playwright fixtures require object destructuring for the first argument.
     electronApp: async ({ maturityData }, use) => {
         const mainEntry = path.resolve(__dirname, "../../dist/main/index.js");
-        let tempRoot: string | null = null;
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), maturityData ? "pptb-maturity-e2e-" : "pptb-e2e-"));
+        const userDataDirectory = path.join(tempRoot, "user-data");
         let maturityEnvironment: Record<string, string> = {};
 
+        fs.mkdirSync(userDataDirectory, { recursive: true });
+        fs.writeFileSync(path.join(userDataDirectory, "user-settings.json"), JSON.stringify({ sentryTelemetryConsent: "no" }, null, 2));
+
         if (maturityData) {
-            tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pptb-maturity-e2e-"));
-            const userDataDirectory = path.join(tempRoot, "user-data");
             const toolsDirectory = path.join(tempRoot, "tools");
             const registryPath = path.resolve(__dirname, "data/maturity-registry.json");
             const registry = JSON.parse(fs.readFileSync(registryPath, "utf-8")) as { tools: Array<Record<string, unknown>> };
@@ -163,7 +169,7 @@ export const test = base.extend<AppFixtures>({
         }
 
         const app = await electron.launch({
-            args: [mainEntry, ...(tempRoot ? [`--user-data-dir=${path.join(tempRoot, "user-data")}`] : [])],
+            args: [mainEntry, `--user-data-dir=${userDataDirectory}`],
             env: {
                 ...process.env,
                 // Prevent the app from opening the real OS keychain in CI
@@ -178,9 +184,7 @@ export const test = base.extend<AppFixtures>({
             await use(app);
         } finally {
             await app.close();
-            if (tempRoot) {
-                fs.rmSync(tempRoot, { recursive: true, force: true });
-            }
+            fs.rmSync(tempRoot, { recursive: true, force: true });
         }
     },
 
@@ -188,6 +192,7 @@ export const test = base.extend<AppFixtures>({
         await dismissTelemetryConsentModalIfPresent(electronApp);
         const win = await resolveMainWindow(electronApp);
         await expect(win.locator("#modal-backdrop")).toBeHidden({ timeout: 15_000 });
+        await waitForRendererInitialization(win);
         await use(win);
     },
 });
