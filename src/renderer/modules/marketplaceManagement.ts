@@ -103,6 +103,10 @@ export async function loadMarketplace(): Promise<void> {
     // Get installed tools
     const installedTools = await window.toolboxAPI.getAllTools();
     const installedToolsMap = new Map((installedTools as InstalledTool[]).map((t) => [t.id, t]));
+    toolLibrary = toolLibrary.map((tool) => ({
+        ...tool,
+        mcpHeadlessEnabled: tool.mcpHeadlessEnabled === true || installedToolsMap.get(tool.id)?.mcpHeadlessEnabled === true,
+    }));
 
     // Get display mode setting
     const displayMode = ((await window.toolboxAPI.getSetting("toolDisplayMode")) as string) || "standard";
