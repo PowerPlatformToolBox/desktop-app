@@ -737,21 +737,31 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         uninstallBtn.disabled = true;
         uninstallBtn.textContent = "Uninstalling...";
 
+        let uninstallCompleted = false;
         try {
             const installedTool = await window.toolboxAPI.getTool(tool.id);
             const uninstallTargetId = installedTool?.id || tool.id;
             await window.toolboxAPI.uninstallTool(uninstallTargetId, tool.id);
+            uninstallCompleted = true;
+            await loadSidebarTools();
+            await loadMarketplace();
             setInstalledState(false);
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Uninstalled",
                 body: `${tool.name} has been uninstalled.`,
                 type: "success",
             });
-            await loadSidebarTools();
-            await loadMarketplace();
         } catch (error) {
             uninstallBtn.disabled = false;
             uninstallBtn.textContent = "Uninstall";
+            if (uninstallCompleted) {
+                window.toolboxAPI.utils.showNotification({
+                    title: "Tool Uninstalled",
+                    body: `${tool.name} was uninstalled, but the UI failed to refresh: ${formatError(error)}`,
+                    type: "warning",
+                });
+                return;
+            }
             window.toolboxAPI.utils.showNotification({
                 title: "Uninstall Failed",
                 body: `Failed to uninstall tool: ${formatError(error)}`,
