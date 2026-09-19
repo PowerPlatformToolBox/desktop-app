@@ -614,6 +614,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
                     <div class="tool-detail-tab-actions">
                         <button id="tool-detail-install-btn" class="fluent-button fluent-button-primary" ${isInstalled ? 'style="display:none"' : ""} ${unsupportedAttr}>Install</button>
                         <button id="tool-detail-launch-btn" class="fluent-button fluent-button-primary" ${isInstalled ? "" : 'style="display:none"'}>Launch</button>
+                        <button id="tool-detail-uninstall-btn" class="fluent-button fluent-button-secondary" ${isInstalled ? "" : 'style="display:none"'}>Uninstall</button>
                         <button id="tool-detail-prerelease-btn" class="fluent-button fluent-button-secondary" style="display:none">Install Pre-Release Version</button>
                     </div>
                     ${linksMarkup}
@@ -673,8 +674,33 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
     // Wire up install button
     const installBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-install-btn");
     const launchBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-launch-btn");
+    const uninstallBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-uninstall-btn");
     const prereleaseBtn = panel.querySelector<HTMLButtonElement>("#tool-detail-prerelease-btn");
     const installedBadge = panel.querySelector<HTMLElement>("#tool-detail-installed-badge");
+    const setInstalledState = (toolInstalled: boolean): void => {
+        if (installBtn) {
+            installBtn.style.display = toolInstalled ? "none" : "inline-flex";
+            installBtn.disabled = false;
+            installBtn.textContent = "Install";
+        }
+        if (launchBtn) {
+            launchBtn.style.display = toolInstalled ? "inline-flex" : "none";
+        }
+        if (uninstallBtn) {
+            uninstallBtn.style.display = toolInstalled ? "inline-flex" : "none";
+            uninstallBtn.disabled = false;
+            uninstallBtn.textContent = "Uninstall";
+        }
+        if (prereleaseBtn && toolInstalled) {
+            prereleaseBtn.style.display = "none";
+        }
+        if (installedBadge) {
+            installedBadge.style.display = toolInstalled ? "inline-flex" : "none";
+        }
+    };
+
+    setInstalledState(isInstalled);
+
     launchBtn?.addEventListener("click", () => {
         void launchTool(tool.id);
     });
@@ -684,10 +710,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         installBtn.textContent = "Installing...";
         try {
             await window.toolboxAPI.installToolFromRegistry(tool.id);
-            installBtn.style.display = "none";
-            if (launchBtn) launchBtn.style.display = "inline-flex";
-            if (prereleaseBtn) prereleaseBtn.style.display = "none";
-            if (installedBadge) installedBadge.style.display = "inline-flex";
+            setInstalledState(true);
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Installed",
                 body: `${tool.name} has been installed successfully`,
@@ -706,6 +729,40 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         }
     });
 
+    uninstallBtn?.addEventListener("click", async () => {
+        if (!confirm("Are you sure you want to uninstall this tool?")) {
+            return;
+        }
+
+        uninstallBtn.disabled = true;
+        uninstallBtn.textContent = "Uninstalling...";
+
+        try {
+            const installedTool = await window.toolboxAPI.getTool(tool.id);
+            if (!installedTool) {
+                throw new Error("Tool not found");
+            }
+
+            await window.toolboxAPI.uninstallTool(installedTool.id, tool.id);
+            setInstalledState(false);
+            window.toolboxAPI.utils.showNotification({
+                title: "Tool Uninstalled",
+                body: `${tool.name} has been uninstalled.`,
+                type: "success",
+            });
+            await loadSidebarTools();
+            await loadMarketplace();
+        } catch (error) {
+            uninstallBtn.disabled = false;
+            uninstallBtn.textContent = "Uninstall";
+            window.toolboxAPI.utils.showNotification({
+                title: "Uninstall Failed",
+                body: `Failed to uninstall tool: ${formatError(error)}`,
+                type: "error",
+            });
+        }
+    });
+
     // Wire up pre-release install button
     prereleaseBtn?.addEventListener("click", async () => {
         if (!prereleaseBtn || prereleaseBtn.disabled) return;
@@ -714,10 +771,7 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         prereleaseBtn.textContent = "Installing Pre-Release...";
         try {
             await window.toolboxAPI.installPrereleaseToolFromNpm(tool.npmPackageName);
-            if (installBtn) installBtn.style.display = "none";
-            if (launchBtn) launchBtn.style.display = "inline-flex";
-            prereleaseBtn.style.display = "none";
-            if (installedBadge) installedBadge.style.display = "inline-flex";
+            setInstalledState(true);
             window.toolboxAPI.utils.showNotification({
                 title: "Pre-Release Tool Installed",
                 body: `Pre-release version of ${tool.name} has been installed successfully`,
