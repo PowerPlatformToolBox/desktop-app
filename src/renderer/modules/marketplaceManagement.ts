@@ -738,7 +738,9 @@ function renderToolDetailContent(panel: HTMLElement, tool: ToolDetail, isInstall
         uninstallBtn.textContent = "Uninstalling...";
 
         try {
-            await window.toolboxAPI.uninstallTool(tool.id, tool.id);
+            const installedTool = await window.toolboxAPI.getTool(tool.id);
+            const uninstallTargetId = installedTool?.id || tool.id;
+            await window.toolboxAPI.uninstallTool(uninstallTargetId, tool.id);
             setInstalledState(false);
             window.toolboxAPI.utils.showNotification({
                 title: "Tool Uninstalled",
