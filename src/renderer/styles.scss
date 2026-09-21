@@ -2053,12 +2053,36 @@ body.dark-theme .consent-status.revoked {
     font-size: 13px;
 }
 
+.tool-tab-impersonation {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    margin-right: 5px;
+    color: var(--accent-color);
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-tab-impersonation svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
 .tool-tab-name-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+}
+
+.tool-tab-title-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .tool-tab-subtext {

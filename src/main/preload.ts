@@ -74,6 +74,10 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
     getOpenToolWindows: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_OPEN_TOOLS),
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) =>
         ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, instanceId, primaryConnectionId, secondaryConnectionId),
+    getToolImpersonation: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION, instanceId),
+    setToolImpersonation: (instanceId: string, user: unknown) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION, instanceId, user),
+    resetToolImpersonation: (instanceId: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION, instanceId),
+    getDataverseUsers: (instanceId: string) => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, instanceId),
     findToolsByCapability: (tag: string) => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY, tag),
     /** Trigger banner "Return to Caller" — resolves the currently active callee's invocation with null and auto-closes it. */
     returnToCallerBanner: () => ipcRenderer.invoke(TOOL_WINDOW_CHANNELS.RETURN_INVOCATION_DATA, null, null),
@@ -326,6 +330,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API - Can be called by tools via message routing
     dataverse: {
+        getSystemUsers: (connectionTarget?: "primary" | "secondary") => ipcRenderer.invoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, connectionTarget),
         create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcRenderer.invoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
         retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>
