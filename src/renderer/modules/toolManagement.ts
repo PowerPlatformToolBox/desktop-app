@@ -18,12 +18,14 @@ import type { OpenTool, SessionData } from "../types/index";
 import { getUnsupportedRequirement, getUnsupportedToolMessage } from "../utils/toolCompatibility";
 import { openSelectConnectionModal, openSelectMultiConnectionModal } from "./connectionManagement";
 import { openCspExceptionModal } from "./cspExceptionModal";
+import { openSelectDataverseUserModal } from "./dataverseUserManagement";
 import { hideHomePage, showHomePage as showDynamicHomePage } from "./homepageManagement";
 
 // Constants
 const TAB_SCROLL_AMOUNT = 200; // Pixels to scroll when clicking scroll buttons
 const SCROLL_TOLERANCE = 1; // Tolerance for rounding errors when checking scroll position
 const MIDDLE_MOUSE_BUTTON = 1; // Mouse button code for middle button
+
 
 export interface LaunchToolOptions {
     source?: string;
@@ -196,6 +198,7 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
     const currentPane = isSplitActive ? getTabCurrentPane(instanceId) : null;
     const canMoveToRight = isSplitActive && currentPane === "left" && canManageTab;
     const canMoveToLeft = isSplitActive && currentPane === "right" && canManageTab;
+    const impersonation = canManageTab ? await window.toolboxAPI.getToolImpersonation(instanceId) : { user: null };
     let action: string | null = null;
     try {
         action = await window.toolboxAPI.utils.showContextMenu({
@@ -213,6 +216,9 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
                 { id: "duplicate-tab", label: "Duplicate Tab", enabled: canManageTab },
                 { id: "duplicate-tab-new-connection", label: "Duplicate Tab with New Connection", enabled: canManageTab },
                 { id: "change-connection", label: "Change Connection", enabled: canManageTab },
+                { type: "separator" },
+                { id: "impersonate", label: "Impersonate Dataverse User", enabled: canManageTab && Boolean(openTools.get(instanceId)?.connectionId) && !impersonation.user },
+                { id: "reset-impersonation", label: "Reset Dataverse Impersonation", enabled: canManageTab && Boolean(impersonation.user) },
             ],
         });
     } catch (error) {
@@ -261,6 +267,35 @@ async function showTabContextMenu(instanceId: string, clientX: number, clientY: 
 
     if (action === "change-connection") {
         await changeToolConnectionForInstance(instanceId);
+        return;
+    }
+
+    if (action === "impersonate") {
+        try {
+            const tool = openTools.get(instanceId);
+            if (!tool?.connectionId) return;
+            const users = await window.toolboxAPI.getDataverseUsers(instanceId);
+            const selected = await openSelectDataverseUserModal(users);
+            if (selected) {
+                await window.toolboxAPI.setToolImpersonation(instanceId, selected);
+                await updateTabImpersonationIndicator(instanceId);
+                window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: `Requests now run as ${selected.fullname}.`, type: "success" });
+            }
+        } catch (error) {
+            logError("Failed to enable Dataverse impersonation", error);
+            await window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: error instanceof Error ? error.message : String(error), type: "error" });
+        }
+        return;
+    }
+
+    if (action === "reset-impersonation") {
+        try {
+            await window.toolboxAPI.resetToolImpersonation(instanceId);
+            await updateTabImpersonationIndicator(instanceId);
+            window.toolboxAPI.utils.showNotification({ title: "Dataverse Impersonation", body: "Impersonation was reset.", type: "success" });
+        } catch (error) {
+            logError("Failed to reset Dataverse impersonation", error);
+        }
         return;
     }
 
@@ -654,7 +689,18 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     // Create a container for the name and subtext
     const nameContainer = document.createElement("div");
     nameContainer.className = "tool-tab-name-container";
-    nameContainer.appendChild(name);
+    const titleRow = document.createElement("div");
+    titleRow.className = "tool-tab-title-row";
+    titleRow.appendChild(name);
+    nameContainer.appendChild(titleRow);
+
+    const impersonationIcon = document.createElement("span");
+    impersonationIcon.className = "tool-tab-impersonation";
+    impersonationIcon.setAttribute("aria-hidden", "true");
+    impersonationIcon.title = "Dataverse impersonation active";
+    impersonationIcon.innerHTML = `<svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5 13 3.6v3.7c0 3.2-2 5.9-5 7.2-3-1.3-5-4-5-7.2V3.6L8 1.5Zm0 1.6L4.5 4.6v2.7c0 2.4 1.4 4.5 3.5 5.6 2.1-1.1 3.5-3.2 3.5-5.6V4.6L8 3.1Zm0 1.7a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2Zm-2.3 5.1c.5-1 1.3-1.5 2.3-1.5s1.8.5 2.3 1.5A5.9 5.9 0 0 1 8 11.7a5.9 5.9 0 0 1-2.3-1.8Z"/></svg>`;
+    impersonationIcon.style.display = "none";
+    titleRow.insertBefore(impersonationIcon, name);
 
     const pinBtn = document.createElement("button");
     pinBtn.className = "tool-tab-pin";
@@ -720,9 +766,26 @@ export function createTab(instanceId: string, tool: any, instanceNumber: number 
     toolTabs.appendChild(tab);
 
     void updateTabConnectionSubtext(instanceId);
+    void updateTabImpersonationIndicator(instanceId);
 
     // Update scroll button visibility after adding tab
     updateTabScrollButtons();
+}
+
+async function updateTabImpersonationIndicator(instanceId: string): Promise<void> {
+    const tab = document.getElementById(`tool-tab-${instanceId}`);
+    const indicator = tab?.querySelector<HTMLElement>(".tool-tab-impersonation");
+    if (!indicator) return;
+
+    try {
+        const impersonation = await window.toolboxAPI.getToolImpersonation(instanceId);
+        const isActive = Boolean(impersonation.user);
+        indicator.style.display = isActive ? "inline-flex" : "none";
+        indicator.title = isActive ? `Dataverse impersonation: ${impersonation.user?.fullname ?? "active"}` : "";
+        indicator.setAttribute("aria-label", isActive ? `Dataverse impersonation active for ${impersonation.user?.fullname ?? "selected user"}` : "");
+    } catch (error) {
+        logWarn("Failed to update tab impersonation indicator", { instanceId, error: error instanceof Error ? error.message : String(error) });
+    }
 }
 
 async function updateTabConnectionSubtext(instanceId: string): Promise<void> {
