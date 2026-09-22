@@ -11,6 +11,7 @@ export function initializeTitlebar(): void {
     const closeButton = document.getElementById("window-close-btn");
     const sidebarButton = document.getElementById("toggle-sidebar-btn");
     const searchButton = document.getElementById("titlebar-search-btn");
+    const menuBar = document.getElementById("app-menubar");
 
     const updateSidebarButtonState = (): void => {
         const isCollapsed = document.getElementById("sidebar")?.classList.contains("collapsed") ?? false;
@@ -35,6 +36,15 @@ export function initializeTitlebar(): void {
     }
 
     searchButton?.addEventListener("click", openGlobalSearch);
+
+    if (!isMacOs && menuBar) {
+        menuBar.querySelectorAll<HTMLButtonElement>("[data-menu-label]").forEach((menuButton) => {
+            menuButton.addEventListener("click", () => {
+                const rect = menuButton.getBoundingClientRect();
+                void window.toolboxAPI.window.openMenu(menuButton.dataset.menuLabel ?? "", Math.round(rect.left), Math.round(rect.bottom));
+            });
+        });
+    }
 
     minimizeButton?.addEventListener("click", () => {
         void window.toolboxAPI.window.minimize();

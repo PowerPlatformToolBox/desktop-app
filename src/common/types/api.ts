@@ -252,6 +252,7 @@ export interface ToolboxAPI {
         toggleMaximize: () => Promise<boolean>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        openMenu: (menuLabel: string, x: number, y: number) => Promise<void>;
     };
 
     // Connections namespace

@@ -227,6 +227,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
         toggleMaximize: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE),
         close: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_CLOSE),
         isMaximized: () => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
+        openMenu: (menuLabel: string, x: number, y: number) => ipcRenderer.invoke(UTIL_CHANNELS.WINDOW_OPEN_MENU, menuLabel, x, y),
     },
 
     // Favicon proxy - fetches a favicon URL via main process to bypass renderer CSP

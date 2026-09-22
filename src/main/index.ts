@@ -417,6 +417,7 @@ class ToolBoxApp {
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_TOGGLE_MAXIMIZE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_CLOSE);
         ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED);
+        ipcMain.removeHandler(UTIL_CHANNELS.WINDOW_OPEN_MENU);
 
         // Filesystem handlers
         ipcMain.removeHandler(FILESYSTEM_CHANNELS.READ_TEXT);
@@ -566,6 +567,15 @@ class ToolBoxApp {
 
         ipcMain.handle(UTIL_CHANNELS.WINDOW_IS_MAXIMIZED, (event) => {
             return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
+        });
+
+        ipcMain.handle(UTIL_CHANNELS.WINDOW_OPEN_MENU, (event, menuLabel: string, x: number, y: number) => {
+            const window = BrowserWindow.fromWebContents(event.sender);
+            const menu = Menu.getApplicationMenu();
+            const menuItem = menu?.items.find((item) => item.label === menuLabel);
+            if (!window || !menuItem?.submenu) return;
+
+            menuItem.submenu.popup({ window, x, y });
         });
 
         // Settings handlers
@@ -3119,7 +3129,7 @@ class ToolBoxApp {
         this.mainWindow = new BrowserWindow({
             width: 1200,
             height: 800,
-            frame: process.platform !== "darwin",
+            frame: process.platform === "darwin",
             autoHideMenuBar: process.platform !== "darwin",
             ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" as const } : {}),
             webPreferences: {

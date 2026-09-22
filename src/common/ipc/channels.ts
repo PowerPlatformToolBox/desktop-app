@@ -180,6 +180,7 @@ export const UTIL_CHANNELS = {
     WINDOW_TOGGLE_MAXIMIZE: "window-toggle-maximize",
     WINDOW_CLOSE: "window-close",
     WINDOW_IS_MAXIMIZED: "window-is-maximized",
+    WINDOW_OPEN_MENU: "window-open-menu",
 } as const;
 
 // Filesystem-related IPC channels

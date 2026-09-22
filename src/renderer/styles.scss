@@ -225,6 +225,39 @@ body.macos .app-titlebar-controls {
     display: none;
 }
 
+.app-menubar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 28px;
+    padding: 0 8px;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+    -webkit-app-region: no-drag;
+}
+
+.app-menubar-item {
+    height: 24px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+}
+
+.app-menubar-item:hover,
+.app-menubar-item:focus-visible {
+    background: var(--secondary-color);
+    outline: none;
+}
+
+body.macos .app-menubar {
+    display: none;
+}
+
 .app-titlebar-content {
     min-width: 0;
     overflow: hidden;
@@ -380,9 +413,13 @@ body.macos .app-titlebar-controls {
 
 .app-container {
     display: flex;
-    height: calc(100vh - var(--app-titlebar-height) - var(--app-footer-height));
+    height: calc(100vh - var(--app-titlebar-height) - 28px - var(--app-footer-height));
     min-height: 0;
     flex: 1;
+}
+
+body.macos .app-container {
+    height: calc(100vh - var(--app-titlebar-height) - var(--app-footer-height));
 }
 
 /* Activity Bar (VSCode-like) */
