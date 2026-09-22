@@ -21,6 +21,7 @@
     --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.15);
     --favorite-star-color: #{$favorite-star-color};
     --app-footer-height: 32px;
+    --app-titlebar-height: 36px;
     --primary-gradient: #{$primary-gradient};
     --primary-gradient-hover: #{$primary-gradient-hover};
     /* Modern theme additions */
@@ -41,6 +42,10 @@
     --activity-item-hover-bg: rgba(0, 0, 0, 0.05);
     --activity-item-active-bg: rgba(0, 0, 0, 0.08);
     --activity-item-active-border: var(--accent-color);
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #c8c6c4;
+    --scrollbar-thumb-hover: #a19f9d;
+    --scrollbar-thumb-border: var(--bg-color);
     /* Environment border colors - Light theme */
     --env-border-dev: #{$env-border-dev-light};
     --env-border-test: #{$env-border-test-light};
@@ -96,12 +101,42 @@ body.dark-theme {
     --activity-item-hover-bg: rgba(255, 255, 255, 0.1);
     --activity-item-active-bg: rgba(255, 255, 255, 0.05);
     --activity-item-active-border: var(--accent-color);
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #505050;
+    --scrollbar-thumb-hover: #6b6b6b;
+    --scrollbar-thumb-border: var(--bg-color);
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+}
+
+/* Keep native scrollbars consistent with the active application theme. */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 3px solid var(--scrollbar-thumb-border);
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+    background: var(--scrollbar-track);
 }
 
 body {
@@ -109,6 +144,7 @@ body {
     color: var(--text-color);
     background-color: var(--bg-color);
     overflow: hidden;
+    height: 100vh;
 
     &.dark-theme {
         .connection-card,
@@ -137,9 +173,215 @@ body {
     }
 }
 
+.app-titlebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 420px) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    height: var(--app-titlebar-height);
+    padding: 0 8px 0 12px;
+    position: relative;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    user-select: none;
+    -webkit-app-region: drag;
+}
+
+.app-titlebar-brand,
+.app-titlebar-content,
+.app-titlebar-controls {
+    display: flex;
+    align-items: center;
+}
+
+.app-titlebar-brand {
+    flex: 0 0 auto;
+    gap: 9px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.app-titlebar-brand .app-titlebar-sidebar-toggle {
+    margin-left: 2px;
+    flex: 0 0 auto;
+}
+
+.app-titlebar-brand > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.macos .app-titlebar-brand {
+    margin-left: 80px;
+}
+
+body.macos .app-titlebar-controls {
+    display: none;
+}
+
+.app-titlebar-content {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.app-titlebar-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--secondary-color);
+    color: var(--text-secondary);
+    cursor: text;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    -webkit-app-region: no-drag;
+}
+
+.app-titlebar-search:hover,
+.app-titlebar-search:focus-visible {
+    border-color: var(--primary-color);
+    background: var(--card-background);
+    color: var(--text-color);
+    outline: none;
+}
+
+.app-titlebar-search-icon {
+    flex: 0 0 auto;
+}
+
+.app-titlebar-search-placeholder {
+    overflow: hidden;
+    flex: 1;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-titlebar-search-shortcut {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 10px;
+    line-height: 1;
+}
+
+.app-titlebar-controls {
+    flex: 0 0 auto;
+    height: 100%;
+    justify-self: end;
+    -webkit-app-region: no-drag;
+}
+
+@media (max-width: 900px) {
+    .app-titlebar {
+        grid-template-columns: minmax(0, max-content) minmax(0, 260px) max-content;
+    }
+
+    .app-titlebar-search-shortcut {
+        display: none;
+    }
+
+    .app-titlebar-search-placeholder {
+        min-width: 0;
+    }
+}
+
+.app-titlebar-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 28px;
+    margin-left: 2px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.app-titlebar-button:hover {
+    background: var(--secondary-color);
+    color: var(--text-color);
+}
+
+.app-titlebar-close:hover {
+    background: #d13438;
+    color: #ffffff;
+}
+
+.window-control-glyph {
+    display: block;
+    width: 12px;
+    height: 12px;
+    position: relative;
+}
+
+.sidebar-toggle-icon {
+    display: block;
+}
+
+.sidebar-toggle-icon-hidden {
+    display: none;
+}
+
+.app-titlebar-sidebar-toggle.sidebar-is-collapsed .sidebar-toggle-icon-visible {
+    display: none;
+}
+
+.app-titlebar-sidebar-toggle.sidebar-is-collapsed .sidebar-toggle-icon-hidden {
+    display: block;
+}
+
+.window-control-minimize::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    bottom: 2px;
+    border-top: 1.5px solid currentColor;
+}
+
+.window-control-maximize {
+    border: 1.5px solid currentColor;
+    border-radius: 2px;
+}
+
+.window-control-close::before,
+.window-control-close::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 0;
+    width: 12px;
+    border-top: 1.5px solid currentColor;
+    transform: rotate(45deg);
+}
+
+.window-control-close::after {
+    transform: rotate(-45deg);
+}
+
 .app-container {
     display: flex;
-    height: calc(100vh - var(--app-footer-height));
+    height: calc(100vh - var(--app-titlebar-height) - var(--app-footer-height));
+    min-height: 0;
     flex: 1;
 }
 
@@ -471,9 +713,7 @@ body {
     border-radius: 10px;
     padding: 16px 18px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .settings-section-card:hover {
@@ -593,9 +833,7 @@ body {
     cursor: pointer;
     text-align: left;
     color: var(--text-color);
-    transition:
-        background 0.14s ease,
-        transform 0.1s ease;
+    transition: background 0.14s ease, transform 0.1s ease;
 }
 
 .link-row:hover {
@@ -731,10 +969,7 @@ body.dark-theme .link-icon-color-orange {
     display: flex;
     align-items: center;
     opacity: 0.45;
-    transition:
-        opacity 0.14s ease,
-        color 0.14s ease,
-        transform 0.14s ease;
+    transition: opacity 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 
 .link-row:hover .link-row-arrow {
@@ -1943,9 +2178,7 @@ body.dark-theme .consent-status.revoked {
     cursor: pointer;
     color: var(--text-color);
     opacity: 0.7;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
     z-index: 10;
     flex-shrink: 0;
 }
@@ -2053,12 +2286,36 @@ body.dark-theme .consent-status.revoked {
     font-size: 13px;
 }
 
+.tool-tab-impersonation {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    margin-right: 5px;
+    color: var(--accent-color);
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-tab-impersonation svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
 .tool-tab-name-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+}
+
+.tool-tab-title-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .tool-tab-subtext {
@@ -2085,9 +2342,7 @@ body.dark-theme .consent-status.revoked {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
 }
 
 .tool-tab:hover .tool-tab-close {
@@ -2109,9 +2364,7 @@ body.dark-theme .consent-status.revoked {
     line-height: 1;
     border-radius: 3px;
     opacity: 0;
-    transition:
-        opacity 0.2s,
-        background-color 0.2s;
+    transition: opacity 0.2s, background-color 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2392,9 +2645,7 @@ body.dark-theme .consent-status.revoked {
     text-decoration: none;
     cursor: pointer;
     border-left: 3px solid transparent;
-    transition:
-        background 0.15s,
-        color 0.15s;
+    transition: background 0.15s, color 0.15s;
 }
 
 .settings-nav-link:hover {
@@ -2935,10 +3186,7 @@ body.dark-theme .settings-vscode-item:hover {
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
-    transition:
-        opacity 0.2s ease,
-        background-color 0.2s ease,
-        color 0.2s ease;
+    transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .sidebar-search-input-wrapper:has(.search-input:not(:placeholder-shown)) .search-clear-btn {
@@ -3189,10 +3437,7 @@ body.dark-theme .search-filter-btn.active img {
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     cursor: pointer;
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .tool-item-pptb-local {
@@ -3216,17 +3461,13 @@ body.dark-theme .search-filter-btn.active img {
 .tool-item-pptb.verified:not(.deprecated):not(.unsupported) {
     background: rgba(0, 120, 212, 0.06);
     border-color: rgba(0, 120, 212, 0.42);
-    box-shadow:
-        inset 3px 0 0 #0078d4,
-        0 3px 9px rgba(0, 120, 212, 0.12);
+    box-shadow: inset 3px 0 0 #0078d4, 0 3px 9px rgba(0, 120, 212, 0.12);
 }
 
 .tool-item-pptb.verified:not(.deprecated):not(.unsupported):hover {
     background: rgba(0, 120, 212, 0.11);
     border-color: rgba(0, 120, 212, 0.65);
-    box-shadow:
-        inset 3px 0 0 #0078d4,
-        0 5px 13px rgba(0, 120, 212, 0.18);
+    box-shadow: inset 3px 0 0 #0078d4, 0 5px 13px rgba(0, 120, 212, 0.18);
 }
 
 .tool-item-header-pptb {
@@ -3314,9 +3555,7 @@ img.tool-item-icon-img {
     border: none;
     cursor: pointer;
     padding: 2px 4px;
-    transition:
-        transform 0.2s,
-        opacity 0.2s;
+    transition: transform 0.2s, opacity 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3629,10 +3868,7 @@ body.dark-theme .tool-mcp-headless-badge {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .marketplace-item-pptb:hover {
@@ -3644,17 +3880,13 @@ body.dark-theme .tool-mcp-headless-badge {
 .marketplace-item-pptb.verified:not(.deprecated):not(.unsupported) {
     background: rgba(0, 120, 212, 0.06);
     border-color: rgba(0, 120, 212, 0.42);
-    box-shadow:
-        inset 3px 0 0 #0078d4,
-        0 3px 9px rgba(0, 120, 212, 0.12);
+    box-shadow: inset 3px 0 0 #0078d4, 0 3px 9px rgba(0, 120, 212, 0.12);
 }
 
 .marketplace-item-pptb.verified:not(.deprecated):not(.unsupported):hover {
     background: rgba(0, 120, 212, 0.11);
     border-color: rgba(0, 120, 212, 0.65);
-    box-shadow:
-        inset 3px 0 0 #0078d4,
-        0 5px 13px rgba(0, 120, 212, 0.18);
+    box-shadow: inset 3px 0 0 #0078d4, 0 5px 13px rgba(0, 120, 212, 0.18);
 }
 
 .marketplace-item-header-pptb {
@@ -3718,11 +3950,7 @@ body.dark-theme .tool-mcp-headless-badge {
     color: var(--text-color);
     padding: 0;
     cursor: pointer;
-    transition:
-        background-color 0.2s ease,
-        border-color 0.2s ease,
-        color 0.2s ease,
-        transform 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 body.dark-theme .install-button {
@@ -3857,10 +4085,7 @@ body.light-theme .install-button:focus-visible img {
     border-radius: 8px;
     background: var(--card-background);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    transition:
-        background-color 0.2s,
-        box-shadow 0.2s,
-        border-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
     margin-bottom: 10px;
 }
 
@@ -4534,8 +4759,8 @@ body.dark-theme .home-container::-webkit-scrollbar-thumb:hover {
     content: "";
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%), radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
+    background: radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%),
+        radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
 body.dark-theme #tool-detail-modal .modal-content.tool-detail-modern {
@@ -5358,9 +5583,7 @@ fluent-badge {
     border-radius: 3px;
     font-size: 13px;
     cursor: pointer;
-    transition:
-        background-color 0.2s,
-        color 0.2s;
+    transition: background-color 0.2s, color 0.2s;
     white-space: nowrap;
 }
 
@@ -5656,9 +5879,7 @@ body.dark-theme .csp-warning ul {
     align-items: flex-start;
     gap: 12px;
     animation: slideInRight 0.3s ease-out;
-    transition:
-        opacity 0.2s ease-out,
-        transform 0.2s ease-out;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
     max-width: 100%;
 }
 
@@ -6447,9 +6668,7 @@ body.dark-theme .global-search-item-badge.badge-settings {
     color: var(--text-secondary);
     border-radius: 4px;
     cursor: pointer;
-    transition:
-        color 0.15s ease,
-        background 0.15s ease;
+    transition: color 0.15s ease, background 0.15s ease;
     flex-shrink: 0;
 }
 

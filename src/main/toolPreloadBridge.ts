@@ -253,6 +253,7 @@ contextBridge.exposeInMainWorld("toolboxAPI", {
 
     // Dataverse API
     dataverse: {
+        getSystemUsers: (connectionTarget?: "primary" | "secondary") => ipcInvoke(DATAVERSE_CHANNELS.GET_SYSTEM_USERS, connectionTarget),
         create: (entityLogicalName: string, record: Record<string, unknown>, connectionTarget?: "primary" | "secondary") =>
             ipcInvoke(DATAVERSE_CHANNELS.CREATE, entityLogicalName, record, connectionTarget),
         retrieve: (entityLogicalName: string, id: string, columns?: string[], connectionTarget?: "primary" | "secondary") =>

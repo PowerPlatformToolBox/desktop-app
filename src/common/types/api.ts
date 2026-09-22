@@ -6,7 +6,7 @@
 import { FileDialogFilter, ModalWindowMessagePayload, ModalWindowOptions, NativeContextMenuRequest, SelectPathOptions, Theme } from "./common";
 import { CommunityLinksCollection } from "./communityLinks";
 import { Connection } from "./connection";
-import { DataverseExecuteRequest } from "./dataverse";
+import { DataverseExecuteRequest, DataverseUser } from "./dataverse";
 import { CspConsentRecord, LastUsedToolEntry, LastUsedToolUpdate, UserSettings } from "./settings";
 import { Terminal, TerminalOptions } from "./terminal";
 import { CapabilityTagEntry, MyToolRating, Tool, ToolContext, ToolRatingAggregate, ToolSettings } from "./tool";
@@ -187,6 +187,7 @@ export interface TroubleshootingAPI {
  * Dataverse API namespace
  */
 export interface DataverseAPI {
+    getSystemUsers: () => Promise<import("./dataverse").DataverseUser[]>;
     create: (entityLogicalName: string, record: Record<string, unknown>) => Promise<unknown>;
     retrieve: (entityLogicalName: string, id: string, columns?: string[]) => Promise<unknown>;
     update: (entityLogicalName: string, id: string, record: Record<string, unknown>) => Promise<void>;
@@ -246,6 +247,12 @@ export interface ToolboxAPI {
     getSetting: (key: string) => Promise<unknown>;
     setSetting: (key: string, value: unknown) => Promise<void>;
     getMcpAccessToken: () => Promise<string>;
+    window: {
+        minimize: () => Promise<void>;
+        toggleMaximize: () => Promise<boolean>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
+    };
 
     // Connections namespace
     connections: ConnectionsAPI;
@@ -289,6 +296,10 @@ export interface ToolboxAPI {
     getActiveToolWindow: () => Promise<string | null>;
     getOpenToolWindows: () => Promise<string[]>;
     updateToolConnection: (instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => Promise<void>;
+    getToolImpersonation: (instanceId: string) => Promise<{ user: DataverseUser | null }>;
+    setToolImpersonation: (instanceId: string, user: DataverseUser) => Promise<void>;
+    resetToolImpersonation: (instanceId: string) => Promise<void>;
+    getDataverseUsers: (instanceId: string) => Promise<DataverseUser[]>;
     /** Find installed tools that declare a given capability tag in their pptb.config.json. */
     findToolsByCapability: (tag: string) => Promise<Tool[]>;
     /** Returns the list of known capability tags from the registry (Supabase-backed, with built-in fallback). */

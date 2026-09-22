@@ -1,6 +1,7 @@
 import * as https from "https";
 import { promisify } from "util";
 import * as zlib from "zlib";
+import { AsyncLocalStorage } from "async_hooks";
 import { logError, logWarn } from "../../common/logger";
 import {
     AttributeMetadataType,
@@ -11,6 +12,7 @@ import {
     Label,
     LocalizedLabel,
     MetadataOperationOptions,
+    DataverseUser,
 } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
 import { AuthManager } from "./authManager";
@@ -63,10 +65,22 @@ const ENTITY_RELATED_METADATA_BASE_PATH_SET: Set<string> = new Set(ENTITY_RELATE
 export class DataverseManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private readonly requestContext = new AsyncLocalStorage<string | null>();
 
     constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
+    }
+
+    withImpersonation<T>(callerObjectId: string | null, operation: () => Promise<T>): Promise<T> {
+        return this.requestContext.run(callerObjectId, operation);
+    }
+
+    async getSystemUsers(connectionId: string): Promise<{ value: DataverseUser[] }> {
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/systemusers?$select=systemuserid,azureactivedirectoryobjectid,fullname,domainname,internalemailaddress,isdisabled&$filter=isdisabled%20eq%20false%20and%20azureactivedirectoryobjectid%20ne%20null&$orderby=fullname`);
+        const response = await this.makeHttpRequest(url, "GET", accessToken);
+        return response.data as { value: DataverseUser[] };
     }
 
     /**
@@ -925,6 +939,7 @@ export class DataverseManager {
                     "OData-Version": "4.0",
                     "Content-Type": "application/json; charset=utf-8",
                     Prefer: preferHeader,
+                    ...(this.requestContext.getStore() ? { CallerObjectId: this.requestContext.getStore()! } : {}),
                     "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
                 },
             };
@@ -971,7 +986,10 @@ export class DataverseManager {
                                 errorMessage = `${errorData.error.code}: ${errorData.error.message}`;
                             }
                         } catch {
-                            errorMessage += `: ${data}`;
+                            const responseBody = data.trim();
+                            if (responseBody) {
+                                errorMessage += `: ${responseBody}`;
+                            }
                         }
 
                         reject(new Error(errorMessage));
@@ -989,6 +1007,7 @@ export class DataverseManager {
             req.end();
         });
     }
+
 
     /**
      * Extract GUID from OData entity URL

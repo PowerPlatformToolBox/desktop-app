@@ -139,6 +139,9 @@ export const TOOL_WINDOW_CHANNELS = {
     CALLEE_TOOL_CLOSED: "tool-window:callee-tool-closed",
     PREVENT_CLOSE: "tool-window:prevent-close",
     RELEASE_PREVENT_CLOSE: "tool-window:release-prevent-close",
+    GET_IMPERSONATION: "tool-window:get-impersonation",
+    SET_IMPERSONATION: "tool-window:set-impersonation",
+    RESET_IMPERSONATION: "tool-window:reset-impersonation",
 } as const;
 
 // Terminal-related IPC channels
@@ -173,6 +176,10 @@ export const UTIL_CHANNELS = {
     FETCH_FAVICON: "fetch-favicon",
     OPEN_IN_CONNECTION_BROWSER: "open-in-connection-browser",
     RESTART_APP: "restart-app",
+    WINDOW_MINIMIZE: "window-minimize",
+    WINDOW_TOGGLE_MAXIMIZE: "window-toggle-maximize",
+    WINDOW_CLOSE: "window-close",
+    WINDOW_IS_MAXIMIZED: "window-is-maximized",
 } as const;
 
 // Filesystem-related IPC channels
@@ -245,6 +252,7 @@ export const DATAVERSE_CHANNELS = {
     DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
     ORDER_OPTION: "dataverse.orderOption",
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
+    GET_SYSTEM_USERS: "dataverse.getSystemUsers",
 } as const;
 
 // Power Platform API-related IPC channels

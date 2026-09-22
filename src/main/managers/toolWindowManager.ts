@@ -12,6 +12,7 @@ import { SplitLayoutManager } from "./splitLayoutManager";
 import { TerminalManager } from "./terminalManager";
 import { ToolFileSystemAccessManager } from "./toolFileSystemAccessManager";
 import { ToolManager } from "./toolsManager";
+import type { DataverseUser } from "../../common/types/dataverse";
 
 interface InvocationContextMetadata {
     source?: "tool" | "mcp";
@@ -56,7 +57,7 @@ export class ToolWindowManager {
      *   cosmetic only and must be done consistently across all usages.
      */
     private toolViews: Map</* instanceId: string */ string, BrowserView> = new Map();
-    private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null }> = new Map(); // Maps instanceId -> connection info
+    private toolConnectionInfo: Map<string, { primaryConnectionId: string | null; secondaryConnectionId: string | null; impersonatedUser: DataverseUser | null }> = new Map();
     /** Maps instanceId → tool display name (used for the "Return to [CallerToolName]" banner). */
     private toolInstanceNames: Map<string, string> = new Map();
     /**
@@ -196,6 +197,9 @@ export class ToolWindowManager {
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.FIND_TOOLS_BY_CAPABILITY);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.PREVENT_CLOSE);
         ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RELEASE_PREVENT_CLOSE);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION);
+        ipcMain.removeHandler(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION);
     }
 
     /**
@@ -314,6 +318,9 @@ export class ToolWindowManager {
         ipcMain.handle(TOOL_WINDOW_CHANNELS.UPDATE_TOOL_CONNECTION, async (event, instanceId: string, primaryConnectionId: string | null, secondaryConnectionId?: string | null) => {
             return this.updateToolConnection(instanceId, primaryConnectionId, secondaryConnectionId);
         });
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.GET_IMPERSONATION, (_event, instanceId: string) => this.getImpersonation(instanceId));
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.SET_IMPERSONATION, (_event, instanceId: string, user: DataverseUser) => this.setImpersonation(instanceId, user));
+        ipcMain.handle(TOOL_WINDOW_CHANNELS.RESET_IMPERSONATION, (_event, instanceId: string) => this.resetImpersonation(instanceId));
 
         // Hide all tool windows (used when showing tool detail tabs)
         ipcMain.handle(TOOL_WINDOW_CHANNELS.HIDE_ALL, async () => {
@@ -519,6 +526,7 @@ export class ToolWindowManager {
             this.toolConnectionInfo.set(instanceId, {
                 primaryConnectionId: primaryConnectionId,
                 secondaryConnectionId: secondaryConnectionId,
+                impersonatedUser: null,
             });
 
             // Show this tool instance
@@ -979,6 +987,34 @@ export class ToolWindowManager {
         return null;
     }
 
+    getImpersonatedUserByWebContents(webContentsId: number, connectionTarget: "primary" | "secondary" = "primary"): DataverseUser | null {
+        if (connectionTarget === "secondary") return null;
+        for (const [instanceId, toolView] of this.toolViews.entries()) {
+            if (toolView.webContents.id === webContentsId) return this.toolConnectionInfo.get(instanceId)?.impersonatedUser ?? null;
+        }
+        return null;
+    }
+
+    getImpersonation(instanceId: string): { user: DataverseUser | null } {
+        return { user: this.toolConnectionInfo.get(instanceId)?.impersonatedUser ?? null };
+    }
+
+    getPrimaryConnectionIdByInstance(instanceId: string): string | null {
+        return this.toolConnectionInfo.get(instanceId)?.primaryConnectionId ?? null;
+    }
+
+    setImpersonation(instanceId: string, user: DataverseUser): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        if (!info || !info.primaryConnectionId) throw new Error("The tool has no primary connection.");
+        if (!user || !user.azureactivedirectoryobjectid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.azureactivedirectoryobjectid)) throw new Error("Selected Dataverse user has no valid Azure AD object ID.");
+        info.impersonatedUser = user;
+    }
+
+    resetImpersonation(instanceId: string): void {
+        const info = this.toolConnectionInfo.get(instanceId);
+        if (info) info.impersonatedUser = null;
+    }
+
     /**
      * Get the secondary connectionId for a tool instance by its WebContents
      * This is used by multi-connection tools
@@ -1257,6 +1293,7 @@ export class ToolWindowManager {
         // Update stored connection info
         const connectionInfo = this.toolConnectionInfo.get(instanceId);
         if (connectionInfo) {
+            if (connectionInfo.primaryConnectionId !== primaryConnectionId) connectionInfo.impersonatedUser = null;
             connectionInfo.primaryConnectionId = primaryConnectionId;
             if (secondaryConnectionId !== undefined) {
                 connectionInfo.secondaryConnectionId = secondaryConnectionId;
@@ -1265,6 +1302,7 @@ export class ToolWindowManager {
             this.toolConnectionInfo.set(instanceId, {
                 primaryConnectionId,
                 secondaryConnectionId: secondaryConnectionId || null,
+                impersonatedUser: null,
             });
         }
 
