@@ -3120,6 +3120,7 @@ class ToolBoxApp {
             width: 1200,
             height: 800,
             frame: process.platform !== "darwin",
+            autoHideMenuBar: process.platform !== "darwin",
             ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" as const } : {}),
             webPreferences: {
                 nodeIntegration: false,
@@ -3133,6 +3134,10 @@ class ToolBoxApp {
             title: "Power Platform ToolBox",
             icon: ToolBoxApp.resolveAppIcon(),
         });
+
+        if (process.platform !== "darwin") {
+            this.mainWindow.setMenuBarVisibility(false);
+        }
 
         // Initialize ToolWindowManager for managing tool BrowserViews
         this.toolWindowManager = new ToolWindowManager(
