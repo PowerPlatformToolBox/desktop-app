@@ -245,6 +245,15 @@ export const DATAVERSE_CHANNELS = {
     DELETE_OPTION_VALUE: "dataverse.deleteOptionValue",
     ORDER_OPTION: "dataverse.orderOption",
     GET_CSDL_DOCUMENT: "dataverse.getCSDLDocument",
+    EXECUTE_BATCH: "dataverse.executeBatch",
+    EXECUTE_TRANSACTION: "dataverse.executeTransaction",
+} as const;
+
+export const DATAVERSE_HEADER_CONSENT_CHANNELS = {
+    REQUEST: "dataverse-header-consent:request",
+    RESPOND: "dataverse-header-consent:respond",
+    GET_ALL: "dataverse-header-consent:get-all",
+    REVOKE: "dataverse-header-consent:revoke",
 } as const;
 
 // Power Platform API-related IPC channels

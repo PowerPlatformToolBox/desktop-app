@@ -3,56 +3,57 @@
 TypeScript type definitions for Power Platform ToolBox APIs, plus a built-in CLI validator that checks your tool's `package.json` against the official review criteria before you publish to npm.
 
 - [@pptb/types](#pptbtypes)
-    - [Installation](#installation)
-    - [Tool Validation](#tool-validation)
-        - [Quick start](#quick-start)
-        - [CLI options](#cli-options)
-        - [What is validated](#what-is-validated)
-            - [pptb.config.json (optional)](#pptbconfigjson-optional)
-    - [Overview](#overview)
-    - [Usage](#usage)
-        - [Include all type definitions](#include-all-type-definitions)
-        - [Include specific API types](#include-specific-api-types)
-    - [ToolBox API Examples](#toolbox-api-examples)
-        - [Connections](#connections)
-        - [Utilities](#utilities)
-        - [Terminal Operations](#terminal-operations)
-        - [Events](#events)
-        - [Inter-Tool Invocation](#inter-tool-invocation)
-            - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
-            - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery)
-            - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery-1)
-            - [Callee: reading prefill data and returning a result](#callee-reading-prefill-data-and-returning-a-result)
-            - [Declaring your invocation contract](#declaring-your-invocation-contract)
-    - [Dataverse API Examples](#dataverse-api-examples)
-        - [CRUD Operations](#crud-operations)
-        - [FetchXML Queries](#fetchxml-queries)
-        - [Metadata Operations](#metadata-operations)
-        - [Execute Actions/Functions](#execute-actionsfunctions)
-        - [Deploy Solutions](#deploy-solutions)
-    - [Power Platform API Examples](#power-platform-api-examples)
-        - [Using Power Apps API](#using-power-apps-api)
-        - [Using Power Automate API](#using-power-automate-api)
-        - [Using Environment Management API](#using-environment-management-api)
-        - [Using Governance API](#using-governance-api)
-        - [Available Categories](#available-categories)
-    - [API Reference](#api-reference)
-        - [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
-            - [Connections](#connections-1)
-            - [Utils](#utils)
-            - [Terminal](#terminal)
-            - [Events](#events-1)
-            - [Invocation](#invocation)
-        - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
-            - [CRUD Operations](#crud-operations-1)
-            - [Query Operations](#query-operations)
-            - [Metadata Operations](#metadata-operations-1)
-            - [Advanced Operations](#advanced-operations)
-        - [Power Platform API (`window.powerplatformAPI`)](#power-platform-api-windowpowerplatformapi)
-            - [Category Methods](#category-methods)
-        - [Security Notes](#security-notes)
-    - [Publishing the package to npm](#publishing-the-package-to-npm)
-    - [License](#license)
+  - [Installation](#installation)
+  - [Tool Validation](#tool-validation)
+    - [Quick start](#quick-start)
+    - [CLI options](#cli-options)
+    - [What is validated](#what-is-validated)
+      - [pptb.config.json (optional)](#pptbconfigjson-optional)
+  - [Additional Headers and Batch Operations](#additional-headers-and-batch-operations)
+  - [Overview](#overview)
+  - [Usage](#usage)
+    - [Include all type definitions](#include-all-type-definitions)
+    - [Include specific API types](#include-specific-api-types)
+  - [ToolBox API Examples](#toolbox-api-examples)
+    - [Connections](#connections)
+    - [Utilities](#utilities)
+    - [Terminal Operations](#terminal-operations)
+    - [Events](#events)
+    - [Inter-Tool Invocation](#inter-tool-invocation)
+      - [Caller: launching another tool with prefill data](#caller-launching-another-tool-with-prefill-data)
+      - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery)
+      - [Caller: tag-based capability discovery](#caller-tag-based-capability-discovery-1)
+      - [Callee: reading prefill data and returning a result](#callee-reading-prefill-data-and-returning-a-result)
+      - [Declaring your invocation contract](#declaring-your-invocation-contract)
+  - [Dataverse API Examples](#dataverse-api-examples)
+    - [CRUD Operations](#crud-operations)
+    - [FetchXML Queries](#fetchxml-queries)
+    - [Metadata Operations](#metadata-operations)
+    - [Execute Actions/Functions](#execute-actionsfunctions)
+    - [Deploy Solutions](#deploy-solutions)
+  - [Power Platform API Examples](#power-platform-api-examples)
+    - [Using Power Apps API](#using-power-apps-api)
+    - [Using Power Automate API](#using-power-automate-api)
+    - [Using Environment Management API](#using-environment-management-api)
+    - [Using Governance API](#using-governance-api)
+    - [Available Categories](#available-categories)
+  - [API Reference](#api-reference)
+    - [ToolBox API (`window.toolboxAPI`)](#toolbox-api-windowtoolboxapi)
+      - [Connections](#connections-1)
+      - [Utils](#utils)
+      - [Terminal](#terminal)
+      - [Events](#events-1)
+      - [Invocation](#invocation)
+    - [Dataverse API (`window.dataverseAPI`)](#dataverse-api-windowdataverseapi)
+      - [CRUD Operations](#crud-operations-1)
+      - [Query Operations](#query-operations)
+      - [Metadata Operations](#metadata-operations-1)
+      - [Advanced Operations](#advanced-operations)
+    - [Power Platform API (`window.powerplatformAPI`)](#power-platform-api-windowpowerplatformapi)
+      - [Category Methods](#category-methods)
+    - [Security Notes](#security-notes)
+  - [Publishing the package to npm](#publishing-the-package-to-npm)
+  - [License](#license)
 
 ## Installation
 
@@ -176,6 +177,31 @@ In addition to `package.json`, the validator automatically checks a `pptb.config
     }
 }
 ```
+
+## Additional Headers and Batch Operations
+
+Network-backed `dataverseAPI` methods accept optional additional headers as their final argument. The desktop app shows the exact header names and values for user consent before sending the first request. Users can allow the request once, allow all future Dataverse headers for that tool, or reject it.
+
+```typescript
+await dataverseAPI.update("account", accountId, { name: "Contoso" }, "primary", {
+    "If-Match": "*",
+    Prefer: "return=minimal",
+});
+
+const results = await dataverseAPI.executeBatch([
+    { method: "GET", url: "accounts?$select=name&$top=5" },
+    { method: "DELETE", url: `contacts(${contactId})`, headers: { "If-Match": "*" } },
+]);
+
+await dataverseAPI.executeTransaction([
+    { method: "POST", url: "accounts", body: { name: "Contoso" } },
+    { method: "POST", url: "contacts", body: { firstname: "Ada" } },
+]);
+```
+
+`executeBatch` returns an ordered result for every operation, including status, response headers, and an optional body. `executeTransaction` uses one atomic changeset and accepts write operations only. Batch URLs must be relative to the assigned Dataverse connection.
+
+Headless tools can use additional headers only after the user has granted persistent access during a windowed request.
 
 ## Overview
 

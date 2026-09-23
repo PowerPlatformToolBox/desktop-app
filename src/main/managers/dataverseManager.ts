@@ -1,10 +1,12 @@
 import * as https from "https";
-import { promisify } from "util";
+import { AsyncLocalStorage } from "async_hooks";
 import * as zlib from "zlib";
 import { logError, logWarn } from "../../common/logger";
 import {
     AttributeMetadataType,
     Connection,
+    DataverseBatchRequest,
+    DataverseBatchResult,
     ENTITY_RELATED_METADATA_BASE_PATHS,
     EntityRelatedMetadataPath,
     EntityRelatedMetadataResponse,
@@ -13,6 +15,15 @@ import {
     MetadataOperationOptions,
 } from "../../common/types";
 import { DATAVERSE_API_VERSION } from "../constants";
+import {
+    encodeDataverseBatch,
+    MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
+    mergeDataverseHeaders,
+    overrideDataverseHeaders,
+    parseDataverseBatchResponse,
+    validateAndSnapshotHeaders,
+    validateBatchRequests,
+} from "../utilities/dataverseBatch";
 import { AuthManager } from "./authManager";
 import { ConnectionsManager } from "./connectionsManager";
 
@@ -63,109 +74,15 @@ const ENTITY_RELATED_METADATA_BASE_PATH_SET: Set<string> = new Set(ENTITY_RELATE
 export class DataverseManager {
     private connectionsManager: ConnectionsManager;
     private authManager: AuthManager;
+    private readonly additionalHeadersContext = new AsyncLocalStorage<Record<string, string>>();
 
     constructor(connectionsManager: ConnectionsManager, authManager: AuthManager) {
         this.connectionsManager = connectionsManager;
         this.authManager = authManager;
     }
 
-    /**
-     * Allowed custom headers for metadata operations based on Microsoft Dataverse Web API documentation.
-     * These headers are validated before being passed to HTTP requests for metadata operations.
-     *
-     * Reference documentation:
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/retrieve-metadata-name-metadataid
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-definitions-using-web-api
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-column-definitions-using-web-api
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-relationships-using-web-api
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/multitable-lookup
-     * - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-optionsets
-     */
-    private static readonly ALLOWED_METADATA_HEADERS: ReadonlySet<string> = new Set<string>([
-        "mscrm.solutionuniquename", // Associates metadata changes with a specific solution (used in CREATE/UPDATE)
-        "mscrm.mergelabels", // Controls label merging: "true" (merge) or "false" (replace) in UPDATE operations
-        "consistency", // Forces reading latest version: "Strong" value (used in GET operations after changes)
-        "if-match", // Standard HTTP header for optimistic concurrency control
-        "if-none-match", // Standard HTTP header for caching control (commonly "null" in examples)
-    ]);
-
-    /**
-     * Headers that must never be passed as custom headers because they are controlled by makeHttpRequest.
-     * Attempting to override these headers will result in validation errors.
-     */
-    private static readonly PROTECTED_HEADERS: ReadonlySet<string> = new Set<string>(["authorization", "accept", "content-type", "odata-maxversion", "odata-version", "prefer", "content-length"]);
-
-    /**
-     * Validates custom headers for metadata operations against the allowed headers list.
-     * Case-insensitive matching per HTTP specification (RFC 2616).
-     *
-     * @param customHeaders - The custom headers to validate
-     * @param operationName - Optional name of the operation for more descriptive error messages
-     * @returns Validated headers object
-     * @throws Error if any header is not in the allowed list or attempts to override protected headers
-     *
-     * @example
-     * ```typescript
-     * // Valid headers
-     * const headers = this.validateMetadataHeaders({
-     *     "MSCRM.SolutionUniqueName": "examplesolution",
-     *     "MSCRM.MergeLabels": "true"
-     * }, "updateEntityDefinition");
-     *
-     * // Invalid header - throws error
-     * this.validateMetadataHeaders({
-     *     "X-Custom-Header": "value" // Not in allowed list
-     * });
-     *
-     * // Protected header - throws error
-     * this.validateMetadataHeaders({
-     *     "Authorization": "Bearer token" // Protected header
-     * });
-     * ```
-     */
-    private validateMetadataHeaders(customHeaders: Record<string, string> | undefined, operationName?: string): Record<string, string> {
-        if (!customHeaders || Object.keys(customHeaders).length === 0) {
-            return {};
-        }
-
-        const validatedHeaders: Record<string, string> = {};
-        const invalidHeaders: string[] = [];
-        const protectedHeaders: string[] = [];
-
-        for (const [headerName, headerValue] of Object.entries(customHeaders)) {
-            const normalizedHeaderName = headerName.toLowerCase();
-
-            // Check if attempting to override protected headers
-            if (DataverseManager.PROTECTED_HEADERS.has(normalizedHeaderName)) {
-                protectedHeaders.push(headerName);
-                continue;
-            }
-
-            // Check if header is in allowed list
-            if (DataverseManager.ALLOWED_METADATA_HEADERS.has(normalizedHeaderName)) {
-                validatedHeaders[headerName] = headerValue;
-            } else {
-                invalidHeaders.push(headerName);
-            }
-        }
-
-        // Build detailed error message if validation failed
-        if (protectedHeaders.length > 0 || invalidHeaders.length > 0) {
-            const errorParts: string[] = [];
-            const operation = operationName ? ` in ${operationName}` : "";
-
-            if (protectedHeaders.length > 0) {
-                errorParts.push(`Protected headers cannot be overridden: ${protectedHeaders.join(", ")}`);
-            }
-
-            if (invalidHeaders.length > 0) {
-                errorParts.push(`Invalid headers for metadata operations: ${invalidHeaders.join(", ")}. ` + `Allowed headers: ${Array.from(DataverseManager.ALLOWED_METADATA_HEADERS).join(", ")}`);
-            }
-
-            throw new Error(`Header validation failed${operation}. ${errorParts.join(". ")}`);
-        }
-
-        return validatedHeaders;
+    withAdditionalHeaders<T>(additionalHeaders: Record<string, string>, operation: () => Promise<T>): Promise<T> {
+        return this.additionalHeadersContext.run(additionalHeaders, operation);
     }
 
     /**
@@ -813,8 +730,15 @@ export class DataverseManager {
         const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
         const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/$metadata`);
 
-        const gunzipAsync = promisify(zlib.gunzip);
-        const inflateAsync = promisify(zlib.inflate);
+        const decompress = (buffer: Buffer, encoding: string | undefined): Promise<Buffer> => {
+            if (encoding !== "gzip" && encoding !== "deflate") return Promise.resolve(buffer);
+            return new Promise((resolve, reject) => {
+                const callback = (error: Error | null, result: Buffer) => (error ? reject(error) : resolve(result));
+                const options = { maxOutputLength: MAX_DATAVERSE_BATCH_RESPONSE_BYTES };
+                if (encoding === "gzip") zlib.gunzip(buffer, options, callback);
+                else zlib.inflate(buffer, options, callback);
+            });
+        };
 
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
@@ -828,30 +752,34 @@ export class DataverseManager {
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/xml",
                     "Accept-Encoding": "gzip, deflate",
+                    ...this.additionalHeadersContext.getStore(),
                 },
             };
 
             const req = https.request(options, (res) => {
                 const chunks: Buffer[] = [];
+                let responseBytes = 0;
+                let responseLimitExceeded = false;
 
                 res.on("data", (chunk: Buffer) => {
+                    responseBytes += chunk.length;
+                    if (responseBytes > MAX_DATAVERSE_BATCH_RESPONSE_BYTES) {
+                        responseLimitExceeded = true;
+                        res.destroy();
+                        reject(new Error("Dataverse metadata response exceeds the maximum size"));
+                        return;
+                    }
                     chunks.push(chunk);
                 });
 
                 res.on("end", async () => {
+                    if (responseLimitExceeded) return;
                     if (res.statusCode === 200) {
                         try {
                             const buffer = Buffer.concat(chunks);
                             const encoding = res.headers["content-encoding"];
 
-                            let decompressed: Buffer;
-                            if (encoding === "gzip") {
-                                decompressed = await gunzipAsync(buffer);
-                            } else if (encoding === "deflate") {
-                                decompressed = await inflateAsync(buffer);
-                            } else {
-                                decompressed = buffer;
-                            }
+                            const decompressed = await decompress(buffer, encoding);
 
                             resolve(decompressed.toString("utf-8"));
                         } catch (error) {
@@ -862,18 +790,9 @@ export class DataverseManager {
                         try {
                             const buffer = Buffer.concat(chunks);
                             const encoding = res.headers["content-encoding"];
-                            let decompressed: Buffer;
+                            await decompress(buffer, encoding);
 
-                            if (encoding === "gzip") {
-                                decompressed = await gunzipAsync(buffer);
-                            } else if (encoding === "deflate") {
-                                decompressed = await inflateAsync(buffer);
-                            } else {
-                                decompressed = buffer;
-                            }
-
-                            const body = decompressed.toString("utf-8");
-                            reject(new Error(`Failed to retrieve CSDL document. Status: ${res.statusCode}, Body: ${body}`));
+                            reject(new Error(`Failed to retrieve CSDL document. Status: ${res.statusCode}`));
                         } catch (decompressError) {
                             reject(new Error(`Failed to process error response: ${(decompressError as Error).message}`));
                         }
@@ -896,13 +815,15 @@ export class DataverseManager {
         url: string,
         method: string,
         accessToken: string,
-        body?: Record<string, unknown>,
+        body?: unknown,
         preferOptions?: string[],
         customHeaders?: Record<string, string>,
-    ): Promise<{ data: unknown; headers: Record<string, string> }> {
+        maxResponseBytes = MAX_DATAVERSE_BATCH_RESPONSE_BYTES,
+    ): Promise<{ status: number; data: unknown; rawBody: string; headers: Record<string, string> }> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
-            const bodyData = body ? JSON.stringify(body) : undefined;
+            const bodyData = body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body);
+            const validatedHeaders = mergeDataverseHeaders(customHeaders, this.additionalHeadersContext.getStore());
 
             // Build Prefer header with multiple comma-separated values
             const preferValues = ["return=representation"];
@@ -917,8 +838,6 @@ export class DataverseManager {
                 path: urlObj.pathname + urlObj.search,
                 method: method,
                 headers: {
-                    // Spread custom headers first, then override with required headers to prevent accidental overwrites
-                    ...(customHeaders || {}),
                     Authorization: `Bearer ${accessToken}`,
                     Accept: "application/json",
                     "OData-MaxVersion": "4.0",
@@ -926,17 +845,28 @@ export class DataverseManager {
                     "Content-Type": "application/json; charset=utf-8",
                     Prefer: preferHeader,
                     "Content-Length": bodyData ? Buffer.byteLength(bodyData) : 0,
+                    ...validatedHeaders,
                 },
             };
 
             const req = https.request(options, (res) => {
                 let data = "";
+                let responseBytes = 0;
+                let responseLimitExceeded = false;
 
-                res.on("data", (chunk) => {
+                res.on("data", (chunk: Buffer) => {
+                    responseBytes += chunk.length;
+                    if (maxResponseBytes !== undefined && responseBytes > maxResponseBytes) {
+                        responseLimitExceeded = true;
+                        res.destroy();
+                        reject(new Error("Dataverse response exceeds the maximum size"));
+                        return;
+                    }
                     data += chunk;
                 });
 
                 res.on("end", () => {
+                    if (responseLimitExceeded) return;
                     // Collect response headers
                     const responseHeaders: Record<string, string> = {};
                     if (res.headers) {
@@ -961,7 +891,7 @@ export class DataverseManager {
                                 parsedData = {};
                             }
                         }
-                        resolve({ data: parsedData, headers: responseHeaders });
+                        resolve({ status: res.statusCode, data: parsedData, rawBody: data, headers: responseHeaders });
                     } else {
                         // Handle error responses
                         let errorMessage = `HTTP ${res.statusCode}`;
@@ -971,7 +901,7 @@ export class DataverseManager {
                                 errorMessage = `${errorData.error.code}: ${errorData.error.message}`;
                             }
                         } catch {
-                            errorMessage += `: ${data}`;
+                            errorMessage = `HTTP ${res.statusCode}`;
                         }
 
                         reject(new Error(errorMessage));
@@ -1408,8 +1338,7 @@ export class DataverseManager {
             headers["Consistency"] = "Strong";
         }
 
-        // Validate headers against allowed list (defensive programming - ensures type-safe options produce valid headers)
-        return this.validateMetadataHeaders(headers);
+        return validateAndSnapshotHeaders(headers);
     }
 
     /**
@@ -2040,5 +1969,32 @@ export class DataverseManager {
             operationType: "action",
             parameters: params,
         });
+    }
+
+    async executeBatch(connectionId: string, requests: DataverseBatchRequest[], additionalHeaders?: Record<string, string>): Promise<DataverseBatchResult[]> {
+        return this.executeMultipart(connectionId, requests, false, additionalHeaders);
+    }
+
+    async executeTransaction(connectionId: string, requests: DataverseBatchRequest[], additionalHeaders?: Record<string, string>): Promise<DataverseBatchResult[]> {
+        return this.executeMultipart(connectionId, requests, true, additionalHeaders);
+    }
+
+    private async executeMultipart(connectionId: string, requests: DataverseBatchRequest[], transaction: boolean, additionalHeaders?: Record<string, string>): Promise<DataverseBatchResult[]> {
+        const validatedRequests = validateBatchRequests(requests, transaction);
+        const encoded = encodeDataverseBatch([...validatedRequests], transaction);
+        const { connection, accessToken } = await this.getConnectionWithToken(connectionId);
+        const url = this.buildApiUrl(connection, `api/data/${DATAVERSE_API_VERSION}/$batch`);
+        const headers = overrideDataverseHeaders({ "Content-Type": encoded.contentType, Accept: "multipart/mixed" }, additionalHeaders);
+        const response = await this.makeHttpRequest(url, "POST", accessToken, encoded.body, undefined, headers, MAX_DATAVERSE_BATCH_RESPONSE_BYTES);
+        const responseContentType = response.headers["content-type"];
+        if (!responseContentType?.toLowerCase().includes("multipart/mixed")) {
+            throw new Error("Malformed Dataverse batch response: expected multipart/mixed");
+        }
+        return parseDataverseBatchResponse(
+            response.rawBody,
+            responseContentType,
+            validatedRequests.map((request) => request.contentId as string),
+            transaction,
+        );
     }
 }

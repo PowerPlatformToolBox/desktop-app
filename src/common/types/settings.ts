@@ -109,6 +109,12 @@ export interface CspConsentRecord {
     seenOptional: string[];
 }
 
+export interface DataverseHeaderConsentRecord {
+    status: "granted" | "revoked";
+    grantedAt: string;
+    revokedAt?: string;
+}
+
 /**
  * User settings for the ToolBox application
  */
@@ -126,6 +132,7 @@ export interface UserSettings {
     installedTools: string[]; // List of installed tool package names
     favoriteTools: string[]; // List of favorite tool IDs
     cspConsents: { [toolId: string]: CspConsentRecord }; // CSP consent records per tool
+    dataverseHeaderConsents: { [toolId: string]: DataverseHeaderConsentRecord }; // Dataverse additional-header consent records per tool
     toolConnections: { [toolId: string]: string }; // Map of toolId to connectionId
     toolSecondaryConnections: { [toolId: string]: string }; // Map of toolId to secondary connectionId for multi-connection tools
     installId?: string; // Unique install identifier for analytics

@@ -17,6 +17,7 @@ import {
 import { markRendererInitialized } from "../utils/initializationState";
 import { setupAutoUpdateListeners } from "./autoUpdateManagement";
 import { initializeBrowserWindowModals } from "./browserWindowModals";
+import { initializeDataverseHeaderConsentModal } from "./dataverseHeaderConsentModal";
 import {
     clearConnectionDropdownFilters,
     exportConnections,
@@ -27,7 +28,7 @@ import {
     openAddConnectionModal,
     updateFooterConnection,
 } from "./connectionManagement";
-import { openConsentReviewTab } from "./cspConsentReviewSidebarManagement";
+import { openConsentReviewTab } from "./consentReviewManagement";
 import { initializeGlobalSearch } from "./globalSearchManagement";
 import { loadHomepageData, setupHomepageActions } from "./homepageManagement";
 import { clearMarketplaceDropdownFilters, handleProtocolInstallToolRequest, loadMarketplace, loadToolsLibrary } from "./marketplaceManagement";
@@ -69,6 +70,7 @@ export async function initializeApplication(): Promise<void> {
         window.api.send(TOOL_WINDOW_CHANNELS.RENDERER_INITIALIZED);
 
         initializeBrowserWindowModals();
+        initializeDataverseHeaderConsentModal();
         const initialSettings = await window.toolboxAPI.getUserSettings();
         applyTheme(initialSettings.theme);
         await applyRendererSentryConsent(normalizeTelemetryConsent(initialSettings.sentryTelemetryConsent));

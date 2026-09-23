@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added Dataverse Web API batch and transactional operations with per-operation status, headers, and response bodies.
+- Added user-consented additional headers across the standalone `dataverseAPI`.
+- Redesigned Consent Review with separate CSP Exceptions and Dataverse Headers views, compact expandable rows, and retained revocation history.
+
+### Security
+
+- Added sender-bound consent checks, same-origin batch URL validation, multipart resource limits, and sensitive response redaction for Dataverse requests.
+
 ## v1.2.1 (2026-04-02)
 
 ### Highlights

@@ -3,6 +3,7 @@ import Store from "electron-store";
 import { normalizeTelemetryConsent } from "../../common/telemetryConsent";
 import {
     CspConsentRecord,
+    DataverseHeaderConsentRecord,
     LastUsedToolConnectionInfo,
     LastUsedToolEntry,
     LastUsedToolUpdate,
@@ -47,6 +48,7 @@ export class SettingsManager {
                 installedTools: [],
                 favoriteTools: [],
                 cspConsents: {}, // Track CSP consent for each tool
+                dataverseHeaderConsents: {}, // Track Dataverse additional-header consent for each tool
                 toolConnections: {}, // Map of toolId to connectionId
                 toolSecondaryConnections: {}, // Map of toolId to secondary connectionId
                 connectionsSort: "last-used",
@@ -394,6 +396,29 @@ export class SettingsManager {
      */
     getCspConsents(): { [toolId: string]: CspConsentRecord } {
         return this.store.get("cspConsents") || {};
+    }
+
+    hasDataverseHeaderConsent(toolId: string): boolean {
+        const consents = this.store.get("dataverseHeaderConsents") || {};
+        return consents[toolId]?.status === "granted";
+    }
+
+    grantDataverseHeaderConsent(toolId: string, grantedAt = new Date().toISOString()): void {
+        const consents = this.store.get("dataverseHeaderConsents") || {};
+        consents[toolId] = { status: "granted", grantedAt };
+        this.store.set("dataverseHeaderConsents", consents);
+    }
+
+    revokeDataverseHeaderConsent(toolId: string, revokedAt = new Date().toISOString()): void {
+        const consents = this.store.get("dataverseHeaderConsents") || {};
+        const existing = consents[toolId];
+        if (!existing) return;
+        consents[toolId] = { status: "revoked", grantedAt: existing.grantedAt, revokedAt };
+        this.store.set("dataverseHeaderConsents", consents);
+    }
+
+    getDataverseHeaderConsents(): { [toolId: string]: DataverseHeaderConsentRecord } {
+        return this.store.get("dataverseHeaderConsents") || {};
     }
 
     /**

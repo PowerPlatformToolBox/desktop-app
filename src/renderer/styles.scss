@@ -978,6 +978,10 @@ body.dark-theme .settings-section-card {
     color: #0f6f0f;
 }
 
+.consent-status.partial {
+    color: #8a5700;
+}
+
 .consent-status.revoked {
     color: #a4262c;
 }
@@ -1099,8 +1103,192 @@ body.dark-theme .consent-status.granted {
     color: #7ddc7a;
 }
 
+body.dark-theme .consent-status.partial {
+    color: #f7c95c;
+}
+
 body.dark-theme .consent-status.revoked {
     color: #ffb3b8;
+}
+
+.consent-review-type-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 8px 24px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.consent-review-type-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin-bottom: -1px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: var(--sidebar-bg);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.consent-review-type-tab:hover:not(.active) {
+    background: var(--hover-bg, rgba(128, 128, 128, 0.1));
+    color: var(--text-color);
+}
+
+.consent-review-type-tab.active {
+    border-color: var(--border-color);
+    border-top-color: var(--accent-color);
+    border-top-width: 2px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.consent-review-tab-count {
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--button-secondary-bg, rgba(128, 128, 128, 0.16));
+    font-size: 11px;
+    text-align: center;
+}
+
+.consent-review-summary {
+    min-height: 40px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.consent-review-row {
+    border-bottom: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.15));
+}
+
+.consent-review-row-overview {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+    align-items: center;
+    gap: 20px;
+    min-height: 68px;
+    padding: 10px 24px;
+}
+
+.consent-review-row-identity {
+    min-width: 0;
+}
+
+.consent-review-row-title,
+.consent-review-row-authors,
+.consent-review-row-summary {
+    margin: 0;
+}
+
+.consent-review-row-title {
+    overflow: hidden;
+    color: var(--text-color);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.consent-review-row-authors,
+.consent-review-row-summary {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.consent-review-row-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.consent-review-row-detail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border-color-subtle, rgba(128, 128, 128, 0.15));
+    background: var(--sidebar-bg);
+}
+
+.consent-review-detail-label {
+    margin: 0 0 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.consent-review-row-detail > .fluent-button,
+.consent-review-scope-note,
+.consent-review-timestamps {
+    grid-column: 1 / -1;
+}
+
+.consent-review-row-detail > .fluent-button {
+    justify-self: end;
+}
+
+.consent-review-scope-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.consent-review-timestamps {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 12px;
+    margin: 0;
+    font-size: 12px;
+}
+
+.consent-review-timestamps dt {
+    color: var(--text-secondary);
+}
+
+.consent-review-timestamps dd {
+    margin: 0;
+}
+
+.consent-review-empty {
+    margin: 0;
+    padding: 32px 24px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+@media (max-width: 800px) {
+    .consent-review-type-tabs,
+    .consent-review-tab-toolbar {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .consent-review-row-overview {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 14px 16px;
+    }
+
+    .consent-review-row-controls {
+        justify-content: space-between;
+    }
+
+    .consent-review-row-detail {
+        grid-template-columns: 1fr;
+        padding: 14px 16px 18px;
+    }
 }
 
 .btn-sm {
